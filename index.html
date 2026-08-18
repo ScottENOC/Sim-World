@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Worldsim</title>
+<link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+  <div id="app">
+    <canvas id="map-canvas"></canvas>
+
+    <div id="hud">
+      <div id="hud-date">—</div>
+      <div id="hud-controls">
+        <button id="btn-pause" class="hud-btn" aria-label="Pause">II</button>
+        <button id="btn-speed-1" class="hud-btn speed-btn active" data-speed="1">1x</button>
+        <button id="btn-speed-2" class="hud-btn speed-btn" data-speed="2">2x</button>
+        <button id="btn-speed-4" class="hud-btn speed-btn" data-speed="4">4x</button>
+      </div>
+    </div>
+
+    <div id="region-sheet" class="sheet hidden">
+      <div id="region-sheet-handle"></div>
+      <h2 id="region-name">—</h2>
+      <div id="region-details"></div>
+    </div>
+
+    <div id="event-modal" class="modal hidden">
+      <div class="modal-card">
+        <h2 id="event-title">—</h2>
+        <p id="event-body"></p>
+        <div id="event-options"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Only d3-geo (projection + canvas path generation) and d3-zoom (pinch/pan) are
+       actually used. The bundled build is ~90KB gzipped and avoids hand-tracking the
+       transitive dependency chain between d3's micro-modules — worth it for a first pass. -->
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
