@@ -1,0 +1,175 @@
+/* Palette: an old-atlas feel rather than a UI-kit default —
+   ink-blue void, aged bronze accent, parchment text. */
+:root {
+  --ink: #10141c;
+  --ink-2: #171d29;
+  --parchment: #e8e1cf;
+  --parchment-dim: #a8a08c;
+  --bronze: #c08a4e;
+  --bronze-dim: #7a5a34;
+  --land-fill: #3a4a3e;
+  --land-stroke: #6b7d63;
+  --danger: #a4453a;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--ink);
+  color: var(--parchment);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+#app {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+}
+
+#map-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+/* ---------- HUD ---------- */
+#hud {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: max(10px, env(safe-area-inset-top)) 14px 10px;
+  background: linear-gradient(to bottom, rgba(16,20,28,0.92), rgba(16,20,28,0));
+  pointer-events: none;
+}
+
+#hud-date {
+  font-variant: small-caps;
+  letter-spacing: 0.04em;
+  font-size: 15px;
+  color: var(--parchment);
+  pointer-events: auto;
+}
+
+#hud-controls {
+  display: flex;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.hud-btn {
+  min-width: 40px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--bronze-dim);
+  background: rgba(23, 29, 41, 0.85);
+  color: var(--parchment-dim);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.hud-btn.active {
+  border-color: var(--bronze);
+  color: var(--ink);
+  background: var(--bronze);
+}
+
+/* ---------- Bottom sheet (region details) ---------- */
+.sheet {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  max-height: 60vh;
+  background: var(--ink-2);
+  border-top: 1px solid var(--bronze-dim);
+  border-radius: 16px 16px 0 0;
+  padding: 8px 18px calc(18px + env(safe-area-inset-bottom));
+  transform: translateY(0);
+  transition: transform 0.25s ease;
+  overflow-y: auto;
+}
+
+.sheet.hidden { transform: translateY(105%); }
+
+#region-sheet-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--parchment-dim);
+  opacity: 0.4;
+  margin: 6px auto 12px;
+}
+
+#region-name {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--parchment);
+}
+
+#region-details {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--parchment-dim);
+}
+
+/* ---------- Event modal (auto-pause) ---------- */
+.modal {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 12, 16, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal.hidden { display: none; }
+
+.modal-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--ink-2);
+  border: 1px solid var(--bronze-dim);
+  border-radius: 14px;
+  padding: 20px;
+}
+
+.modal-card h2 {
+  margin: 0 0 10px;
+  color: var(--bronze);
+  font-size: 18px;
+}
+
+.modal-card p {
+  color: var(--parchment);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+#event-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+#event-options button {
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--bronze-dim);
+  background: transparent;
+  color: var(--parchment);
+  font-size: 15px;
+  text-align: left;
+}
+
+#event-options button:active { background: var(--bronze-dim); }

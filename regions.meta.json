@@ -1,0 +1,117 @@
+{
+  "regions": [
+    {
+      "id": "england",
+      "name": "England",
+      "centroid": [
+        -1.4589,
+        52.5946
+      ],
+      "areaSqKm": 130175.0,
+      "neighbors": [
+        "scotland",
+        "wales"
+      ],
+      "distanceKm": {
+        "scotland": 501.6,
+        "wales": 158.2,
+        "n_ireland": 411.4,
+        "ireland": 453.0,
+        "france": 730.9
+      }
+    },
+    {
+      "id": "scotland",
+      "name": "Scotland",
+      "centroid": [
+        -4.1691,
+        56.8263
+      ],
+      "areaSqKm": 77953.0,
+      "neighbors": [
+        "england"
+      ],
+      "distanceKm": {
+        "england": 501.6,
+        "wales": 499.8,
+        "n_ireland": 292.9,
+        "ireland": 478.2,
+        "france": 1231.0
+      }
+    },
+    {
+      "id": "wales",
+      "name": "Wales",
+      "centroid": [
+        -3.7555,
+        52.3375
+      ],
+      "areaSqKm": 20708.0,
+      "neighbors": [
+        "england"
+      ],
+      "distanceKm": {
+        "england": 158.2,
+        "scotland": 499.8,
+        "n_ireland": 318.6,
+        "ireland": 309.7,
+        "france": 787.5
+      }
+    },
+    {
+      "id": "n_ireland",
+      "name": "Northern Ireland",
+      "centroid": [
+        -6.6932,
+        54.6081
+      ],
+      "areaSqKm": 14213.0,
+      "neighbors": [
+        "ireland"
+      ],
+      "distanceKm": {
+        "england": 411.4,
+        "scotland": 292.9,
+        "wales": 318.6,
+        "ireland": 185.2,
+        "france": 1106.1
+      }
+    },
+    {
+      "id": "ireland",
+      "name": "Ireland",
+      "centroid": [
+        -8.1438,
+        53.1782
+      ],
+      "areaSqKm": 69347.0,
+      "neighbors": [
+        "n_ireland"
+      ],
+      "distanceKm": {
+        "england": 453.0,
+        "scotland": 478.2,
+        "wales": 309.7,
+        "n_ireland": 185.2,
+        "france": 1060.8
+      }
+    },
+    {
+      "id": "france",
+      "name": "France",
+      "centroid": [
+        2.5479,
+        46.5544
+      ],
+      "areaSqKm": 548000.0,
+      "neighbors": [],
+      "distanceKm": {
+        "england": 730.9,
+        "scotland": 1231.0,
+        "wales": 787.5,
+        "n_ireland": 1106.1,
+        "ireland": 1060.8
+      }
+    }
+  ]
+}
