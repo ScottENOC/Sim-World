@@ -6,8 +6,21 @@ const COLORS = {
   ocean: '#10141c',
   land: '#3a4a3e',
   landSelected: '#c08a4e',
-  border: '#6b7d63',
+  border: '#0b0e13',
+  borderSelected: '#c08a4e',
 };
+
+function hexToRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function lerpColor(hexA, hexB, t) {
+  const a = hexToRgb(hexA);
+  const b = hexToRgb(hexB);
+  const c = a.map((ch, i) => Math.round(ch + (b[i] - ch) * t));
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
 
 export class MapRenderer {
   constructor(canvas, regions, { onSelect } = {}) {
@@ -17,6 +30,7 @@ export class MapRenderer {
     this.onSelect = onSelect || (() => {});
     this.selectedId = null;
     this.transform = d3.zoomIdentity;
+    this.layer = null; // active choropleth layer, set via setLayer()
 
     this._resize();
     window.addEventListener('resize', () => this._resize());
@@ -97,6 +111,43 @@ export class MapRenderer {
     return found;
   }
 
+  // valueFn(region) -> number. Regions get shaded from colorLow (lowest
+  // value) to colorHigh (highest), so any per-region stat — population
+  // density today, later stability, resource stock, whatever — can drive
+  // the map without touching the renderer again.
+  setLayer({ valueFn, label, format = (v) => Math.round(v).toLocaleString(), colorLow = '#28352b', colorHigh = '#c08a4e' }) {
+    const values = this.regions.map(valueFn);
+    this.layer = {
+      valueFn,
+      label,
+      format,
+      colorLow,
+      colorHigh,
+      min: Math.min(...values),
+      max: Math.max(...values),
+    };
+    this.draw();
+  }
+
+  clearLayer() {
+    this.layer = null;
+    this.draw();
+  }
+
+  getLegendInfo() {
+    if (!this.layer) return null;
+    const { label, min, max, format, colorLow, colorHigh } = this.layer;
+    return { label, min: format(min), max: format(max), colorLow, colorHigh };
+  }
+
+  _fillForRegion(region) {
+    if (region.id === this.selectedId) return COLORS.landSelected;
+    if (!this.layer) return COLORS.land;
+    const { valueFn, min, max, colorLow, colorHigh } = this.layer;
+    const t = max > min ? (valueFn(region) - min) / (max - min) : 0.5;
+    return lerpColor(colorLow, colorHigh, t);
+  }
+
   draw() {
     const ctx = this.ctx;
     ctx.save();
@@ -106,14 +157,14 @@ export class MapRenderer {
     ctx.translate(this.transform.x, this.transform.y);
     ctx.scale(this.transform.k, this.transform.k);
 
-    ctx.lineWidth = 1 / this.transform.k;
-    ctx.strokeStyle = COLORS.border;
-
     for (const region of this.regions) {
+      const selected = region.id === this.selectedId;
       ctx.beginPath();
       this.path(region.feature);
-      ctx.fillStyle = region.id === this.selectedId ? COLORS.landSelected : COLORS.land;
+      ctx.fillStyle = this._fillForRegion(region);
       ctx.fill();
+      ctx.lineWidth = (selected ? 2.5 : 1) / this.transform.k;
+      ctx.strokeStyle = selected ? COLORS.borderSelected : COLORS.border;
       ctx.stroke();
     }
 
