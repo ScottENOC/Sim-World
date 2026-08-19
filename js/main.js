@@ -1,6 +1,7 @@
 import { Clock } from './core/clock.js';
 import { EventBus } from './core/eventBus.js';
 import { loadWorld } from './world/region.js';
+import { seedCensus, densityPerKm2 } from './society/census.js';
 import { MapRenderer } from './ui/mapRenderer.js';
 
 const START_YEAR = -1200; // Bronze Age start, mid-collapse-era — tune later
@@ -10,12 +11,23 @@ async function main() {
   const clock = new Clock();
 
   const regions = await loadWorld();
-  console.log(`Loaded ${regions.length} regions:`, regions.map((r) => r.name).join(', '));
+  seedCensus(regions);
+  console.log(
+    `Loaded ${regions.length} regions:`,
+    regions.map((r) => `${r.name} (pop ${r.population.toLocaleString()})`).join(', ')
+  );
 
   const canvas = document.getElementById('map-canvas');
   const map = new MapRenderer(canvas, regions, {
     onSelect: (region) => showRegionSheet(region),
   });
+
+  map.setLayer({
+    valueFn: (r) => densityPerKm2(r),
+    label: 'Population / km²',
+    format: (v) => v.toFixed(1),
+  });
+  showLegend(map);
 
   wireHud(clock);
   clock.onTick(() => {
@@ -47,11 +59,26 @@ function wireHud(clock) {
   });
 }
 
+function showLegend(map) {
+  const info = map.getLegendInfo();
+  if (!info) return;
+  document.getElementById('legend-label').textContent = info.label;
+  document.getElementById('legend-min').textContent = info.min;
+  document.getElementById('legend-max').textContent = info.max;
+  document.getElementById('legend').classList.remove('hidden');
+}
+
 function showRegionSheet(region) {
   const sheet = document.getElementById('region-sheet');
   document.getElementById('region-name').textContent = region.name;
+
+  const density = densityPerKm2(region).toFixed(1);
+  const culture = region.cultureGroups[0]; // monoculture at game start
+
   document.getElementById('region-details').innerHTML = `
+    <div>Population: ${region.population.toLocaleString()} (${density}/km&sup2;)</div>
     <div>Area: ${Math.round(region.areaSqKm).toLocaleString()} km&sup2;</div>
+    <div>Culture: ${culture.cultureId} &middot; identity strength ${(culture.identityStrength * 100).toFixed(0)}%</div>
     <div>Neighbours: ${region.neighbors.length ? region.neighbors.join(', ') : 'none by land'}</div>
     <div>Controlled by: ${region.controllingActorId}</div>
   `;
