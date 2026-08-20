@@ -18,23 +18,38 @@ export class Region {
     this.cultureGroups = null;    // [{ ancestryId, cultureId, religionId, share, identityStrength }]
     this.controllingActorId = id; // defaults to "this region governs itself"
     this.stability = 1.0;         // 0-1, feeds the Phase 2 collapse/raider-pressure system
+
+    // --- Economy (set by loadWorld from resources.initial.json) ---
+    this.landQuality = null;               // multiplier: how good this land is, farming + population alike
+    this.forest = null;                    // { currentStock, K }
+    this.deposits = null;                  // { copper: { tiers: [{id, label, initialStock, remainingStock, difficulty, requiredTechId, maxWorkers}] }, ... }
+    this.stockpile = {};                   // { wood, copper, tin, gold, stone, bronze, food }
+    this.occupations = {};                 // { farmer, lumberjack, miner, smith, general } — set each tick by economy/labor.js
+
+    // Stub until technology/techTree.js exists: nothing is ever unlocked yet,
+    // so every deposit sits at its surface/alluvial tier forever. Real tech
+    // diffusion will just start adding ids to this set — extraction.js
+    // already reads from it, so no other code needs to change when that lands.
+    this.unlockedTechIds = new Set();
   }
 }
 
 export async function loadWorld() {
-  const [geoRes, metaRes] = await Promise.all([
+  const [geoRes, metaRes, resourcesRes] = await Promise.all([
     fetch('data/world/regions.geo.json'),
     fetch('data/world/regions.meta.json'),
+    fetch('data/world/resources.initial.json'),
   ]);
   const geo = await geoRes.json();
   const meta = await metaRes.json();
+  const resources = await resourcesRes.json();
 
   const metaById = new Map(meta.regions.map((r) => [r.id, r]));
 
   const regions = geo.features.map((feature) => {
     const id = feature.properties.id;
     const m = metaById.get(id);
-    return new Region({
+    const region = new Region({
       id,
       name: feature.properties.name,
       feature,
@@ -43,6 +58,19 @@ export async function loadWorld() {
       neighbors: m.neighbors,
       distanceKm: m.distanceKm,
     });
+
+    const endowment = resources[id];
+    region.landQuality = endowment.landQuality;
+    const K = region.areaSqKm * endowment.forestFraction;
+    region.forest = { currentStock: K * endowment.forestStartCoverage, K };
+    region.deposits = {};
+    for (const [key, dep] of Object.entries(endowment.deposits)) {
+      region.deposits[key] = {
+        tiers: dep.tiers.map((tier) => ({ ...tier, remainingStock: tier.initialStock })),
+      };
+    }
+
+    return region;
   });
 
   return regions;
