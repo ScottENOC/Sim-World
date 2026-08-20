@@ -2,9 +2,25 @@ import { Clock } from './core/clock.js';
 import { EventBus } from './core/eventBus.js';
 import { loadWorld } from './world/region.js';
 import { seedCensus, densityPerKm2 } from './society/census.js';
+import { tickEconomy } from './economy/labor.js';
 import { MapRenderer } from './ui/mapRenderer.js';
 
 const START_YEAR = -1200; // Bronze Age start, mid-collapse-era — tune later
+
+const LAYERS = {
+  density: {
+    valueFn: (r) => densityPerKm2(r),
+    label: 'Population / km²',
+    format: (v) => v.toFixed(1),
+  },
+  stability: {
+    valueFn: (r) => r.stability,
+    label: 'Stability',
+    format: (v) => v.toFixed(2),
+    colorLow: '#a4453a', // red: collapsing
+    colorHigh: '#3a4a3e', // back to the neutral land tone: fine
+  },
+};
 
 async function main() {
   const bus = new EventBus();
@@ -22,16 +38,23 @@ async function main() {
     onSelect: (region) => showRegionSheet(region),
   });
 
-  map.setLayer({
-    valueFn: (r) => densityPerKm2(r),
-    label: 'Population / km²',
-    format: (v) => v.toFixed(1),
-  });
+  let selectedRegion = null;
+  const originalOnSelect = map.onSelect;
+  map.onSelect = (region) => {
+    selectedRegion = region;
+    originalOnSelect(region);
+  };
+
+  wireLayerToggle(map);
+  map.setLayer(LAYERS.density);
   showLegend(map);
 
   wireHud(clock);
   clock.onTick(() => {
+    tickEconomy(regions);
     document.getElementById('hud-date').textContent = clock.formatDate(START_YEAR);
+    map.draw();
+    if (selectedRegion) showRegionSheet(selectedRegion); // keep the open sheet live
   });
   document.getElementById('hud-date').textContent = clock.formatDate(START_YEAR);
 
@@ -39,6 +62,17 @@ async function main() {
 
   // Expose for console poking during development.
   window.__worldsim = { bus, clock, regions, map };
+}
+
+function wireLayerToggle(map) {
+  document.querySelectorAll('.layer-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      map.setLayer(LAYERS[btn.dataset.layer]);
+      showLegend(map);
+      document.querySelectorAll('.layer-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
 }
 
 function wireHud(clock) {
@@ -74,10 +108,24 @@ function showRegionSheet(region) {
 
   const density = densityPerKm2(region).toFixed(1);
   const culture = region.cultureGroups[0]; // monoculture at game start
+  const occ = region.occupations;
+  const occLine = occ.farmer === undefined
+    ? 'not yet ticked'
+    : `farmers ${occ.farmer.toLocaleString()} &middot; lumberjacks ${occ.lumberjack} &middot; miners ${occ.miner} &middot; smiths ${occ.smith} &middot; general ${occ.general.toLocaleString()}`;
+
+  const stock = region.stockpile;
+  const stockLine = Object.keys(stock).length
+    ? Object.entries(stock)
+        .filter(([, v]) => v > 0.05)
+        .map(([k, v]) => `${k} ${v.toFixed(k === 'bronze' ? 1 : 0)}`)
+        .join(' &middot; ') || 'none yet'
+    : 'none yet';
 
   document.getElementById('region-details').innerHTML = `
     <div>Population: ${region.population.toLocaleString()} (${density}/km&sup2;)</div>
-    <div>Area: ${Math.round(region.areaSqKm).toLocaleString()} km&sup2;</div>
+    <div>Stability: ${(region.stability * 100).toFixed(0)}%</div>
+    <div>Working as: ${occLine}</div>
+    <div>Stockpile: ${stockLine}</div>
     <div>Culture: ${culture.cultureId} &middot; identity strength ${(culture.identityStrength * 100).toFixed(0)}%</div>
     <div>Neighbours: ${region.neighbors.length ? region.neighbors.join(', ') : 'none by land'}</div>
     <div>Controlled by: ${region.controllingActorId}</div>
