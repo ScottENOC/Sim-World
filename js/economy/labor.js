@@ -1,4 +1,4 @@
-import { extractionRate } from '../world/resources/extraction.js';
+import { extractionRate, selectActiveTier } from '../world/resources/extraction.js';
 import { regrow, neighborSpreadBonus } from '../world/resources/renewables.js';
 
 // --- Tunable constants -----------------------------------------------------
@@ -18,6 +18,13 @@ const FOREST_SPREAD_RATE = 0.002;
 
 const ORE_YIELD_PER_MINER = 0.6;
 const BRONZE_PER_SMITH = 0.5;
+
+// Fixed priority, not proportional-to-remaining-stock — stone is orders of
+// magnitude more abundant than copper/tin, so weighting by raw tonnage let
+// it swallow almost the entire miner pool. Real economies allocate by what's
+// wanted, not by what's numerically biggest. There's no demand/price system
+// yet (that's the trade system), so this is a placeholder stand-in for it.
+const ORE_PRIORITY = { copper: 3, tin: 3, gold: 2, stone: 1 };
 
 // Bronze Age economies couldn't free up more than a small slice of the
 // population for full-time non-farm specialism — everyone else is doing
@@ -54,6 +61,35 @@ function farmersNeededFor(targetFood, maxFoodOutput, kLabor) {
 
 function clamp01(v) {
   return Math.max(0, Math.min(1, v));
+}
+
+// Distributes `totalRequested` workers across `items` ({key, cap}) by
+// priority weight, never exceeding any item's cap, redistributing whatever
+// a capped-out item turns away to whichever items still have room. A few
+// iterations converge fine with a handful of resources.
+function allocateWithCaps(totalRequested, items, priorityFn) {
+  let remaining = totalRequested;
+  const state = items.map((i) => ({ ...i, allocated: 0 }));
+  for (let iter = 0; iter < 5 && remaining > 0.01; iter++) {
+    const withRoom = state.filter((i) => i.allocated < i.cap);
+    if (withRoom.length === 0) break;
+    const priorityTotal = withRoom.reduce((s, i) => s + priorityFn(i.key), 0);
+    let distributed = 0;
+    for (const i of withRoom) {
+      const share = remaining * (priorityFn(i.key) / priorityTotal);
+      const give = Math.min(share, i.cap - i.allocated);
+      i.allocated += give;
+      distributed += give;
+    }
+    remaining -= distributed;
+  }
+  const allocation = {};
+  let used = 0;
+  for (const i of state) {
+    allocation[i.key] = i.allocated;
+    used += i.allocated;
+  }
+  return { allocation, used };
 }
 
 export function tickEconomy(regions, rng = Math.random) {
@@ -93,7 +129,11 @@ function allocateAndProduce(region, rng) {
   const generalPopulation = surplus - specialistPool;
 
   const deposits = region.deposits;
-  const totalOreRemaining = Object.values(deposits).reduce((s, d) => s + d.remainingStock, 0);
+  const activeTiers = {}; // resource -> its currently-mineable tier, or null if walled off
+  for (const [key, deposit] of Object.entries(deposits)) {
+    activeTiers[key] = selectActiveTier(deposit.tiers, region.unlockedTechIds);
+  }
+  const anyOreAvailable = Object.values(activeTiers).some((t) => t !== null);
   const forestFraction = region.forest.K > 0 ? region.forest.currentStock / region.forest.K : 0;
   const canSmith = (region.stockpile.copper || 0) > 0 && (region.stockpile.tin || 0) > 0;
 
@@ -101,23 +141,49 @@ function allocateAndProduce(region, rng) {
   // put miners where there's nothing left to mine."
   const weights = {
     lumberjack: forestFraction > 0.05 ? 1 : 0,
-    miner: totalOreRemaining > 0 ? 1.5 : 0,
+    miner: anyOreAvailable ? 1.5 : 0,
     smith: canSmith ? 1 : 0,
   };
   const totalWeight = Object.values(weights).reduce((a, b) => a + b, 0) || 1;
 
   const lumberjacks = Math.round(specialistPool * (weights.lumberjack / totalWeight));
-  const miners = Math.round(specialistPool * (weights.miner / totalWeight));
+  const minersRequested = specialistPool * (weights.miner / totalWeight);
   const smiths = Math.round(specialistPool * (weights.smith / totalWeight));
-  const unusedSpecialistSlots = Math.max(0, specialistPool - lumberjacks - miners - smiths);
+
+  // --- Mining: resolve now, capped by physical mine-face capacity, so we
+  // know how many miners were actually put to work before finalizing
+  // occupations below (unused mining labor falls back to general).
+  let minersUsed = 0;
+  if (minersRequested > 0 && anyOreAvailable) {
+    const openResources = Object.keys(activeTiers).filter((k) => activeTiers[k] !== null);
+    const items = openResources.map((key) => ({ key, cap: activeTiers[key].maxWorkers }));
+    const { allocation, used } = allocateWithCaps(minersRequested, items, (key) => ORE_PRIORITY[key] || 1);
+    minersUsed = used;
+
+    for (const key of openResources) {
+      const tier = activeTiers[key];
+      const gathered = extractionRate({
+        initialStock: tier.initialStock,
+        remainingStock: tier.remainingStock,
+        workers: allocation[key],
+        baseYieldPerWorker: ORE_YIELD_PER_MINER,
+        difficulty: tier.difficulty,
+      });
+      tier.remainingStock -= gathered;
+      region.stockpile[key] = (region.stockpile[key] || 0) + gathered;
+    }
+  }
+
+  const unusedSpecialistSlots = Math.max(0, specialistPool - lumberjacks - minersUsed - smiths);
 
   region.occupations = {
     farmer: Math.round(farmers),
     lumberjack: lumberjacks,
-    miner: miners,
+    miner: Math.round(minersUsed),
     smith: smiths,
     // "general" = unspecialized subsistence labor, not literally unemployed —
-    // gathering, herding, household production, etc. we haven't modeled yet.
+    // gathering, herding, household production, and (until the trade system
+    // exists) mining capacity there simply wasn't room to use.
     general: Math.round(generalPopulation + unusedSpecialistSlots),
   };
 
@@ -127,21 +193,6 @@ function allocateAndProduce(region, rng) {
   const woodGathered = Math.min(lumberjacks * WOOD_PER_LUMBERJACK, region.forest.currentStock);
   region.forest.currentStock -= woodGathered;
   region.stockpile.wood = (region.stockpile.wood || 0) + woodGathered;
-
-  if (miners > 0 && totalOreRemaining > 0) {
-    for (const [key, deposit] of Object.entries(deposits)) {
-      const share = deposit.remainingStock / totalOreRemaining;
-      const gathered = extractionRate({
-        initialStock: deposit.initialStock,
-        remainingStock: deposit.remainingStock,
-        workers: miners * share,
-        baseYieldPerWorker: ORE_YIELD_PER_MINER,
-        difficulty: deposit.difficulty,
-      });
-      deposit.remainingStock -= gathered;
-      region.stockpile[key] = (region.stockpile[key] || 0) + gathered;
-    }
-  }
 
   if (smiths > 0) {
     const maxByLabor = smiths * BRONZE_PER_SMITH;
