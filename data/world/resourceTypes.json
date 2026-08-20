@@ -1,0 +1,13 @@
+{
+  "wood":   { "category": "renewable",  "label": "Wood" },
+  "stone":  { "category": "extractive", "label": "Stone" },
+  "copper": { "category": "extractive", "label": "Copper" },
+  "tin":    { "category": "extractive", "label": "Tin" },
+  "gold":   { "category": "extractive", "label": "Gold" },
+  "bronze": {
+    "category": "crafted",
+    "label": "Bronze",
+    "recipe": { "inputs": { "copper": 2, "tin": 1 }, "laborType": "smith" }
+  },
+  "food":   { "category": "flow", "label": "Food" }
+}
