@@ -1,0 +1,140 @@
+{
+  "england": {
+    "landQuality": 1.3,
+    "forestFraction": 0.35,
+    "forestStartCoverage": 0.55,
+    "deposits": {
+      "copper": {
+        "initialStock": 600000,
+        "difficulty": 0.8
+      },
+      "tin": {
+        "initialStock": 1800000,
+        "difficulty": 0.65
+      },
+      "gold": {
+        "initialStock": 30000,
+        "difficulty": 0.95
+      },
+      "stone": {
+        "initialStock": 15000000,
+        "difficulty": 0.3
+      }
+    }
+  },
+  "scotland": {
+    "landQuality": 0.5,
+    "forestFraction": 0.45,
+    "forestStartCoverage": 0.65,
+    "deposits": {
+      "copper": {
+        "initialStock": 450000,
+        "difficulty": 0.85
+      },
+      "tin": {
+        "initialStock": 24000,
+        "difficulty": 0.95
+      },
+      "gold": {
+        "initialStock": 90000,
+        "difficulty": 0.9
+      },
+      "stone": {
+        "initialStock": 18000000,
+        "difficulty": 0.3
+      }
+    }
+  },
+  "wales": {
+    "landQuality": 0.6,
+    "forestFraction": 0.4,
+    "forestStartCoverage": 0.6,
+    "deposits": {
+      "copper": {
+        "initialStock": 2400000,
+        "difficulty": 0.6
+      },
+      "tin": {
+        "initialStock": 30000,
+        "difficulty": 0.95
+      },
+      "gold": {
+        "initialStock": 180000,
+        "difficulty": 0.85
+      },
+      "stone": {
+        "initialStock": 12000000,
+        "difficulty": 0.3
+      }
+    }
+  },
+  "n_ireland": {
+    "landQuality": 0.7,
+    "forestFraction": 0.35,
+    "forestStartCoverage": 0.55,
+    "deposits": {
+      "copper": {
+        "initialStock": 240000,
+        "difficulty": 0.85
+      },
+      "tin": {
+        "initialStock": 15000,
+        "difficulty": 0.97
+      },
+      "gold": {
+        "initialStock": 60000,
+        "difficulty": 0.9
+      },
+      "stone": {
+        "initialStock": 6000000,
+        "difficulty": 0.3
+      }
+    }
+  },
+  "ireland": {
+    "landQuality": 0.8,
+    "forestFraction": 0.35,
+    "forestStartCoverage": 0.55,
+    "deposits": {
+      "copper": {
+        "initialStock": 2100000,
+        "difficulty": 0.6
+      },
+      "tin": {
+        "initialStock": 24000,
+        "difficulty": 0.97
+      },
+      "gold": {
+        "initialStock": 450000,
+        "difficulty": 0.7
+      },
+      "stone": {
+        "initialStock": 15000000,
+        "difficulty": 0.3
+      }
+    }
+  },
+  "france": {
+    "landQuality": 1.4,
+    "forestFraction": 0.4,
+    "forestStartCoverage": 0.6,
+    "deposits": {
+      "copper": {
+        "initialStock": 900000,
+        "difficulty": 0.75
+      },
+      "tin": {
+        "initialStock": 750000,
+        "difficulty": 0.75
+      },
+      "gold": {
+        "initialStock": 120000,
+        "difficulty": 0.85
+      },
+      "stone": {
+        "initialStock": 60000000,
+        "difficulty": 0.3
+      }
+    }
+  }
+}
