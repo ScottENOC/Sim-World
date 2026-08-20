@@ -1,10 +1,9 @@
-// Extraction rate for a depleting deposit (copper, tin, gold, stone). Harder
-// to pull out the more has already been taken — `difficulty` controls how
-// steeply that bites for this particular region/resource: a shallow, uniform
-// seam (low difficulty) barely slows down; a deposit that gets genuinely
-// harder to reach with depth (high difficulty) throttles fast. Technology
-// will later flatten this curve or unlock deeper reserve tiers — neither
-// exists yet, so techMultiplier just defaults to 1.
+// Extraction rate *within* a single accessible tier. Harder to pull out the
+// more has already been taken from THIS tier — `difficulty` controls how
+// steeply that bites (a shallow, uniform seam barely slows down; a band that
+// gets genuinely harder to work throttles fast). This never reaches into a
+// deeper tier on its own — that requires a tech unlock, handled by
+// selectActiveTier below, not by this formula getting "hard enough."
 export function extractionRate({
   initialStock,
   remainingStock,
@@ -17,4 +16,18 @@ export function extractionRate({
   const depletionFactor = Math.pow(remainingStock / initialStock, difficulty);
   const potential = workers * baseYieldPerWorker * techMultiplier * depletionFactor;
   return Math.min(potential, remainingStock);
+}
+
+// A deposit is a list of tiers, ordered shallowest-first. This picks the
+// shallowest tier that's both tech-accessible AND not yet exhausted — the
+// "hard stop gate" from the design: a region can't reach into `deep` mining
+// just because `surface` ran out, no matter how much labor it throws at it,
+// until it actually has mine_drainage. Returns null if every accessible
+// tier is empty (genuinely nothing more to get without new tech).
+export function selectActiveTier(tiers, unlockedTechIds) {
+  for (const tier of tiers) {
+    const accessible = tier.requiredTechId === null || unlockedTechIds.has(tier.requiredTechId);
+    if (accessible && tier.remainingStock > 0) return tier;
+  }
+  return null;
 }
