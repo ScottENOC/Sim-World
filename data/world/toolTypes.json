@@ -1,0 +1,29 @@
+{
+  "farmer": [
+    {
+      "id": "bronze_plough",
+      "label": "Bronze-tipped plough",
+      "productivityBonus": 0.35,
+      "bronzeCost": 2,
+      "requiredTechId": null
+    }
+  ],
+  "miner": [
+    {
+      "id": "bronze_picks",
+      "label": "Bronze picks & chisels",
+      "productivityBonus": 0.30,
+      "bronzeCost": 1.5,
+      "requiredTechId": null
+    }
+  ],
+  "lumberjack": [
+    {
+      "id": "bronze_axes",
+      "label": "Bronze axes",
+      "productivityBonus": 0.30,
+      "bronzeCost": 1,
+      "requiredTechId": null
+    }
+  ]
+}
