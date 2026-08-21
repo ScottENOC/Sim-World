@@ -2,7 +2,8 @@ import { Clock } from './core/clock.js';
 import { EventBus } from './core/eventBus.js';
 import { loadWorld } from './world/region.js';
 import { seedCensus, densityPerKm2 } from './society/census.js';
-import { tickEconomy } from './economy/labor.js';
+import { tickEconomy, applyFoodSecurity } from './economy/labor.js';
+import { tickTrade } from './economy/trade.js';
 import { MapRenderer } from './ui/mapRenderer.js';
 
 const START_YEAR = -1200; // Bronze Age start, mid-collapse-era — tune later
@@ -20,6 +21,11 @@ const LAYERS = {
     colorLow: '#a4453a', // red: collapsing
     colorHigh: '#3a4a3e', // back to the neutral land tone: fine
   },
+  wealth: {
+    valueFn: (r) => r.wallet,
+    label: 'Populace wealth',
+    format: (v) => v.toFixed(0),
+  },
 };
 
 async function main() {
@@ -28,6 +34,7 @@ async function main() {
 
   const regions = await loadWorld();
   seedCensus(regions);
+  const toolTypes = await (await fetch('data/world/toolTypes.json')).json();
   console.log(
     `Loaded ${regions.length} regions:`,
     regions.map((r) => `${r.name} (pop ${r.population.toLocaleString()})`).join(', ')
@@ -51,7 +58,9 @@ async function main() {
 
   wireHud(clock);
   clock.onTick(() => {
-    tickEconomy(regions);
+    tickEconomy(regions, toolTypes);
+    tickTrade(regions);
+    applyFoodSecurity(regions);
     document.getElementById('hud-date').textContent = clock.formatDate(START_YEAR);
     map.draw();
     if (selectedRegion) showRegionSheet(selectedRegion); // keep the open sheet live
@@ -111,7 +120,7 @@ function showRegionSheet(region) {
   const occ = region.occupations;
   const occLine = occ.farmer === undefined
     ? 'not yet ticked'
-    : `farmers ${occ.farmer.toLocaleString()} &middot; lumberjacks ${occ.lumberjack} &middot; miners ${occ.miner} &middot; smiths ${occ.smith} &middot; general ${occ.general.toLocaleString()}`;
+    : `farmers ${occ.farmer.toLocaleString()} &middot; lumberjacks ${occ.lumberjack} &middot; miners ${occ.miner} &middot; smiths ${occ.smith} &middot; traders ${occ.trader || 0} &middot; general ${occ.general.toLocaleString()}`;
 
   const stock = region.stockpile;
   const stockLine = Object.keys(stock).length
@@ -121,11 +130,18 @@ function showRegionSheet(region) {
         .join(' &middot; ') || 'none yet'
     : 'none yet';
 
+  const ploughs = region.equipment.farmer?.bronze_plough || 0;
+  const toolLine = occ.farmer
+    ? `${ploughs.toLocaleString()} / ${occ.farmer.toLocaleString()} farmers have a bronze plough (${((Math.min(ploughs, occ.farmer) / occ.farmer) * 100).toFixed(0)}%)`
+    : 'n/a';
+
   document.getElementById('region-details').innerHTML = `
     <div>Population: ${region.population.toLocaleString()} (${density}/km&sup2;)</div>
     <div>Stability: ${(region.stability * 100).toFixed(0)}%</div>
     <div>Working as: ${occLine}</div>
     <div>Stockpile: ${stockLine}</div>
+    <div>Wealth: ${region.wallet.toFixed(0)} populace &middot; ${region.treasury.toFixed(0)} treasury</div>
+    <div>Tools: ${toolLine}</div>
     <div>Culture: ${culture.cultureId} &middot; identity strength ${(culture.identityStrength * 100).toFixed(0)}%</div>
     <div>Neighbours: ${region.neighbors.length ? region.neighbors.join(', ') : 'none by land'}</div>
     <div>Controlled by: ${region.controllingActorId}</div>
