@@ -16,6 +16,13 @@ export function seedCensus(regions, rng = Math.random) {
 
     region.population = Math.round(region.areaSqKm * density);
 
+    // Small seed values representing informal accumulated trade value —
+    // there's no production of currency yet (that's taxation, still
+    // future), so these are placeholders scaled to population, not derived
+    // from anything region-specific.
+    region.wallet = region.population * 0.01;
+    region.treasury = region.population * 0.002;
+
     region.cultureGroups = [
       {
         id: `${region.id}_culture`,
