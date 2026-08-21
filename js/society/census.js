@@ -16,6 +16,17 @@ export function seedCensus(regions, rng = Math.random) {
 
     region.population = Math.round(region.areaSqKm * density);
 
+    // Pre-modern age structure: young-heavy pyramid, not the roughly-even
+    // bands a modern population has — high birth rate and high mortality
+    // both push the distribution toward children. Placeholder proportions,
+    // not sourced from anything region-specific.
+    region.demographics = {
+      children: Math.round(region.population * 0.35),
+      workingAge: Math.round(region.population * 0.55),
+      elderly: Math.round(region.population * 0.10),
+    };
+    region.population = region.demographics.children + region.demographics.workingAge + region.demographics.elderly;
+
     // Small seed values representing informal accumulated trade value —
     // there's no production of currency yet (that's taxation, still
     // future), so these are placeholders scaled to population, not derived

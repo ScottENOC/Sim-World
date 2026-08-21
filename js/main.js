@@ -2,8 +2,9 @@ import { Clock } from './core/clock.js';
 import { EventBus } from './core/eventBus.js';
 import { loadWorld } from './world/region.js';
 import { seedCensus, densityPerKm2 } from './society/census.js';
-import { tickEconomy, applyFoodSecurity } from './economy/labor.js';
+import { tickEconomy } from './economy/labor.js';
 import { tickTrade } from './economy/trade.js';
+import { tickDemographics } from './society/demographics.js';
 import { MapRenderer } from './ui/mapRenderer.js';
 
 const START_YEAR = -1200; // Bronze Age start, mid-collapse-era — tune later
@@ -60,7 +61,7 @@ async function main() {
   clock.onTick(() => {
     tickEconomy(regions, toolTypes);
     tickTrade(regions);
-    applyFoodSecurity(regions);
+    tickDemographics(regions);
     document.getElementById('hud-date').textContent = clock.formatDate(START_YEAR);
     map.draw();
     if (selectedRegion) showRegionSheet(selectedRegion); // keep the open sheet live
@@ -120,7 +121,11 @@ function showRegionSheet(region) {
   const occ = region.occupations;
   const occLine = occ.farmer === undefined
     ? 'not yet ticked'
-    : `farmers ${occ.farmer.toLocaleString()} &middot; lumberjacks ${occ.lumberjack} &middot; miners ${occ.miner} &middot; smiths ${occ.smith} &middot; traders ${occ.trader || 0} &middot; general ${occ.general.toLocaleString()}`;
+    : `farmers ${occ.farmer.toLocaleString()} &middot; gatherers ${(occ.gatherer || 0).toLocaleString()} &middot; lumberjacks ${occ.lumberjack} &middot; miners ${occ.miner} &middot; smiths ${occ.smith} &middot; traders ${occ.trader || 0} &middot; general ${occ.general.toLocaleString()}`;
+
+  const d = region.demographics;
+  const demoLine = `${Math.round(d.children).toLocaleString()} children &middot; ${Math.round(d.workingAge).toLocaleString()} working-age &middot; ${Math.round(d.elderly).toLocaleString()} elderly`;
+  const banditLine = region.banditPopulation > 10 ? `${Math.round(region.banditPopulation).toLocaleString()} people turned to banditry` : 'none';
 
   const stock = region.stockpile;
   const stockLine = Object.keys(stock).length
@@ -137,7 +142,9 @@ function showRegionSheet(region) {
 
   document.getElementById('region-details').innerHTML = `
     <div>Population: ${region.population.toLocaleString()} (${density}/km&sup2;)</div>
+    <div>Age bands: ${demoLine}</div>
     <div>Stability: ${(region.stability * 100).toFixed(0)}%</div>
+    <div>Banditry: ${banditLine}</div>
     <div>Working as: ${occLine}</div>
     <div>Stockpile: ${stockLine}</div>
     <div>Wealth: ${region.wallet.toFixed(0)} populace &middot; ${region.treasury.toFixed(0)} treasury</div>

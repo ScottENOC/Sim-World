@@ -14,24 +14,37 @@ export class Region {
     // the player. Real values for these get filled in by society/culture.js
     // and ai/nationAi.js once those modules exist; this just reserves the
     // shape so the map/UI can already read region.controllingActor etc.
-    this.population = null;
+    this.population = null;               // derived total, kept in sync by society/demographics.js each tick
+    this.demographics = null;             // { children, workingAge, elderly } — only workingAge actually labors
     this.cultureGroups = null;    // [{ ancestryId, cultureId, religionId, share, identityStrength }]
     this.controllingActorId = id; // defaults to "this region governs itself"
     this.stability = 1.0;         // 0-1, feeds the Phase 2 collapse/raider-pressure system
+
+    // People who've left the formal economy under famine pressure. Just a
+    // tracked pool for now — ongoing effects (raiding, safety rating,
+    // suppression by armies) are next pass.
+    this.banditPopulation = 0;
+    this.safetyRating = 1.0; // stub — next pass: reduced by banditPopulation, restored by armies
+
+    // Stub until a real education system exists: low Bronze Age baseline.
+    // Already wired into birth rate (the "double-edged sword" — education
+    // raises productivity elsewhere but suppresses population growth) even
+    // though nothing can actually raise this yet.
+    this.educationLevel = 0.05;
 
     // --- Economy (set by loadWorld from resources.initial.json) ---
     this.landQuality = null;               // multiplier: how good this land is, farming + population alike
     this.forest = null;                    // { currentStock, K }
     this.deposits = null;                  // { copper: { tiers: [{id, label, initialStock, remainingStock, difficulty, requiredTechId, maxWorkers}] }, ... }
     this.stockpile = {};                   // { wood, copper, tin, gold, stone, bronze, food }
-    this.occupations = {};                 // { farmer, lumberjack, miner, smith, general } â set each tick by economy/labor.js
+    this.occupations = {};                 // { farmer, lumberjack, miner, smith, general } — set each tick by economy/labor.js
     this.equipment = {};                   // { farmer: {bronze_plough: count}, miner: {...}, lumberjack: {...} }
 
     // Stub until edicts exist: this is where "player equips the army" plugs
-    // into smith demand later â for now it's just always 0.
+    // into smith demand later — for now it's just always 0.
     this.militaryBronzeDemand = 0;
 
-    // Currency â abstract "value" units, not literal coinage (doesn't exist
+    // Currency — abstract "value" units, not literal coinage (doesn't exist
     // yet at this era). wallet = populace, actively used in trade. treasury
     // = government, mostly inert until taxation/edicts exist to fill it.
     this.wallet = 0;
@@ -39,7 +52,7 @@ export class Region {
 
     // Stub until technology/techTree.js exists: nothing is ever unlocked yet,
     // so every deposit sits at its surface/alluvial tier forever. Real tech
-    // diffusion will just start adding ids to this set â extraction.js
+    // diffusion will just start adding ids to this set — extraction.js
     // already reads from it, so no other code needs to change when that lands.
     this.unlockedTechIds = new Set();
   }

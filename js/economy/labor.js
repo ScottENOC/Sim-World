@@ -9,9 +9,20 @@ import { toolEfficiencyMultiplier, desiredToolInvestment, investInTools } from '
 // region starves in week one. Some regions WILL come out under-fed given
 // the population noise vs. land-quality noise below are independent random
 // draws — that's the point (see the Bronze Age collapse conversation).
-const FOOD_PER_PERSON_PER_WEEK = 1; // 1 "ration" per person per tick, arbitrary unit
+export const FOOD_PER_PERSON_PER_WEEK = 1; // 1 "ration" per person per tick, arbitrary unit
 const FOOD_YIELD_PER_KM2 = 4.2;     // theoretical max rations/km²/week at saturating labor
 const FARM_LABOR_SATURATION_PER_KM2 = 1.5; // people/km² before diminishing returns bite hard
+const MAX_FARMER_FRACTION = 0.9; // always leave some working-age labor for gathering/other pursuits
+
+// Gathering: a real profession, not a fallback hack — foraging/hunting that
+// barely benefits from bronze tools but is genuinely productive when there
+// aren't many mouths competing for the same wild resources. This is what
+// lets a low-density region like Scotland reach subsistence without needing
+// to out-farm its land quality — people really did live at Bronze Age tech
+// levels in places far harsher than Scotland.
+const BASE_GATHER_YIELD_PER_WORKER = 1.2; // rations/week per gatherer at near-zero density
+const GATHER_DENSITY_CEILING = 6;         // people/km² — beyond this, wild resources are too thin to matter
+const GATHER_MIN_FACTOR = 0.05;           // gathering never fully collapses to zero
 
 const WOOD_PER_LUMBERJACK = 0.8;
 const WOOD_REGROWTH_RATE = 0.015;
@@ -37,9 +48,6 @@ const ORE_PRIORITY = { copper: 3, tin: 3, gold: 2, stone: 1 };
 const BASELINE_BRONZE_DEMAND = 0.5;
 
 const LUMBER_CAPACITY_DIVISOR = 400; // physical cap on lumberjacks a forest can usefully employ
-
-const STARVATION_STABILITY_PENALTY = 0.15; // per fully-unmet week
-const WELL_FED_STABILITY_RECOVERY = 0.01;
 
 // Independent from population's own noise (in census.js) — a region can be
 // unusually crowded *and* have average land, or vice versa, which is what
@@ -109,45 +117,48 @@ export function tickEconomy(regions, toolTypes, rng = Math.random) {
   }
 }
 
-// Call this AFTER trade.tickTrade() has had a chance to import food — a
-// region that fell short on its own farming but successfully bought food
-// from elsewhere shouldn't take a stability hit for a shortfall that no
-// longer exists. stockpile.food can go temporarily negative between
-// allocateAndProduce() and this call; that's the signal trade reads as
-// "this region needs food" via the price system (scarcity -> high price).
-export function applyFoodSecurity(regions) {
-  for (const region of regions) {
-    const foodNeeded = region._foodNeeded || 0;
-    const shortfall = Math.max(0, -(region.stockpile.food || 0));
-    const deficitRatio = foodNeeded > 0 ? shortfall / foodNeeded : 0;
-
-    region.stability = clamp01(
-      region.stability - deficitRatio * STARVATION_STABILITY_PENALTY + (deficitRatio === 0 ? WELL_FED_STABILITY_RECOVERY : 0)
-    );
-    region.stockpile.food = Math.max(0, region.stockpile.food || 0);
-  }
-}
-
 function allocateAndProduce(region, toolTypes, rng) {
-  const pop = region.population;
+  const totalPop = region.population;       // everyone eats
+  const laborPool = region.demographics.workingAge; // only working-age people work
   const noise = foodYieldNoise(region, rng);
   const maxFoodOutput = region.areaSqKm * region.landQuality * FOOD_YIELD_PER_KM2 * noise;
   const kLabor = region.areaSqKm * FARM_LABOR_SATURATION_PER_KM2;
-  const foodNeeded = pop * FOOD_PER_PERSON_PER_WEEK;
+  const foodNeeded = totalPop * FOOD_PER_PERSON_PER_WEEK;
 
   // Tool bonus is lagged one tick (last tick's headcount/equipment) so this
   // doesn't need to solve "how many farmers" and "how equipped are they"
   // simultaneously — see tools.js.
   const farmerEfficiency = toolEfficiencyMultiplier(region, 'farmer', toolTypes.farmer, region.unlockedTechIds);
-  const farmersNeeded = farmersNeededFor(foodNeeded, maxFoodOutput, kLabor) / farmerEfficiency;
-  const farmers = Math.min(pop, farmersNeeded);
-  const foodProduced = foodOutput(farmers * farmerEfficiency, maxFoodOutput, kLabor);
+  const farmersNeededRaw = farmersNeededFor(foodNeeded, maxFoodOutput, kLabor) / farmerEfficiency;
+  // Always leave some working-age labor free for gathering and everything
+  // else — otherwise a genuine crisis (farmersNeeded >= laborPool) claims
+  // 100% of the workforce for farming and leaves nothing for the fallback
+  // that's supposed to catch exactly that case.
+  const farmers = Math.min(laborPool * MAX_FARMER_FRACTION, farmersNeededRaw);
+  const foodFromFarming = foodOutput(farmers * farmerEfficiency, maxFoodOutput, kLabor);
+
+  // --- Gathering: fills whatever farming didn't cover. Effective when
+  // there aren't many people competing for the same wild resources, barely
+  // effective in a crowded region — the opposite scaling from farming,
+  // which is why the two together (not either alone) are what let even a
+  // poor-land region reach subsistence.
+  const density = region.areaSqKm > 0 ? totalPop / region.areaSqKm : 0;
+  const gatherYieldPerWorker = BASE_GATHER_YIELD_PER_WORKER *
+    Math.max(GATHER_MIN_FACTOR, 1 - density / GATHER_DENSITY_CEILING);
+  const remainingFoodNeeded = Math.max(0, foodNeeded - foodFromFarming);
+  const laborAfterFarming = Math.max(0, laborPool - farmers);
+  const gatherersNeeded = gatherYieldPerWorker > 0 ? remainingFoodNeeded / gatherYieldPerWorker : 0;
+  const gatherers = Math.min(laborAfterFarming, gatherersNeeded);
+  const foodFromGathering = gatherers * gatherYieldPerWorker;
+
+  const foodProduced = foodFromFarming + foodFromGathering;
 
   // Stability isn't decided here anymore — trade gets a chance to cover any
-  // shortfall first. See applyFoodSecurity(), called after tickTrade().
+  // remaining shortfall first. See society/demographics.js, called after
+  // tickTrade().
   region._foodNeeded = foodNeeded;
 
-  const surplus = Math.max(0, pop - farmers);
+  const surplus = Math.max(0, laborAfterFarming - gatherers);
 
   // --- Lumberjacks: capped by physical forest capacity, not population share ---
   const forestFraction = region.forest.K > 0 ? region.forest.currentStock / region.forest.K : 0;
@@ -268,6 +279,7 @@ function allocateAndProduce(region, toolTypes, rng) {
 
   region.occupations = {
     farmer: Math.round(farmers),
+    gatherer: Math.round(gatherers),
     lumberjack: Math.round(lumberjacks),
     miner: Math.round(minersUsed),
     smith: Math.round(actualSmiths),
