@@ -9,26 +9,26 @@
           {
             "id": "surface",
             "label": "Surface outcrops & shallow pits",
-            "initialStock": 30000,
+            "initialStock": 180000,
             "difficulty": 0.45,
             "requiredTechId": null,
-            "maxWorkers": 15
+            "maxWorkers": 90
           },
           {
             "id": "shaft",
             "label": "Shaft mining",
-            "initialStock": 120000,
+            "initialStock": 720000,
             "difficulty": 0.6,
             "requiredTechId": "shaft_mining",
-            "maxWorkers": 43
+            "maxWorkers": 258
           },
           {
             "id": "deep",
             "label": "Deep mining (below water table)",
-            "initialStock": 450000,
+            "initialStock": 2700000,
             "difficulty": 0.75,
             "requiredTechId": "mine_drainage",
-            "maxWorkers": 281
+            "maxWorkers": 1686
           }
         ]
       },
@@ -37,26 +37,26 @@
           {
             "id": "surface",
             "label": "Alluvial cassiterite (streamed)",
-            "initialStock": 144000,
+            "initialStock": 864000,
             "difficulty": 0.4,
             "requiredTechId": null,
-            "maxWorkers": 26
+            "maxWorkers": 156
           },
           {
             "id": "shaft",
             "label": "Shaft mining",
-            "initialStock": 396000,
+            "initialStock": 2376000,
             "difficulty": 0.6,
             "requiredTechId": "shaft_mining",
-            "maxWorkers": 141
+            "maxWorkers": 846
           },
           {
             "id": "deep",
             "label": "Deep mining (below water table)",
-            "initialStock": 1260000,
+            "initialStock": 7560000,
             "difficulty": 0.75,
             "requiredTechId": "mine_drainage",
-            "maxWorkers": 788
+            "maxWorkers": 4728
           }
         ]
       },
@@ -65,26 +65,26 @@
           {
             "id": "surface",
             "label": "Alluvial placer gold",
-            "initialStock": 7500,
+            "initialStock": 45000,
             "difficulty": 0.35,
             "requiredTechId": null,
-            "maxWorkers": 15
+            "maxWorkers": 90
           },
           {
             "id": "shaft",
             "label": "Vein mining",
-            "initialStock": 7500,
+            "initialStock": 45000,
             "difficulty": 0.6,
             "requiredTechId": "shaft_mining",
-            "maxWorkers": 40
+            "maxWorkers": 240
           },
           {
             "id": "deep",
             "label": "Deep mining (below water table)",
-            "initialStock": 15000,
+            "initialStock": 90000,
             "difficulty": 0.8,
             "requiredTechId": "mine_drainage",
-            "maxWorkers": 80
+            "maxWorkers": 480
           }
         ]
       },
@@ -93,10 +93,10 @@
           {
             "id": "quarry",
             "label": "Quarrying",
-            "initialStock": 15000000,
+            "initialStock": 90000000,
             "difficulty": 0.3,
             "requiredTechId": null,
-            "maxWorkers": 400
+            "maxWorkers": 2400
           }
         ]
       }
@@ -112,26 +112,26 @@
           {
             "id": "surface",
             "label": "Surface outcrops & shallow pits",
-            "initialStock": 22500,
+            "initialStock": 135000,
             "difficulty": 0.45,
             "requiredTechId": null,
-            "maxWorkers": 15
+            "maxWorkers": 90
           },
           {
             "id": "shaft",
             "label": "Shaft mining",
-            "initialStock": 90000,
+            "initialStock": 540000,
             "difficulty": 0.6,
             "requiredTechId": "shaft_mining",
-            "maxWorkers": 40
+            "maxWorkers": 240
           },
           {
             "id": "deep",
             "label": "Deep mining (below water table)",
-            "initialStock": 337500,
+            "initialStock": 2025000,
             "difficulty": 0.75,
             "requiredTechId": "mine_drainage",
-            "maxWorkers": 211
+            "maxWorkers": 1266
           }
         ]
       },
@@ -140,26 +140,26 @@
           {
             "id": "surface",
             "label": "Alluvial cassiterite (streamed)",
-            "initialStock": 1920,
+            "initialStock": 11520,
             "difficulty": 0.4,
             "requiredTechId": null,
-            "maxWorkers": 15
+            "maxWorkers": 90
           },
           {
             "id": "shaft",
             "label": "Shaft mining",
-            "initialStock": 5280,
+            "initialStock": 31680,
             "difficulty": 0.6,
             "requiredTechId": "shaft_mining",
-            "maxWorkers": 40
+            "maxWorkers": 240
           },
           {
             "id": "deep",
             "label": "Deep mining (below water table)",
-            "initialStock": 16800,
+            "initialStock": 100800,
             "difficulty": 0.75,
             "requiredTechId": "mine_drainage",
-            "maxWorkers": 80
+            "maxWorkers": 480
           }
         ]
       },
@@ -168,26 +168,26 @@
           {
             "id": "surface",
             "label": "Alluvial placer gold",
-            "initialStock": 22500,
+            "initialStock": 135000,
             "difficulty": 0.35,
             "requiredTechId": null,
-            "maxWorkers": 15
+            "maxWorkers": 90
           },
           {
             "id": "shaft",
             "label": "Vein mining",
-            "initialStock": 22500,
+            "initialStock": 135000,
             "difficulty": 0.6,
             "requiredTechId": "shaft_mining",
-            "maxWorkers": 40
+            "maxWorkers": 240
           },
           {
             "id": "deep",
             "label": "Deep mining (below water table)",
-            "initialStock": 45000,
+            "initialStock": 270000,
             "difficulty": 0.8,
             "requiredTechId": "mine_drainage",
-            "maxWorkers": 80
+            "maxWorkers": 480
           }
         ]
       },
@@ -196,10 +196,10 @@
           {
             "id": "quarry",
             "label": "Quarrying",
-            "initialStock": 18000000,
+            "initialStock": 108000000,
             "difficulty": 0.3,
             "requiredTechId": null,
-            "maxWorkers": 400
+            "maxWorkers": 2400
           }
         ]
       }
@@ -215,26 +215,26 @@
           {
             "id": "surface",
             "label": "Surface outcrops & shallow pits",
-            "initialStock": 120000,
+            "initialStock": 720000,
             "difficulty": 0.45,
             "requiredTechId": null,
-            "maxWorkers": 22
+            "maxWorkers": 132
           },
           {
             "id": "shaft",
             "label": "Shaft mining",
-            "initialStock": 480000,
+            "initialStock": 2880000,
             "difficulty": 0.6,
             "requiredTechId": "shaft_mining",
-            "maxWorkers": 171
+            "maxWorkers": 1026
           },
           {
             "id": "deep",
             "label": "Deep mining (below water table)",
-            "initialStock": 1800000,
+            "initialStock": 10800000,
             "difficulty": 0.75,
             "requiredTechId": "mine_drainage",
-            "maxWorkers": 1125
+            "maxWorkers": 6750
           }
         ]
       },
@@ -243,26 +243,26 @@
           {
             "id": "surface",
             "label": "Alluvial cassiterite (streamed)",
-            "initialStock": 2400,
+            "initialStock": 14400,
             "difficulty": 0.4,
             "requiredTechId": null,
-            "maxWorkers": 15
+            "maxWorkers": 90
           },
           {
             "id": "shaft",
             "label": "Shaft mining",
-            "initialStock": 6600,
+            "initialStock": 39600,
             "difficulty": 0.6,
             "requiredTechId": "shaft_mining",
-            "maxWorkers": 40
+            "maxWorkers": 240
           },
           {
             "id": "deep",
             "label": "Deep mining (below water table)",
-            "initialStock": 21000,
+            "initialStock": 126000,
             "difficulty": 0.75,
             "requiredTechId": "mine_drainage",
-            "maxWorkers": 80
+            "maxWorkers": 480
           }
         ]
       },
@@ -271,26 +271,26 @@
           {
             "id": "surface",
             "label": "Alluvial placer gold",
-            "initialStock": 45000,
+            "initialStock": 270000,
             "difficulty": 0.35,
             "requiredTechId": null,
-            "maxWorkers": 15
+            "maxWorkers": 90
           },
           {
             "id": "shaft",
             "label": "Vein mining",
-            "initialStock": 45000,
+            "initialStock": 270000,
             "difficulty": 0.6,
             "requiredTechId": "shaft_mining",
-            "maxWorkers": 40
+            "maxWorkers": 240
           },
           {
             "id": "deep",
             "label": "Deep mining (below water table)",
-            "initialStock": 90000,
+            "initialStock": 540000,
             "difficulty": 0.8,
             "requiredTechId": "mine_drainage",
-            "maxWorkers": 80
+            "maxWorkers": 480
           }
         ]
       },
@@ -299,10 +299,10 @@
           {
             "id": "quarry",
             "label": "Quarrying",
-            "initialStock": 12000000,
+            "initialStock": 72000000,
             "difficulty": 0.3,
             "requiredTechId": null,
-            "maxWorkers": 400
+            "maxWorkers": 2400
           }
         ]
       }
@@ -318,26 +318,26 @@
           {
             "id": "surface",
             "label": "Surface outcrops & shallow pits",
-            "initialStock": 12000,
+            "initialStock": 72000,
             "difficulty": 0.45,
             "requiredTechId": null,
-            "maxWorkers": 15
+            "maxWorkers": 90
           },
           {
             "id": "shaft",
             "label": "Shaft mining",
-            "initialStock": 48000,
+            "initialStock": 288000,
             "difficulty": 0.6,
             "requiredTechId": "shaft_mining",
-            "maxWorkers": 40
+            "maxWorkers": 240
           },
           {
             "id": "deep",
             "label": "Deep mining (below water table)",
-            "initialStock": 180000,
+            "initialStock": 1080000,
             "difficulty": 0.75,
             "requiredTechId": "mine_drainage",
-            "maxWorkers": 112
+            "maxWorkers": 672
           }
         ]
       },
@@ -346,26 +346,26 @@
           {
             "id": "surface",
             "label": "Alluvial cassiterite (streamed)",
-            "initialStock": 1200,
+            "initialStock": 7200,
             "difficulty": 0.4,
             "requiredTechId": null,
-            "maxWorkers": 15
+            "maxWorkers": 90
           },
           {
             "id": "shaft",
             "label": "Shaft mining",
-            "initialStock": 3300,
+            "initialStock": 19800,
             "difficulty": 0.6,
             "requiredTechId": "shaft_mining",
-            "maxWorkers": 40
+            "maxWorkers": 240
           },
           {
             "id": "deep",
             "label": "Deep mining (below water table)",
-            "initialStock": 10500,
+            "initialStock": 63000,
             "difficulty": 0.75,
             "requiredTechId": "mine_drainage",
-            "maxWorkers": 80
+            "maxWorkers": 480
           }
         ]
       },
@@ -374,26 +374,26 @@
           {
             "id": "surface",
             "label": "Alluvial placer gold",
-            "initialStock": 15000,
+            "initialStock": 90000,
             "difficulty": 0.35,
             "requiredTechId": null,
-            "maxWorkers": 15
+            "maxWorkers": 90
           },
           {
             "id": "shaft",
             "label": "Vein mining",
-            "initialStock": 15000,
+            "initialStock": 90000,
             "difficulty": 0.6,
             "requiredTechId": "shaft_mining",
-            "maxWorkers": 40
+            "maxWorkers": 240
           },
           {
             "id": "deep",
             "label": "Deep mining (below water table)",
-            "initialStock": 30000,
+            "initialStock": 180000,
             "difficulty": 0.8,
             "requiredTechId": "mine_drainage",
-            "maxWorkers": 80
+            "maxWorkers": 480
           }
         ]
       },
@@ -402,10 +402,10 @@
           {
             "id": "quarry",
             "label": "Quarrying",
-            "initialStock": 6000000,
+            "initialStock": 36000000,
             "difficulty": 0.3,
             "requiredTechId": null,
-            "maxWorkers": 400
+            "maxWorkers": 2400
           }
         ]
       }
@@ -421,26 +421,26 @@
           {
             "id": "surface",
             "label": "Surface outcrops & shallow pits",
-            "initialStock": 105000,
+            "initialStock": 630000,
             "difficulty": 0.45,
             "requiredTechId": null,
-            "maxWorkers": 19
+            "maxWorkers": 114
           },
           {
             "id": "shaft",
             "label": "Shaft mining",
-            "initialStock": 420000,
+            "initialStock": 2520000,
             "difficulty": 0.6,
             "requiredTechId": "shaft_mining",
-            "maxWorkers": 150
+            "maxWorkers": 900
           },
           {
             "id": "deep",
             "label": "Deep mining (below water table)",
-            "initialStock": 1575000,
+            "initialStock": 9450000,
             "difficulty": 0.75,
             "requiredTechId": "mine_drainage",
-            "maxWorkers": 984
+            "maxWorkers": 5904
           }
         ]
       },
@@ -449,26 +449,26 @@
           {
             "id": "surface",
             "label": "Alluvial cassiterite (streamed)",
-            "initialStock": 1920,
+            "initialStock": 11520,
             "difficulty": 0.4,
             "requiredTechId": null,
-            "maxWorkers": 15
+            "maxWorkers": 90
           },
           {
             "id": "shaft",
             "label": "Shaft mining",
-            "initialStock": 5280,
+            "initialStock": 31680,
             "difficulty": 0.6,
             "requiredTechId": "shaft_mining",
-            "maxWorkers": 40
+            "maxWorkers": 240
           },
           {
             "id": "deep",
             "label": "Deep mining (below water table)",
-            "initialStock": 16800,
+            "initialStock": 100800,
             "difficulty": 0.75,
             "requiredTechId": "mine_drainage",
-            "maxWorkers": 80
+            "maxWorkers": 480
           }
         ]
       },
@@ -477,26 +477,26 @@
           {
             "id": "surface",
             "label": "Alluvial placer gold",
-            "initialStock": 112500,
+            "initialStock": 675000,
             "difficulty": 0.35,
             "requiredTechId": null,
-            "maxWorkers": 20
+            "maxWorkers": 120
           },
           {
             "id": "shaft",
             "label": "Vein mining",
-            "initialStock": 112500,
+            "initialStock": 675000,
             "difficulty": 0.6,
             "requiredTechId": "shaft_mining",
-            "maxWorkers": 40
+            "maxWorkers": 240
           },
           {
             "id": "deep",
             "label": "Deep mining (below water table)",
-            "initialStock": 225000,
+            "initialStock": 1350000,
             "difficulty": 0.8,
             "requiredTechId": "mine_drainage",
-            "maxWorkers": 141
+            "maxWorkers": 846
           }
         ]
       },
@@ -505,10 +505,10 @@
           {
             "id": "quarry",
             "label": "Quarrying",
-            "initialStock": 15000000,
+            "initialStock": 90000000,
             "difficulty": 0.3,
             "requiredTechId": null,
-            "maxWorkers": 400
+            "maxWorkers": 2400
           }
         ]
       }
@@ -524,26 +524,26 @@
           {
             "id": "surface",
             "label": "Surface outcrops & shallow pits",
-            "initialStock": 45000,
+            "initialStock": 270000,
             "difficulty": 0.45,
             "requiredTechId": null,
-            "maxWorkers": 15
+            "maxWorkers": 90
           },
           {
             "id": "shaft",
             "label": "Shaft mining",
-            "initialStock": 180000,
+            "initialStock": 1080000,
             "difficulty": 0.6,
             "requiredTechId": "shaft_mining",
-            "maxWorkers": 64
+            "maxWorkers": 384
           },
           {
             "id": "deep",
             "label": "Deep mining (below water table)",
-            "initialStock": 675000,
+            "initialStock": 4050000,
             "difficulty": 0.75,
             "requiredTechId": "mine_drainage",
-            "maxWorkers": 422
+            "maxWorkers": 2532
           }
         ]
       },
@@ -552,26 +552,26 @@
           {
             "id": "surface",
             "label": "Alluvial cassiterite (streamed)",
-            "initialStock": 60000,
+            "initialStock": 360000,
             "difficulty": 0.4,
             "requiredTechId": null,
-            "maxWorkers": 15
+            "maxWorkers": 90
           },
           {
             "id": "shaft",
             "label": "Shaft mining",
-            "initialStock": 165000,
+            "initialStock": 990000,
             "difficulty": 0.6,
             "requiredTechId": "shaft_mining",
-            "maxWorkers": 59
+            "maxWorkers": 354
           },
           {
             "id": "deep",
             "label": "Deep mining (below water table)",
-            "initialStock": 525000,
+            "initialStock": 3150000,
             "difficulty": 0.75,
             "requiredTechId": "mine_drainage",
-            "maxWorkers": 328
+            "maxWorkers": 1968
           }
         ]
       },
@@ -580,26 +580,26 @@
           {
             "id": "surface",
             "label": "Alluvial placer gold",
-            "initialStock": 30000,
+            "initialStock": 180000,
             "difficulty": 0.35,
             "requiredTechId": null,
-            "maxWorkers": 15
+            "maxWorkers": 90
           },
           {
             "id": "shaft",
             "label": "Vein mining",
-            "initialStock": 30000,
+            "initialStock": 180000,
             "difficulty": 0.6,
             "requiredTechId": "shaft_mining",
-            "maxWorkers": 40
+            "maxWorkers": 240
           },
           {
             "id": "deep",
             "label": "Deep mining (below water table)",
-            "initialStock": 60000,
+            "initialStock": 360000,
             "difficulty": 0.8,
             "requiredTechId": "mine_drainage",
-            "maxWorkers": 80
+            "maxWorkers": 480
           }
         ]
       },
@@ -608,10 +608,10 @@
           {
             "id": "quarry",
             "label": "Quarrying",
-            "initialStock": 60000000,
+            "initialStock": 360000000,
             "difficulty": 0.3,
             "requiredTechId": null,
-            "maxWorkers": 400
+            "maxWorkers": 2400
           }
         ]
       }
