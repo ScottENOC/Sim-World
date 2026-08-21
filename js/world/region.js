@@ -24,11 +24,22 @@ export class Region {
     this.forest = null;                    // { currentStock, K }
     this.deposits = null;                  // { copper: { tiers: [{id, label, initialStock, remainingStock, difficulty, requiredTechId, maxWorkers}] }, ... }
     this.stockpile = {};                   // { wood, copper, tin, gold, stone, bronze, food }
-    this.occupations = {};                 // { farmer, lumberjack, miner, smith, general } — set each tick by economy/labor.js
+    this.occupations = {};                 // { farmer, lumberjack, miner, smith, general } â set each tick by economy/labor.js
+    this.equipment = {};                   // { farmer: {bronze_plough: count}, miner: {...}, lumberjack: {...} }
+
+    // Stub until edicts exist: this is where "player equips the army" plugs
+    // into smith demand later â for now it's just always 0.
+    this.militaryBronzeDemand = 0;
+
+    // Currency â abstract "value" units, not literal coinage (doesn't exist
+    // yet at this era). wallet = populace, actively used in trade. treasury
+    // = government, mostly inert until taxation/edicts exist to fill it.
+    this.wallet = 0;
+    this.treasury = 0;
 
     // Stub until technology/techTree.js exists: nothing is ever unlocked yet,
     // so every deposit sits at its surface/alluvial tier forever. Real tech
-    // diffusion will just start adding ids to this set — extraction.js
+    // diffusion will just start adding ids to this set â extraction.js
     // already reads from it, so no other code needs to change when that lands.
     this.unlockedTechIds = new Set();
   }
