@@ -19,6 +19,7 @@ const BASE_ANNUAL_BIRTH_RATE = 0.045; // per capita of total population
 const EDUCATION_BIRTH_PENALTY = 0.5;  // at educationLevel=1, birth rate halves — the "double-edged sword"
 
 const BASE_ANNUAL_DEATH_RATE = { children: 0.025, workingAge: 0.01, elderly: 0.07 };
+const ARMY_BASE_ANNUAL_DEATH_RATE = 0.015; // slightly above civilian working-age: camp disease, accidents, skirmishes
 
 const STARVATION_STABILITY_PENALTY = 0.15;
 const WELL_FED_STABILITY_RECOVERY = 0.01;
@@ -76,6 +77,11 @@ function applyBaselineDemographics(region) {
   d.workingAge = Math.max(0, d.workingAge + childToWorking - workingDeaths - workingToElderly);
   d.elderly = Math.max(0, d.elderly + workingToElderly - elderlyDeaths);
 
+  // Soldiers/sailors aren't immortal just because they're tracked outside
+  // the civilian bands — same baseline mortality logic, slightly elevated.
+  region.army.personnel = Math.max(0, region.army.personnel - region.army.personnel * weeklyRate(ARMY_BASE_ANNUAL_DEATH_RATE));
+  region.navy.personnel = Math.max(0, region.navy.personnel - region.navy.personnel * weeklyRate(ARMY_BASE_ANNUAL_DEATH_RATE));
+
   region.population = Math.round(d.children + d.workingAge + d.elderly);
 }
 
@@ -110,18 +116,28 @@ function applyFamineResponse(region, allRegions) {
   syncPopulation(region);
 }
 
-// Famine doesn't check ID cards, but children and the elderly are more
-// vulnerable to it than working-age adults — the standard excess-mortality
-// pattern in real famines and, separately, who's realistically able to
-// travel or turn bandit.
-function removeFromBands(region, count) {
+// Famine doesn't check ID cards, and a state that can't feed its people
+// can't sustain a standing army either — soldiers/sailors are pulled into
+// the same proportional loss as everyone else (desertion and starvation in
+// the ranks, not just civilian death/flight/banditry). Children and the
+// elderly are weighted more vulnerable, the standard excess-mortality
+// pattern in real famines.
+export function removeFromBands(region, count) {
   const d = region.demographics;
-  const weights = { children: d.children * 1.3, workingAge: d.workingAge * 0.7, elderly: d.elderly * 1.3 };
-  const weightTotal = weights.children + weights.workingAge + weights.elderly;
+  const weights = {
+    children: d.children * 1.3,
+    workingAge: d.workingAge * 0.7,
+    elderly: d.elderly * 1.3,
+    army: region.army.personnel * 0.7,
+    navy: region.navy.personnel * 0.7,
+  };
+  const weightTotal = Object.values(weights).reduce((a, b) => a + b, 0);
   if (weightTotal <= 0 || count <= 0) return;
   d.children = Math.max(0, d.children - count * (weights.children / weightTotal));
   d.workingAge = Math.max(0, d.workingAge - count * (weights.workingAge / weightTotal));
   d.elderly = Math.max(0, d.elderly - count * (weights.elderly / weightTotal));
+  region.army.personnel = Math.max(0, region.army.personnel - count * (weights.army / weightTotal));
+  region.navy.personnel = Math.max(0, region.navy.personnel - count * (weights.navy / weightTotal));
 }
 
 // Arrivals skew working-age — families with young children and the elderly
@@ -133,7 +149,7 @@ function addToBands(region, count) {
   syncPopulation(region);
 }
 
-function syncPopulation(region) {
+export function syncPopulation(region) {
   const d = region.demographics;
   region.population = Math.round(d.children + d.workingAge + d.elderly);
 }

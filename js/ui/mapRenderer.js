@@ -8,6 +8,9 @@ const COLORS = {
   landSelected: '#c08a4e',
   border: '#0b0e13',
   borderSelected: '#c08a4e',
+  seaLow: '#141d2e',  // fished-out — barely distinguishable from the void
+  seaHigh: '#2c5270', // full fish stock — a real, visible body of water
+  seaBorder: '#3a5a72',
 };
 
 function hexToRgb(hex) {
@@ -23,10 +26,11 @@ function lerpColor(hexA, hexB, t) {
 }
 
 export class MapRenderer {
-  constructor(canvas, regions, { onSelect } = {}) {
+  constructor(canvas, regions, { onSelect, seaRegions = [] } = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.regions = regions;
+    this.seaRegions = seaRegions;
     this.onSelect = onSelect || (() => {});
     this.selectedId = null;
     this.transform = d3.zoomIdentity;
@@ -37,7 +41,7 @@ export class MapRenderer {
 
     const featureCollection = {
       type: 'FeatureCollection',
-      features: regions.map((r) => r.feature),
+      features: [...regions.map((r) => r.feature), ...seaRegions.map((s) => s.feature)],
     };
 
     this.projection = d3.geoMercator();
@@ -156,6 +160,21 @@ export class MapRenderer {
 
     ctx.translate(this.transform.x, this.transform.y);
     ctx.scale(this.transform.k, this.transform.k);
+
+    // Seas first — not interactive this pass, just a visible signal of fish
+    // abundance (a fished-out sea fades toward the void; a full one reads
+    // as real water) so overfishing a shared sea is visible on the map
+    // itself, not just in a stat panel.
+    ctx.lineWidth = 1 / this.transform.k;
+    ctx.strokeStyle = COLORS.seaBorder;
+    for (const sea of this.seaRegions) {
+      const stockFraction = sea.fish.K > 0 ? sea.fish.currentStock / sea.fish.K : 0;
+      ctx.beginPath();
+      this.path(sea.feature);
+      ctx.fillStyle = lerpColor(COLORS.seaLow, COLORS.seaHigh, Math.max(0, Math.min(1, stockFraction)));
+      ctx.fill();
+      ctx.stroke();
+    }
 
     for (const region of this.regions) {
       const selected = region.id === this.selectedId;

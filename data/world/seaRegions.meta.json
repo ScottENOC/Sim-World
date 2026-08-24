@@ -1,0 +1,33 @@
+{
+  "seaRegions": [
+    {
+      "id": "irish_sea",
+      "name": "Irish Sea",
+      "adjacentLand": [
+        "england",
+        "scotland",
+        "wales",
+        "n_ireland",
+        "ireland"
+      ],
+      "centroid": [
+        -4.7937,
+        53.4813
+      ],
+      "areaSqKm": 47236.0
+    },
+    {
+      "id": "english_channel",
+      "name": "English Channel",
+      "adjacentLand": [
+        "england",
+        "france"
+      ],
+      "centroid": [
+        -2.1053,
+        49.84
+      ],
+      "areaSqKm": 82589.0
+    }
+  ]
+}

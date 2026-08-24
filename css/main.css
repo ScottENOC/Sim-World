@@ -180,6 +180,106 @@ html, body {
   color: var(--parchment-dim);
 }
 
+#region-details details {
+  margin-top: 8px;
+  border-top: 1px dashed var(--bronze-dim);
+  padding-top: 6px;
+}
+
+#region-details summary {
+  color: var(--parchment);
+  font-weight: 600;
+  cursor: pointer;
+  font-variant: small-caps;
+  letter-spacing: 0.03em;
+}
+
+#region-details details > div,
+#region-details details div {
+  margin-top: 4px;
+}
+
+#region-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--bronze-dim);
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  color: var(--parchment);
+  gap: 12px;
+}
+
+.control-row input {
+  width: 100px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--bronze-dim);
+  background: var(--ink);
+  color: var(--parchment);
+  font-size: 14px;
+  text-align: right;
+}
+
+.control-row input:disabled {
+  opacity: 0.4;
+}
+
+.control-row select {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--bronze-dim);
+  background: var(--ink);
+  color: var(--parchment);
+  font-size: 14px;
+}
+
+.control-row input[type="range"] {
+  width: 140px;
+  text-align: initial;
+  accent-color: var(--bronze);
+}
+
+.raid-section {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--bronze-dim);
+}
+
+.raid-status {
+  font-size: 12px;
+  color: var(--parchment-dim);
+  margin: 4px 0;
+}
+
+#btn-raid-launch {
+  width: 100%;
+  padding: 10px;
+  margin-top: 6px;
+  border-radius: 8px;
+  border: 1px solid var(--danger);
+  background: transparent;
+  color: var(--parchment);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+#btn-raid-launch:disabled {
+  opacity: 0.35;
+  border-color: var(--bronze-dim);
+}
+
+#btn-raid-launch:not(:disabled):active {
+  background: var(--danger);
+}
+
 /* ---------- Event modal (auto-pause) ---------- */
 .modal {
   position: absolute;

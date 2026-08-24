@@ -236,6 +236,200 @@ army system's job next pass. Numbers climbing past a region's remaining
 formal population (which they do, in the collapsing regions) are expected
 given what exists so far, not a bug.
 
+## Armies, navies, and banditry suppression
+Reuses the tools.js equipment machinery directly — `soldier` is just another
+occupation in `toolTypes.json` with a `bronze_weapons` tier, same
+adoption-rate-capped investment as farmer ploughs. `military/army.js`
+handles recruitment: the player sets `region.targetArmySize` (a real input
+in the region panel now), and personnel ramps toward it gradually
+(`adjustArmySize`), drawing from working-age population and staying
+committed — unlike farmers/miners/etc, which are freely reallocated every
+tick, soldiers stay soldiers until demobilized. Navy works the same way but
+the player's target is *boats*, not people; crew count
+(`CREW_PER_BOAT = 8`) is derived from fleet size. Boats themselves are built
+by a new `boatmaker` profession in `labor.js`, consuming wood
+(`BOAT_WOOD_COST = 200`) — gated on `region.isCoastal` (true for all six
+regions currently, matters once the map grows to include landlocked ones).
+
+`military/banditry.js` is what finally gives the ever-growing bandit
+population from last pass somewhere to go: `effectivePower()` (army
+personnel × equipment bonus, navy counted at 30% for land defense) drives
+both `region.safetyRating` and active suppression — bandit population
+shrinks each week proportional to army power relative to bandit numbers,
+plus a small natural attrition even with zero army. Unsuppressed banditry
+raids the stockpile and causes ongoing deaths, both scaled by how unsafe
+the region currently is.
+
+**A real bug caught before shipping, not cosmetic**: army/navy personnel
+were being pulled out of `workingAge` on recruitment and then existed in
+total isolation from every subsequent population mechanic — famine deaths,
+emigration, banditry conversion all only touched
+`children/workingAge/elderly`, never `region.army.personnel`. Tested by
+giving Scotland a 3,000-person army target and letting it collapse: the
+army just sat at ~2,521 forever while population crashed to 2 — a phantom
+force bigger than the entire remaining population. Fixed by exporting a
+single `removeFromBands` from `demographics.js` (now army/navy-aware,
+weighted the same as civilian working-age) that `banditry.js` also uses
+instead of its own separate copy, and by adding baseline mortality for
+military personnel so they're not immortal even without a famine. Re-verified:
+army now shrinks correctly in lockstep with a collapsing population.
+
+**Flagging, not silently fixing**: soldier equipment investment is
+currently getting crowded out by farmer plough demand under the existing
+bronze scarcity (from a few sessions back) — proportional demand-splitting
+means a small military's share of an already-tiny bronze pool often rounds
+down to zero tools bought per week, even over years. Verified this isn't a
+regression (boat-building and recruitment both work correctly in isolation)
+— it's the same scarcity dynamic already accepted for lumberjack/miner
+tools, just now also affecting soldiers. Whether military equipment should
+get investment priority over civilian tools is a real design call, not an
+oversight, and hasn't been decided either way yet.
+
+## Learning by doing (Bronze Age "technology")
+No tech tree yet — at this era it's mostly tacit knowledge that accumulates
+from actually doing the work, so `technology/learningByDoing.js` tracks
+cumulative worker-effort per activity (farming, gathering, lumberjack,
+mining, smithing) and derives an efficiency multiplier from it via the same
+saturating-curve shape used everywhere else in this sim: fast early gains,
+tapering toward a per-activity ceiling (0.25-0.50, i.e. up to +25-50% from
+practice alone) that only a genuine technological leap — iron working, real
+metallurgy, still future work — could ever exceed. Stacks multiplicatively
+with tools.js's equipment bonus: well-practiced *and* well-equipped beats
+either alone. Skill is read before this tick's experience is added, so
+there's no circularity to solve.
+
+Calibration took two passes: the first-pass halflife constants assumed
+roughly similar workforce sizes across activities, which isn't true —
+farming and gathering involve hundreds of thousands of workers and hit
+their ceiling in under 2 years, while lumberjack (hard-capped by forest
+mine-face-style capacity) involves single digits to low hundreds and barely
+moved after 200 years. Rescaled each activity's halflife against its actual
+typical workforce, verified with a 200-year run: England's farming climbs
+to ~35% by year 50 and ~50% (ceiling) by year 200, a believable
+multi-generational curve.
+
+One emergent interaction worth flagging as correct, not broken: France's
+mining and smithing skill go completely flat from roughly year 20 through
+year 200 in that run — because that's when its accessible surface copper
+and tin fully depleted (the tier/tech-gate system from a couple sessions
+back), so mining and smithing activity actually stops. A skill can't
+improve from practice that isn't happening anymore.
+
+## Sea regions and fishing
+Boundaries come from the same place as the land data: Natural Earth's
+marine polygons dataset (`ne_10m_geography_marine_polys`, same GitHub
+mirror as before), which carries real named seas. Pulled Irish Sea (touches
+five of our six land regions — England, Scotland, Wales, N. Ireland,
+Ireland — a genuine shared commons) and English Channel (England/France).
+Sea regions (`world/seaRegion.js`) are much simpler than land ones: no
+population or economy, just geometry, a fish stock, and which land regions
+can reach it — `linkSeaAdjacency()` wires that up after both load.
+
+Fish uses the exact same logistic regrowth as forests
+(`world/resources/renewables.js`'s `regrow()`, reused directly, no new
+math needed) — it already has the property you asked for: slow growth near
+zero (few breeding fish) and near carrying capacity (not enough food),
+fastest in between. Fishing is a third food source in `labor.js`, tried
+after farming and gathering: shore fishing (no boat, lower yield, always
+available if coastal) and boat fishing (needs a `fishingBoats` — separate
+from the military navy, built by the same boatmaker profession from wood,
+demand-driven rather than player-set like the navy target). Yield for both
+scales directly with the sea's current stock fraction, so overfishing is
+self-punishing — and shared: every region fishing the same sea feels it,
+not just whoever did the overfishing.
+
+**Two capacity bugs caught by simulation, not shipped blind**: first, shore
+and boat fishing initially only activated when there was unmet food need
+*and* gathering hadn't already claimed the entire post-farming labor
+reserve — which it could, leaving literally nothing for fishing even in
+Scotland, the region that needed it most. Fixed with `MAX_GATHERER_FRACTION`
+(same reservation pattern as farmers). Second, and more serious: boat
+fishing capacity was only limited by how many boats a region owned, and
+boat-building demand had no ceiling — a 50-year run fished both seas
+completely to 0% stock, with France alone running 27,145 boat fishers off
+a single sea. Fixed by adding a sea-level physical capacity cap (same
+"mine-face can only support so many workers" pattern as ore deposits),
+fair-shared among however many land regions border that sea. Re-verified:
+fish stock now equilibrates around 63-76% instead of collapsing.
+
+Not yet done: fish caught goes straight into general food stock rather than
+being tracked as its own tradeable good (real Bronze Age economies did
+trade preserved fish) — a reasonable future extension, not built this pass.
+Map rendering shows seas tinted by current fish stock (fades toward the void
+as a sea gets fished out) but sea regions aren't tappable/selectable yet,
+only land regions are.
+
+## Raiding
+The first real interaction *between* regions — everything before this was
+each region running its own economy/demographics in isolation.
+`military/raiding.js` handles the whole lifecycle: launch (deducts
+personnel from the attacker's home army immediately, marking them "away"),
+transit (real travel time — `LAND_SPEED_KM_PER_WEEK`/`SEA_SPEED_KM_PER_WEEK`
+against the same centroid distances trade already uses, so a raid can
+genuinely take months round-trip), combat resolution on arrival, and a
+separate return trip for survivors. Sea raids need a shared sea *and*
+enough navy — `maxSeaRaidersAvailable = boats × 10` — a boat carries more
+than just its own crew, but capacity is real and requests get capped to it,
+not silently allowed through.
+
+Combat: attacker power (raiders × equipment multiplier, reusing tools.js's
+existing soldier efficiency) vs. defender power (home army × equipment ×
+a 1.3x home-field advantage), producing a power ratio that drives losses on
+both sides (±30% RNG variance so a stronger side can still get unlucky),
+loot (a fraction of stockpile *and* wallet, scaled by how dominant the win
+was, with its own randomness), and a stability hit to the defender. Losing
+side takes worse losses, but nobody's ever risk-free.
+
+The one bug this actually surfaced: `army.js`'s recruitment was measuring
+the gap toward `targetArmySize` using only home personnel — send half your
+army raiding and the recruiter would "see" a shortfall and start backfilling
+it, silently growing your total army every time you raided. Fixed by
+`region.army.away` tracking (separate from `personnel`) and measuring the
+recruitment gap against home + away combined; demobilization still only
+ever releases people who are actually home. Verified with a full raid
+cycle: army count round-trips correctly (minus real combat losses), and
+recruitment does nothing while troops are away with the target unchanged.
+
+This finally puts the auto-pause/event-modal system to real use — it was
+scaffolded in Phase 0 and has sat unused ever since. A raid resolving calls
+`clock.requestAutoPause()`, queues the outcome, and only releases once the
+player's clicked through every queued result.
+
+**Explicitly not built this pass**: any AI decision-making — every raid
+right now only happens because the player launched it. `launchRaid()` is
+generic (works for any region as attacker), so it's ready for an AI to call,
+but nothing decides *when* an NPC region should raid. Also not built:
+conquest — raiding steals resources and hurts stability but never changes
+`controllingActorId`; that's a bigger, separate design question about what
+"taking" a region actually means given the culture/identity-strength system
+that was designed early on but still hasn't been coded.
+
+## Resources panel and economy report
+Two additions to the region panel, both as collapsible `<details>` sections
+so the already-long panel doesn't get worse: **Resources** shows what a
+region actually has access to — land quality, forest capacity, each mineral
+deposit's tiers with remaining % and lock status, and fish stock for every
+adjacent sea — as opposed to the Stockpile section, which only ever showed
+what's currently *stored*, not what's *available*. **Economy report** shows
+last week's production broken down by activity: workers employed and
+exactly what came out (food from farming vs. gathering vs. shore vs. boat
+fishing kept separate, ore by resource, bronze, wood, boats built).
+
+Required instrumenting `economy/labor.js` to actually record a
+`region.report` object at each production point — it was computing all of
+this already, just discarding it once it landed in the stockpile. One
+correctness fix along the way: when a shared sea's fish stock caps the
+total catch below what shore + boat fishing wanted, both methods now lose
+proportionally in the report rather than the report showing the
+pre-cap (and therefore too-high) figures.
+
+`<details>` open/closed state doesn't survive an `innerHTML` replacement,
+and this panel already replaces its content every tick to stay live — same
+class of problem solved earlier for the army/navy input fields, same fix:
+save each section's open state before replacing, restore it after, so a
+section the player opened to actually watch doesn't silently snap shut
+every second.
+
 ## Culture / census
 Not using real-world data for this — each region seeds its own
 procedurally-generated starting culture/religion/ancestry identity as a

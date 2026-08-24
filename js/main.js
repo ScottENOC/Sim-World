@@ -1,10 +1,14 @@
 import { Clock } from './core/clock.js';
 import { EventBus } from './core/eventBus.js';
 import { loadWorld } from './world/region.js';
+import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js';
 import { seedCensus, densityPerKm2 } from './society/census.js';
 import { tickEconomy } from './economy/labor.js';
 import { tickTrade } from './economy/trade.js';
 import { tickDemographics } from './society/demographics.js';
+import { tickBanditry } from './military/banditry.js';
+import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable } from './military/raiding.js';
+import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js';
 import { MapRenderer } from './ui/mapRenderer.js';
 
 const START_YEAR = -1200; // Bronze Age start, mid-collapse-era — tune later
@@ -35,23 +39,31 @@ async function main() {
 
   const regions = await loadWorld();
   seedCensus(regions);
+  const seaRegions = await loadSeaWorld();
+  linkSeaAdjacency(regions, seaRegions);
   const toolTypes = await (await fetch('data/world/toolTypes.json')).json();
   console.log(
     `Loaded ${regions.length} regions:`,
     regions.map((r) => `${r.name} (pop ${r.population.toLocaleString()})`).join(', ')
   );
+  console.log(`Loaded ${seaRegions.length} sea regions:`, seaRegions.map((s) => s.name).join(', '));
 
   const canvas = document.getElementById('map-canvas');
   const map = new MapRenderer(canvas, regions, {
-    onSelect: (region) => showRegionSheet(region),
+    seaRegions,
+    onSelect: (region) => {
+      selectedRegion = region;
+      renderRegionControls(region, regions, clock, activeRaids); // inputs — only on selection, never per-tick (would eat keystrokes)
+      updateRegionStats(region, seaRegionsById);
+      document.getElementById('region-sheet').classList.remove('hidden');
+    },
   });
 
   let selectedRegion = null;
-  const originalOnSelect = map.onSelect;
-  map.onSelect = (region) => {
-    selectedRegion = region;
-    originalOnSelect(region);
-  };
+  const regionsById = new Map(regions.map((r) => [r.id, r]));
+  const seaRegionsById = new Map(seaRegions.map((s) => [s.id, s]));
+  let activeRaids = [];
+  const eventQueue = [];
 
   wireLayerToggle(map);
   map.setLayer(LAYERS.density);
@@ -59,19 +71,29 @@ async function main() {
 
   wireHud(clock);
   clock.onTick(() => {
-    tickEconomy(regions, toolTypes);
+    tickEconomy(regions, seaRegions, toolTypes);
     tickTrade(regions);
     tickDemographics(regions);
+    tickBanditry(regions, toolTypes);
+
+    const { remaining, events } = tickRaids(activeRaids, regionsById, clock.tickIndex, toolTypes, Math.random);
+    activeRaids = remaining;
+    if (events.length > 0) {
+      clock.requestAutoPause();
+      eventQueue.push(...events);
+      showNextEvent(clock, eventQueue);
+    }
+
     document.getElementById('hud-date').textContent = clock.formatDate(START_YEAR);
     map.draw();
-    if (selectedRegion) showRegionSheet(selectedRegion); // keep the open sheet live
+    if (selectedRegion) updateRegionStats(selectedRegion, seaRegionsById); // keep stats live; controls stay untouched
   });
   document.getElementById('hud-date').textContent = clock.formatDate(START_YEAR);
 
   clock.start();
 
   // Expose for console poking during development.
-  window.__worldsim = { bus, clock, regions, map };
+  window.__worldsim = { bus, clock, regions, seaRegions, activeRaids, map };
 }
 
 function wireLayerToggle(map) {
@@ -112,16 +134,197 @@ function showLegend(map) {
   document.getElementById('legend').classList.remove('hidden');
 }
 
-function showRegionSheet(region) {
-  const sheet = document.getElementById('region-sheet');
+// Built once when the player taps a region — never rebuilt on the periodic
+// refresh below, or every keystroke in the input would get wiped mid-edit.
+function renderRegionControls(region, regions, clock, activeRaids) {
   document.getElementById('region-name').textContent = region.name;
 
+  const targets = regions
+    .filter((r) => r.id !== region.id)
+    .map((r) => ({ region: r, ...canRaid(region, r) }))
+    .filter((t) => t.possible);
+
+  const inFlight = activeRaids.filter((r) => r.attackerId === region.id && !r.completed);
+  const inFlightLine = inFlight.length
+    ? `<div class="raid-status">${inFlight.length} raid(s) currently away (${inFlight.reduce((s, r) => s + r.personnel, 0).toLocaleString()} soldiers)</div>`
+    : '';
+
+  document.getElementById('region-controls').innerHTML = `
+    <label class="control-row">Target army size
+      <input type="number" min="0" step="100" id="input-army" value="${Math.round(region.targetArmySize)}">
+    </label>
+    <label class="control-row">Target navy size (boats)
+      <input type="number" min="0" step="1" id="input-navy" value="${Math.round(region.targetNavySize)}" ${region.isCoastal ? '' : 'disabled title="not a coastal region"'}>
+    </label>
+    <div class="raid-section">
+      ${targets.length === 0
+        ? '<div class="raid-status">No reachable raid targets (need a land border, or a shared sea plus navy capacity)</div>'
+        : `
+          <label class="control-row">Raid target
+            <select id="raid-target">
+              <option value="">— select —</option>
+              ${targets.map((t) => `<option value="${t.region.id}" data-sea="${t.viaSea}">${t.region.name}${t.viaSea ? ' (sea)' : ''}</option>`).join('')}
+            </select>
+          </label>
+          <label class="control-row">Send <span id="raid-fraction-label">50%</span> of home army
+            <input type="range" id="raid-fraction" min="0" max="100" value="50">
+          </label>
+          <div id="raid-info" class="raid-status"></div>
+          <button id="btn-raid-launch" disabled>Launch Raid</button>
+        `}
+      ${inFlightLine}
+    </div>
+  `;
+
+  document.getElementById('input-army').addEventListener('change', (e) => {
+    region.targetArmySize = Math.max(0, Number(e.target.value) || 0);
+  });
+  document.getElementById('input-navy').addEventListener('change', (e) => {
+    region.targetNavySize = Math.max(0, Number(e.target.value) || 0);
+  });
+
+  if (targets.length === 0) return;
+
+  const targetSelect = document.getElementById('raid-target');
+  const fractionSlider = document.getElementById('raid-fraction');
+  const launchBtn = document.getElementById('btn-raid-launch');
+
+  const updateRaidInfo = () => {
+    const fraction = Number(fractionSlider.value) / 100;
+    document.getElementById('raid-fraction-label').textContent = Math.round(fraction * 100) + '%';
+    const targetId = targetSelect.value;
+    if (!targetId) {
+      document.getElementById('raid-info').textContent = '';
+      launchBtn.disabled = true;
+      return;
+    }
+    const target = targets.find((t) => t.region.id === targetId);
+    let requested = Math.floor(region.army.personnel * fraction);
+    let capNote = '';
+    if (target.viaSea) {
+      const maxSea = maxSeaRaidersAvailable(region);
+      if (requested > maxSea) {
+        requested = maxSea;
+        capNote = ` (capped by navy capacity — ${region.navy.boats.toFixed(0)} boats)`;
+      }
+    }
+    document.getElementById('raid-info').textContent = `Sending ${requested.toLocaleString()} of ${Math.round(region.army.personnel).toLocaleString()} home soldiers${capNote}`;
+    launchBtn.disabled = requested <= 0;
+  };
+
+  targetSelect.addEventListener('change', updateRaidInfo);
+  fractionSlider.addEventListener('input', updateRaidInfo);
+  updateRaidInfo();
+
+  launchBtn.addEventListener('click', () => {
+    const target = targets.find((t) => t.region.id === targetSelect.value);
+    if (!target) return;
+    const fraction = Number(fractionSlider.value) / 100;
+    const requested = Math.floor(region.army.personnel * fraction);
+    const raid = launchRaid(region, target.region, requested, target.viaSea, clock.tickIndex);
+    if (raid) {
+      activeRaids.push(raid);
+      renderRegionControls(region, regions, clock, activeRaids); // refresh: reduced home army, updated in-flight list
+    }
+  });
+}
+
+function showNextEvent(clock, eventQueue) {
+  if (eventQueue.length === 0) return;
+  const event = eventQueue.shift();
+  const { attackerName, defenderName, outcome, raid } = event;
+  const won = outcome.attackerRatio > 0.5;
+  const lootText = Object.entries(outcome.looted)
+    .map(([k, v]) => `${v.toFixed(0)} ${k}`)
+    .join(', ') || 'nothing of note';
+
+  document.getElementById('event-title').textContent = `Raid: ${attackerName} vs ${defenderName}`;
+  document.getElementById('event-body').innerHTML = `
+    ${attackerName}'s raiders (${raid.personnel.toLocaleString()} strong) reached ${defenderName}.
+    ${won ? 'The raid succeeded.' : 'The defenders held them off.'}<br><br>
+    Attacker losses: ${outcome.attackerLosses.toLocaleString()}<br>
+    Defender losses: ${outcome.defenderLosses.toLocaleString()}<br>
+    Looted: ${lootText}${outcome.walletStolen > 0.5 ? `, ${outcome.walletStolen.toFixed(0)} wealth` : ''}<br>
+    ${defenderName}'s stability fell ${(outcome.stabilityLoss * 100).toFixed(0)} points.
+  `;
+  document.getElementById('event-options').innerHTML = '<button id="btn-event-continue">Continue</button>';
+  document.getElementById('event-modal').classList.remove('hidden');
+  document.getElementById('btn-event-continue').addEventListener('click', () => {
+    document.getElementById('event-modal').classList.add('hidden');
+    if (eventQueue.length > 0) {
+      showNextEvent(clock, eventQueue); // more queued — stay paused
+    } else {
+      clock.releaseAutoPause();
+    }
+  });
+}
+
+const ACTIVITY_LABELS = {
+  farming: 'Farming', gathering: 'Gathering', shoreFishing: 'Shore fishing', boatFishing: 'Boat fishing',
+  lumberjack: 'Lumberjack', mining: 'Mining', smithing: 'Smithing', boatmaking: 'Boat-making',
+};
+
+function buildResourcesSection(region, seaRegionsById) {
+  const depositLines = ['copper', 'tin', 'gold', 'stone']
+    .map((key) => {
+      const dep = region.deposits[key];
+      if (!dep) return '';
+      const tierText = dep.tiers
+        .map((t) => {
+          const locked = t.requiredTechId && !region.unlockedTechIds.has(t.requiredTechId);
+          const pct = t.initialStock > 0 ? Math.round((100 * t.remainingStock) / t.initialStock) : 0;
+          return `${t.label} ${pct}%${locked ? ' (locked)' : ''}`;
+        })
+        .join(', ');
+      return `<div>${key}: ${tierText}</div>`;
+    })
+    .join('');
+
+  const forestPct = region.forest.K > 0 ? Math.round((100 * region.forest.currentStock) / region.forest.K) : 0;
+  const seaLines = region.adjacentSeaIds
+    .map((id) => {
+      const sea = seaRegionsById.get(id);
+      if (!sea) return '';
+      const pct = sea.fish.K > 0 ? Math.round((100 * sea.fish.currentStock) / sea.fish.K) : 0;
+      return `<div>${sea.name}: fish stock ${pct}%</div>`;
+    })
+    .join('');
+
+  return `
+    <div>Land quality: ${region.landQuality.toFixed(2)}&times; baseline</div>
+    <div>Forest: ${forestPct}% of capacity</div>
+    ${depositLines}
+    ${seaLines || '<div>No adjacent sea</div>'}
+  `;
+}
+
+function buildReportSection(region) {
+  const r = region.report;
+  if (!r || Object.keys(r).length === 0) return '<div>Not yet ticked</div>';
+  const lines = [];
+  for (const [key, data] of Object.entries(r)) {
+    if (!data || data.workers === 0) continue; // skip inactive lines, keep it scannable
+    const outputs = Object.entries(data)
+      .filter(([k]) => k !== 'workers' && k !== 'seaName')
+      .filter(([, v]) => typeof v === 'number' && v > 0.05)
+      .map(([k, v]) => `${v.toFixed(k === 'bronze' ? 1 : 0)} ${k}`)
+      .join(', ');
+    lines.push(`<div>${ACTIVITY_LABELS[key] || key}: ${data.workers.toLocaleString()} workers &rarr; ${outputs || 'nothing yet'}</div>`);
+  }
+  return lines.join('') || '<div>Nobody produced anything of note this week</div>';
+}
+
+// Refreshed every tick while the sheet is open — read-only, safe to
+// innerHTML-replace freely. <details> open/closed state is preserved
+// manually across the refresh (innerHTML replacement would otherwise
+// silently close any section the player had open, every single tick).
+function updateRegionStats(region, seaRegionsById) {
   const density = densityPerKm2(region).toFixed(1);
   const culture = region.cultureGroups[0]; // monoculture at game start
   const occ = region.occupations;
   const occLine = occ.farmer === undefined
     ? 'not yet ticked'
-    : `farmers ${occ.farmer.toLocaleString()} &middot; gatherers ${(occ.gatherer || 0).toLocaleString()} &middot; lumberjacks ${occ.lumberjack} &middot; miners ${occ.miner} &middot; smiths ${occ.smith} &middot; traders ${occ.trader || 0} &middot; general ${occ.general.toLocaleString()}`;
+    : `farmers ${occ.farmer.toLocaleString()} &middot; gatherers ${(occ.gatherer || 0).toLocaleString()} &middot; shore fishers ${occ.shoreFisher || 0} &middot; boat fishers ${occ.boatFisher || 0} &middot; lumberjacks ${occ.lumberjack} &middot; boatmakers ${occ.boatmaker || 0} &middot; miners ${occ.miner} &middot; smiths ${occ.smith} &middot; traders ${occ.trader || 0} &middot; general ${occ.general.toLocaleString()}`;
 
   const d = region.demographics;
   const demoLine = `${Math.round(d.children).toLocaleString()} children &middot; ${Math.round(d.workingAge).toLocaleString()} working-age &middot; ${Math.round(d.elderly).toLocaleString()} elderly`;
@@ -140,20 +343,45 @@ function showRegionSheet(region) {
     ? `${ploughs.toLocaleString()} / ${occ.farmer.toLocaleString()} farmers have a bronze plough (${((Math.min(ploughs, occ.farmer) / occ.farmer) * 100).toFixed(0)}%)`
     : 'n/a';
 
+  const armyEquipped = region.equipment.soldier?.bronze_weapons || 0;
+  const militaryLine = `${occ.soldier || 0} soldiers (${Math.min(armyEquipped, occ.soldier || 0).toFixed(0)} equipped) &middot; ${occ.sailor || 0} sailors &middot; ${Math.round(region.navy.boats)} navy boats`;
+  const fishingLine = region.adjacentSeaIds.length
+    ? `${Math.round(region.fishingBoats)} fishing boats &middot; fishes ${region.adjacentSeaIds.join(', ')}`
+    : 'landlocked — no fishing';
+
+  const skillLine = LEARNABLE_ACTIVITIES
+    .map((activity) => `${activity} +${((skillMultiplier(region, activity) - 1) * 100).toFixed(0)}%`)
+    .join(' &middot; ');
+
+  // <details> elements lose their open/closed state on innerHTML replacement
+  // — save it first, restore it after, so a section the player opened to
+  // watch doesn't silently snap shut every tick.
+  const detailsOpen = {};
+  document.querySelectorAll('#region-details details').forEach((d) => { detailsOpen[d.id] = d.open; });
+
   document.getElementById('region-details').innerHTML = `
     <div>Population: ${region.population.toLocaleString()} (${density}/km&sup2;)</div>
     <div>Age bands: ${demoLine}</div>
-    <div>Stability: ${(region.stability * 100).toFixed(0)}%</div>
+    <div>Stability: ${(region.stability * 100).toFixed(0)}% &middot; Safety: ${(region.safetyRating * 100).toFixed(0)}%</div>
     <div>Banditry: ${banditLine}</div>
-    <div>Working as: ${occLine}</div>
-    <div>Stockpile: ${stockLine}</div>
+    <div>Military: ${militaryLine}</div>
+    <div>Fishing: ${fishingLine}</div>
+    <div>Skill (learning by doing): ${skillLine}</div>
     <div>Wealth: ${region.wallet.toFixed(0)} populace &middot; ${region.treasury.toFixed(0)} treasury</div>
     <div>Tools: ${toolLine}</div>
     <div>Culture: ${culture.cultureId} &middot; identity strength ${(culture.identityStrength * 100).toFixed(0)}%</div>
     <div>Neighbours: ${region.neighbors.length ? region.neighbors.join(', ') : 'none by land'}</div>
     <div>Controlled by: ${region.controllingActorId}</div>
+    <details id="details-resources"><summary>Resources</summary>${buildResourcesSection(region, seaRegionsById)}</details>
+    <details id="details-report"><summary>Economy report (this week)</summary>${buildReportSection(region)}</details>
+    <details id="details-occupations"><summary>Working as</summary><div>${occLine}</div></details>
+    <details id="details-stockpile"><summary>Stockpile</summary><div>${stockLine}</div></details>
   `;
-  sheet.classList.remove('hidden');
+
+  Object.entries(detailsOpen).forEach(([id, open]) => {
+    const el = document.getElementById(id);
+    if (el) el.open = open;
+  });
 }
 
 main().catch((err) => {

@@ -25,5 +25,14 @@
       "bronzeCost": 1,
       "requiredTechId": null
     }
+  ],
+  "soldier": [
+    {
+      "id": "bronze_weapons",
+      "label": "Bronze weapons & armor",
+      "productivityBonus": 0.60,
+      "bronzeCost": 4,
+      "requiredTechId": null
+    }
   ]
 }

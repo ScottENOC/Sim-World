@@ -20,11 +20,9 @@ export class Region {
     this.controllingActorId = id; // defaults to "this region governs itself"
     this.stability = 1.0;         // 0-1, feeds the Phase 2 collapse/raider-pressure system
 
-    // People who've left the formal economy under famine pressure. Just a
-    // tracked pool for now — ongoing effects (raiding, safety rating,
-    // suppression by armies) are next pass.
+    // People who've left the formal economy under famine pressure.
     this.banditPopulation = 0;
-    this.safetyRating = 1.0; // stub — next pass: reduced by banditPopulation, restored by armies
+    this.safetyRating = 1.0; // computed by military/banditry.js from bandit pressure vs. army strength
 
     // Stub until a real education system exists: low Bronze Age baseline.
     // Already wired into birth rate (the "double-edged sword" — education
@@ -32,12 +30,35 @@ export class Region {
     // though nothing can actually raise this yet.
     this.educationLevel = 0.05;
 
+    // Cumulative worker-effort per activity — see technology/learningByDoing.js.
+    // { farming, gathering, lumberjack, mining, smithing }, all starting at 0.
+    this.experience = {};
+
+    // Military — player sets a target, recruitment/demobilization ramps
+    // toward it gradually rather than snapping instantly. Personnel counts
+    // as committed labor (excluded from farming/mining/etc) for as long as
+    // they're serving, unlike other occupations which are freely
+    // reallocated each tick.
+    this.targetArmySize = 0;
+    this.army = { personnel: 0, away: 0 }; // away = currently out raiding, excluded from home defense and recruitment targeting
+    this.targetNavySize = 0; // in boats, not people — crew count is derived
+    this.navy = { boats: 0, personnel: 0 };
+    this.isCoastal = true; // all six starting regions genuinely are; matters once the map grows
+
+    // Fishing — separate from the military navy. adjacentSeaIds is set by
+    // loadWorld() from seaRegions.meta.json; fishingBoats grows from
+    // fisher demand (economic), not a player-set target like the navy.
+    this.adjacentSeaIds = [];
+    this.fishingBoats = 0;
+    this.targetFishingBoats = 0;
+
     // --- Economy (set by loadWorld from resources.initial.json) ---
     this.landQuality = null;               // multiplier: how good this land is, farming + population alike
     this.forest = null;                    // { currentStock, K }
     this.deposits = null;                  // { copper: { tiers: [{id, label, initialStock, remainingStock, difficulty, requiredTechId, maxWorkers}] }, ... }
     this.stockpile = {};                   // { wood, copper, tin, gold, stone, bronze, food }
     this.occupations = {};                 // { farmer, lumberjack, miner, smith, general } — set each tick by economy/labor.js
+    this.report = {};                      // last tick's production by activity — set each tick by economy/labor.js
     this.equipment = {};                   // { farmer: {bronze_plough: count}, miner: {...}, lumberjack: {...} }
 
     // Stub until edicts exist: this is where "player equips the army" plugs
