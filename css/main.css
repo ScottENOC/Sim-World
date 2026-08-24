@@ -142,6 +142,26 @@ html, body {
   font-size: 10px;
 }
 
+#legend-categorical {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.legend-swatch-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+}
+
+.legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
 /* ---------- Bottom sheet (region details) ---------- */
 .sheet {
   position: absolute;
@@ -165,6 +185,20 @@ html, body {
   background: var(--parchment-dim);
   opacity: 0.4;
   margin: 6px auto 12px;
+}
+
+#btn-close-sheet {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--bronze-dim);
+  background: var(--ink);
+  color: var(--parchment-dim);
+  font-size: 20px;
+  line-height: 1;
 }
 
 #region-name {

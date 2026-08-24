@@ -25,14 +25,19 @@
         <button class="layer-btn active" data-layer="density">Pop</button>
         <button class="layer-btn" data-layer="stability">Stability</button>
         <button class="layer-btn" data-layer="wealth">Wealth</button>
+        <button class="layer-btn" data-layer="political">Political</button>
       </div>
       <div id="legend-label"></div>
-      <div id="legend-bar"></div>
-      <div id="legend-scale"><span id="legend-min"></span><span id="legend-max"></span></div>
+      <div id="legend-gradient">
+        <div id="legend-bar"></div>
+        <div id="legend-scale"><span id="legend-min"></span><span id="legend-max"></span></div>
+      </div>
+      <div id="legend-categorical"></div>
     </div>
 
     <div id="region-sheet" class="sheet hidden">
       <div id="region-sheet-handle"></div>
+      <button id="btn-close-sheet" aria-label="Close">&times;</button>
       <h2 id="region-name">—</h2>
       <div id="region-controls"></div>
       <div id="region-details"></div>

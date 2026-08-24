@@ -430,6 +430,67 @@ save each section's open state before replacing, restore it after, so a
 section the player opened to actually watch doesn't silently snap shut
 every second.
 
+## Map/UI fixes: tap accuracy, close button, no-overlay view, political layer
+**Tap selection on iPhone**: `mapRenderer.js`'s hit-testing used canvas
+`isPointInPath(x, y)`, whose coordinate-space handling is inconsistent
+enough across devices — especially at high `devicePixelRatio`, which every
+iPhone has and most desktop dev environments don't — that it's the likely
+cause of taps registering the wrong region. Replaced with projection
+inversion + `d3.geoContains`: undo pan/zoom to get back to projection
+space, invert to lon/lat, check GeoJSON containment directly. Never touches
+a canvas pixel coordinate, so it's DPR-independent by construction rather
+than by careful arithmetic — this class of bug shouldn't be able to
+recur here.
+
+**Close button**: `#btn-close-sheet`, hides the sheet, clears
+`selectedRegion`, and clears the map's highlight border so closing doesn't
+leave a region looking selected with no panel to show why.
+
+**No-overlay map view**: tapping the *already-active* layer button now
+clears the layer entirely (`map.clearLayer()`) instead of re-applying it —
+plain land-green/water-blue, matching what "click Pop while Pop is already
+selected" should intuitively do.
+
+**Political/controller layer**: `mapRenderer.js`'s layer system was
+gradient-only (interpolate between two colors by a numeric value), which
+can't represent a categorical thing like "who controls this region."
+Added a `type: 'categorical'` layer mode — distinct color per unique
+value from a fixed palette, with its own swatch-list legend instead of a
+gradient bar. Right now every region controls itself, so it's six distinct
+colors; verified the color-assignment logic correctly gives two regions
+the *same* color when they share a controller, so this is already correct
+for whenever conquest exists, not just cosmetically finished today.
+
+## Map UI fixes: tap accuracy, close button, layer toggle-off, political view
+**Tap selection on iPhone**: `mapRenderer.js`'s hit-testing used canvas
+`isPointInPath(x, y)`, whose coordinate-space handling is inconsistent
+enough across devices — especially at high `devicePixelRatio`, which every
+iPhone has and most desktop dev setups don't — that it's the likely cause
+of taps registering the wrong region. Replaced with projection inversion +
+`d3.geoContains`: undo pan/zoom to get back to projection space, invert to
+lon/lat, check GeoJSON containment directly. Never touches a canvas pixel
+coordinate, so it's DPR-independent by construction rather than by
+happening to work at the DPR I tested at. Couldn't test this one on an
+actual iPhone from this sandbox — worth confirming it actually fixed it for
+you, not just that it's a more defensible approach.
+
+**Close button**: `#btn-close-sheet`, top-right of the region sheet, clears
+`selectedRegion` and the map's highlighted selection together so closing
+the panel also deselects on the map, not just hides the panel.
+
+**Layer toggle-off**: tapping the *already-active* layer button now clears
+it back to plain land/water colors instead of doing nothing — `map.clearLayer()`.
+
+**Political layer**: `mapRenderer.js` now supports categorical layers
+(distinct color per discrete value) alongside the existing gradient ones —
+`setLayer({type: 'categorical', valueFn, label})` assigns each unique
+value a color from a fixed palette. `controllingActorId` is the first use;
+since every region still governs itself, this currently just shows six
+distinct colors, but it's the layer that'll actually matter once raiding
+or future conquest can change who controls what. Legend switches to a
+colored-swatch list instead of a gradient bar when the active layer is
+categorical.
+
 ## Culture / census
 Not using real-world data for this — each region seeds its own
 procedurally-generated starting culture/religion/ancestry identity as a

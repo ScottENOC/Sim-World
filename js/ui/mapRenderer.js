@@ -13,6 +13,8 @@ const COLORS = {
   seaBorder: '#3a5a72',
 };
 
+const CATEGORICAL_PALETTE = ['#c08a4e', '#4e8ac0', '#8ac04e', '#c04e8a', '#4ec0a8', '#a84ec0', '#c0a84e', '#6a6ac0'];
+
 function hexToRgb(hex) {
   const n = parseInt(hex.slice(1), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
@@ -97,39 +99,44 @@ export class MapRenderer {
   }
 
   _hitTest(x, y) {
-    // Test in screen space by re-tracing each region's path under the
-    // current zoom transform and asking the canvas if the point is inside.
-    this.ctx.save();
-    this.ctx.translate(this.transform.x, this.transform.y);
-    this.ctx.scale(this.transform.k, this.transform.k);
-    let found = null;
+    // Undo pan/zoom to get back to projection space, invert the projection
+    // to lon/lat, then check GeoJSON containment directly. Deliberately NOT
+    // using canvas isPointInPath here — its coordinate-space handling is
+    // inconsistent enough across devices (especially at high
+    // devicePixelRatio, which is exactly what every iPhone has and most
+    // desktop dev setups don't) that it's the likely cause of taps
+    // registering the wrong region. This approach never touches canvas
+    // pixel coordinates at all, so it's DPR-independent by construction.
+    const px = (x - this.transform.x) / this.transform.k;
+    const py = (y - this.transform.y) / this.transform.k;
+    const lonLat = this.projection.invert([px, py]);
+    if (!lonLat) return null;
     for (const region of this.regions) {
-      this.ctx.beginPath();
-      this.path(region.feature);
-      if (this.ctx.isPointInPath(x, y)) {
-        found = region;
-        break;
-      }
+      if (d3.geoContains(region.feature, lonLat)) return region;
     }
-    this.ctx.restore();
-    return found;
+    return null;
   }
 
-  // valueFn(region) -> number. Regions get shaded from colorLow (lowest
-  // value) to colorHigh (highest), so any per-region stat — population
-  // density today, later stability, resource stock, whatever — can drive
-  // the map without touching the renderer again.
-  setLayer({ valueFn, label, format = (v) => Math.round(v).toLocaleString(), colorLow = '#28352b', colorHigh = '#c08a4e' }) {
-    const values = this.regions.map(valueFn);
-    this.layer = {
-      valueFn,
-      label,
-      format,
-      colorLow,
-      colorHigh,
-      min: Math.min(...values),
-      max: Math.max(...values),
-    };
+  // valueFn(region) -> number, shaded from colorLow to colorHigh. Pass
+  // type: 'categorical' with a valueFn returning a string (e.g. controller
+  // id) instead, for a distinct color per value rather than a gradient —
+  // used by the political/controller view.
+  setLayer(config) {
+    if (config.type === 'categorical') {
+      const values = this.regions.map(config.valueFn);
+      const unique = [...new Set(values)];
+      const colorByKey = new Map(unique.map((k, i) => [k, CATEGORICAL_PALETTE[i % CATEGORICAL_PALETTE.length]]));
+      this.layer = { type: 'categorical', valueFn: config.valueFn, label: config.label, colorByKey };
+    } else {
+      const { valueFn, label, format = (v) => Math.round(v).toLocaleString(), colorLow = '#28352b', colorHigh = '#c08a4e' } = config;
+      const values = this.regions.map(valueFn);
+      this.layer = {
+        type: 'gradient',
+        valueFn, label, format, colorLow, colorHigh,
+        min: Math.min(...values),
+        max: Math.max(...values),
+      };
+    }
     this.draw();
   }
 
@@ -140,13 +147,20 @@ export class MapRenderer {
 
   getLegendInfo() {
     if (!this.layer) return null;
+    if (this.layer.type === 'categorical') {
+      const { label, colorByKey } = this.layer;
+      return { type: 'categorical', label, entries: [...colorByKey.entries()].map(([key, color]) => ({ key, color })) };
+    }
     const { label, min, max, format, colorLow, colorHigh } = this.layer;
-    return { label, min: format(min), max: format(max), colorLow, colorHigh };
+    return { type: 'gradient', label, min: format(min), max: format(max), colorLow, colorHigh };
   }
 
   _fillForRegion(region) {
     if (region.id === this.selectedId) return COLORS.landSelected;
     if (!this.layer) return COLORS.land;
+    if (this.layer.type === 'categorical') {
+      return this.layer.colorByKey.get(this.layer.valueFn(region)) || COLORS.land;
+    }
     const { valueFn, min, max, colorLow, colorHigh } = this.layer;
     const t = max > min ? (valueFn(region) - min) / (max - min) : 0.5;
     return lerpColor(colorLow, colorHigh, t);

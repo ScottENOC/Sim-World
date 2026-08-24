@@ -31,6 +31,11 @@ const LAYERS = {
     label: 'Populace wealth',
     format: (v) => v.toFixed(0),
   },
+  political: {
+    type: 'categorical',
+    valueFn: (r) => r.controllingActorId,
+    label: 'Controlled by',
+  },
 };
 
 async function main() {
@@ -69,6 +74,13 @@ async function main() {
   map.setLayer(LAYERS.density);
   showLegend(map);
 
+  document.getElementById('btn-close-sheet').addEventListener('click', () => {
+    document.getElementById('region-sheet').classList.add('hidden');
+    selectedRegion = null;
+    map.selectedId = null;
+    map.draw();
+  });
+
   wireHud(clock);
   clock.onTick(() => {
     tickEconomy(regions, seaRegions, toolTypes);
@@ -99,10 +111,17 @@ async function main() {
 function wireLayerToggle(map) {
   document.querySelectorAll('.layer-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      map.setLayer(LAYERS[btn.dataset.layer]);
-      showLegend(map);
+      const alreadyActive = btn.classList.contains('active');
       document.querySelectorAll('.layer-btn').forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
+      if (alreadyActive) {
+        // Tap the active layer again -> plain map, no data overlay.
+        map.clearLayer();
+        document.getElementById('legend').classList.add('hidden');
+      } else {
+        map.setLayer(LAYERS[btn.dataset.layer]);
+        btn.classList.add('active');
+        showLegend(map);
+      }
     });
   });
 }
@@ -129,8 +148,22 @@ function showLegend(map) {
   const info = map.getLegendInfo();
   if (!info) return;
   document.getElementById('legend-label').textContent = info.label;
-  document.getElementById('legend-min').textContent = info.min;
-  document.getElementById('legend-max').textContent = info.max;
+
+  const gradientEl = document.getElementById('legend-gradient');
+  const categoricalEl = document.getElementById('legend-categorical');
+
+  if (info.type === 'categorical') {
+    gradientEl.classList.add('hidden');
+    categoricalEl.classList.remove('hidden');
+    categoricalEl.innerHTML = info.entries
+      .map((e) => `<div class="legend-swatch-row"><span class="legend-swatch" style="background:${e.color}"></span>${e.key}</div>`)
+      .join('');
+  } else {
+    categoricalEl.classList.add('hidden');
+    gradientEl.classList.remove('hidden');
+    document.getElementById('legend-min').textContent = info.min;
+    document.getElementById('legend-max').textContent = info.max;
+  }
   document.getElementById('legend').classList.remove('hidden');
 }
 
