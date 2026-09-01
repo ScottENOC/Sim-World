@@ -8,6 +8,7 @@ import { tickTrade } from './economy/trade.js';
 import { tickDemographics } from './society/demographics.js';
 import { tickBanditry } from './military/banditry.js';
 import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable } from './military/raiding.js';
+import { tickNationAi } from './ai/nationAi.js';
 import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js';
 import { MapRenderer } from './ui/mapRenderer.js';
 
@@ -58,13 +59,14 @@ async function main() {
     seaRegions,
     onSelect: (region) => {
       selectedRegion = region;
-      renderRegionControls(region, regions, clock, activeRaids); // inputs — only on selection, never per-tick (would eat keystrokes)
+      renderRegionControls(region, regions, clock, activeRaids, playerRegionId); // inputs — only on selection, never per-tick (would eat keystrokes)
       updateRegionStats(region, seaRegionsById);
       document.getElementById('region-sheet').classList.remove('hidden');
     },
   });
 
   let selectedRegion = null;
+  let playerRegionId = null;
   const regionsById = new Map(regions.map((r) => [r.id, r]));
   const seaRegionsById = new Map(seaRegions.map((s) => [s.id, s]));
   let activeRaids = [];
@@ -87,6 +89,7 @@ async function main() {
     tickTrade(regions);
     tickDemographics(regions);
     tickBanditry(regions, toolTypes);
+    tickNationAi(regions, playerRegionId, activeRaids, clock.tickIndex, toolTypes, Math.random);
 
     const { remaining, events } = tickRaids(activeRaids, regionsById, clock.tickIndex, toolTypes, Math.random);
     activeRaids = remaining;
@@ -102,10 +105,37 @@ async function main() {
   });
   document.getElementById('hud-date').textContent = clock.formatDate(START_YEAR);
 
-  clock.start();
+  showRegionPicker(regions, (chosen) => {
+    playerRegionId = chosen.id;
+    document.getElementById('picker-modal').classList.add('hidden');
+    selectedRegion = chosen;
+    map.selectedId = chosen.id;
+    renderRegionControls(chosen, regions, clock, activeRaids, playerRegionId);
+    updateRegionStats(chosen, seaRegionsById);
+    document.getElementById('region-sheet').classList.remove('hidden');
+    map.draw();
+    clock.start();
+  });
 
   // Expose for console poking during development.
   window.__worldsim = { bus, clock, regions, seaRegions, activeRaids, map };
+}
+
+function showRegionPicker(regions, onChosen) {
+  document.getElementById('picker-list').innerHTML = regions
+    .map((r) => `
+      <button class="picker-option" data-id="${r.id}">
+        <strong>${r.name}</strong>
+        <span>pop ${r.population.toLocaleString()} &middot; land quality ${r.landQuality.toFixed(2)}&times;</span>
+      </button>
+    `)
+    .join('');
+  document.querySelectorAll('.picker-option').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const region = regions.find((r) => r.id === btn.dataset.id);
+      if (region) onChosen(region);
+    });
+  });
 }
 
 function wireLayerToggle(map) {
@@ -169,8 +199,16 @@ function showLegend(map) {
 
 // Built once when the player taps a region — never rebuilt on the periodic
 // refresh below, or every keystroke in the input would get wiped mid-edit.
-function renderRegionControls(region, regions, clock, activeRaids) {
+function renderRegionControls(region, regions, clock, activeRaids, playerRegionId) {
   document.getElementById('region-name').textContent = region.name;
+
+  if (region.controllingActorId !== playerRegionId) {
+    const rulerName = regions.find((r) => r.id === region.controllingActorId)?.name || region.controllingActorId;
+    document.getElementById('region-controls').innerHTML = `
+      <div class="raid-status">Ruled by ${rulerName} — you can't issue orders here. Annexing it (conquest) would change that.</div>
+    `;
+    return;
+  }
 
   const targets = regions
     .filter((r) => r.id !== region.id)
@@ -257,7 +295,7 @@ function renderRegionControls(region, regions, clock, activeRaids) {
     const raid = launchRaid(region, target.region, requested, target.viaSea, clock.tickIndex);
     if (raid) {
       activeRaids.push(raid);
-      renderRegionControls(region, regions, clock, activeRaids); // refresh: reduced home army, updated in-flight list
+      renderRegionControls(region, regions, clock, activeRaids, playerRegionId); // refresh: reduced home army, updated in-flight list
     }
   });
 }

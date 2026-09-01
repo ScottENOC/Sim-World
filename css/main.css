@@ -366,3 +366,37 @@ html, body {
 }
 
 #event-options button:active { background: var(--bronze-dim); }
+
+/* ---------- Region picker (game start) ---------- */
+#picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.picker-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--bronze-dim);
+  background: transparent;
+  text-align: left;
+}
+
+.picker-option strong {
+  color: var(--parchment);
+  font-size: 15px;
+}
+
+.picker-option span {
+  color: var(--parchment-dim);
+  font-size: 12px;
+}
+
+.picker-option:active {
+  background: var(--bronze-dim);
+}

@@ -491,6 +491,38 @@ or future conquest can change who controls what. Legend switches to a
 colored-swatch list instead of a gradient bar when the active layer is
 categorical.
 
+## Player region and AI
+Game start now shows a picker (`#picker-modal`) listing all six regions —
+tapping one sets `playerRegionId` and only then starts the clock, so
+nothing ticks away while choosing. Every other region is compared against
+`region.controllingActorId === playerRegionId`, not a separate "is this
+mine" flag — that field already existed (each region defaults to governing
+itself) and reusing it means the exact same check will correctly extend to
+multiple regions once annexation exists and starts changing
+`controllingActorId` around. `renderRegionControls` shows a read-only
+"ruled by X" note instead of the army/navy/raid inputs for anything that
+isn't the player's.
+
+`ai/nationAi.js` runs every non-player region: a military target that
+scales with how threatened the region currently feels
+(`1 + (1 - safetyRating) × 2`, so a region under real bandit pressure wants
+up to 3x the baseline army), and an occasional (~5%/week chance to even
+evaluate) look at whether raiding a reachable neighbor is clearly
+worthwhile — needs a real power advantage (1.5x+), weighted by how much
+there visibly is to loot, and the AI won't consider it at all if it's
+already got troops away or is itself unsafe at home. Deliberately not
+player-aware: an AI region scores every reachable target the same way,
+player or not. Verified over a 2-year headless run: AI regions correctly
+recruit toward their own targets, the player's region stays exactly at
+its set target (0, since the player never touched it in the test) with
+zero AI interference, and a raid launched autonomously without any input
+from me.
+
+**Still just reactive rules, not planning** — no AI region weighs multiple
+turns ahead, forms alliances, or specifically responds to being raided.
+That's a reasonable place to stop for a first pass; deeper AI behavior is
+its own future project, not an oversight here.
+
 ## Culture / census
 Not using real-world data for this — each region seeds its own
 procedurally-generated starting culture/religion/ancestry identity as a
