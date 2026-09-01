@@ -7,78 +7,62 @@ export class Region {
     this.areaSqKm = areaSqKm;
     this.neighbors = neighbors;   // region ids sharing a land border
     this.distanceKm = distanceKm; // { regionId: km } great-circle, all regions
-
     // --- Phase 2 stubs ---
-    // Every region starts as its own polity (a "warlord") and its own
-    // monoculture, per the design: N regions -> N actors, one of which is
-    // the player. Real values for these get filled in by society/culture.js
-    // and ai/nationAi.js once those modules exist; this just reserves the
-    // shape so the map/UI can already read region.controllingActor etc.
-    this.population = null;               // derived total, kept in sync by society/demographics.js each tick
-    this.demographics = null;             // { children, workingAge, elderly } — only workingAge actually labors
-    this.cultureGroups = null;    // [{ ancestryId, cultureId, religionId, share, identityStrength }]
-    this.controllingActorId = id; // defaults to "this region governs itself"
-    this.stability = 1.0;         // 0-1, feeds the Phase 2 collapse/raider-pressure system
-
-    // People who've left the formal economy under famine pressure.
+    this.population = null;
+    this.demographics = null;
+    this.cultureGroups = null;
+    this.controllingActorId = id;
+    this.stability = 1.0;
     this.banditPopulation = 0;
-    this.safetyRating = 1.0; // computed by military/banditry.js from bandit pressure vs. army strength
-
-    // Stub until a real education system exists: low Bronze Age baseline.
-    // Already wired into birth rate (the "double-edged sword" — education
-    // raises productivity elsewhere but suppresses population growth) even
-    // though nothing can actually raise this yet.
+    this.safetyRating = 1.0;
     this.educationLevel = 0.05;
-
-    // Cumulative worker-effort per activity — see technology/learningByDoing.js.
-    // { farming, gathering, lumberjack, mining, smithing }, all starting at 0.
     this.experience = {};
-
-    // Military — player sets a target, recruitment/demobilization ramps
-    // toward it gradually rather than snapping instantly. Personnel counts
-    // as committed labor (excluded from farming/mining/etc) for as long as
-    // they're serving, unlike other occupations which are freely
-    // reallocated each tick.
     this.targetArmySize = 0;
-    this.army = { personnel: 0, away: 0 }; // away = currently out raiding, excluded from home defense and recruitment targeting
-    this.targetNavySize = 0; // in boats, not people — crew count is derived
+    this.army = { personnel: 0, away: 0 };
+    this.targetNavySize = 0;
     this.navy = { boats: 0, personnel: 0 };
-    this.isCoastal = true; // all six starting regions genuinely are; matters once the map grows
-
-    // Fishing — separate from the military navy. adjacentSeaIds is set by
-    // loadWorld() from seaRegions.meta.json; fishingBoats grows from
-    // fisher demand (economic), not a player-set target like the navy.
+    this.isCoastal = true;
     this.adjacentSeaIds = [];
     this.fishingBoats = 0;
     this.targetFishingBoats = 0;
-
-    // --- Economy (set by loadWorld from resources.initial.json) ---
-    this.landQuality = null;               // multiplier: how good this land is, farming + population alike
-    this.forest = null;                    // { currentStock, K }
-    this.deposits = null;                  // { copper: { tiers: [{id, label, initialStock, remainingStock, difficulty, requiredTechId, maxWorkers}] }, ... }
-    this.stockpile = {};                   // { wood, copper, tin, gold, stone, bronze, food }
-    this.occupations = {};                 // { farmer, lumberjack, miner, smith, general } — set each tick by economy/labor.js
-    this.report = {};                      // last tick's production by activity — set each tick by economy/labor.js
-    this.equipment = {};                   // { farmer: {bronze_plough: count}, miner: {...}, lumberjack: {...} }
-
-    // Stub until edicts exist: this is where "player equips the army" plugs
-    // into smith demand later — for now it's just always 0.
+    // --- Economy ---
+    this.landQuality = null;
+    this.forest = null;
+    this.deposits = null;
+    this.stockpile = {};
+    this.occupations = {};
+    this.report = {};
+    this.equipment = {};
     this.militaryBronzeDemand = 0;
-
-    // Currency — abstract "value" units, not literal coinage (doesn't exist
-    // yet at this era). wallet = populace, actively used in trade. treasury
-    // = government, mostly inert until taxation/edicts exist to fill it.
     this.wallet = 0;
     this.treasury = 0;
-
-    // Stub until technology/techTree.js exists: nothing is ever unlocked yet,
-    // so every deposit sits at its surface/alluvial tier forever. Real tech
-    // diffusion will just start adding ids to this set — extraction.js
-    // already reads from it, so no other code needs to change when that lands.
     this.unlockedTechIds = new Set();
+
+    /*
+     * Knowledge is deliberately NOT a set of permanent facts.
+     *
+     * It is a ledger of observations/reports. A report can have a source,
+     * delay, confidence, subject matter and an "observed at" date distinct
+     * from the date it was received.
+     *
+     * This gives future systems somewhere to put:
+     *   - trader reports
+     *   - fishing contact
+     *   - captured raider intelligence
+     *   - diplomats
+     *   - refugees
+     *   - first/second-hand rumours
+     *   - deliberate disinformation
+     *
+     * Map visibility remains a separate concern in core/fogOfWar.js.
+     * Import KnowledgeLedger there later if/when a region's controller needs
+     * to own a persistent ledger rather than the region itself.
+     */
+    this.knowledge = {
+      observations: [],
+    };
   }
 }
-
 export async function loadWorld() {
   const [geoRes, metaRes, resourcesRes] = await Promise.all([
     fetch('data/world/regions.geo.json'),
@@ -90,7 +74,6 @@ export async function loadWorld() {
   const resources = await resourcesRes.json();
 
   const metaById = new Map(meta.regions.map((r) => [r.id, r]));
-
   const regions = geo.features.map((feature) => {
     const id = feature.properties.id;
     const m = metaById.get(id);
@@ -103,7 +86,6 @@ export async function loadWorld() {
       neighbors: m.neighbors,
       distanceKm: m.distanceKm,
     });
-
     const endowment = resources[id];
     region.landQuality = endowment.landQuality;
     const K = region.areaSqKm * endowment.forestFraction;
