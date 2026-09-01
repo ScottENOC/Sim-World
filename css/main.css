@@ -24,6 +24,10 @@ html, body {
   overscroll-behavior: none;
 }
 
+button, input, select {
+  font: inherit;
+}
+
 #app {
   position: relative;
   width: 100vw;
@@ -81,6 +85,12 @@ html, body {
   border-color: var(--bronze);
   color: var(--ink);
   background: var(--bronze);
+}
+
+.menu-btn {
+  font-size: 19px;
+  line-height: 1;
+  padding: 0;
 }
 
 /* ---------- Legend ---------- */
@@ -312,6 +322,105 @@ html, body {
 
 #btn-raid-launch:not(:disabled):active {
   background: var(--danger);
+}
+
+/* ---------- Menu ---------- */
+.menu-card {
+  position: relative;
+  max-width: 420px;
+}
+
+.menu-card h2 {
+  margin: 0 0 18px;
+  color: var(--bronze);
+}
+
+.menu-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--bronze-dim);
+  background: var(--ink);
+  color: var(--parchment-dim);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.menu-section {
+  border-top: 1px solid var(--bronze-dim);
+  padding-top: 14px;
+}
+
+.menu-section h3 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--parchment-dim);
+  font-variant: small-caps;
+  letter-spacing: 0.06em;
+}
+
+.menu-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  cursor: pointer;
+}
+
+.menu-toggle-row span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.menu-toggle-row strong {
+  color: var(--parchment);
+  font-size: 15px;
+}
+
+.menu-toggle-row small {
+  color: var(--parchment-dim);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.menu-toggle-row input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 28px;
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 999px;
+  border: 1px solid var(--bronze-dim);
+  background: var(--ink);
+  position: relative;
+  cursor: pointer;
+}
+
+.menu-toggle-row input[type="checkbox"]::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--parchment-dim);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.menu-toggle-row input[type="checkbox"]:checked {
+  border-color: var(--bronze);
+  background: var(--bronze-dim);
+}
+
+.menu-toggle-row input[type="checkbox"]:checked::after {
+  transform: translateX(20px);
+  background: var(--bronze);
 }
 
 /* ---------- Event modal (auto-pause) ---------- */
