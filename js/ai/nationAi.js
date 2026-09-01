@@ -2,22 +2,19 @@
 // Bronze Age chiefdoms, not general staffs. Every non-player region gets:
 // a military target that scales with how threatened it feels, and an
 // occasional, cautious evaluation of whether raiding a reachable neighbor
-// is clearly worth it. Nothing here is player-aware or player-favoring —
-// an AI region sizes up every reachable region, including other AI ones,
-// exactly the same way.
-
+// is clearly worth it. AI only considers regions it has actually met.
 import { toolEfficiencyMultiplier } from '../economy/tools.js';
 import { canRaid, launchRaid } from '../military/raiding.js';
+import { knowledgeOf, KNOWLEDGE_THRESHOLDS } from '../core/knowledge.js';
 
-const BASE_ARMY_FRACTION = 0.02;      // baseline army as a share of working-age population
-const THREAT_ARMY_MULTIPLIER = 2.0;   // up to 3x baseline (1 + this) when safety is at its worst
-const BASE_NAVY_PER_POPULATION = 50000; // ~1 boat per this many people, coastal regions only
-
-const RAID_CONSIDERATION_CHANCE_PER_WEEK = 0.05; // don't evaluate raiding every single week
+const BASE_ARMY_FRACTION = 0.02;
+const THREAT_ARMY_MULTIPLIER = 2.0;
+const BASE_NAVY_PER_POPULATION = 50000;
+const RAID_CONSIDERATION_CHANCE_PER_WEEK = 0.05;
 const MIN_HOME_ARMY_TO_CONSIDER_RAIDING = 30;
-const MIN_SAFETY_TO_CONSIDER_RAIDING = 0.3;       // too risky to send troops away if already unsafe at home
-const MIN_ADVANTAGE_TO_RAID = 1.5;                // needs a real edge, not a coin flip
-const DEFENDER_HOME_ADVANTAGE = 1.3;              // mirrors raiding.js's own constant, for evaluating targets
+const MIN_SAFETY_TO_CONSIDER_RAIDING = 0.3;
+const MIN_ADVANTAGE_TO_RAID = 1.5;
+const DEFENDER_HOME_ADVANTAGE = 1.3;
 
 function clamp01(v) {
   return Math.max(0, Math.min(1, v));
@@ -25,8 +22,7 @@ function clamp01(v) {
 
 export function tickNationAi(regions, playerRegionId, activeRaids, currentTick, toolTypes, rng) {
   for (const region of regions) {
-    if (region.controllingActorId === playerRegionId) continue; // player's own region — no AI
-
+    if (region.controllingActorId === playerRegionId) continue;
     setMilitaryTargets(region);
     maybeRaid(region, regions, activeRaids, currentTick, toolTypes, rng);
   }
@@ -43,10 +39,10 @@ function setMilitaryTargets(region) {
 }
 
 function maybeRaid(region, allRegions, activeRaids, currentTick, toolTypes, rng) {
-  if (region.army.away > 0) return; // already raiding, wait for them home
+  if (region.army.away > 0) return;
   if (region.army.personnel < MIN_HOME_ARMY_TO_CONSIDER_RAIDING) return;
-  if (region.safetyRating < MIN_SAFETY_TO_CONSIDER_RAIDING) return; // too exposed at home already
-  if (rng() > RAID_CONSIDERATION_CHANCE_PER_WEEK) return; // not every region re-evaluates every week
+  if (region.safetyRating < MIN_SAFETY_TO_CONSIDER_RAIDING) return;
+  if (rng() > RAID_CONSIDERATION_CHANCE_PER_WEEK) return;
 
   const ownEquip = toolEfficiencyMultiplier(region, 'soldier', toolTypes.soldier, region.unlockedTechIds);
   const ownPower = region.army.personnel * ownEquip;
@@ -56,25 +52,41 @@ function maybeRaid(region, allRegions, activeRaids, currentTick, toolTypes, rng)
   for (const target of allRegions) {
     if (target.id === region.id) continue;
     const reach = canRaid(region, target);
-    if (!reach.possible) continue;
+    if (!reach.possible) continue; // includes the knowledge/fog-of-war check
 
-    const targetEquip = toolEfficiencyMultiplier(target, 'soldier', toolTypes.soldier, target.unlockedTechIds);
-    const targetPower = target.army.personnel * targetEquip * DEFENDER_HOME_ADVANTAGE;
+    const familiarity = knowledgeOf(region, target.id);
+    const knowsPopulation = familiarity >= KNOWLEDGE_THRESHOLDS.POPULATION;
+    const knowsDetailed = familiarity >= KNOWLEDGE_THRESHOLDS.DETAILED;
+
+    // AI cannot inspect hidden military/economic data. With little knowledge it
+    // uses broad population-based estimates; only detailed knowledge exposes
+    // actual military strength and wealth.
+    const estimatedArmy = knowsDetailed
+      ? target.army.personnel
+      : knowsPopulation
+        ? Math.max(10, target.demographics.workingAge * 0.02)
+        : Math.max(10, target.population * 0.005);
+    const targetEquip = knowsDetailed
+      ? toolEfficiencyMultiplier(target, 'soldier', toolTypes.soldier, target.unlockedTechIds)
+      : 1;
+    const targetPower = estimatedArmy * targetEquip * DEFENDER_HOME_ADVANTAGE;
     const advantage = ownPower / (targetPower + 1);
     if (advantage < MIN_ADVANTAGE_TO_RAID) continue;
 
-    // Worth the trip? Weight by advantage and how much there visibly is to
-    // take — a poor, undefended neighbor isn't as tempting as a rich one.
-    const visibleWealth = target.wallet + (target.stockpile.bronze || 0) * 5 + (target.stockpile.gold || 0) * 15;
-    const score = advantage * (visibleWealth + 1);
+    const knownWealth = knowsDetailed
+      ? target.wallet + (target.stockpile.bronze || 0) * 5 + (target.stockpile.gold || 0) * 15
+      : knowsPopulation
+        ? target.population * 0.1
+        : 1;
+    const score = advantage * (knownWealth + 1);
     if (score > bestScore) {
       bestScore = score;
       best = { target, viaSea: reach.viaSea };
     }
   }
-  if (!best) return;
 
-  const fraction = 0.5 + rng() * 0.3; // commit 50-80% of home army, never everything
+  if (!best) return;
+  const fraction = 0.5 + rng() * 0.3;
   const requested = Math.floor(region.army.personnel * fraction);
   const raid = launchRaid(region, best.target, requested, best.viaSea, currentTick);
   if (raid) activeRaids.push(raid);
