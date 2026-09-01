@@ -12,6 +12,7 @@ import { tickNationAi } from './ai/nationAi.js';
 import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js';
 import { MapRenderer } from './ui/mapRenderer.js';
 import { FogOfWar } from './core/fogOfWar.js';
+import { initialiseKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js';
 
 const START_YEAR = -1200; // Bronze Age start, mid-collapse-era — tune later
 const LAYERS = {
@@ -46,6 +47,7 @@ async function main() {
   seedCensus(regions);
   const seaRegions = await loadSeaWorld();
   linkSeaAdjacency(regions, seaRegions);
+  initialiseKnowledge(regions);
   const toolTypes = await (await fetch('data/world/toolTypes.json')).json();
 
   console.log(
@@ -70,7 +72,7 @@ async function main() {
     onSelect: (region) => {
       selectedRegion = region;
       renderRegionControls(region, regions, clock, activeRaids, playerRegionId, fogOfWar);
-      updateRegionStats(region, seaRegionsById, fogOfWar, regions);
+      updateRegionStats(region, seaRegionsById, fogOfWar, regions, playerRegionId);
       document.getElementById('region-sheet').classList.remove('hidden');
     },
   });
@@ -99,6 +101,7 @@ async function main() {
 
   clock.onTick(() => {
     tickEconomy(regions, seaRegions, toolTypes);
+    tickFishingKnowledge(regions, seaRegions);
     tickTrade(regions);
     tickDemographics(regions);
     tickBanditry(regions, toolTypes);
@@ -107,9 +110,16 @@ async function main() {
     const { remaining, events } = tickRaids(activeRaids, regionsById, clock.tickIndex, toolTypes, Math.random);
     activeRaids = remaining;
 
-    if (events.length > 0) {
+    // The player does not get a global news feed. Only raids involving their
+    // own region are shown; other AI conflicts remain behind the fog.
+    const playerEvents = fogOfWar.devMode
+      ? events
+      : events.filter((event) =>
+        event.raid.attackerId === playerRegionId || event.raid.defenderId === playerRegionId
+      );
+    if (playerEvents.length > 0) {
       clock.requestAutoPause();
-      eventQueue.push(...events);
+      eventQueue.push(...playerEvents);
       showNextEvent(clock, eventQueue);
     }
 
@@ -117,7 +127,7 @@ async function main() {
     map.draw();
 
     if (selectedRegion && fogOfWar.isVisible(selectedRegion)) {
-      updateRegionStats(selectedRegion, seaRegionsById, fogOfWar, regions);
+      updateRegionStats(selectedRegion, seaRegionsById, fogOfWar, regions, playerRegionId);
     }
   });
 
@@ -132,7 +142,7 @@ async function main() {
     map.selectedId = chosen.id;
 
     renderRegionControls(chosen, regions, clock, activeRaids, playerRegionId, fogOfWar);
-    updateRegionStats(chosen, seaRegionsById, fogOfWar, regions);
+    updateRegionStats(chosen, seaRegionsById, fogOfWar, regions, playerRegionId);
     document.getElementById('region-sheet').classList.remove('hidden');
 
     map.refreshLayer();
@@ -411,6 +421,12 @@ function showNextEvent(clock, eventQueue) {
   const { attackerName, defenderName, outcome, raid } = event;
   const won = outcome.attackerRatio > 0.5;
 
+  const knowledgeText = outcome.defenderLearnedOrigin
+    ? (won
+      ? `The raid also gives you some information about where ${attackerName}'s people come from.`
+      : `The raid was repelled. Captives, survivors and the wreckage give you much clearer information about where ${attackerName}'s people came from.`)
+    : '';
+
   const lootText = Object.entries(outcome.looted)
     .map(([k, v]) => `${v.toFixed(0)} ${k}`)
     .join(', ') || 'nothing of note';
@@ -422,7 +438,8 @@ function showNextEvent(clock, eventQueue) {
     Attacker losses: ${outcome.attackerLosses.toLocaleString()}<br>
     Defender losses: ${outcome.defenderLosses.toLocaleString()}<br>
     Looted: ${lootText}${outcome.walletStolen > 0.5 ? `, ${outcome.walletStolen.toFixed(0)} wealth` : ''}<br>
-    ${defenderName}'s stability fell ${(outcome.stabilityLoss * 100).toFixed(0)} points.
+    ${defenderName}'s stability fell ${(outcome.stabilityLoss * 100).toFixed(0)} points.<br>
+    ${knowledgeText}
   `;
 
   document.getElementById('event-options').innerHTML = '<button id="btn-event-continue">Continue</button>';
@@ -519,7 +536,47 @@ function buildReportSection(region) {
 // Refreshed every tick while the sheet is open — read-only, safe to
 // innerHTML-replace freely. <details> open/closed state is preserved
 // manually across the refresh.
-function updateRegionStats(region, seaRegionsById, fogOfWar, regions) {
+function buildContactsSection(region, regions, playerRegionId, fogOfWar) {
+  const observer = regions.find((r) => r.id === playerRegionId) || region;
+  if (!observer?.knowledge) return '';
+
+  const contacts = [...observer.knowledge.entries()]
+    .filter(([id, level]) => id !== observer.id && level >= KNOWLEDGE_THRESHOLDS.NAME)
+    .map(([id, level]) => {
+      const other = regions.find((r) => r.id === id);
+      if (!other) return '';
+      const stage = knowledgeStage(observer, other);
+      const direction = level >= KNOWLEDGE_THRESHOLDS.DIRECTION
+        ? ` — ${compassDirection(observer, other)}`
+        : '';
+      const stageLabel = {
+        name: 'name known',
+        direction: 'rough location known',
+        map: 'mapped',
+        resources: 'resources partly known',
+        economy: 'economy partly known',
+        population: 'population known',
+        detailed: 'detailed knowledge',
+      }[stage] || stage;
+      return `<div>${other.name}${direction} — ${stageLabel}</div>`;
+    })
+    .filter(Boolean);
+
+  if (contacts.length === 0) return '<details id="details-contacts"><summary>Known contacts</summary><div>No known foreign countries</div></details>';
+  return `<details id="details-contacts"><summary>Known contacts</summary>${contacts.join('')}</details>`;
+}
+
+function updateRegionStats(region, seaRegionsById, fogOfWar, regions, playerRegionId) {
+  const observer = regions.find((r) => r.id === playerRegionId) || region;
+  const familiarity = fogOfWar.devMode || observer.id === region.id ? 1 : knowledgeLevel(observer, region);
+  const knowsResources = familiarity >= KNOWLEDGE_THRESHOLDS.RESOURCES;
+  const knowsEconomy = familiarity >= KNOWLEDGE_THRESHOLDS.ECONOMY;
+  const knowsPopulation = familiarity >= KNOWLEDGE_THRESHOLDS.POPULATION;
+  const knowsDetailed = familiarity >= KNOWLEDGE_THRESHOLDS.DETAILED;
+  const directionLine = observer.id !== region.id && familiarity >= KNOWLEDGE_THRESHOLDS.DIRECTION
+    ? `Rough location: ${compassDirection(observer, region)}`
+    : '';
+
   const density = densityPerKm2(region).toFixed(1);
   const culture = region.cultureGroups[0];
   const occ = region.occupations;
@@ -574,22 +631,20 @@ function updateRegionStats(region, seaRegionsById, fogOfWar, regions) {
   });
 
   document.getElementById('region-details').innerHTML = `
-    <div>Population: ${region.population.toLocaleString()} (${density}/km&sup2;)</div>
-    <div>Age bands: ${demoLine}</div>
-    <div>Stability: ${(region.stability * 100).toFixed(0)}% &middot; Safety: ${(region.safetyRating * 100).toFixed(0)}%</div>
-    <div>Banditry: ${banditLine}</div>
-    <div>Military: ${militaryLine}</div>
-    <div>Fishing: ${fishingLine}</div>
-    <div>Skill (learning by doing): ${skillLine}</div>
-    <div>Wealth: ${region.wallet.toFixed(0)} populace &middot; ${region.treasury.toFixed(0)} treasury</div>
-    <div>Tools: ${toolLine}</div>
-    <div>Culture: ${culture.cultureId} &middot; identity strength ${(culture.identityStrength * 100).toFixed(0)}%</div>
+    <div>${knowsPopulation ? `Population: ${region.population.toLocaleString()} (${density}/km&sup2;)` : 'Population: unknown'}</div>
+    <div>${knowsPopulation ? `Age bands: ${demoLine}` : 'Age bands: unknown'}</div>
+    ${directionLine ? `<div>${directionLine}</div>` : ''}
+    <div>${knowsEconomy ? `Stability: ${(region.stability * 100).toFixed(0)}% &middot; Safety: ${(region.safetyRating * 100).toFixed(0)}%` : 'Political/economic condition: unknown'}</div>
+    ${knowsDetailed ? `<div>Banditry: ${banditLine}</div><div>Military: ${militaryLine}</div>` : '<div>Military strength: unknown</div>'}
+    ${knowsResources ? `<div>Fishing: ${fishingLine}</div>` : '<div>Fishing activity: unknown</div>'}
+    ${knowsDetailed ? `<div>Skill (learning by doing): ${skillLine}</div>` : ''}
+    ${knowsEconomy ? `<div>Wealth: ${region.wallet.toFixed(0)} populace &middot; ${region.treasury.toFixed(0)} treasury</div>` : '<div>Wealth: unknown</div>'}
+    ${knowsDetailed ? `<div>Tools: ${toolLine}</div><div>Culture: ${culture.cultureId} &middot; identity strength ${(culture.identityStrength * 100).toFixed(0)}%</div>` : ''}
     <div>Neighbours: ${neighbourLine}</div>
     <div>Controlled by: ${fogOfWar.devMode ? region.controllingActorId : (region.controllingActorId === region.id ? region.name : 'another ruler')}</div>
-    <details id="details-resources"><summary>Resources</summary>${buildResourcesSection(region, seaRegionsById)}</details>
-    <details id="details-report"><summary>Economy report (this week)</summary>${buildReportSection(region)}</details>
-    <details id="details-occupations"><summary>Working as</summary><div>${occLine}</div></details>
-    <details id="details-stockpile"><summary>Stockpile</summary><div>${stockLine}</div></details>
+    ${buildContactsSection(region, regions, playerRegionId, fogOfWar)}
+    ${knowsResources ? `<details id="details-resources"><summary>Resources</summary>${buildResourcesSection(region, seaRegionsById)}</details>` : '<div>Resources: only broad rumours</div>'}
+    ${knowsEconomy ? `<details id="details-report"><summary>Economy report (this week)</summary>${buildReportSection(region)}</details><details id="details-occupations"><summary>Working as</summary><div>${occLine}</div></details><details id="details-stockpile"><summary>Stockpile</summary><div>${stockLine}</div></details>` : '<div>Economic activity: little known</div>'}
   `;
 
   Object.entries(detailsOpen).forEach(([id, open]) => {
