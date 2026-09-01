@@ -9,17 +9,16 @@
 <body>
   <div id="app">
     <canvas id="map-canvas"></canvas>
-
     <div id="hud">
       <div id="hud-date">—</div>
       <div id="hud-controls">
+        <button id="btn-menu" class="hud-btn menu-btn" aria-label="Open menu">☰</button>
         <button id="btn-pause" class="hud-btn" aria-label="Pause">II</button>
         <button id="btn-speed-1" class="hud-btn speed-btn active" data-speed="1">1x</button>
         <button id="btn-speed-2" class="hud-btn speed-btn" data-speed="2">2x</button>
         <button id="btn-speed-4" class="hud-btn speed-btn" data-speed="4">4x</button>
       </div>
     </div>
-
     <div id="legend" class="legend hidden">
       <div class="layer-toggle">
         <button class="layer-btn active" data-layer="density">Pop</button>
@@ -34,7 +33,6 @@
       </div>
       <div id="legend-categorical"></div>
     </div>
-
     <div id="region-sheet" class="sheet hidden">
       <div id="region-sheet-handle"></div>
       <button id="btn-close-sheet" aria-label="Close">&times;</button>
@@ -42,7 +40,22 @@
       <div id="region-controls"></div>
       <div id="region-details"></div>
     </div>
-
+    <div id="menu-modal" class="modal hidden">
+      <div class="modal-card menu-card">
+        <button id="btn-close-menu" class="menu-close" aria-label="Close menu">&times;</button>
+        <h2>Menu</h2>
+        <div class="menu-section">
+          <h3>Development</h3>
+          <label class="menu-toggle-row">
+            <span>
+              <strong>Dev mode</strong>
+              <small>Reveal the whole world and all region information.</small>
+            </span>
+            <input id="toggle-dev-mode" type="checkbox">
+          </label>
+        </div>
+      </div>
+    </div>
     <div id="picker-modal" class="modal">
       <div class="modal-card">
         <h2>Choose your region</h2>
@@ -50,7 +63,6 @@
         <div id="picker-list"></div>
       </div>
     </div>
-
     <div id="event-modal" class="modal hidden">
       <div class="modal-card">
         <h2 id="event-title">—</h2>
@@ -59,10 +71,6 @@
       </div>
     </div>
   </div>
-
-  <!-- Only d3-geo (projection + canvas path generation) and d3-zoom (pinch/pan) are
-       actually used. The bundled build is ~90KB gzipped and avoids hand-tracking the
-       transitive dependency chain between d3's micro-modules — worth it for a first pass. -->
   <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
   <script type="module" src="js/main.js"></script>
 </body>
