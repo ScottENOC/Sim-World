@@ -11,9 +11,9 @@ import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable } from './milita
 import { tickNationAi } from './ai/nationAi.js';
 import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js';
 import { MapRenderer } from './ui/mapRenderer.js';
+import { FogOfWar } from './core/fogOfWar.js';
 
 const START_YEAR = -1200; // Bronze Age start, mid-collapse-era — tune later
-
 const LAYERS = {
   density: {
     valueFn: (r) => densityPerKm2(r),
@@ -24,8 +24,8 @@ const LAYERS = {
     valueFn: (r) => r.stability,
     label: 'Stability',
     format: (v) => v.toFixed(2),
-    colorLow: '#a4453a', // red: collapsing
-    colorHigh: '#3a4a3e', // back to the neutral land tone: fine
+    colorLow: '#a4453a',
+    colorHigh: '#3a4a3e',
   },
   wealth: {
     valueFn: (r) => r.wallet,
@@ -42,28 +42,20 @@ const LAYERS = {
 async function main() {
   const bus = new EventBus();
   const clock = new Clock();
-
   const regions = await loadWorld();
   seedCensus(regions);
   const seaRegions = await loadSeaWorld();
   linkSeaAdjacency(regions, seaRegions);
   const toolTypes = await (await fetch('data/world/toolTypes.json')).json();
+
   console.log(
     `Loaded ${regions.length} regions:`,
     regions.map((r) => `${r.name} (pop ${r.population.toLocaleString()})`).join(', ')
   );
   console.log(`Loaded ${seaRegions.length} sea regions:`, seaRegions.map((s) => s.name).join(', '));
 
+  const fogOfWar = new FogOfWar(regions);
   const canvas = document.getElementById('map-canvas');
-  const map = new MapRenderer(canvas, regions, {
-    seaRegions,
-    onSelect: (region) => {
-      selectedRegion = region;
-      renderRegionControls(region, regions, clock, activeRaids, playerRegionId); // inputs — only on selection, never per-tick (would eat keystrokes)
-      updateRegionStats(region, seaRegionsById);
-      document.getElementById('region-sheet').classList.remove('hidden');
-    },
-  });
 
   let selectedRegion = null;
   let playerRegionId = null;
@@ -71,6 +63,17 @@ async function main() {
   const seaRegionsById = new Map(seaRegions.map((s) => [s.id, s]));
   let activeRaids = [];
   const eventQueue = [];
+
+  const map = new MapRenderer(canvas, regions, {
+    seaRegions,
+    isRegionVisible: (region) => fogOfWar.isVisible(region),
+    onSelect: (region) => {
+      selectedRegion = region;
+      renderRegionControls(region, regions, clock, activeRaids, playerRegionId, fogOfWar);
+      updateRegionStats(region, seaRegionsById, fogOfWar, regions);
+      document.getElementById('region-sheet').classList.remove('hidden');
+    },
+  });
 
   wireLayerToggle(map);
   map.setLayer(LAYERS.density);
@@ -84,6 +87,16 @@ async function main() {
   });
 
   wireHud(clock);
+  wireMenu({
+    fogOfWar,
+    map,
+    getSelectedRegion: () => selectedRegion,
+    clearSelection: () => {
+      selectedRegion = null;
+      map.selectedId = null;
+    },
+  });
+
   clock.onTick(() => {
     tickEconomy(regions, seaRegions, toolTypes);
     tickTrade(regions);
@@ -93,6 +106,7 @@ async function main() {
 
     const { remaining, events } = tickRaids(activeRaids, regionsById, clock.tickIndex, toolTypes, Math.random);
     activeRaids = remaining;
+
     if (events.length > 0) {
       clock.requestAutoPause();
       eventQueue.push(...events);
@@ -101,24 +115,58 @@ async function main() {
 
     document.getElementById('hud-date').textContent = clock.formatDate(START_YEAR);
     map.draw();
-    if (selectedRegion) updateRegionStats(selectedRegion, seaRegionsById); // keep stats live; controls stay untouched
+
+    if (selectedRegion && fogOfWar.isVisible(selectedRegion)) {
+      updateRegionStats(selectedRegion, seaRegionsById, fogOfWar, regions);
+    }
   });
+
   document.getElementById('hud-date').textContent = clock.formatDate(START_YEAR);
 
   showRegionPicker(regions, (chosen) => {
     playerRegionId = chosen.id;
+    fogOfWar.setPlayerRegion(chosen.id);
+
     document.getElementById('picker-modal').classList.add('hidden');
     selectedRegion = chosen;
     map.selectedId = chosen.id;
-    renderRegionControls(chosen, regions, clock, activeRaids, playerRegionId);
-    updateRegionStats(chosen, seaRegionsById);
+
+    renderRegionControls(chosen, regions, clock, activeRaids, playerRegionId, fogOfWar);
+    updateRegionStats(chosen, seaRegionsById, fogOfWar, regions);
     document.getElementById('region-sheet').classList.remove('hidden');
-    map.draw();
+
+    map.refreshLayer();
     clock.start();
   });
 
-  // Expose for console poking during development.
-  window.__worldsim = { bus, clock, regions, seaRegions, activeRaids, map };
+  window.__worldsim = {
+    bus,
+    clock,
+    regions,
+    seaRegions,
+    activeRaids,
+    map,
+    fogOfWar,
+    setDevMode: (enabled) => setDevMode(enabled),
+  };
+
+  function setDevMode(enabled) {
+    fogOfWar.setDevMode(enabled);
+
+    const toggle = document.getElementById('toggle-dev-mode');
+    if (toggle) toggle.checked = fogOfWar.devMode;
+
+    // If the player was inspecting something that is no longer visible,
+    // close the sheet rather than leaving hidden information on screen.
+    if (selectedRegion && !fogOfWar.isVisible(selectedRegion)) {
+      document.getElementById('region-sheet').classList.add('hidden');
+      selectedRegion = null;
+      map.selectedId = null;
+    }
+
+    map.refreshLayer();
+    if (map.layer) showLegend(map);
+  }
 }
 
 function showRegionPicker(regions, onChosen) {
@@ -130,6 +178,7 @@ function showRegionPicker(regions, onChosen) {
       </button>
     `)
     .join('');
+
   document.querySelectorAll('.picker-option').forEach((btn) => {
     btn.addEventListener('click', () => {
       const region = regions.find((r) => r.id === btn.dataset.id);
@@ -143,8 +192,8 @@ function wireLayerToggle(map) {
     btn.addEventListener('click', () => {
       const alreadyActive = btn.classList.contains('active');
       document.querySelectorAll('.layer-btn').forEach((b) => b.classList.remove('active'));
+
       if (alreadyActive) {
-        // Tap the active layer again -> plain map, no data overlay.
         map.clearLayer();
         document.getElementById('legend').classList.add('hidden');
       } else {
@@ -158,6 +207,7 @@ function wireLayerToggle(map) {
 
 function wireHud(clock) {
   const pauseBtn = document.getElementById('btn-pause');
+
   pauseBtn.addEventListener('click', () => {
     clock.togglePause();
     pauseBtn.textContent = clock.speed === 0 ? '►' : 'II';
@@ -174,9 +224,44 @@ function wireHud(clock) {
   });
 }
 
-function showLegend(map) {
-  const info = map.getLegendInfo();
-  if (!info) return;
+function wireMenu({ fogOfWar, map, getSelectedRegion, clearSelection }) {
+  const menuModal = document.getElementById('menu-modal');
+  const menuButton = document.getElementById('btn-menu');
+  const closeButton = document.getElementById('btn-close-menu');
+  const toggle = document.getElementById('toggle-dev-mode');
+
+  const closeMenu = () => menuModal.classList.add('hidden');
+
+  menuButton.addEventListener('click', () => {
+    toggle.checked = fogOfWar.devMode;
+    menuModal.classList.remove('hidden');
+  });
+
+  closeButton.addEventListener('click', closeMenu);
+
+  menuModal.addEventListener('click', (event) => {
+    if (event.target === menuModal) closeMenu();
+  });
+
+  toggle.addEventListener('change', () => {
+    fogOfWar.setDevMode(toggle.checked);
+
+    const selected = getSelectedRegion();
+    if (selected && !fogOfWar.isVisible(selected)) {
+      document.getElementById('region-sheet').classList.add('hidden');
+      clearSelection();
+      map.selectedId = null;
+    }
+
+    map.refreshLayer();
+    if (map.layer) {
+      const info = map.getLegendInfo();
+      if (info) updateLegendFromInfo(info);
+    }
+  });
+}
+
+function updateLegendFromInfo(info) {
   document.getElementById('legend-label').textContent = info.label;
 
   const gradientEl = document.getElementById('legend-gradient');
@@ -194,16 +279,26 @@ function showLegend(map) {
     document.getElementById('legend-min').textContent = info.min;
     document.getElementById('legend-max').textContent = info.max;
   }
+
   document.getElementById('legend').classList.remove('hidden');
+}
+
+function showLegend(map) {
+  const info = map.getLegendInfo();
+  if (!info) return;
+  updateLegendFromInfo(info);
 }
 
 // Built once when the player taps a region — never rebuilt on the periodic
 // refresh below, or every keystroke in the input would get wiped mid-edit.
-function renderRegionControls(region, regions, clock, activeRaids, playerRegionId) {
+function renderRegionControls(region, regions, clock, activeRaids, playerRegionId, fogOfWar) {
   document.getElementById('region-name').textContent = region.name;
 
   if (region.controllingActorId !== playerRegionId) {
-    const rulerName = regions.find((r) => r.id === region.controllingActorId)?.name || region.controllingActorId;
+    const rulerName = fogOfWar.devMode
+      ? (regions.find((r) => r.id === region.controllingActorId)?.name || region.controllingActorId)
+      : 'another ruler';
+
     document.getElementById('region-controls').innerHTML = `
       <div class="raid-status">Ruled by ${rulerName} — you can't issue orders here. Annexing it (conquest) would change that.</div>
     `;
@@ -212,6 +307,7 @@ function renderRegionControls(region, regions, clock, activeRaids, playerRegionI
 
   const targets = regions
     .filter((r) => r.id !== region.id)
+    .filter((r) => fogOfWar.isVisible(r))
     .map((r) => ({ region: r, ...canRaid(region, r) }))
     .filter((t) => t.possible);
 
@@ -229,7 +325,7 @@ function renderRegionControls(region, regions, clock, activeRaids, playerRegionI
     </label>
     <div class="raid-section">
       ${targets.length === 0
-        ? '<div class="raid-status">No reachable raid targets (need a land border, or a shared sea plus navy capacity)</div>'
+        ? '<div class="raid-status">No visible reachable raid targets (need a land border, or a shared sea plus navy capacity)</div>'
         : `
           <label class="control-row">Raid target
             <select id="raid-target">
@@ -250,6 +346,7 @@ function renderRegionControls(region, regions, clock, activeRaids, playerRegionI
   document.getElementById('input-army').addEventListener('change', (e) => {
     region.targetArmySize = Math.max(0, Number(e.target.value) || 0);
   });
+
   document.getElementById('input-navy').addEventListener('change', (e) => {
     region.targetNavySize = Math.max(0, Number(e.target.value) || 0);
   });
@@ -263,15 +360,18 @@ function renderRegionControls(region, regions, clock, activeRaids, playerRegionI
   const updateRaidInfo = () => {
     const fraction = Number(fractionSlider.value) / 100;
     document.getElementById('raid-fraction-label').textContent = Math.round(fraction * 100) + '%';
+
     const targetId = targetSelect.value;
     if (!targetId) {
       document.getElementById('raid-info').textContent = '';
       launchBtn.disabled = true;
       return;
     }
+
     const target = targets.find((t) => t.region.id === targetId);
     let requested = Math.floor(region.army.personnel * fraction);
     let capNote = '';
+
     if (target.viaSea) {
       const maxSea = maxSeaRaidersAvailable(region);
       if (requested > maxSea) {
@@ -279,7 +379,9 @@ function renderRegionControls(region, regions, clock, activeRaids, playerRegionI
         capNote = ` (capped by navy capacity — ${region.navy.boats.toFixed(0)} boats)`;
       }
     }
-    document.getElementById('raid-info').textContent = `Sending ${requested.toLocaleString()} of ${Math.round(region.army.personnel).toLocaleString()} home soldiers${capNote}`;
+
+    document.getElementById('raid-info').textContent =
+      `Sending ${requested.toLocaleString()} of ${Math.round(region.army.personnel).toLocaleString()} home soldiers${capNote}`;
     launchBtn.disabled = requested <= 0;
   };
 
@@ -290,21 +392,25 @@ function renderRegionControls(region, regions, clock, activeRaids, playerRegionI
   launchBtn.addEventListener('click', () => {
     const target = targets.find((t) => t.region.id === targetSelect.value);
     if (!target) return;
+
     const fraction = Number(fractionSlider.value) / 100;
     const requested = Math.floor(region.army.personnel * fraction);
     const raid = launchRaid(region, target.region, requested, target.viaSea, clock.tickIndex);
+
     if (raid) {
       activeRaids.push(raid);
-      renderRegionControls(region, regions, clock, activeRaids, playerRegionId); // refresh: reduced home army, updated in-flight list
+      renderRegionControls(region, regions, clock, activeRaids, playerRegionId, fogOfWar);
     }
   });
 }
 
 function showNextEvent(clock, eventQueue) {
   if (eventQueue.length === 0) return;
+
   const event = eventQueue.shift();
   const { attackerName, defenderName, outcome, raid } = event;
   const won = outcome.attackerRatio > 0.5;
+
   const lootText = Object.entries(outcome.looted)
     .map(([k, v]) => `${v.toFixed(0)} ${k}`)
     .join(', ') || 'nothing of note';
@@ -318,12 +424,15 @@ function showNextEvent(clock, eventQueue) {
     Looted: ${lootText}${outcome.walletStolen > 0.5 ? `, ${outcome.walletStolen.toFixed(0)} wealth` : ''}<br>
     ${defenderName}'s stability fell ${(outcome.stabilityLoss * 100).toFixed(0)} points.
   `;
+
   document.getElementById('event-options').innerHTML = '<button id="btn-event-continue">Continue</button>';
   document.getElementById('event-modal').classList.remove('hidden');
+
   document.getElementById('btn-event-continue').addEventListener('click', () => {
     document.getElementById('event-modal').classList.add('hidden');
+
     if (eventQueue.length > 0) {
-      showNextEvent(clock, eventQueue); // more queued — stay paused
+      showNextEvent(clock, eventQueue);
     } else {
       clock.releaseAutoPause();
     }
@@ -331,8 +440,14 @@ function showNextEvent(clock, eventQueue) {
 }
 
 const ACTIVITY_LABELS = {
-  farming: 'Farming', gathering: 'Gathering', shoreFishing: 'Shore fishing', boatFishing: 'Boat fishing',
-  lumberjack: 'Lumberjack', mining: 'Mining', smithing: 'Smithing', boatmaking: 'Boat-making',
+  farming: 'Farming',
+  gathering: 'Gathering',
+  shoreFishing: 'Shore fishing',
+  boatFishing: 'Boat fishing',
+  lumberjack: 'Lumberjack',
+  mining: 'Mining',
+  smithing: 'Smithing',
+  boatmaking: 'Boat-making',
 };
 
 function buildResourcesSection(region, seaRegionsById) {
@@ -340,6 +455,7 @@ function buildResourcesSection(region, seaRegionsById) {
     .map((key) => {
       const dep = region.deposits[key];
       if (!dep) return '';
+
       const tierText = dep.tiers
         .map((t) => {
           const locked = t.requiredTechId && !region.unlockedTechIds.has(t.requiredTechId);
@@ -347,16 +463,24 @@ function buildResourcesSection(region, seaRegionsById) {
           return `${t.label} ${pct}%${locked ? ' (locked)' : ''}`;
         })
         .join(', ');
+
       return `<div>${key}: ${tierText}</div>`;
     })
     .join('');
 
-  const forestPct = region.forest.K > 0 ? Math.round((100 * region.forest.currentStock) / region.forest.K) : 0;
+  const forestPct = region.forest.K > 0
+    ? Math.round((100 * region.forest.currentStock) / region.forest.K)
+    : 0;
+
   const seaLines = region.adjacentSeaIds
     .map((id) => {
       const sea = seaRegionsById.get(id);
       if (!sea) return '';
-      const pct = sea.fish.K > 0 ? Math.round((100 * sea.fish.currentStock) / sea.fish.K) : 0;
+
+      const pct = sea.fish.K > 0
+        ? Math.round((100 * sea.fish.currentStock) / sea.fish.K)
+        : 0;
+
       return `<div>${sea.name}: fish stock ${pct}%</div>`;
     })
     .join('');
@@ -372,34 +496,43 @@ function buildResourcesSection(region, seaRegionsById) {
 function buildReportSection(region) {
   const r = region.report;
   if (!r || Object.keys(r).length === 0) return '<div>Not yet ticked</div>';
+
   const lines = [];
+
   for (const [key, data] of Object.entries(r)) {
-    if (!data || data.workers === 0) continue; // skip inactive lines, keep it scannable
+    if (!data || data.workers === 0) continue;
+
     const outputs = Object.entries(data)
       .filter(([k]) => k !== 'workers' && k !== 'seaName')
       .filter(([, v]) => typeof v === 'number' && v > 0.05)
       .map(([k, v]) => `${v.toFixed(k === 'bronze' ? 1 : 0)} ${k}`)
       .join(', ');
-    lines.push(`<div>${ACTIVITY_LABELS[key] || key}: ${data.workers.toLocaleString()} workers &rarr; ${outputs || 'nothing yet'}</div>`);
+
+    lines.push(
+      `<div>${ACTIVITY_LABELS[key] || key}: ${data.workers.toLocaleString()} workers &rarr; ${outputs || 'nothing yet'}</div>`
+    );
   }
+
   return lines.join('') || '<div>Nobody produced anything of note this week</div>';
 }
 
 // Refreshed every tick while the sheet is open — read-only, safe to
 // innerHTML-replace freely. <details> open/closed state is preserved
-// manually across the refresh (innerHTML replacement would otherwise
-// silently close any section the player had open, every single tick).
-function updateRegionStats(region, seaRegionsById) {
+// manually across the refresh.
+function updateRegionStats(region, seaRegionsById, fogOfWar, regions) {
   const density = densityPerKm2(region).toFixed(1);
-  const culture = region.cultureGroups[0]; // monoculture at game start
+  const culture = region.cultureGroups[0];
   const occ = region.occupations;
+
   const occLine = occ.farmer === undefined
     ? 'not yet ticked'
     : `farmers ${occ.farmer.toLocaleString()} &middot; gatherers ${(occ.gatherer || 0).toLocaleString()} &middot; shore fishers ${occ.shoreFisher || 0} &middot; boat fishers ${occ.boatFisher || 0} &middot; lumberjacks ${occ.lumberjack} &middot; boatmakers ${occ.boatmaker || 0} &middot; miners ${occ.miner} &middot; smiths ${occ.smith} &middot; traders ${occ.trader || 0} &middot; general ${occ.general.toLocaleString()}`;
 
   const d = region.demographics;
   const demoLine = `${Math.round(d.children).toLocaleString()} children &middot; ${Math.round(d.workingAge).toLocaleString()} working-age &middot; ${Math.round(d.elderly).toLocaleString()} elderly`;
-  const banditLine = region.banditPopulation > 10 ? `${Math.round(region.banditPopulation).toLocaleString()} people turned to banditry` : 'none';
+  const banditLine = region.banditPopulation > 10
+    ? `${Math.round(region.banditPopulation).toLocaleString()} people turned to banditry`
+    : 'none';
 
   const stock = region.stockpile;
   const stockLine = Object.keys(stock).length
@@ -416,6 +549,7 @@ function updateRegionStats(region, seaRegionsById) {
 
   const armyEquipped = region.equipment.soldier?.bronze_weapons || 0;
   const militaryLine = `${occ.soldier || 0} soldiers (${Math.min(armyEquipped, occ.soldier || 0).toFixed(0)} equipped) &middot; ${occ.sailor || 0} sailors &middot; ${Math.round(region.navy.boats)} navy boats`;
+
   const fishingLine = region.adjacentSeaIds.length
     ? `${Math.round(region.fishingBoats)} fishing boats &middot; fishes ${region.adjacentSeaIds.join(', ')}`
     : 'landlocked — no fishing';
@@ -424,11 +558,20 @@ function updateRegionStats(region, seaRegionsById) {
     .map((activity) => `${activity} +${((skillMultiplier(region, activity) - 1) * 100).toFixed(0)}%`)
     .join(' &middot; ');
 
-  // <details> elements lose their open/closed state on innerHTML replacement
-  // — save it first, restore it after, so a section the player opened to
-  // watch doesn't silently snap shut every tick.
+  const visibleNeighbours = region.neighbors
+    .map((id) => regions.find((r) => r.id === id))
+    .filter(Boolean)
+    .filter((neighbour) => fogOfWar.devMode || fogOfWar.isVisible(neighbour))
+    .map((neighbour) => neighbour.name);
+
+  const neighbourLine = visibleNeighbours.length
+    ? visibleNeighbours.join(', ')
+    : 'none known';
+
   const detailsOpen = {};
-  document.querySelectorAll('#region-details details').forEach((d) => { detailsOpen[d.id] = d.open; });
+  document.querySelectorAll('#region-details details').forEach((d) => {
+    detailsOpen[d.id] = d.open;
+  });
 
   document.getElementById('region-details').innerHTML = `
     <div>Population: ${region.population.toLocaleString()} (${density}/km&sup2;)</div>
@@ -441,8 +584,8 @@ function updateRegionStats(region, seaRegionsById) {
     <div>Wealth: ${region.wallet.toFixed(0)} populace &middot; ${region.treasury.toFixed(0)} treasury</div>
     <div>Tools: ${toolLine}</div>
     <div>Culture: ${culture.cultureId} &middot; identity strength ${(culture.identityStrength * 100).toFixed(0)}%</div>
-    <div>Neighbours: ${region.neighbors.length ? region.neighbors.join(', ') : 'none by land'}</div>
-    <div>Controlled by: ${region.controllingActorId}</div>
+    <div>Neighbours: ${neighbourLine}</div>
+    <div>Controlled by: ${fogOfWar.devMode ? region.controllingActorId : (region.controllingActorId === region.id ? region.name : 'another ruler')}</div>
     <details id="details-resources"><summary>Resources</summary>${buildResourcesSection(region, seaRegionsById)}</details>
     <details id="details-report"><summary>Economy report (this week)</summary>${buildReportSection(region)}</details>
     <details id="details-occupations"><summary>Working as</summary><div>${occLine}</div></details>
