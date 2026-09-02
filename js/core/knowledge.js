@@ -1,23 +1,54 @@
 /*
- * Knowledge is a report/evidence ledger, deliberately separate from map visibility.
+ * Knowledge is an evidence/report ledger, deliberately separate from the map.
  *
- * Reports can be delayed, stale, vague, reliable or second-hand.  The small
- * compatibility helpers at the bottom are used by the current trade/raid code;
- * they create observations rather than permanent knowledge flags.
+ * The UI and simulation still need convenient questions such as "has this
+ * country been mapped?". Those answers are DERIVED from reports here; they
+ * are not stored as permanent omniscient facts on a region.
  */
+
 export const KNOWLEDGE_TOPICS = Object.freeze({
-  EXISTENCE: 'existence', LOCATION: 'location', POPULATION: 'population',
-  FOOD: 'food', MINING: 'mining', METALLURGY: 'metallurgy', TRADE: 'trade',
-  ECONOMY: 'economy', MILITARY: 'military', POLITICS: 'politics', RESOURCES: 'resources',
+  EXISTENCE: 'existence',
+  LOCATION: 'location',
+  POPULATION: 'population',
+  FOOD: 'food',
+  MINING: 'mining',
+  METALLURGY: 'metallurgy',
+  TRADE: 'trade',
+  ECONOMY: 'economy',
+  MILITARY: 'military',
+  POLITICS: 'politics',
+  RESOURCES: 'resources',
 });
 
 export const KNOWLEDGE_SOURCES = Object.freeze({
-  DIRECT: 'direct', TRADER: 'trader', FISHER: 'fisher', RAID_SURVIVOR: 'raid_survivor',
-  PRISONER: 'prisoner', DIPLOMAT: 'diplomat', REFUGEE: 'refugee', RUMOUR: 'rumour',
-  SECOND_HAND_RUMOUR: 'second_hand_rumour', SPY: 'spy',
+  DIRECT: 'direct',
+  TRADER: 'trader',
+  FISHER: 'fisher',
+  RAID_SURVIVOR: 'raid_survivor',
+  PRISONER: 'prisoner',
+  DIPLOMAT: 'diplomat',
+  REFUGEE: 'refugee',
+  RUMOUR: 'rumour',
+  SECOND_HAND_RUMOUR: 'second_hand_rumour',
+  SPY: 'spy',
 });
 
-function clamp01(value) { return Math.max(0, Math.min(1, Number(value) || 0)); }
+// These are presentation thresholds, not stored knowledge percentages.
+// knowledgeLevel() derives a temporary familiarity score from the reports in
+// a ledger so the current fog/UI/AI code can continue to ask simple questions.
+export const KNOWLEDGE_THRESHOLDS = Object.freeze({
+  NAME: 0.05,
+  DIRECTION: 0.15,
+  MAP: 0.30,
+  RESOURCES: 0.50,
+  ECONOMY: 0.70,
+  POPULATION: 0.85,
+  DETAILED: 0.95,
+});
+
+function clamp01(value) {
+  return Math.max(0, Math.min(1, Number(value) || 0));
+}
 
 function getLedger(region) {
   if (!region) return null;
@@ -27,79 +58,396 @@ function getLedger(region) {
   return region.knowledge;
 }
 
+function evidenceStrength(observations) {
+  // Independent imperfect reports reinforce one another without becoming an
+  // irreversible flag. One 25% rumour is weak; several reports can add up.
+  let missChance = 1;
+  for (const report of observations) {
+    const strength = clamp01(report.confidence) * clamp01(report.specificity);
+    missChance *= (1 - strength);
+  }
+  return clamp01(1 - missChance);
+}
+
+function observationMatches(observation, { subjectId, topic, source, provenanceType }) {
+  if (subjectId && observation.subjectId !== subjectId) return false;
+  if (topic && observation.topic !== topic) return false;
+  if (source && observation.source !== source) return false;
+  if (provenanceType && observation.provenance?.type !== provenanceType) return false;
+  return true;
+}
+
 export class KnowledgeLedger {
   constructor(ownerId) {
     this.ownerId = ownerId;
     this.observations = [];
   }
 
-  addObservation({ subjectId, topic, value = null, source = KNOWLEDGE_SOURCES.DIRECT,
-    observedAt, receivedAt, confidence = 1, specificity = 1, provenance = null,
-    subjectMatter = [] }) {
+  addObservation({
+    subjectId,
+    topic,
+    value = null,
+    source = KNOWLEDGE_SOURCES.DIRECT,
+    observedAt = null,
+    receivedAt = null,
+    confidence = 1,
+    specificity = 1,
+    provenance = null,
+    subjectMatter = [],
+  }) {
     if (!subjectId || !topic) return null;
+
     const observation = {
       id: `${this.ownerId}:${this.observations.length + 1}`,
-      subjectId, topic, value, source,
-      observedAt: observedAt ?? null,
-      receivedAt: receivedAt ?? null,
+      subjectId,
+      topic,
+      value,
+      source,
+      observedAt,
+      receivedAt,
       confidence: clamp01(confidence),
       specificity: clamp01(specificity),
       provenance,
       subjectMatter: [...subjectMatter],
     };
+
     this.observations.push(observation);
     return observation;
   }
 
-  forSubject(subjectId) { return this.observations.filter((o) => o.subjectId === subjectId); }
-  forTopic(subjectId, topic) { return this.observations.filter((o) => o.subjectId === subjectId && o.topic === topic); }
+  forSubject(subjectId) {
+    return this.observations.filter((o) => o.subjectId === subjectId);
+  }
+
+  forTopic(subjectId, topic) {
+    return this.observations.filter((o) => o.subjectId === subjectId && o.topic === topic);
+  }
+
   latest(subjectId, topic) {
     const matches = this.forTopic(subjectId, topic);
     return matches[matches.length - 1] || null;
   }
+
   best(subjectId, topic) {
     const matches = this.forTopic(subjectId, topic);
     if (!matches.length) return null;
     return [...matches].sort((a, b) =>
       (b.confidence * b.specificity) - (a.confidence * a.specificity))[0];
   }
+
   hasTopic(subjectId, topic, minimumConfidence = 0) {
-    return this.forTopic(subjectId, topic).some((o) => o.confidence >= minimumConfidence);
+    return this.forTopic(subjectId, topic)
+      .some((o) => o.confidence >= minimumConfidence);
   }
-  export() { return this.observations.map((o) => ({ ...o, subjectMatter: [...o.subjectMatter] })); }
+
+  hasObservation(criteria) {
+    return this.observations.some((o) => observationMatches(o, criteria));
+  }
+
+  levelFor(subjectId) {
+    return derivedLevelFromLedger(this, subjectId);
+  }
+
+  // Compatibility with the old Map-based UI. Values are calculated from the
+  // report ledger each time rather than stored as a permanent knowledge map.
+  entries() {
+    const subjectIds = [...new Set(this.observations.map((o) => o.subjectId))];
+    return subjectIds.map((subjectId) => [subjectId, this.levelFor(subjectId)])[Symbol.iterator]();
+  }
+
+  export() {
+    return this.observations.map((o) => ({ ...o, subjectMatter: [...o.subjectMatter] }));
+  }
 }
 
-// Compatibility layer for the current simulation. Direct land neighbours have
-// met automatically. A trade creates a report proving commercial contact.
+function derivedLevelFromLedger(ledger, subjectId) {
+  if (!ledger || !subjectId) return 0;
+  if (ledger.ownerId === subjectId) return 1;
+
+  const all = ledger.forSubject(subjectId);
+  if (!all.length) return 0;
+
+  const existence = evidenceStrength(all.filter((o) => o.topic === KNOWLEDGE_TOPICS.EXISTENCE));
+  const location = evidenceStrength(all.filter((o) => o.topic === KNOWLEDGE_TOPICS.LOCATION));
+  const resources = evidenceStrength(all.filter((o) =>
+    [KNOWLEDGE_TOPICS.RESOURCES, KNOWLEDGE_TOPICS.MINING, KNOWLEDGE_TOPICS.METALLURGY]
+      .includes(o.topic)));
+  const economy = evidenceStrength(all.filter((o) =>
+    [KNOWLEDGE_TOPICS.ECONOMY, KNOWLEDGE_TOPICS.TRADE, KNOWLEDGE_TOPICS.FOOD]
+      .includes(o.topic)));
+  const population = evidenceStrength(all.filter((o) => o.topic === KNOWLEDGE_TOPICS.POPULATION));
+  const detailed = evidenceStrength(all.filter((o) =>
+    [KNOWLEDGE_TOPICS.MILITARY, KNOWLEDGE_TOPICS.POLITICS].includes(o.topic)));
+
+  let level = existence > 0
+    ? KNOWLEDGE_THRESHOLDS.NAME + existence * (KNOWLEDGE_THRESHOLDS.DIRECTION - KNOWLEDGE_THRESHOLDS.NAME)
+    : 0;
+
+  if (location > 0) {
+    level = Math.max(
+      level,
+      KNOWLEDGE_THRESHOLDS.DIRECTION + location * (KNOWLEDGE_THRESHOLDS.MAP - KNOWLEDGE_THRESHOLDS.DIRECTION)
+    );
+  }
+  if (resources > 0) {
+    level = Math.max(level, KNOWLEDGE_THRESHOLDS.MAP + resources * (KNOWLEDGE_THRESHOLDS.RESOURCES - KNOWLEDGE_THRESHOLDS.MAP));
+  }
+  if (economy > 0) {
+    level = Math.max(level, KNOWLEDGE_THRESHOLDS.RESOURCES + economy * (KNOWLEDGE_THRESHOLDS.ECONOMY - KNOWLEDGE_THRESHOLDS.RESOURCES));
+  }
+  if (population > 0) {
+    level = Math.max(level, KNOWLEDGE_THRESHOLDS.ECONOMY + population * (KNOWLEDGE_THRESHOLDS.POPULATION - KNOWLEDGE_THRESHOLDS.ECONOMY));
+  }
+  if (detailed > 0) {
+    level = Math.max(level, KNOWLEDGE_THRESHOLDS.POPULATION + detailed * (1 - KNOWLEDGE_THRESHOLDS.POPULATION));
+  }
+
+  return clamp01(level);
+}
+
+export function knowledgeOf(observer, subjectOrId) {
+  if (!observer) return 0;
+  const subjectId = typeof subjectOrId === 'string' ? subjectOrId : subjectOrId?.id;
+  if (!subjectId) return 0;
+  if (observer.id === subjectId) return 1;
+  return getLedger(observer)?.levelFor(subjectId) || 0;
+}
+
+export function knowledgeLevel(observer, subject) {
+  return knowledgeOf(observer, subject);
+}
+
+export function knowledgeStage(observer, subject) {
+  const level = knowledgeLevel(observer, subject);
+  if (level >= KNOWLEDGE_THRESHOLDS.DETAILED) return 'detailed';
+  if (level >= KNOWLEDGE_THRESHOLDS.POPULATION) return 'population';
+  if (level >= KNOWLEDGE_THRESHOLDS.ECONOMY) return 'economy';
+  if (level >= KNOWLEDGE_THRESHOLDS.RESOURCES) return 'resources';
+  if (level >= KNOWLEDGE_THRESHOLDS.MAP) return 'map';
+  if (level >= KNOWLEDGE_THRESHOLDS.DIRECTION) return 'direction';
+  if (level >= KNOWLEDGE_THRESHOLDS.NAME) return 'name';
+  return 'unknown';
+}
+
+export function canSeeMap(observer, subject) {
+  if (!observer || !subject) return false;
+  if (observer.id === subject.id) return true;
+  return knowledgeLevel(observer, subject) >= KNOWLEDGE_THRESHOLDS.MAP;
+}
+
+export function compassDirection(observer, subject) {
+  const [fromLon, fromLat] = observer?.centroid || [];
+  const [toLon, toLat] = subject?.centroid || [];
+  if (![fromLon, fromLat, toLon, toLat].every(Number.isFinite)) return 'unknown direction';
+
+  const east = toLon - fromLon;
+  const north = toLat - fromLat;
+  const degrees = (Math.atan2(east, north) * 180 / Math.PI + 360) % 360;
+  const directions = [
+    'north', 'north-north-east', 'north-east', 'east-north-east',
+    'east', 'east-south-east', 'south-east', 'south-south-east',
+    'south', 'south-south-west', 'south-west', 'west-south-west',
+    'west', 'west-north-west', 'north-west', 'north-north-west',
+  ];
+  return directions[Math.round(degrees / 22.5) % 16];
+}
+
+function addInitialNeighbourReports(observer, subject) {
+  const ledger = getLedger(observer);
+  if (!ledger || !subject) return;
+
+  if (!ledger.hasObservation({ subjectId: subject.id, topic: KNOWLEDGE_TOPICS.EXISTENCE, provenanceType: 'land_neighbour' })) {
+    ledger.addObservation({
+      subjectId: subject.id,
+      topic: KNOWLEDGE_TOPICS.EXISTENCE,
+      value: { name: subject.name },
+      source: KNOWLEDGE_SOURCES.DIRECT,
+      confidence: 1,
+      specificity: 1,
+      provenance: { type: 'land_neighbour' },
+      subjectMatter: ['identity'],
+    });
+  }
+
+  if (!ledger.hasObservation({ subjectId: subject.id, topic: KNOWLEDGE_TOPICS.LOCATION, provenanceType: 'land_neighbour' })) {
+    ledger.addObservation({
+      subjectId: subject.id,
+      topic: KNOWLEDGE_TOPICS.LOCATION,
+      value: { direction: compassDirection(observer, subject), borderKnown: true },
+      source: KNOWLEDGE_SOURCES.DIRECT,
+      confidence: 1,
+      specificity: 1,
+      provenance: { type: 'land_neighbour' },
+      subjectMatter: ['location', 'border'],
+    });
+  }
+}
+
+export function initialiseKnowledge(regions) {
+  const byId = new Map(regions.map((region) => [region.id, region]));
+
+  for (const region of regions) {
+    getLedger(region);
+    for (const neighbourId of region.neighbors || []) {
+      const neighbour = byId.get(neighbourId);
+      if (neighbour) addInitialNeighbourReports(region, neighbour);
+    }
+  }
+}
+
+function fishingEffort(region) {
+  const occ = region?.occupations || {};
+  return Math.max(0,
+    Number(occ.shoreFisher || 0) +
+    Number(occ.boatFisher || 0) * 2 +
+    Number(region?.fishingBoats || 0) * 5
+  );
+}
+
+function addFishingReport(observer, subject, sharedSeaIds, confidence) {
+  const ledger = getLedger(observer);
+  ledger?.addObservation({
+    subjectId: subject.id,
+    topic: KNOWLEDGE_TOPICS.EXISTENCE,
+    value: { name: subject.name },
+    source: KNOWLEDGE_SOURCES.FISHER,
+    confidence,
+    specificity: Math.min(1, confidence + 0.15),
+    provenance: { type: 'shared_sea_fishing', seaIds: [...sharedSeaIds] },
+    subjectMatter: ['fishing', 'coast', 'identity'],
+  });
+  ledger?.addObservation({
+    subjectId: subject.id,
+    topic: KNOWLEDGE_TOPICS.LOCATION,
+    value: { direction: compassDirection(observer, subject), seaIds: [...sharedSeaIds] },
+    source: KNOWLEDGE_SOURCES.FISHER,
+    confidence: confidence * 0.8,
+    specificity: confidence * 0.75,
+    provenance: { type: 'shared_sea_fishing', seaIds: [...sharedSeaIds] },
+    subjectMatter: ['fishing', 'coast', 'location'],
+  });
+}
+
+export function tickFishingKnowledge(regions, seaRegions = []) {
+  void seaRegions; // adjacency is already linked onto land regions
+
+  for (let i = 0; i < regions.length; i += 1) {
+    for (let j = i + 1; j < regions.length; j += 1) {
+      const a = regions[i];
+      const b = regions[j];
+      const sharedSeaIds = (a.adjacentSeaIds || []).filter((id) => (b.adjacentSeaIds || []).includes(id));
+      if (!sharedSeaIds.length) continue;
+
+      const effortA = fishingEffort(a);
+      const effortB = fishingEffort(b);
+      const totalEffort = effortA + effortB;
+      if (totalEffort <= 0) continue;
+
+      // More fishing produces better reports, while repeated weeks provide
+      // further corroborating reports through evidenceStrength().
+      const confidence = Math.min(0.85, 0.08 + Math.log10(totalEffort + 1) * 0.12);
+      addFishingReport(a, b, sharedSeaIds, confidence);
+      addFishingReport(b, a, sharedSeaIds, confidence);
+    }
+  }
+}
+
 export function hasDirectContact(regionA, regionB) {
   if (!regionA || !regionB || regionA.id === regionB.id) return false;
-  return Array.isArray(regionA.neighbors) && regionA.neighbors.includes(regionB.id);
+  if ((regionA.neighbors || []).includes(regionB.id)) return true;
+
+  const directSources = new Set([
+    KNOWLEDGE_SOURCES.DIRECT,
+    KNOWLEDGE_SOURCES.TRADER,
+    KNOWLEDGE_SOURCES.FISHER,
+    KNOWLEDGE_SOURCES.RAID_SURVIVOR,
+    KNOWLEDGE_SOURCES.PRISONER,
+    KNOWLEDGE_SOURCES.DIPLOMAT,
+    KNOWLEDGE_SOURCES.REFUGEE,
+    KNOWLEDGE_SOURCES.SPY,
+  ]);
+
+  return getLedger(regionA)?.forSubject(regionB.id)
+    .some((report) => directSources.has(report.source)) || false;
 }
 
 export function recordDirectTrade(regionA, regionB, volume, receivedAt = null) {
   if (!regionA || !regionB) return null;
-  const a = getLedger(regionA);
-  const b = getLedger(regionB);
-  const observedAt = receivedAt;
+
+  if (!(regionA.tradeLinks instanceof Map)) regionA.tradeLinks = new Map();
+  if (!(regionB.tradeLinks instanceof Map)) regionB.tradeLinks = new Map();
+  regionA.tradeLinks.set(regionB.id, (regionA.tradeLinks.get(regionB.id) || 0) + volume);
+  regionB.tradeLinks.set(regionA.id, (regionB.tradeLinks.get(regionA.id) || 0) + volume);
+
   const provenance = { type: 'direct_trade', from: regionA.id, to: regionB.id, volume };
-  a?.addObservation({ subjectId: regionB.id, topic: KNOWLEDGE_TOPICS.EXISTENCE, value: true,
-    source: KNOWLEDGE_SOURCES.TRADER, observedAt, receivedAt, confidence: 1, specificity: 1, provenance,
-    subjectMatter: ['trade'] });
-  b?.addObservation({ subjectId: regionA.id, topic: KNOWLEDGE_TOPICS.EXISTENCE, value: true,
-    source: KNOWLEDGE_SOURCES.TRADER, observedAt, receivedAt, confidence: 1, specificity: 1, provenance,
-    subjectMatter: ['trade'] });
+  const add = (observer, subject) => {
+    const ledger = getLedger(observer);
+    ledger?.addObservation({
+      subjectId: subject.id,
+      topic: KNOWLEDGE_TOPICS.EXISTENCE,
+      value: { name: subject.name },
+      source: KNOWLEDGE_SOURCES.TRADER,
+      observedAt: receivedAt,
+      receivedAt,
+      confidence: 1,
+      specificity: 1,
+      provenance,
+      subjectMatter: ['trade', 'identity'],
+    });
+    ledger?.addObservation({
+      subjectId: subject.id,
+      topic: KNOWLEDGE_TOPICS.LOCATION,
+      value: { direction: compassDirection(observer, subject) },
+      source: KNOWLEDGE_SOURCES.TRADER,
+      observedAt: receivedAt,
+      receivedAt,
+      confidence: 0.9,
+      specificity: 0.8,
+      provenance,
+      subjectMatter: ['trade', 'location'],
+    });
+    ledger?.addObservation({
+      subjectId: subject.id,
+      topic: KNOWLEDGE_TOPICS.TRADE,
+      value: { tradeVolume: volume },
+      source: KNOWLEDGE_SOURCES.TRADER,
+      observedAt: receivedAt,
+      receivedAt,
+      confidence: 0.9,
+      specificity: 0.6,
+      provenance,
+      subjectMatter: ['trade'],
+    });
+  };
+
+  add(regionA, regionB);
+  add(regionB, regionA);
   return true;
 }
 
-// Current raids still call this helper. It now creates an intelligence report
-// instead of incrementing a permanent "knowledge" number.
 export function learnAbout(observer, subject, confidence = 0.5, receivedAt = null) {
   if (!observer || !subject) return null;
-  return getLedger(observer)?.addObservation({
+  const source = confidence >= 0.7 ? KNOWLEDGE_SOURCES.PRISONER : KNOWLEDGE_SOURCES.RAID_SURVIVOR;
+  const ledger = getLedger(observer);
+
+  const existence = ledger?.addObservation({
     subjectId: subject.id,
     topic: KNOWLEDGE_TOPICS.EXISTENCE,
     value: { name: subject.name },
-    source: KNOWLEDGE_SOURCES.RAID_SURVIVOR,
+    source,
+    observedAt: receivedAt,
+    receivedAt,
+    confidence,
+    specificity: Math.min(1, confidence + 0.1),
+    provenance: { type: 'raid', subjectId: subject.id },
+    subjectMatter: ['military', 'identity'],
+  });
+
+  ledger?.addObservation({
+    subjectId: subject.id,
+    topic: KNOWLEDGE_TOPICS.LOCATION,
+    value: { direction: compassDirection(observer, subject) },
+    source,
     observedAt: receivedAt,
     receivedAt,
     confidence,
@@ -107,30 +455,34 @@ export function learnAbout(observer, subject, confidence = 0.5, receivedAt = nul
     provenance: { type: 'raid', subjectId: subject.id },
     subjectMatter: ['military', 'location'],
   });
+
+  return existence;
 }
 
-// A trade hub becomes an information hub: traders can carry a weak, second-hand
-// existence report from one trading partner to another. This is intentionally
-// vague and does not reveal economic/resource values yet.
 export function diffuseTradeNetworkKnowledge(regions, receivedAt = null) {
+  const byId = new Map(regions.map((region) => [region.id, region]));
+
   for (const intermediary of regions) {
-    const partners = regions.filter((candidate) =>
-      candidate.id !== intermediary.id && hasDirectContact(intermediary, candidate) &&
-      hasDirectContact(candidate, intermediary));
-    for (const source of partners) {
-      for (const listener of partners) {
-        if (source.id === listener.id) continue;
+    if (!(intermediary.tradeLinks instanceof Map)) continue;
+    const partnerIds = [...intermediary.tradeLinks.keys()].filter((id) => byId.has(id));
+
+    for (const listenerId of partnerIds) {
+      const listener = byId.get(listenerId);
+      for (const subjectId of partnerIds) {
+        if (listenerId === subjectId) continue;
+        const subject = byId.get(subjectId);
+
         getLedger(listener)?.addObservation({
-          subjectId: source.id,
+          subjectId,
           topic: KNOWLEDGE_TOPICS.EXISTENCE,
-          value: { name: source.name },
+          value: { name: subject.name },
           source: KNOWLEDGE_SOURCES.SECOND_HAND_RUMOUR,
           observedAt: receivedAt,
           receivedAt,
           confidence: 0.25,
           specificity: 0.25,
           provenance: { type: 'trade_network', intermediaryId: intermediary.id },
-          subjectMatter: ['trade'],
+          subjectMatter: ['trade', 'rumour'],
         });
       }
     }
