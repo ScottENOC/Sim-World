@@ -16,10 +16,7 @@ function findOpportunities(region, regions) {
   const opportunities = [];
   for (const dest of regions) {
     if (dest.id === region.id) continue;
-    // Trade is diplomatic contact: neither side will send merchants to a
-    // region it has never met. This applies equally to player and AI regions.
     if (!hasDirectContact(region, dest) || !hasDirectContact(dest, region)) continue;
-
     const cost = routeCost(region, dest);
     for (const resource of TRADABLE_RESOURCES) {
       const priceHere = localPrice(region, resource);
@@ -45,14 +42,12 @@ function executeTrades(region, opportunities) {
     const maxByLabor = laborLeft * TRADE_UNITS_PER_TRADER;
     const volume = Math.max(0, Math.min(opp.stockAvailable, maxByBuyerWallet, maxByLabor));
     if (volume <= 0.01) continue;
-
     region.stockpile[opp.resource] -= volume;
     opp.dest.stockpile[opp.resource] = (opp.dest.stockpile[opp.resource] || 0) + volume;
     const payment = volume * opp.price;
     opp.dest.wallet -= payment;
     region.wallet += payment;
     recordDirectTrade(region, opp.dest, volume);
-
     const laborForThis = volume / TRADE_UNITS_PER_TRADER;
     laborLeft -= laborForThis;
     laborUsed += laborForThis;
