@@ -1,8 +1,6 @@
 import { toolEfficiencyMultiplier } from '../economy/tools.js';
 import { hasDirectContact, learnAbout } from '../core/knowledge.js';
 
-// Sea raids need transport capacity, not just a shared sea — a boat can
-// carry more than just its own crew.
 const RAIDERS_PER_BOAT = 10;
 const LAND_SPEED_KM_PER_WEEK = 120;
 const SEA_SPEED_KM_PER_WEEK = 200;
@@ -10,30 +8,21 @@ const DEFENDER_HOME_ADVANTAGE = 1.3;
 const BASE_LOSS_RATE = 0.25;
 const STEAL_BASE_FRACTION = 0.3;
 const STABILITY_LOSS_BASE = 0.15;
-
-// A raid is also an intelligence event. The defender learns substantially more
-// when the raid is beaten back: prisoners, wreckage and survivors make the
-// origin much easier to identify. A successful raid still leaves clues, but
-// less reliable ones.
 const RAID_KNOWLEDGE_SUCCESS = 0.35;
 const RAID_KNOWLEDGE_REPELLED = 0.75;
 
-export function maxSeaRaidersAvailable(region) {
-  return Math.floor(region.navy.boats * RAIDERS_PER_BOAT);
-}
-
+export function maxSeaRaidersAvailable(region) { return Math.floor(region.navy.boats * RAIDERS_PER_BOAT); }
 export function computeTravelWeeks(attacker, defender, viaSea) {
   const distanceKm = attacker.distanceKm[defender.id] || 500;
   const speed = viaSea ? SEA_SPEED_KM_PER_WEEK : LAND_SPEED_KM_PER_WEEK;
   return Math.max(1, Math.ceil(distanceKm / speed));
 }
 
-// Can attacker reach defender? They must have met first. Land borders create
-// an initial meeting automatically; sea routes require prior contact, normally
-// gained through fishing.
 export function canRaid(attacker, defender) {
   if (attacker.id === defender.id) return { possible: false };
-  if (!hasDirectContact(attacker, defender) || !hasDirectContact(defender, attacker)) return { possible: false, reason: 'unknown' };
+  if (!hasDirectContact(attacker, defender) || !hasDirectContact(defender, attacker)) {
+    return { possible: false, reason: 'no_contact' };
+  }
   if (attacker.neighbors.includes(defender.id)) return { possible: true, viaSea: false };
   const sharedSea = attacker.adjacentSeaIds.some((id) => defender.adjacentSeaIds.includes(id));
   if (sharedSea && maxSeaRaidersAvailable(attacker) > 0) return { possible: true, viaSea: true };
@@ -43,11 +32,8 @@ export function canRaid(attacker, defender) {
 let nextRaidId = 1;
 
 export function launchRaid(attacker, defender, requestedPersonnel, viaSea, currentTick) {
-  // Re-check contact at launch time so callers cannot bypass the fog by
-  // constructing a raid directly.
   const reach = canRaid(attacker, defender);
   if (!reach.possible || reach.viaSea !== viaSea) return null;
-
   let personnel = Math.min(requestedPersonnel, attacker.army.personnel);
   if (viaSea) personnel = Math.min(personnel, maxSeaRaidersAvailable(attacker));
   personnel = Math.floor(personnel);
@@ -55,19 +41,9 @@ export function launchRaid(attacker, defender, requestedPersonnel, viaSea, curre
   const travelWeeks = computeTravelWeeks(attacker, defender, viaSea);
   attacker.army.personnel -= personnel;
   attacker.army.away = (attacker.army.away || 0) + personnel;
-  return {
-    id: nextRaidId++,
-    attackerId: attacker.id,
-    defenderId: defender.id,
-    personnel,
-    viaSea,
-    departTick: currentTick,
-    arriveTick: currentTick + travelWeeks,
-    returnTick: null,
-    resolved: false,
-    completed: false,
-    outcome: null,
-  };
+  return { id: nextRaidId++, attackerId: attacker.id, defenderId: defender.id, personnel, viaSea,
+    departTick: currentTick, arriveTick: currentTick + travelWeeks, returnTick: null,
+    resolved: false, completed: false, outcome: null };
 }
 
 export function tickRaids(raids, regionsById, currentTick, toolTypes, rng) {
@@ -78,14 +54,10 @@ export function tickRaids(raids, regionsById, currentTick, toolTypes, rng) {
       const defender = regionsById.get(raid.defenderId);
       const outcome = resolveCombat(attacker, defender, raid.personnel, toolTypes, rng);
       const won = outcome.attackerRatio > 0.5;
-
-      // The defender now has direct evidence of who sent the raiders. A failed
-      // raid gives much stronger intelligence than a successful one.
       const knowledgeGained = won ? RAID_KNOWLEDGE_SUCCESS : RAID_KNOWLEDGE_REPELLED;
-      learnAbout(defender, attacker, knowledgeGained);
+      learnAbout(defender, attacker, knowledgeGained, currentTick);
       outcome.defenderKnowledgeGained = knowledgeGained;
       outcome.defenderLearnedOrigin = true;
-
       raid.outcome = outcome;
       raid.resolved = true;
       raid.returnTick = currentTick + computeTravelWeeks(attacker, defender, raid.viaSea);
@@ -115,7 +87,6 @@ function resolveCombat(attacker, defender, raidingPersonnel, toolTypes, rng) {
   const defenderLosses = Math.round(defender.army.personnel * defenderLossFraction);
   const attackerSurvivors = Math.max(0, raidingPersonnel - attackerLosses);
   defender.army.personnel = Math.max(0, defender.army.personnel - defenderLosses);
-
   const stealFraction = Math.min(0.9, STEAL_BASE_FRACTION * attackerRatio * (0.5 + rng()));
   const looted = {};
   for (const key of Object.keys(defender.stockpile)) {
@@ -131,6 +102,5 @@ function resolveCombat(attacker, defender, raidingPersonnel, toolTypes, rng) {
   attacker.wallet += walletStolen;
   const stabilityLoss = STABILITY_LOSS_BASE * attackerRatio;
   defender.stability = Math.max(0, defender.stability - stabilityLoss);
-
   return { attackerRatio, attackerLosses, defenderLosses, attackerSurvivors, looted, walletStolen, stabilityLoss };
 }
