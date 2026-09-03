@@ -1,8 +1,8 @@
-import { extractionRate, selectActiveTier } from '../world/resources/extraction.js?v=20260903-collapse1';
-import { regrow, neighborSpreadBonus } from '../world/resources/renewables.js?v=20260903-collapse1';
-import { toolEfficiencyMultiplier, desiredToolInvestment, investInTools, wearOutTools } from './tools.js?v=20260903-collapse1';
-import { adjustArmySize, adjustNavyCrew } from '../military/army.js?v=20260903-collapse1';
-import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260903-collapse1';
+import { extractionRate, selectActiveTier } from '../world/resources/extraction.js?v=20260903-mechanics1';
+import { regrow, neighborSpreadBonus } from '../world/resources/renewables.js?v=20260903-mechanics1';
+import { toolEfficiencyMultiplier, desiredToolInvestment, investInTools, wearOutTools } from './tools.js?v=20260903-mechanics1';
+import { adjustArmySize, adjustNavyCrew } from '../military/army.js?v=20260903-mechanics1';
+import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260903-mechanics1';
 
 // --- Tunable constants -----------------------------------------------------
 // All placeholders, calibrated so a "typical" region can just about feed
@@ -408,6 +408,9 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   // Iron is ubiquitous but not commercially useful before the breakthrough.
   // Leaving it in the ground prevents every region quietly accumulating a
   // huge ready-to-smelt ore reserve before iron working is discovered.
+  const ironReadiness = region.unlockedTechIds.has('iron_smelting')
+    ? Math.max(0.02, Math.min(1, region.ironWorkingReadiness || 0))
+    : 0;
   const openResources = Object.keys(activeTiers).filter((key) =>
     activeTiers[key] !== null && (key !== 'ironOre' || region.unlockedTechIds.has('iron_smelting'))
   );
@@ -464,12 +467,15 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   // gotten good at smithing would over-reserve labor for a bronze target it
   // no longer needs that many hands to hit.
   const bronzePerSmith = BRONZE_PER_SMITH * skillMultiplier(region, 'smithing');
-  const ironPerSmith = IRON_PER_SMITH * skillMultiplier(region, 'smithing');
+  const ironPerSmith = IRON_PER_SMITH * skillMultiplier(region, 'smithing') * ironReadiness;
 
   // Reserve labor for smiths against that demand, up front — this is what
   // stops smith count from depending on a boolean "is there stock" check.
   const desiredSmithsLabor = Math.min(
-    remainingSurplus,
+    // A new iron industry needs miners and charcoal/ore carriers as well as
+    // smiths. Never let anticipated forge demand reserve the entire surplus
+    // before the mine has had a chance to supply it.
+    remainingSurplus * 0.6,
     (bronzePerSmith > 0 ? desiredBronzeOutput / bronzePerSmith : 0) +
       (ironPerSmith > 0 ? desiredIronOutput / ironPerSmith : 0)
   );
@@ -537,7 +543,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
       initialStock: tier.initialStock,
       remainingStock: tier.remainingStock,
       workers: minerAllocation[key],
-      baseYieldPerWorker: oreYieldPerMiner,
+      baseYieldPerWorker: oreYieldPerMiner * (key === 'ironOre' ? ironReadiness : 1),
       difficulty: tier.difficulty,
     });
     tier.remainingStock -= gathered;
@@ -575,7 +581,10 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   const ironMade = (smithAllocation.iron || 0) * ironPerSmith;
   const actualSmiths = (smithAllocation.bronze || 0) + (smithAllocation.iron || 0);
   accumulateExperience(region, 'smithing', actualSmiths);
-  report.smithing = { workers: Math.round(actualSmiths), bronze: bronzeMade, iron: ironMade };
+  report.smithing = {
+    workers: Math.round(actualSmiths), bronze: bronzeMade, iron: ironMade,
+    ironReadiness,
+  };
 
   region.stockpile.copper = (region.stockpile.copper || 0) - bronzeMade * 2;
   region.stockpile.tin = (region.stockpile.tin || 0) - bronzeMade * 1;

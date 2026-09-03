@@ -1,4 +1,4 @@
-import { localPrice } from './prices.js?v=20260903-collapse1';
+import { localPrice } from './prices.js?v=20260903-mechanics1';
 
 // Tools are physical counts, not a permanent development score. They wear
 // out slowly, creating the replacement demand that makes a metal shortage

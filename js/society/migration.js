@@ -1,6 +1,6 @@
-import { localPrice } from '../economy/prices.js?v=20260903-collapse1';
-import { routeCost } from '../economy/trade.js?v=20260903-collapse1';
-import { knownRegionIds } from '../core/knowledge.js?v=20260903-collapse1';
+import { localPrice } from '../economy/prices.js?v=20260903-mechanics1';
+import { routeCost } from '../economy/trade.js?v=20260903-mechanics1';
+import { knownRegionIds } from '../core/knowledge.js?v=20260903-mechanics1';
 
 const DENSITY_REFERENCE = 6; // people/km² — same "crowded" threshold gathering uses
 

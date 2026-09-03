@@ -1,6 +1,6 @@
-import { localPrice, TRADABLE_RESOURCES } from './prices.js?v=20260903-collapse1';
-import { directContactIds, knownRegionIds, recordDirectTrade, diffuseTradeNetworkKnowledge } from '../core/knowledge.js?v=20260903-collapse1';
-import { centroidDistanceKm } from '../world/distance.js?v=20260903-collapse1';
+import { localPrice, TRADABLE_RESOURCES } from './prices.js?v=20260903-mechanics1';
+import { directContactIds, knownRegionIds, recordDirectTrade, diffuseTradeNetworkKnowledge } from '../core/knowledge.js?v=20260903-mechanics1';
+import { centroidDistanceKm } from '../world/distance.js?v=20260903-mechanics1';
 
 const LAND_ADJACENT_COST = 0.02;
 const SEA_COST_PER_KM = 0.0002;

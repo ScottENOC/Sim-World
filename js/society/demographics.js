@@ -4,8 +4,8 @@
 // actually benefit from that before anyone starves, emigrates, or turns
 // to banditry over a shortfall that no longer exists.
 
-import { FOOD_PER_PERSON_PER_WEEK } from '../economy/labor.js?v=20260903-collapse1';
-import { chooseEmigrationDestinations } from './migration.js?v=20260903-collapse1';
+import { FOOD_PER_PERSON_PER_WEEK } from '../economy/labor.js?v=20260903-mechanics1';
+import { chooseEmigrationDestinations } from './migration.js?v=20260903-mechanics1';
 
 const CHILD_BAND_YEARS = 14;
 const WORKING_BAND_YEARS = 45; // 15-59; elderly is open-ended above that
@@ -118,6 +118,17 @@ function applyFamineResponse(region, regionsById) {
 
   for (const { dest, count } of destinations) {
     addToBands(dest, count);
+    // Refugees carry practical craft knowledge as well as mouths to feed.
+    // This is exposure, not an instant unlock: breakthroughs.js turns a
+    // sufficiently strong stream of iron-working migrants into a chance to
+    // learn the technique on a later tick.
+    if (region.unlockedTechIds.has('iron_smelting')) {
+      const sourceReadiness = Math.max(0.05, region.ironWorkingReadiness || 0);
+      dest.ironWorkingExposure = Math.min(
+        10,
+        (dest.ironWorkingExposure || 0) + (count / Math.max(1, dest.population)) * sourceReadiness
+      );
+    }
   }
 
   syncPopulation(region);
@@ -153,6 +164,15 @@ function addToBands(region, count) {
   region.demographics.workingAge += count * 0.70;
   region.demographics.children += count * 0.25;
   region.demographics.elderly += count * 0.05;
+  syncPopulation(region);
+}
+
+// Bandits who surrender or find ordinary work again re-enter as working-age
+// civilians. Keeping this helper here ensures the demographic bands and the
+// headline population can never drift apart.
+export function addWorkingAgePopulation(region, count) {
+  if (count <= 0) return;
+  region.demographics.workingAge += count;
   syncPopulation(region);
 }
 

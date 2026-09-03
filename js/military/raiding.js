@@ -1,6 +1,6 @@
-import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260903-collapse1';
-import { hasDirectContact, learnAbout } from '../core/knowledge.js?v=20260903-collapse1';
-import { centroidDistanceKm } from '../world/distance.js?v=20260903-collapse1';
+import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260903-mechanics1';
+import { hasDirectContact, learnAbout } from '../core/knowledge.js?v=20260903-mechanics1';
+import { centroidDistanceKm } from '../world/distance.js?v=20260903-mechanics1';
 
 const RAIDERS_PER_BOAT = 10;
 const LAND_SPEED_KM_PER_WEEK = 120;
@@ -57,6 +57,17 @@ export function tickRaids(raids, regionsById, currentTick, toolTypes, rng) {
       const won = outcome.attackerRatio > 0.5;
       const knowledgeGained = won ? RAID_KNOWLEDGE_SUCCESS : RAID_KNOWLEDGE_REPELLED;
       learnAbout(defender, attacker, knowledgeGained, currentTick);
+      // Captives, deserters and observed equipment can carry techniques in
+      // either direction. As with refugees this creates exposure, not an
+      // immediate technology unlock.
+      if (defender.unlockedTechIds.has('iron_smelting')) {
+        attacker.ironWorkingExposure = Math.min(10,
+          (attacker.ironWorkingExposure || 0) + 0.01 * Math.max(0.05, defender.ironWorkingReadiness || 0));
+      }
+      if (attacker.unlockedTechIds.has('iron_smelting')) {
+        defender.ironWorkingExposure = Math.min(10,
+          (defender.ironWorkingExposure || 0) + 0.01 * Math.max(0.05, attacker.ironWorkingReadiness || 0));
+      }
       outcome.defenderKnowledgeGained = knowledgeGained;
       outcome.defenderLearnedOrigin = true;
       raid.outcome = outcome;
