@@ -29,6 +29,7 @@ export async function loadWorld() {
     const region = new Region({ id, name: feature.properties.name, feature, centroid: m.centroid,
       areaSqKm: m.areaSqKm, neighbors: m.neighbors, distanceKm: m.distanceKm });
     const endowment = resources[id];
+    if (!endowment) throw new Error(`Missing resource endowment for region ${id} (${region.name})`);
     region.landQuality = endowment.landQuality;
     const K = region.areaSqKm * endowment.forestFraction;
     region.forest = { currentStock: K * endowment.forestStartCoverage, K };
