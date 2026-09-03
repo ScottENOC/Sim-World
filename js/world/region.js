@@ -9,7 +9,7 @@ export class Region {
     this.safetyRating = 1.0; this.educationLevel = 0.05; this.experience = {};
     this.targetArmySize = 0; this.army = { personnel: 0, away: 0 };
     this.targetNavySize = 0; this.navy = { boats: 0, personnel: 0 };
-    this.isCoastal = true; this.adjacentSeaIds = []; this.fishingBoats = 0; this.targetFishingBoats = 0;
+    this.isCoastal = false; this.adjacentSeaIds = []; this.fishingBoats = 0; this.targetFishingBoats = 0;
     this.landQuality = null; this.forest = null; this.deposits = null; this.stockpile = {};
     this.occupations = {}; this.report = {}; this.equipment = {}; this.militaryBronzeDemand = 0;
     this.wallet = 0; this.treasury = 0; this.unlockedTechIds = new Set();
