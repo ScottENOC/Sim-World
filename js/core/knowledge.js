@@ -33,6 +33,25 @@ export const KNOWLEDGE_SOURCES = Object.freeze({
   SPY: 'spy',
 });
 
+// Reports from these sources establish direct contact for trade/raiding.
+// Keep this indexed rather than rediscovering it by scanning the complete
+// evidence ledger for every possible region pair on every tick.
+const DIRECT_CONTACT_SOURCES = new Set([
+  KNOWLEDGE_SOURCES.DIRECT,
+  KNOWLEDGE_SOURCES.TRADER,
+  KNOWLEDGE_SOURCES.FISHER,
+  KNOWLEDGE_SOURCES.RAID_SURVIVOR,
+  KNOWLEDGE_SOURCES.PRISONER,
+  KNOWLEDGE_SOURCES.DIPLOMAT,
+  KNOWLEDGE_SOURCES.REFUGEE,
+  KNOWLEDGE_SOURCES.SPY,
+]);
+
+// Dated reports which have not been refreshed for a year cease to be useful
+// current intelligence. Undated starting knowledge (notably land borders) is
+// structural and deliberately permanent.
+export const MAX_OBSERVATION_AGE_WEEKS = 52;
+
 // These are presentation thresholds, not stored knowledge percentages.
 // knowledgeLevel() derives a temporary familiarity score from the reports in
 // a ledger so the current fog/UI/AI code can continue to ask simple questions.
@@ -64,7 +83,12 @@ function evidenceStrength(observations) {
   let missChance = 1;
   for (const report of observations) {
     const strength = clamp01(report.confidence) * clamp01(report.specificity);
-    missChance *= (1 - strength);
+    // Repeated equivalent reports are compacted into one observation while
+    // retaining exactly the same corroboration effect they had when stored as
+    // separate objects.
+    missChance *= Number.isFinite(report.evidenceMissChance)
+      ? clamp01(report.evidenceMissChance)
+      : (1 - strength);
   }
   return clamp01(1 - missChance);
 }
@@ -81,6 +105,32 @@ export class KnowledgeLedger {
   constructor(ownerId) {
     this.ownerId = ownerId;
     this.observations = [];
+    this.directContactIds = new Set();
+    this._observationByStream = new Map();
+  }
+
+  _streamKey({ subjectId, topic, source, provenance }) {
+    // A stream is the same observer receiving the same kind of information
+    // about the same subject through the same route. Volatile details such as
+    // trade volume are values within the stream, not reasons to retain a new
+    // permanent record every week.
+    const provenanceKey = provenance?.type === 'trade_network'
+      ? `${provenance.type}:${provenance.intermediaryId || ''}`
+      : provenance?.type === 'shared_sea_fishing'
+        ? `${provenance.type}:${[...(provenance.seaIds || [])].sort().join(',')}`
+        : provenance?.type || '';
+    return `${subjectId}|${topic}|${source}|${provenanceKey}`;
+  }
+
+  _rebuildIndexes() {
+    this.directContactIds.clear();
+    this._observationByStream.clear();
+    for (const observation of this.observations) {
+      this._observationByStream.set(this._streamKey(observation), observation);
+      if (DIRECT_CONTACT_SOURCES.has(observation.source)) {
+        this.directContactIds.add(observation.subjectId);
+      }
+    }
   }
 
   addObservation({
@@ -97,6 +147,32 @@ export class KnowledgeLedger {
   }) {
     if (!subjectId || !topic) return null;
 
+    const candidate = { subjectId, topic, source, provenance };
+    const streamKey = this._streamKey(candidate);
+    const existing = this._observationByStream.get(streamKey);
+    const confidenceValue = clamp01(confidence);
+    const specificityValue = clamp01(specificity);
+    const newMissChance = 1 - confidenceValue * specificityValue;
+
+    if (existing) {
+      // Consolidate repeated evidence instead of appending forever. The
+      // cumulative miss chance preserves corroboration mathematically, while
+      // the visible report fields are refreshed with the newest information.
+      const oldMissChance = Number.isFinite(existing.evidenceMissChance)
+        ? existing.evidenceMissChance
+        : 1 - clamp01(existing.confidence) * clamp01(existing.specificity);
+      existing.evidenceMissChance = clamp01(oldMissChance * newMissChance);
+      existing.corroborationCount = (existing.corroborationCount || 1) + 1;
+      existing.value = value;
+      existing.observedAt = observedAt;
+      existing.receivedAt = receivedAt;
+      existing.confidence = confidenceValue;
+      existing.specificity = specificityValue;
+      existing.provenance = provenance;
+      existing.subjectMatter = [...subjectMatter];
+      return existing;
+    }
+
     const observation = {
       id: `${this.ownerId}:${this.observations.length + 1}`,
       subjectId,
@@ -105,14 +181,31 @@ export class KnowledgeLedger {
       source,
       observedAt,
       receivedAt,
-      confidence: clamp01(confidence),
-      specificity: clamp01(specificity),
+      confidence: confidenceValue,
+      specificity: specificityValue,
+      evidenceMissChance: newMissChance,
+      corroborationCount: 1,
       provenance,
       subjectMatter: [...subjectMatter],
     };
 
     this.observations.push(observation);
+    this._observationByStream.set(streamKey, observation);
+    if (DIRECT_CONTACT_SOURCES.has(source)) this.directContactIds.add(subjectId);
     return observation;
+  }
+
+  prune(currentTick, maxAgeWeeks = MAX_OBSERVATION_AGE_WEEKS) {
+    if (!Number.isFinite(currentTick)) return 0;
+    const before = this.observations.length;
+    this.observations = this.observations.filter((observation) => {
+      const ageFrom = Number.isFinite(observation.receivedAt)
+        ? observation.receivedAt
+        : observation.observedAt;
+      return !Number.isFinite(ageFrom) || currentTick - ageFrom <= maxAgeWeeks;
+    });
+    if (this.observations.length !== before) this._rebuildIndexes();
+    return before - this.observations.length;
   }
 
   forSubject(subjectId) {
@@ -304,13 +397,15 @@ function fishingEffort(region) {
   );
 }
 
-function addFishingReport(observer, subject, sharedSeaIds, confidence) {
+function addFishingReport(observer, subject, sharedSeaIds, confidence, receivedAt = null) {
   const ledger = getLedger(observer);
   ledger?.addObservation({
     subjectId: subject.id,
     topic: KNOWLEDGE_TOPICS.EXISTENCE,
     value: { name: subject.name },
     source: KNOWLEDGE_SOURCES.FISHER,
+    observedAt: receivedAt,
+    receivedAt,
     confidence,
     specificity: Math.min(1, confidence + 0.15),
     provenance: { type: 'shared_sea_fishing', seaIds: [...sharedSeaIds] },
@@ -321,6 +416,8 @@ function addFishingReport(observer, subject, sharedSeaIds, confidence) {
     topic: KNOWLEDGE_TOPICS.LOCATION,
     value: { direction: compassDirection(observer, subject), seaIds: [...sharedSeaIds] },
     source: KNOWLEDGE_SOURCES.FISHER,
+    observedAt: receivedAt,
+    receivedAt,
     confidence: confidence * 0.8,
     specificity: confidence * 0.75,
     provenance: { type: 'shared_sea_fishing', seaIds: [...sharedSeaIds] },
@@ -328,7 +425,7 @@ function addFishingReport(observer, subject, sharedSeaIds, confidence) {
   });
 }
 
-export function tickFishingKnowledge(regions, seaRegions = []) {
+export function tickFishingKnowledge(regions, seaRegions = [], currentTick = null) {
   void seaRegions; // adjacency is already linked onto land regions
 
   for (let i = 0; i < regions.length; i += 1) {
@@ -346,8 +443,8 @@ export function tickFishingKnowledge(regions, seaRegions = []) {
       // More fishing produces better reports, while repeated weeks provide
       // further corroborating reports through evidenceStrength().
       const confidence = Math.min(0.85, 0.08 + Math.log10(totalEffort + 1) * 0.12);
-      addFishingReport(a, b, sharedSeaIds, confidence);
-      addFishingReport(b, a, sharedSeaIds, confidence);
+      addFishingReport(a, b, sharedSeaIds, confidence, currentTick);
+      addFishingReport(b, a, sharedSeaIds, confidence, currentTick);
     }
   }
 }
@@ -355,20 +452,18 @@ export function tickFishingKnowledge(regions, seaRegions = []) {
 export function hasDirectContact(regionA, regionB) {
   if (!regionA || !regionB || regionA.id === regionB.id) return false;
   if ((regionA.neighbors || []).includes(regionB.id)) return true;
+  return getLedger(regionA)?.directContactIds.has(regionB.id) || false;
+}
 
-  const directSources = new Set([
-    KNOWLEDGE_SOURCES.DIRECT,
-    KNOWLEDGE_SOURCES.TRADER,
-    KNOWLEDGE_SOURCES.FISHER,
-    KNOWLEDGE_SOURCES.RAID_SURVIVOR,
-    KNOWLEDGE_SOURCES.PRISONER,
-    KNOWLEDGE_SOURCES.DIPLOMAT,
-    KNOWLEDGE_SOURCES.REFUGEE,
-    KNOWLEDGE_SOURCES.SPY,
-  ]);
+export function directContactIds(region) {
+  if (!region) return new Set();
+  return new Set([...(region.neighbors || []), ...(getLedger(region)?.directContactIds || [])]);
+}
 
-  return getLedger(regionA)?.forSubject(regionB.id)
-    .some((report) => directSources.has(report.source)) || false;
+export function pruneKnowledge(regions, currentTick, maxAgeWeeks = MAX_OBSERVATION_AGE_WEEKS) {
+  let removed = 0;
+  for (const region of regions) removed += getLedger(region)?.prune(currentTick, maxAgeWeeks) || 0;
+  return removed;
 }
 
 export function recordDirectTrade(regionA, regionB, volume, receivedAt = null) {

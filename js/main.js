@@ -12,7 +12,7 @@ import { tickNationAi } from './ai/nationAi.js';
 import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js';
 import { MapRenderer } from './ui/mapRenderer.js';
 import { FogOfWar } from './core/fogOfWar.js';
-import { initialiseKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js';
+import { initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js';
 
 const START_YEAR = -1200; // Bronze Age start, mid-collapse-era — tune later
 const LAYERS = {
@@ -106,8 +106,9 @@ async function main() {
 
   clock.onTick(() => {
     tickEconomy(regions, seaRegions, toolTypes);
-    tickFishingKnowledge(regions, seaRegions);
-    tickTrade(regions);
+    pruneKnowledge(regions, clock.tickIndex);
+    tickFishingKnowledge(regions, seaRegions, clock.tickIndex);
+    tickTrade(regions, clock.tickIndex);
     tickDemographics(regions);
     tickBanditry(regions, toolTypes);
     tickNationAi(regions, playerRegionId, activeRaids, clock.tickIndex, toolTypes, Math.random);

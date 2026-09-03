@@ -1,5 +1,5 @@
 import { localPrice, TRADABLE_RESOURCES } from './prices.js';
-import { hasDirectContact, recordDirectTrade, diffuseTradeNetworkKnowledge } from '../core/knowledge.js';
+import { directContactIds, hasDirectContact, recordDirectTrade, diffuseTradeNetworkKnowledge } from '../core/knowledge.js';
 
 const LAND_ADJACENT_COST = 0.1;
 const SEA_COST_PER_KM = 0.001;
@@ -12,9 +12,9 @@ export function routeCost(regionA, regionB) {
   return SEA_COST_PER_KM * regionA.distanceKm[regionB.id];
 }
 
-function findOpportunities(region, regions) {
+function findOpportunities(region, candidateRegions) {
   const opportunities = [];
-  for (const dest of regions) {
+  for (const dest of candidateRegions) {
     if (dest.id === region.id) continue;
     if (!hasDirectContact(region, dest) || !hasDirectContact(dest, region)) continue;
     const cost = routeCost(region, dest);
@@ -33,7 +33,7 @@ function findOpportunities(region, regions) {
   return opportunities;
 }
 
-function executeTrades(region, opportunities) {
+function executeTrades(region, opportunities, currentTick = null) {
   let laborLeft = region._availableForTrade || 0;
   let laborUsed = 0;
   for (const opp of opportunities) {
@@ -47,7 +47,7 @@ function executeTrades(region, opportunities) {
     const payment = volume * opp.price;
     opp.dest.wallet -= payment;
     region.wallet += payment;
-    recordDirectTrade(region, opp.dest, volume);
+    recordDirectTrade(region, opp.dest, volume, currentTick);
     const laborForThis = volume / TRADE_UNITS_PER_TRADER;
     laborLeft -= laborForThis;
     laborUsed += laborForThis;
@@ -55,13 +55,19 @@ function executeTrades(region, opportunities) {
   return laborUsed;
 }
 
-export function tickTrade(regions) {
+export function tickTrade(regions, currentTick = null) {
   for (const region of regions) region.tradeLinks = new Map();
-  const opportunitiesByRegion = new Map(regions.map((r) => [r.id, findOpportunities(r, regions)]));
+  const regionsById = new Map(regions.map((region) => [region.id, region]));
+  const opportunitiesByRegion = new Map(regions.map((region) => {
+    const candidates = [...directContactIds(region)]
+      .map((id) => regionsById.get(id))
+      .filter(Boolean);
+    return [region.id, findOpportunities(region, candidates)];
+  }));
   for (const region of regions) {
-    const tradersUsed = executeTrades(region, opportunitiesByRegion.get(region.id));
+    const tradersUsed = executeTrades(region, opportunitiesByRegion.get(region.id), currentTick);
     region.occupations.trader = Math.round(tradersUsed);
     region.occupations.general = Math.max(0, region.occupations.general - Math.round(tradersUsed));
   }
-  diffuseTradeNetworkKnowledge(regions);
+  diffuseTradeNetworkKnowledge(regions, currentTick);
 }
