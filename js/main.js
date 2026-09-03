@@ -147,6 +147,7 @@ async function main() {
     document.getElementById('region-sheet').classList.remove('hidden');
 
     map.refreshLayer();
+    map.focusRegion(chosen);
     clock.start();
   });
 
@@ -181,23 +182,143 @@ async function main() {
 }
 
 function showRegionPicker(regions, onChosen) {
-  document.getElementById('picker-list').innerHTML = regions
-    .map((r) => `
-      <button class="picker-option" data-id="${r.id}">
-        <strong>${r.name}</strong>
-        <span>pop ${r.population.toLocaleString()} &middot; land quality ${r.landQuality.toFixed(2)}&times;</span>
-      </button>
-    `)
-    .join('');
+  const pickerList = document.getElementById('picker-list');
+  const pickerTitle = document.getElementById('picker-title');
+  const pickerHelp = document.getElementById('picker-help');
 
-  document.querySelectorAll('.picker-option').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const region = regions.find((r) => r.id === btn.dataset.id);
-      if (region) onChosen(region);
-    });
-  });
+  const collator = new Intl.Collator('en', { sensitivity: 'base', numeric: true });
+  const alphabetically = (a, b) => collator.compare(a, b);
+
+  // Navigation metadata only: this does not define sovereignty.
+  const navigationForRegion = (region) => {
+    const sourceGroup = region.feature?.properties?.sourceGroup;
+    const name = region.name;
+
+    // Spain's dataset spans two continents.
+    if (sourceGroup === 'ESP' && (name === 'Ceuta' || name === 'Melilla')) {
+      return { continent: 'Africa', country: 'Spain' };
+    }
+
+    const groups = {
+      'GBR-ENG': { continent: 'Europe', country: 'England' },
+      'GBR-WLS': { continent: 'Europe', country: 'Wales' },
+      'GBR-SCT': { continent: 'Europe', country: 'Scotland' },
+      'FRA': { continent: 'Europe', country: 'France' },
+      'ESP': { continent: 'Europe', country: 'Spain' },
+      'PRT': { continent: 'Europe', country: 'Portugal' },
+      'IRL': { continent: 'Europe', country: 'Ireland' },
+      'GIB': { continent: 'Europe', country: 'Gibraltar' },
+      'IMN': { continent: 'Europe', country: 'Isle of Man' },
+      'CHI': { continent: 'Europe', country: 'Channel Islands' },
+    };
+
+    return groups[sourceGroup] || { continent: 'Other', country: sourceGroup || 'Other' };
+  };
+
+  const entries = regions.map((region) => ({ region, ...navigationForRegion(region) }));
+
+  const resetList = (...nodes) => {
+    pickerList.replaceChildren(...nodes);
+    pickerList.scrollTop = 0;
+  };
+
+  const makeButton = (className, label, detail, onClick) => {
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.className = className;
+    el.innerHTML = detail
+      ? `<strong>${label}</strong><span class="picker-count">${detail}</span>`
+      : `<strong>${label}</strong>`;
+    el.addEventListener('click', onClick);
+    return el;
+  };
+
+  const makeBackButton = (label, onClick) => {
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.className = 'picker-back';
+    el.textContent = `← ${label}`;
+    el.addEventListener('click', onClick);
+    return el;
+  };
+
+  const renderContinents = () => {
+    pickerTitle.textContent = 'Choose where to begin';
+    pickerHelp.textContent = 'Choose a continent.';
+
+    const continents = [...new Set(entries.map((entry) => entry.continent))]
+      .sort(alphabetically);
+
+    resetList(...continents.map((continent) => {
+      const matches = entries.filter((entry) => entry.continent === continent);
+      const countryCount = new Set(matches.map((entry) => entry.country)).size;
+      return makeButton(
+        'picker-group',
+        continent,
+        `${countryCount} ${countryCount === 1 ? 'area' : 'areas'} · ${matches.length} regions`,
+        () => renderCountries(continent),
+      );
+    }));
+  };
+
+  const renderCountries = (continent) => {
+    pickerTitle.textContent = continent;
+    pickerHelp.textContent = 'Choose a country or geographic grouping.';
+
+    const countries = [...new Set(
+      entries
+        .filter((entry) => entry.continent === continent)
+        .map((entry) => entry.country)
+    )].sort(alphabetically);
+
+    const nodes = [makeBackButton('Continents', renderContinents)];
+
+    for (const country of countries) {
+      const matches = entries.filter(
+        (entry) => entry.continent === continent && entry.country === country
+      );
+
+      nodes.push(makeButton(
+        'picker-group',
+        country,
+        `${matches.length} ${matches.length === 1 ? 'region' : 'regions'}`,
+        () => renderRegions(continent, country),
+      ));
+    }
+
+    resetList(...nodes);
+  };
+
+  const renderRegions = (continent, country) => {
+    pickerTitle.textContent = country;
+    pickerHelp.textContent = `${continent} · choose the region you will govern.`;
+
+    const matches = entries
+      .filter((entry) => entry.continent === continent && entry.country === country)
+      .map((entry) => entry.region)
+      .sort((a, b) => alphabetically(a.name, b.name));
+
+    const nodes = [makeBackButton(continent, () => renderCountries(continent))];
+
+    for (const region of matches) {
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.className = 'picker-option';
+      el.dataset.id = region.id;
+      el.innerHTML = `
+        <strong>${region.name}</strong>
+        <span>pop ${region.population.toLocaleString()} &middot; land quality ${region.landQuality.toFixed(2)}&times;</span>
+      `;
+      el.addEventListener('click', () => onChosen(region));
+      nodes.push(el);
+    }
+
+    resetList(...nodes);
+  };
+
+  // Always start at the top level; only one hierarchy level is rendered at a time.
+  renderContinents();
 }
-
 function wireLayerToggle(map) {
   document.querySelectorAll('.layer-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
