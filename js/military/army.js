@@ -1,5 +1,6 @@
-import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-finance1';
-import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-finance1';
+import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-horses1';
+import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-horses1';
+import { horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-horses1';
 
 // Recruitment/demobilization ramps toward the player's target rather than
 // snapping instantly — mobilizing an army takes real time, and disbanding
@@ -82,7 +83,7 @@ const NAVY_LAND_CONTRIBUTION = 0.3;
 
 export function effectivePower(region, toolTypes) {
   const soldierEfficiency = toolEfficiencyMultiplier(region, 'soldier', toolTypes.soldier, region.unlockedTechIds);
-  const armyPower = region.army.personnel * soldierEfficiency;
+  const armyPower = region.army.personnel * soldierEfficiency * horseMilitaryMultiplier(region);
   const navyPower = region.navy.personnel * soldierEfficiency * NAVY_LAND_CONTRIBUTION;
   return (armyPower + navyPower) * militaryReadiness(region);
 }

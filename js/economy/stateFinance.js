@@ -8,6 +8,7 @@ const EXPORT_DUTY_RATE = 0.05;
 const REVENUE_EMA_ALPHA = 1 / 52;
 const SOLDIER_UPKEEP_PER_WEEK = 0.002;
 const SAILOR_UPKEEP_PER_WEEK = 0.0025;
+const WAR_HORSE_UPKEEP_PER_WEEK = 0.003;
 const PAYROLL_RESERVE_WEEKS = 13;
 const PROCUREMENT_REVENUE_SHARE = 0.5;
 const PROCUREMENT_TREASURY_SHARE = 0.02;
@@ -80,7 +81,8 @@ export function tickStateFinance(regions) {
     finance.stateCapacity += (administrationRatio - finance.stateCapacity) * capacityAdjustment;
 
     const payrollDue = Math.max(0, region.army.personnel || 0) * SOLDIER_UPKEEP_PER_WEEK +
-      Math.max(0, region.navy.personnel || 0) * SAILOR_UPKEEP_PER_WEEK;
+      Math.max(0, region.navy.personnel || 0) * SAILOR_UPKEEP_PER_WEEK +
+      Math.max(0, region.horseEconomy?.war || 0) * WAR_HORSE_UPKEEP_PER_WEEK;
     const payrollPaid = Math.min(Math.max(0, region.treasury || 0), payrollDue);
     region.treasury -= payrollPaid;
     region.wallet += payrollPaid;
@@ -118,7 +120,8 @@ export function tickStateFinance(regions) {
     );
 
     const nextPayroll = Math.max(0, region.army.personnel) * SOLDIER_UPKEEP_PER_WEEK +
-      Math.max(0, region.navy.personnel) * SAILOR_UPKEEP_PER_WEEK;
+      Math.max(0, region.navy.personnel) * SAILOR_UPKEEP_PER_WEEK +
+      Math.max(0, region.horseEconomy?.war || 0) * WAR_HORSE_UPKEEP_PER_WEEK;
     const unreservedTreasury = Math.max(0, region.treasury - nextPayroll * PAYROLL_RESERVE_WEEKS);
     finance.procurementBudget = Math.min(
       unreservedTreasury,

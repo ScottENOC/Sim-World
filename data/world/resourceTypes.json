@@ -27,5 +27,6 @@
     "recipe": { "inputs": { "wood": 2 }, "laborType": "pitchMaker" }
   },
   "textiles": { "category": "crafted", "label": "Textiles", "laborType": "textileWorker" },
+  "horses": { "category": "livestock", "label": "Untrained horses" },
   "food":   { "category": "flow", "label": "Food" }
 }

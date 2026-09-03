@@ -18,6 +18,7 @@ const CEILING = {
   pottery: 0.35,
   textiles: 0.30,
   boatbuilding: 0.45,
+  horseHusbandry: 0.40,
 };
 
 // Cumulative worker-ticks to reach ~63% of the ceiling (1 - 1/e). Scaled
@@ -38,6 +39,7 @@ const EXPERIENCE_HALFLIFE = {
   pottery: 250_000,
   textiles: 300_000,
   boatbuilding: 120_000,
+  horseHusbandry: 100_000,
 };
 
 export const LEARNABLE_ACTIVITIES = Object.keys(CEILING);

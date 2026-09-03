@@ -1,7 +1,7 @@
-import { effectivePower } from './army.js?v=20260904-finance1';
-import { addWorkingAgePopulation, removeFromBands, syncPopulation } from '../society/demographics.js?v=20260904-finance1';
-import { FOOD_PER_PERSON_PER_WEEK } from '../economy/labor.js?v=20260904-finance1';
-import { directContactIds } from '../core/knowledge.js?v=20260904-finance1';
+import { effectivePower } from './army.js?v=20260904-horses1';
+import { addWorkingAgePopulation, removeFromBands, syncPopulation } from '../society/demographics.js?v=20260904-horses1';
+import { FOOD_PER_PERSON_PER_WEEK } from '../economy/labor.js?v=20260904-horses1';
+import { directContactIds } from '../core/knowledge.js?v=20260904-horses1';
 
 // Even with zero army, a bandit group doesn't last forever — disorganized,
 // exposed, some natural die-off. Suppression on top of that scales with

@@ -1,8 +1,9 @@
-import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-finance1';
-import { hasDirectContact, learnAbout } from '../core/knowledge.js?v=20260904-finance1';
-import { centroidDistanceKm } from '../world/distance.js?v=20260904-finance1';
-import { advancedNavyShare, navyTransportCapacity } from './army.js?v=20260904-finance1';
-import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-finance1';
+import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-horses1';
+import { hasDirectContact, learnAbout } from '../core/knowledge.js?v=20260904-horses1';
+import { centroidDistanceKm } from '../world/distance.js?v=20260904-horses1';
+import { advancedNavyShare, navyTransportCapacity } from './army.js?v=20260904-horses1';
+import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-horses1';
+import { horseLandSpeedMultiplier, horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-horses1';
 
 const LAND_SPEED_KM_PER_WEEK = 120;
 const SEA_SPEED_KM_PER_WEEK = 200;
@@ -18,7 +19,7 @@ export function computeTravelWeeks(attacker, defender, viaSea) {
   const distanceKm = centroidDistanceKm(attacker, defender) ?? 500;
   const speed = viaSea
     ? SEA_SPEED_KM_PER_WEEK * (1 + advancedNavyShare(attacker) * 0.75)
-    : LAND_SPEED_KM_PER_WEEK;
+    : LAND_SPEED_KM_PER_WEEK * horseLandSpeedMultiplier(attacker);
   return Math.max(1, Math.ceil(distanceKm / speed));
 }
 
@@ -92,8 +93,10 @@ function resolveCombat(attacker, defender, raidingPersonnel, toolTypes, rng, via
   const attackerEquip = toolEfficiencyMultiplier(attacker, 'soldier', toolTypes.soldier, attacker.unlockedTechIds);
   const defenderEquip = toolEfficiencyMultiplier(defender, 'soldier', toolTypes.soldier, defender.unlockedTechIds);
   const maritimeAssaultBonus = viaSea ? 1 + advancedNavyShare(attacker) * 0.5 : 1;
-  const attackerPower = raidingPersonnel * attackerEquip * maritimeAssaultBonus * militaryReadiness(attacker);
-  const defenderPower = defender.army.personnel * defenderEquip * DEFENDER_HOME_ADVANTAGE * militaryReadiness(defender);
+  const attackerPower = raidingPersonnel * attackerEquip * maritimeAssaultBonus * militaryReadiness(attacker) *
+    (viaSea ? 1 : horseMilitaryMultiplier(attacker));
+  const defenderPower = defender.army.personnel * defenderEquip * DEFENDER_HOME_ADVANTAGE * militaryReadiness(defender) *
+    horseMilitaryMultiplier(defender);
   const totalPower = attackerPower + defenderPower;
   const attackerRatio = totalPower > 0 ? attackerPower / totalPower : 0.5;
   const variance = () => 0.7 + rng() * 0.6;

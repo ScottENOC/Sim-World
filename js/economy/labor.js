@@ -1,9 +1,10 @@
-import { extractionRate, selectActiveTier } from '../world/resources/extraction.js?v=20260904-finance1';
-import { regrow, neighborSpreadBonus } from '../world/resources/renewables.js?v=20260904-finance1';
-import { toolEfficiencyMultiplier, desiredToolInvestment, investInTools, wearOutTools, materialUnitCost } from './tools.js?v=20260904-finance1';
-import { adjustArmySize, adjustNavyCrew } from '../military/army.js?v=20260904-finance1';
-import { spendMilitaryProcurement } from './stateFinance.js?v=20260904-finance1';
-import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260904-finance1';
+import { extractionRate, selectActiveTier } from '../world/resources/extraction.js?v=20260904-horses1';
+import { regrow, neighborSpreadBonus } from '../world/resources/renewables.js?v=20260904-horses1';
+import { toolEfficiencyMultiplier, desiredToolInvestment, investInTools, wearOutTools, materialUnitCost } from './tools.js?v=20260904-horses1';
+import { adjustArmySize, adjustNavyCrew } from '../military/army.js?v=20260904-horses1';
+import { spendMilitaryProcurement } from './stateFinance.js?v=20260904-horses1';
+import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260904-horses1';
+import { tickHorseEconomy, draughtFarmMultiplier } from './horses.js?v=20260904-horses1';
 
 // --- Tunable constants -----------------------------------------------------
 // All placeholders, calibrated so a "typical" region can just about feed
@@ -322,18 +323,22 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
 
   const totalPop = region.population;       // everyone eats
   const workingAge = region.demographics.workingAge;
+  const horseReport = tickHorseEconomy(region, workingAge);
+  report.horses = horseReport;
 
   // Military recruitment happens first and is sticky — personnel stay
   // committed tick to tick (ramping toward the player's target) rather
   // than being freely reallocated like every other occupation below.
-  adjustArmySize(region, Math.max(0, workingAge - region.army.personnel - region.navy.personnel));
-  adjustNavyCrew(region, Math.max(0, workingAge - region.army.personnel - region.navy.personnel));
-  const laborPool = Math.max(0, workingAge - region.army.personnel - region.navy.personnel);
+  adjustArmySize(region, Math.max(0, workingAge - region.army.personnel - region.navy.personnel - horseReport.workers));
+  adjustNavyCrew(region, Math.max(0, workingAge - region.army.personnel - region.navy.personnel - horseReport.workers));
+  const laborPool = Math.max(0, workingAge - region.army.personnel - region.navy.personnel - horseReport.workers);
 
   const noise = foodYieldNoise(region, rng);
-  const maxFoodOutput = region.areaSqKm * region.landQuality * FOOD_YIELD_PER_KM2 * noise;
+  const maxFoodOutput = region.areaSqKm * region.landQuality * FOOD_YIELD_PER_KM2 * noise *
+    (1 - horseReport.pastureFraction);
   const kLabor = region.areaSqKm * FARM_LABOR_SATURATION_PER_KM2;
-  const foodNeeded = totalPop * FOOD_PER_PERSON_PER_WEEK;
+  const humanFoodNeeded = totalPop * FOOD_PER_PERSON_PER_WEEK;
+  const foodNeeded = humanFoodNeeded + horseReport.fodderNeeded;
   const foodPlan = plannedFoodProduction(region, foodNeeded);
   const foodProductionTarget = foodPlan.target;
 
@@ -342,7 +347,8 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   // simultaneously — see tools.js. Skill (learningByDoing.js) stacks on
   // top: well-practiced AND well-equipped beats either alone.
   const farmerEfficiency = toolEfficiencyMultiplier(region, 'farmer', toolTypes.farmer, region.unlockedTechIds)
-    * skillMultiplier(region, 'farming');
+    * skillMultiplier(region, 'farming')
+    * draughtFarmMultiplier(region, region.occupations?.farmer || workingAge * 0.5);
   const farmersNeededRaw = farmersNeededFor(foodProductionTarget, maxFoodOutput, kLabor) / farmerEfficiency;
   // Always leave some working-age labor free for gathering and everything
   // else — otherwise a genuine crisis (farmersNeeded >= laborPool) claims
@@ -452,7 +458,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   // Stability isn't decided here anymore — trade gets a chance to cover any
   // remaining shortfall first. See society/demographics.js, called after
   // tickTrade().
-  region._foodNeeded = foodNeeded;
+  region._foodNeeded = humanFoodNeeded;
 
   const surplus = Math.max(0, laborAfterGathering - shoreFishers - boatFishers);
 
@@ -604,6 +610,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
     clay: Math.max(0, desiredPotteryOutput * POTTERY_CLAY_COST - (region.stockpile.clay || 0)),
     pitch: Math.max(0, pitchTarget - (region.stockpile.pitch || 0)),
     textiles: Math.max(0, textileTarget - (region.stockpile.textiles || 0)),
+    horses: horseReport.unmetDemand,
   };
 
   // Skill computed once, upfront, so the labor reservation below and the
@@ -816,6 +823,8 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
     smith: Math.round(actualSmiths),
     soldier: Math.round(region.army.personnel),
     sailor: Math.round(region.navy.personnel),
+    horseBreeder: Math.round(horseReport.breeders),
+    horseTrainer: Math.round(horseReport.trainers),
     trader: 0, // set by trade.js
     // "general" = unspecialized subsistence labor, not literally unemployed —
     // gathering, herding, household production. It's now the genuine

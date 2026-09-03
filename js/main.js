@@ -1,20 +1,20 @@
-import { Clock } from './core/clock.js?v=20260904-finance1';
-import { EventBus } from './core/eventBus.js?v=20260904-finance1';
-import { loadWorld } from './world/region.js?v=20260904-finance1';
-import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260904-finance1';
-import { seedCensus, densityPerKm2 } from './society/census.js?v=20260904-finance1';
-import { tickEconomy } from './economy/labor.js?v=20260904-finance1';
-import { tickTrade } from './economy/trade.js?v=20260904-finance1';
-import { tickStateFinance } from './economy/stateFinance.js?v=20260904-finance1';
-import { tickDemographics } from './society/demographics.js?v=20260904-finance1';
-import { tickBanditry } from './military/banditry.js?v=20260904-finance1';
-import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable } from './military/raiding.js?v=20260904-finance1';
-import { tickNationAi } from './ai/nationAi.js?v=20260904-finance1';
-import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260904-finance1';
-import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID } from './technology/breakthroughs.js?v=20260904-finance1';
-import { MapRenderer } from './ui/mapRenderer.js?v=20260904-finance1';
-import { FogOfWar } from './core/fogOfWar.js?v=20260904-finance1';
-import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260904-finance1';
+import { Clock } from './core/clock.js?v=20260904-horses1';
+import { EventBus } from './core/eventBus.js?v=20260904-horses1';
+import { loadWorld } from './world/region.js?v=20260904-horses1';
+import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260904-horses1';
+import { seedCensus, densityPerKm2 } from './society/census.js?v=20260904-horses1';
+import { tickEconomy } from './economy/labor.js?v=20260904-horses1';
+import { tickTrade } from './economy/trade.js?v=20260904-horses1';
+import { tickStateFinance } from './economy/stateFinance.js?v=20260904-horses1';
+import { tickDemographics } from './society/demographics.js?v=20260904-horses1';
+import { tickBanditry } from './military/banditry.js?v=20260904-horses1';
+import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable } from './military/raiding.js?v=20260904-horses1';
+import { tickNationAi } from './ai/nationAi.js?v=20260904-horses1';
+import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260904-horses1';
+import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID } from './technology/breakthroughs.js?v=20260904-horses1';
+import { MapRenderer } from './ui/mapRenderer.js?v=20260904-horses1';
+import { FogOfWar } from './core/fogOfWar.js?v=20260904-horses1';
+import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260904-horses1';
 
 const START_YEAR = -1400; // prosperous runway before century-scale surface tin begins to fail
 const LAYERS = {
@@ -52,7 +52,7 @@ async function main() {
   linkSeaAdjacency(regions, seaRegions);
   const fishingContactPairs = buildFishingContactPairs(regions, seaRegions);
   initialiseKnowledge(regions);
-  const toolTypes = await (await fetch('data/world/toolTypes.json?v=20260904-finance1')).json();
+  const toolTypes = await (await fetch('data/world/toolTypes.json?v=20260904-horses1')).json();
 
   console.log(
     `Loaded ${regions.length} regions:`,
@@ -645,7 +645,8 @@ function wireEventContinue(clock, eventQueue) {
 }
 
 const RESOURCE_LABELS = { ironOre: 'iron ore', advancedNavyBoats: 'advanced navy boats',
-  advancedFishingBoats: 'advanced fishing boats', boatLosses: 'boats lost', potteryBroken: 'pots broken' };
+  advancedFishingBoats: 'advanced fishing boats', boatLosses: 'boats lost', potteryBroken: 'pots broken',
+  horses: 'untrained horses' };
 function resourceLabel(key) {
   return RESOURCE_LABELS[key] || key;
 }
@@ -661,6 +662,7 @@ const ACTIVITY_LABELS = {
   boatmaking: 'Boat-making',
   materialCrafts: 'Pitch and textiles',
   pottery: 'Pottery',
+  horses: 'Horse husbandry',
 };
 
 function buildResourcesSection(region, seaRegionsById) {
@@ -701,6 +703,7 @@ function buildResourcesSection(region, seaRegionsById) {
   return `
     <div>Land quality: ${region.landQuality.toFixed(2)}&times; baseline</div>
     <div>Forest: ${forestPct}% of capacity</div>
+    <div>Horses: ${Math.round((region.stockpile.horses || 0) + (region.horseEconomy?.draft || 0) + (region.horseEconomy?.transport || 0) + (region.horseEconomy?.war || 0)).toLocaleString()} herd / ${Math.round(region.horseEconomy?.capacity || 0).toLocaleString()} pasture capacity (${Math.round(region.horseEconomy?.draft || 0)} draught, ${Math.round(region.horseEconomy?.transport || 0)} transport, ${Math.round(region.horseEconomy?.war || 0)} war-trained)</div>
     ${depositLines}
     ${seaLines || '<div>No adjacent sea</div>'}
   `;
@@ -741,6 +744,10 @@ function buildReportSection(region) {
         ? `${(data.payRatio * 100).toFixed(0)}% payroll funded`
         : 'no military payroll';
       lines.push(`<div>State finance: ${data.revenue.toFixed(1)} revenue &middot; ${payroll} &middot; ${(data.readiness * 100).toFixed(0)}% military readiness &middot; ${(data.stateCapacity * 100).toFixed(0)}% administrative capacity${data.procurementSpent > 0.05 ? ` &middot; ${data.procurementSpent.toFixed(1)} arms spending` : ''}${data.deserters > 0.5 ? ` &middot; ${data.deserters.toFixed(0)} deserters` : ''}</div>`);
+      continue;
+    }
+    if (key === 'horses') {
+      lines.push(`<div>Horse husbandry: ${data.herd.toFixed(0)} horses / ${data.capacity.toFixed(0)} pasture capacity &middot; ${data.draft.toFixed(0)} draught &middot; ${data.transport.toFixed(0)} transport &middot; ${data.war.toFixed(0)} war-trained &middot; ${data.workers.toFixed(0)} breeders/trainers${data.births > 0.05 ? ` &middot; ${data.births.toFixed(1)} births` : ''}${data.deaths > 0.05 ? ` &middot; ${data.deaths.toFixed(1)} deaths` : ''}</div>`);
       continue;
     }
     if (key === 'banditry') {
@@ -818,7 +825,7 @@ function updateRegionStats(region, seaRegionsById, fogOfWar, regions, playerRegi
 
   const occLine = occ.farmer === undefined
     ? 'not yet ticked'
-    : `farmers ${occ.farmer.toLocaleString()} &middot; gatherers ${(occ.gatherer || 0).toLocaleString()} &middot; shore fishers ${occ.shoreFisher || 0} &middot; boat fishers ${occ.boatFisher || 0} &middot; lumberjacks ${occ.lumberjack} &middot; boatmakers ${occ.boatmaker || 0} &middot; potters ${occ.potter || 0} &middot; textile workers ${occ.textileWorker || 0} &middot; pitch makers ${occ.pitchMaker || 0} &middot; miners ${occ.miner} &middot; smiths ${occ.smith} &middot; traders ${occ.trader || 0} &middot; general ${occ.general.toLocaleString()}`;
+    : `farmers ${occ.farmer.toLocaleString()} &middot; gatherers ${(occ.gatherer || 0).toLocaleString()} &middot; shore fishers ${occ.shoreFisher || 0} &middot; boat fishers ${occ.boatFisher || 0} &middot; horse breeders ${occ.horseBreeder || 0} &middot; horse trainers ${occ.horseTrainer || 0} &middot; lumberjacks ${occ.lumberjack} &middot; boatmakers ${occ.boatmaker || 0} &middot; potters ${occ.potter || 0} &middot; textile workers ${occ.textileWorker || 0} &middot; pitch makers ${occ.pitchMaker || 0} &middot; miners ${occ.miner} &middot; smiths ${occ.smith} &middot; traders ${occ.trader || 0} &middot; general ${occ.general.toLocaleString()}`;
 
   const d = region.demographics;
   const demoLine = `${Math.round(d.children).toLocaleString()} children &middot; ${Math.round(d.workingAge).toLocaleString()} working-age &middot; ${Math.round(d.elderly).toLocaleString()} elderly`;
@@ -845,7 +852,7 @@ function updateRegionStats(region, seaRegionsById, fogOfWar, regions, playerRegi
   const bronzeArms = region.equipment.soldier?.bronze_weapons || 0;
   const ironArms = region.equipment.soldier?.iron_weapons || 0;
   const armyEquipped = bronzeArms + ironArms;
-  const militaryLine = `${occ.soldier || 0} soldiers (${Math.min(armyEquipped * 2, occ.soldier || 0).toFixed(0)} equipped by ${armyEquipped.toFixed(0)} weapon sets: ${bronzeArms.toFixed(0)} bronze, ${ironArms.toFixed(0)} iron) &middot; ${occ.sailor || 0} sailors &middot; ${Math.round(region.navy.boats)} navy boats (${Math.round(region.navy.advancedBoats || 0)} advanced)`;
+  const militaryLine = `${occ.soldier || 0} soldiers (${Math.min(armyEquipped * 2, occ.soldier || 0).toFixed(0)} equipped by ${armyEquipped.toFixed(0)} weapon sets: ${bronzeArms.toFixed(0)} bronze, ${ironArms.toFixed(0)} iron) &middot; ${Math.round(region.horseEconomy?.war || 0)} war horses &middot; ${occ.sailor || 0} sailors &middot; ${Math.round(region.navy.boats)} navy boats (${Math.round(region.navy.advancedBoats || 0)} advanced)`;
 
   const fishingLine = region.adjacentSeaIds.length
     ? `${Math.round(region.fishingBoats)} fishing boats (${Math.round(region.advancedFishingBoats || 0)} advanced) &middot; fishes ${region.adjacentSeaIds.join(', ')}`

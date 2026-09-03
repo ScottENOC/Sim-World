@@ -1,7 +1,8 @@
-import { localPrice, TRADABLE_RESOURCES } from './prices.js?v=20260904-finance1';
-import { directContactIds, knownRegionIds, recordDirectTrade, diffuseTradeNetworkKnowledge } from '../core/knowledge.js?v=20260904-finance1';
-import { centroidDistanceKm } from '../world/distance.js?v=20260904-finance1';
-import { advancedMaritimeShare } from '../military/army.js?v=20260904-finance1';
+import { localPrice, TRADABLE_RESOURCES } from './prices.js?v=20260904-horses1';
+import { directContactIds, knownRegionIds, recordDirectTrade, diffuseTradeNetworkKnowledge } from '../core/knowledge.js?v=20260904-horses1';
+import { centroidDistanceKm } from '../world/distance.js?v=20260904-horses1';
+import { advancedMaritimeShare } from '../military/army.js?v=20260904-horses1';
+import { horseTransportMultiplier } from './horses.js?v=20260904-horses1';
 
 const LAND_ADJACENT_COST = 0.02;
 const SEA_COST_PER_KM = 0.0002;
@@ -117,13 +118,14 @@ function finishTradeWeek(region) {
 
 export function routeCost(regionA, regionB) {
   const geometry = routeGeometry(regionA, regionB);
-  if (geometry.adjacent) return LAND_ADJACENT_COST;
+  const landTransport = Math.max(horseTransportMultiplier(regionA), horseTransportMultiplier(regionB));
+  if (geometry.adjacent) return LAND_ADJACENT_COST / landTransport;
   if (geometry.sharedSea) {
     return SEA_COST_PER_KM * geometry.distanceKm * seaTransportProfile(regionA, regionB).costMultiplier;
   }
   // Non-adjacent inland markets represent a chain of short overland legs,
   // not a magically available ocean route.
-  return LAND_ADJACENT_COST * 2 + SEA_COST_PER_KM * geometry.distanceKm * 0.25;
+  return (LAND_ADJACENT_COST * 2 + SEA_COST_PER_KM * geometry.distanceKm * 0.25) / landTransport;
 }
 
 function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByRegion) {
@@ -136,7 +138,10 @@ function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByR
     const geometry = routeGeometry(region, dest);
     const seaRoute = geometry.sharedSea && !geometry.adjacent;
     const distanceKm = seaRoute ? geometry.distanceKm : 0;
-    const transport = seaRoute ? seaTransportProfile(region, dest) : { capacityMultiplier: 1, rangeKm: Infinity };
+    const transport = seaRoute ? seaTransportProfile(region, dest) : {
+      capacityMultiplier: Math.max(horseTransportMultiplier(region), horseTransportMultiplier(dest)),
+      rangeKm: Infinity,
+    };
     if (seaRoute && distanceKm > transport.rangeKm) continue;
     const reliability = routeReliability(region, dest);
     if (reliability <= 0.001) continue;
