@@ -1,1 +1,342 @@
-{"seaRegions": []}
+{
+  "seaRegions": [
+    {
+      "id": "sea_strait_gibraltar",
+      "name": "Strait of Gibraltar",
+      "centroid": [
+        -5.374437523894398,
+        35.9239652042324
+      ],
+      "areaSqKm": 3129.1514637724513,
+      "adjacentLand": [
+        "r_6503c30a8c",
+        "r_7e50bb8491",
+        "r_9a765a3f85"
+      ]
+    },
+    {
+      "id": "sea_bristol",
+      "name": "Bristol Channel",
+      "centroid": [
+        -5.105555887874433,
+        51.1836269540877
+      ],
+      "areaSqKm": 10748.375751519046,
+      "adjacentLand": [
+        "r_4382691582",
+        "r_45c7563d21",
+        "r_4fd303983f",
+        "r_57fb73e5c0",
+        "r_822580e4b4",
+        "r_8f5107973c",
+        "r_9af9f08126",
+        "r_a88f4777b0",
+        "r_bef139a38c",
+        "r_d8babe7d0b"
+      ]
+    },
+    {
+      "id": "sea_english_channel",
+      "name": "English Channel",
+      "centroid": [
+        -2.8463143392777357,
+        49.68868251723378
+      ],
+      "areaSqKm": 92656.61930391344,
+      "adjacentLand": [
+        "r_0190231cd2",
+        "r_05211d92f0",
+        "r_40aedbf496",
+        "r_41d0e1c757",
+        "r_4286ee8e3d",
+        "r_49208c6a43",
+        "r_535829645f",
+        "r_71878f80cb",
+        "r_835bed2836",
+        "r_a88f4777b0",
+        "r_a8e06e0df2",
+        "r_b765a7173d",
+        "r_b906afd693",
+        "r_bf99c9d3a2",
+        "r_e278bb4e66",
+        "r_e8dc319dbd",
+        "r_eac4a2cba8",
+        "r_f4ddcf5ff2",
+        "r_fb2b84bbc4"
+      ]
+    },
+    {
+      "id": "sea_irish",
+      "name": "Irish Sea",
+      "centroid": [
+        -5.1345835262405535,
+        53.40992285844983
+      ],
+      "areaSqKm": 54272.198119380184,
+      "adjacentLand": [
+        "r_0218b69760",
+        "r_07648eb3b3",
+        "r_076711a1cb",
+        "r_099dd7e843",
+        "r_0fc2999b41",
+        "r_18298e0992",
+        "r_1852b99c06",
+        "r_190c8840a0",
+        "r_247617d6be",
+        "r_505f493dea",
+        "r_57fb73e5c0",
+        "r_66dee29726",
+        "r_7dc6cc7d6b",
+        "r_8240ff4095",
+        "r_854a64d6cb",
+        "r_8786476f42",
+        "r_897b78944a",
+        "r_8d94718acf",
+        "r_8fcdd7989f",
+        "r_942d758ded",
+        "r_a0337de9ff",
+        "r_df66743acd"
+      ]
+    },
+    {
+      "id": "sea_gulf_cadiz",
+      "name": "Gulf of Cádiz",
+      "centroid": [
+        -7.904692243108498,
+        36.108968540542236
+      ],
+      "areaSqKm": 58371.96448151712,
+      "adjacentLand": [
+        "r_7696848d04",
+        "r_7e50bb8491",
+        "r_b0a68dd057"
+      ]
+    },
+    {
+      "id": "sea_alboran",
+      "name": "Alboran Sea",
+      "centroid": [
+        -2.9541709855276235,
+        36.06730146691696
+      ],
+      "areaSqKm": 52241.731815849154,
+      "adjacentLand": [
+        "r_33e5f0e209",
+        "r_6956f88135",
+        "r_7441b43155",
+        "r_9a765a3f85",
+        "r_e3a62454d7",
+        "r_eff6619e85"
+      ]
+    },
+    {
+      "id": "sea_gulf_lion",
+      "name": "Gulf of Lion",
+      "centroid": [
+        5.397209014808606,
+        42.444911246224635
+      ],
+      "areaSqKm": 68324.5100461536,
+      "adjacentLand": [
+        "r_09f1ec76e0",
+        "r_27edb9d61b",
+        "r_3f1903cbe1",
+        "r_70aa199622",
+        "r_748bc622e6",
+        "r_e2cb4b95f2",
+        "r_eb963d8bc5"
+      ]
+    },
+    {
+      "id": "sea_ligurian_corsican",
+      "name": "Ligurian & Corsican Sea",
+      "centroid": [
+        8.789720863287037,
+        42.31182824983816
+      ],
+      "areaSqKm": 82198.89269727812,
+      "adjacentLand": [
+        "r_1dbc9678cc",
+        "r_270fa6f439",
+        "r_5694e887da",
+        "r_70aa199622"
+      ]
+    },
+    {
+      "id": "sea_balearic",
+      "name": "Balearic Sea",
+      "centroid": [
+        1.8763546347449103,
+        38.87629521443782
+      ],
+      "areaSqKm": 178075.94971367423,
+      "adjacentLand": [
+        "r_27edb9d61b",
+        "r_467651270f",
+        "r_52d80a9a82",
+        "r_55cda05368",
+        "r_6956f88135",
+        "r_71f2c2543f",
+        "r_865abb94e5",
+        "r_d9f7cbb889"
+      ]
+    },
+    {
+      "id": "sea_north",
+      "name": "North Sea",
+      "centroid": [
+        2.7475763436431944,
+        57.001814158235746
+      ],
+      "areaSqKm": 547857.427881803,
+      "adjacentLand": [
+        "r_05f75d0ff5",
+        "r_0a38ffdc74",
+        "r_0f4c6f5a19",
+        "r_17aa929abb",
+        "r_1c181ac6ff",
+        "r_272c4b4134",
+        "r_41d0e1c757",
+        "r_4286ee8e3d",
+        "r_42b34f6359",
+        "r_6996622862",
+        "r_6f0fea5cca",
+        "r_71e71e4853",
+        "r_8a8ee99206",
+        "r_8cc684d277",
+        "r_8ea6f863ee",
+        "r_9db78f0205",
+        "r_b77ed8ec4d",
+        "r_bba7195bc2",
+        "r_c0d8fc9338",
+        "r_eb02d077e4",
+        "r_f085ffdcb5"
+      ]
+    },
+    {
+      "id": "sea_celtic",
+      "name": "Celtic Sea",
+      "centroid": [
+        -8.880763329201491,
+        49.84746743792143
+      ],
+      "areaSqKm": 190459.89988424245,
+      "adjacentLand": [
+        "r_0190231cd2",
+        "r_03cedd9052",
+        "r_1b1611c89e",
+        "r_505f493dea",
+        "r_57fb73e5c0",
+        "r_a88f4777b0",
+        "r_c156f79e15"
+      ]
+    },
+    {
+      "id": "sea_biscay",
+      "name": "Bay of Biscay",
+      "centroid": [
+        -6.16038311597913,
+        45.35192445835453
+      ],
+      "areaSqKm": 334530.80848241353,
+      "adjacentLand": [
+        "r_05211d92f0",
+        "r_0cb787afa2",
+        "r_266a7220f2",
+        "r_36a9a9911a",
+        "r_36f28434b7",
+        "r_4aadca1f9b",
+        "r_77abef8f2f",
+        "r_80f84ade9b",
+        "r_95a52cf1be",
+        "r_a16cb9a7b6",
+        "r_b7557a2138",
+        "r_d9173efdb1",
+        "r_fdd0d40ceb",
+        "r_ffd942ca77"
+      ]
+    },
+    {
+      "id": "sea_portuguese",
+      "name": "Portuguese Atlantic",
+      "centroid": [
+        -12.045433256024404,
+        39.206277526736486
+      ],
+      "areaSqKm": 374674.9097260163,
+      "adjacentLand": [
+        "r_12c2c29b30",
+        "r_156caff41e",
+        "r_1ae803028b",
+        "r_309904ceea",
+        "r_60e6ac9380",
+        "r_7696848d04",
+        "r_80bb871841",
+        "r_9252bd341a",
+        "r_a16cb9a7b6",
+        "r_ba38765175",
+        "r_deb3dd91ba",
+        "r_e658271313"
+      ]
+    },
+    {
+      "id": "sea_ne_atlantic",
+      "name": "Northeast Atlantic",
+      "centroid": [
+        -12.65496738211534,
+        56.686989805199126
+      ],
+      "areaSqKm": 925740.6136967943,
+      "adjacentLand": [
+        "r_05211d92f0",
+        "r_076711a1cb",
+        "r_0f4c6f5a19",
+        "r_6146b816a2",
+        "r_6d999e1eed",
+        "r_6f0fea5cca",
+        "r_b07fd6c505",
+        "r_b4a4b38ad1",
+        "r_b83f728f3d",
+        "r_c156f79e15",
+        "r_dca49afb30"
+      ]
+    },
+    {
+      "id": "sea_azores",
+      "name": "Azores Atlantic",
+      "centroid": [
+        -28.254455156745895,
+        38.249545552193936
+      ],
+      "areaSqKm": 504981.2477111457,
+      "adjacentLand": [
+        "r_e1f8017a31"
+      ]
+    },
+    {
+      "id": "sea_madeira",
+      "name": "Madeira Atlantic",
+      "centroid": [
+        -16.749334132960712,
+        31.596193587921636
+      ],
+      "areaSqKm": 245365.63053555842,
+      "adjacentLand": [
+        "r_2cda19901b"
+      ]
+    },
+    {
+      "id": "sea_canary",
+      "name": "Canary Atlantic",
+      "centroid": [
+        -16.003755448767226,
+        28.073774867592
+      ],
+      "areaSqKm": 201313.3969539647,
+      "adjacentLand": [
+        "r_4b1cf77aa4",
+        "r_77a5f75fa4"
+      ]
+    }
+  ]
+}
