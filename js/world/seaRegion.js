@@ -50,10 +50,20 @@ export async function loadSeaWorld() {
 // list, so land regions don't need to know about seaRegions.geo.json at all.
 export function linkSeaAdjacency(landRegions, seaRegions) {
   const landById = new Map(landRegions.map((r) => [r.id, r]));
+
+  // The sea metadata is now the source of truth for coastlines. Reset first
+  // so an inland region can never inherit the old prototype's `isCoastal`.
+  for (const land of landRegions) {
+    land.adjacentSeaIds = [];
+    land.isCoastal = false;
+  }
+
   for (const sea of seaRegions) {
     for (const landId of sea.adjacentLand) {
       const land = landById.get(landId);
-      if (land) land.adjacentSeaIds.push(sea.id);
+      if (!land) continue;
+      if (!land.adjacentSeaIds.includes(sea.id)) land.adjacentSeaIds.push(sea.id);
+      land.isCoastal = true;
     }
   }
 }
