@@ -1,6 +1,6 @@
-import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-horses1';
-import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-horses1';
-import { horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-horses1';
+import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-calibration1';
+import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-calibration1';
+import { horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-calibration1';
 
 // Recruitment/demobilization ramps toward the player's target rather than
 // snapping instantly — mobilizing an army takes real time, and disbanding

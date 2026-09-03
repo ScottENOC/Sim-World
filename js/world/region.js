@@ -1,4 +1,4 @@
-import { KnowledgeLedger } from '../core/knowledge.js?v=20260904-horses1';
+import { KnowledgeLedger } from '../core/knowledge.js?v=20260904-calibration1';
 
 export class Region {
   constructor({ id, name, feature, centroid, areaSqKm, neighbors }) {
@@ -48,6 +48,13 @@ export class Region {
       weeklyImports: 0,
     };
     this.recentTradePartners = new Map();
+    // Cumulative raid accounts support both player-facing history and the
+    // calibration harness. Loot itself still enters ordinary stocks/cash;
+    // these values are observations, not a second source of wealth.
+    this.raidEconomy = {
+      raidsLaunched: 0, raidsWon: 0, totalLootValue: 0,
+      totalCasualties: 0, lastRaidTick: null,
+    };
     this.foodImportDependence = 0;
     this.knowledge = new KnowledgeLedger(id);
   }
@@ -56,7 +63,7 @@ export class Region {
 export async function loadWorld() {
   const [geoRes, metaRes, resourcesRes] = await Promise.all([
     fetch('data/world/regions.geo.json'), fetch('data/world/regions.meta.json'),
-    fetch('data/world/resources.initial.json?v=20260904-horses1'),
+    fetch('data/world/resources.initial.json?v=20260904-calibration1'),
   ]);
   const geo = await geoRes.json(); const meta = await metaRes.json(); const resources = await resourcesRes.json();
   const metaById = new Map(meta.regions.map((r) => [r.id, r]));

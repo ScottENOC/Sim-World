@@ -1,20 +1,20 @@
-import { Clock } from './core/clock.js?v=20260904-horses1';
-import { EventBus } from './core/eventBus.js?v=20260904-horses1';
-import { loadWorld } from './world/region.js?v=20260904-horses1';
-import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260904-horses1';
-import { seedCensus, densityPerKm2 } from './society/census.js?v=20260904-horses1';
-import { tickEconomy } from './economy/labor.js?v=20260904-horses1';
-import { tickTrade } from './economy/trade.js?v=20260904-horses1';
-import { tickStateFinance } from './economy/stateFinance.js?v=20260904-horses1';
-import { tickDemographics } from './society/demographics.js?v=20260904-horses1';
-import { tickBanditry } from './military/banditry.js?v=20260904-horses1';
-import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable } from './military/raiding.js?v=20260904-horses1';
-import { tickNationAi } from './ai/nationAi.js?v=20260904-horses1';
-import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260904-horses1';
-import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID } from './technology/breakthroughs.js?v=20260904-horses1';
-import { MapRenderer } from './ui/mapRenderer.js?v=20260904-horses1';
-import { FogOfWar } from './core/fogOfWar.js?v=20260904-horses1';
-import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260904-horses1';
+import { Clock } from './core/clock.js?v=20260904-calibration1';
+import { EventBus } from './core/eventBus.js?v=20260904-calibration1';
+import { loadWorld } from './world/region.js?v=20260904-calibration1';
+import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260904-calibration1';
+import { seedCensus, densityPerKm2 } from './society/census.js?v=20260904-calibration1';
+import { tickEconomy } from './economy/labor.js?v=20260904-calibration1';
+import { tickTrade } from './economy/trade.js?v=20260904-calibration1';
+import { tickStateFinance } from './economy/stateFinance.js?v=20260904-calibration1';
+import { tickDemographics } from './society/demographics.js?v=20260904-calibration1';
+import { tickBanditry } from './military/banditry.js?v=20260904-calibration1';
+import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable } from './military/raiding.js?v=20260904-calibration1';
+import { tickNationAi } from './ai/nationAi.js?v=20260904-calibration1';
+import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260904-calibration1';
+import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID } from './technology/breakthroughs.js?v=20260904-calibration1';
+import { MapRenderer } from './ui/mapRenderer.js?v=20260904-calibration1';
+import { FogOfWar } from './core/fogOfWar.js?v=20260904-calibration1';
+import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260904-calibration1';
 
 const START_YEAR = -1400; // prosperous runway before century-scale surface tin begins to fail
 const LAYERS = {
@@ -52,7 +52,7 @@ async function main() {
   linkSeaAdjacency(regions, seaRegions);
   const fishingContactPairs = buildFishingContactPairs(regions, seaRegions);
   initialiseKnowledge(regions);
-  const toolTypes = await (await fetch('data/world/toolTypes.json?v=20260904-horses1')).json();
+  const toolTypes = await (await fetch('data/world/toolTypes.json?v=20260904-calibration1')).json();
 
   console.log(
     `Loaded ${regions.length} regions:`,

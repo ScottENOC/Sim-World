@@ -1,9 +1,10 @@
-import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-horses1';
-import { hasDirectContact, learnAbout } from '../core/knowledge.js?v=20260904-horses1';
-import { centroidDistanceKm } from '../world/distance.js?v=20260904-horses1';
-import { advancedNavyShare, navyTransportCapacity } from './army.js?v=20260904-horses1';
-import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-horses1';
-import { horseLandSpeedMultiplier, horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-horses1';
+import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-calibration1';
+import { hasDirectContact, learnAbout } from '../core/knowledge.js?v=20260904-calibration1';
+import { centroidDistanceKm } from '../world/distance.js?v=20260904-calibration1';
+import { advancedNavyShare, navyTransportCapacity } from './army.js?v=20260904-calibration1';
+import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-calibration1';
+import { horseLandSpeedMultiplier, horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-calibration1';
+import { localPrice } from '../economy/prices.js?v=20260904-calibration1';
 
 const LAND_SPEED_KM_PER_WEEK = 120;
 const SEA_SPEED_KM_PER_WEEK = 200;
@@ -46,6 +47,10 @@ export function launchRaid(attacker, defender, requestedPersonnel, viaSea, curre
   const travelWeeks = computeTravelWeeks(attacker, defender, viaSea);
   attacker.army.personnel -= personnel;
   attacker.army.away = (attacker.army.away || 0) + personnel;
+  if (attacker.raidEconomy) {
+    attacker.raidEconomy.raidsLaunched += 1;
+    attacker.raidEconomy.lastRaidTick = currentTick;
+  }
   return { id: nextRaidId++, attackerId: attacker.id, defenderId: defender.id, personnel, viaSea,
     departTick: currentTick, arriveTick: currentTick + travelWeeks, returnTick: null,
     resolved: false, completed: false, outcome: null };
@@ -59,6 +64,11 @@ export function tickRaids(raids, regionsById, currentTick, toolTypes, rng) {
       const defender = regionsById.get(raid.defenderId);
       const outcome = resolveCombat(attacker, defender, raid.personnel, toolTypes, rng, raid.viaSea);
       const won = outcome.attackerRatio > 0.5;
+      if (attacker.raidEconomy) {
+        if (won) attacker.raidEconomy.raidsWon += 1;
+        attacker.raidEconomy.totalLootValue += outcome.lootValue;
+        attacker.raidEconomy.totalCasualties += outcome.attackerLosses;
+      }
       const knowledgeGained = won ? RAID_KNOWLEDGE_SUCCESS : RAID_KNOWLEDGE_REPELLED;
       learnAbout(defender, attacker, knowledgeGained, currentTick);
       // Captives, deserters and observed equipment can carry techniques in
@@ -108,9 +118,11 @@ function resolveCombat(attacker, defender, raidingPersonnel, toolTypes, rng, via
   defender.army.personnel = Math.max(0, defender.army.personnel - defenderLosses);
   const stealFraction = Math.min(0.9, STEAL_BASE_FRACTION * attackerRatio * (0.5 + rng()));
   const looted = {};
+  let stockLootValue = 0;
   for (const key of Object.keys(defender.stockpile)) {
     const amount = (defender.stockpile[key] || 0) * stealFraction;
     if (amount > 0.01) {
+      stockLootValue += amount * localPrice(defender, key);
       defender.stockpile[key] -= amount;
       attacker.stockpile[key] = (attacker.stockpile[key] || 0) + amount;
       looted[key] = amount;
@@ -123,7 +135,8 @@ function resolveCombat(attacker, defender, raidingPersonnel, toolTypes, rng, via
   attacker.wallet += walletStolen + treasuryStolen;
   const stabilityLoss = STABILITY_LOSS_BASE * attackerRatio;
   defender.stability = Math.max(0, defender.stability - stabilityLoss);
+  const lootValue = stockLootValue + walletStolen + treasuryStolen;
   return { attackerRatio, attackerLosses, defenderLosses, attackerSurvivors, looted, walletStolen,
     treasuryStolen, stabilityLoss,
-    maritimeAssaultBonus };
+    maritimeAssaultBonus, lootValue };
 }

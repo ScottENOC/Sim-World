@@ -5,7 +5,7 @@
 // population density and farm yield are driven by the same underlying
 // "how good is this land" number rather than two independent guesses.
 
-import { seedHorseHerd } from '../economy/horses.js?v=20260904-horses1';
+import { seedHorseHerd } from '../economy/horses.js?v=20260904-calibration1';
 
 const BASE_DENSITY_PER_KM2 = 3; // rough Bronze Age agrarian average
 const STARTING_IDENTITY_STRENGTH = 0.3; // low: young, easily-assimilated cultures

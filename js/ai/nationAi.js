@@ -3,10 +3,11 @@
 // a military target that scales with how threatened it feels, and an
 // occasional, cautious evaluation of whether raiding a reachable neighbor
 // is clearly worth it. AI only considers regions it has actually met.
-import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-horses1';
-import { canRaid, launchRaid } from '../military/raiding.js?v=20260904-horses1';
-import { directContactIds, knowledgeOf, KNOWLEDGE_THRESHOLDS } from '../core/knowledge.js?v=20260904-horses1';
-import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-horses1';
+import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-calibration1';
+import { canRaid, launchRaid } from '../military/raiding.js?v=20260904-calibration1';
+import { directContactIds, knowledgeOf, KNOWLEDGE_THRESHOLDS } from '../core/knowledge.js?v=20260904-calibration1';
+import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-calibration1';
+import { horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-calibration1';
 
 const BASE_ARMY_FRACTION = 0.02;
 const THREAT_ARMY_MULTIPLIER = 2.0;
@@ -47,7 +48,7 @@ function maybeRaid(region, regionsById, activeRaids, currentTick, toolTypes, rng
   if (rng() > RAID_CONSIDERATION_CHANCE_PER_WEEK) return;
 
   const ownEquip = toolEfficiencyMultiplier(region, 'soldier', toolTypes.soldier, region.unlockedTechIds);
-  const ownPower = region.army.personnel * ownEquip * militaryReadiness(region);
+  const ownPower = region.army.personnel * ownEquip * militaryReadiness(region) * horseMilitaryMultiplier(region);
 
   let best = null;
   let bestScore = -Infinity;

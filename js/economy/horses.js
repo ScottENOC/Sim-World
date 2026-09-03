@@ -1,4 +1,4 @@
-import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260904-horses1';
+import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260904-calibration1';
 
 const HORSES_PER_SQ_KM_AT_CAPACITY = 0.12;
 const STARTING_CAPACITY_FRACTION = 0.28;

@@ -1,10 +1,10 @@
-import { extractionRate, selectActiveTier } from '../world/resources/extraction.js?v=20260904-horses1';
-import { regrow, neighborSpreadBonus } from '../world/resources/renewables.js?v=20260904-horses1';
-import { toolEfficiencyMultiplier, desiredToolInvestment, investInTools, wearOutTools, materialUnitCost } from './tools.js?v=20260904-horses1';
-import { adjustArmySize, adjustNavyCrew } from '../military/army.js?v=20260904-horses1';
-import { spendMilitaryProcurement } from './stateFinance.js?v=20260904-horses1';
-import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260904-horses1';
-import { tickHorseEconomy, draughtFarmMultiplier } from './horses.js?v=20260904-horses1';
+import { extractionRate, selectActiveTier } from '../world/resources/extraction.js?v=20260904-calibration1';
+import { regrow, neighborSpreadBonus } from '../world/resources/renewables.js?v=20260904-calibration1';
+import { toolEfficiencyMultiplier, desiredToolInvestment, investInTools, wearOutTools, materialUnitCost } from './tools.js?v=20260904-calibration1';
+import { adjustArmySize, adjustNavyCrew } from '../military/army.js?v=20260904-calibration1';
+import { spendMilitaryProcurement } from './stateFinance.js?v=20260904-calibration1';
+import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260904-calibration1';
+import { tickHorseEconomy, draughtFarmMultiplier } from './horses.js?v=20260904-calibration1';
 
 // --- Tunable constants -----------------------------------------------------
 // All placeholders, calibrated so a "typical" region can just about feed

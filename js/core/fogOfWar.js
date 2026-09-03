@@ -1,4 +1,4 @@
-import { canSeeMap } from './knowledge.js?v=20260904-horses1';
+import { canSeeMap } from './knowledge.js?v=20260904-calibration1';
 
 export class FogOfWar {
   constructor(regions) {

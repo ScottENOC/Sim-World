@@ -1,8 +1,8 @@
-import { localPrice, TRADABLE_RESOURCES } from './prices.js?v=20260904-horses1';
-import { directContactIds, knownRegionIds, recordDirectTrade, diffuseTradeNetworkKnowledge } from '../core/knowledge.js?v=20260904-horses1';
-import { centroidDistanceKm } from '../world/distance.js?v=20260904-horses1';
-import { advancedMaritimeShare } from '../military/army.js?v=20260904-horses1';
-import { horseTransportMultiplier } from './horses.js?v=20260904-horses1';
+import { localPrice, TRADABLE_RESOURCES } from './prices.js?v=20260904-calibration1';
+import { directContactIds, knownRegionIds, recordDirectTrade, diffuseTradeNetworkKnowledge } from '../core/knowledge.js?v=20260904-calibration1';
+import { centroidDistanceKm } from '../world/distance.js?v=20260904-calibration1';
+import { advancedMaritimeShare } from '../military/army.js?v=20260904-calibration1';
+import { horseTransportMultiplier } from './horses.js?v=20260904-calibration1';
 
 const LAND_ADJACENT_COST = 0.02;
 const SEA_COST_PER_KM = 0.0002;
@@ -83,6 +83,7 @@ function beginTradeWeek(region) {
   economy.weeklyNonFoodExportIncome = 0;
   economy.weeklyRouteReliability = 0;
   economy.weeklyTradeCount = 0;
+  economy.weeklyExportsByResource = {};
   economy.creditLimit = Math.max(0, Math.min(
     economy.exportIncomeEma * CREDIT_WEEKS_OF_EXPORT_INCOME,
     region.population * CREDIT_PER_CAPITA_CAP
@@ -193,6 +194,8 @@ function executeTrades(region, opportunities, currentTick = null) {
     region.wallet += payment - debtRepaid;
 
     sellerEconomy.weeklyExports += payment;
+    sellerEconomy.weeklyExportsByResource[opp.resource] =
+      (sellerEconomy.weeklyExportsByResource[opp.resource] || 0) + payment;
     buyerEconomy.weeklyImports += payment;
     if (opp.resource !== 'food') sellerEconomy.weeklyNonFoodExportIncome += payment;
     if (opp.resource === 'food') buyerEconomy.weeklyFoodImports += volume;
