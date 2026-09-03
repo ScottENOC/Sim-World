@@ -5,14 +5,14 @@
 
 const BASE_PRICE = {
   food: 1, wood: 0.5, stone: 0.3,
-  copper: 2, tin: 4, gold: 15, bronze: 6,
+  copper: 2, tin: 4, ironOre: 0.7, gold: 15, bronze: 6, iron: 3.5,
 };
 
 // Roughly "how much stock makes this feel abundant" per resource — sets the
 // curve's knee, not a hard cap.
 const REFERENCE_STOCK = {
   food: 50000, wood: 5000, stone: 20000,
-  copper: 2000, tin: 1000, gold: 200, bronze: 500,
+  copper: 2000, tin: 1000, ironOre: 10000, gold: 200, bronze: 500, iron: 1500,
 };
 
 export function localPrice(region, resource) {

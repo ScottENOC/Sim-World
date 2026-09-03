@@ -3,11 +3,17 @@
   "stone":  { "category": "extractive", "label": "Stone" },
   "copper": { "category": "extractive", "label": "Copper" },
   "tin":    { "category": "extractive", "label": "Tin" },
+  "ironOre": { "category": "extractive", "label": "Iron ore" },
   "gold":   { "category": "extractive", "label": "Gold" },
   "bronze": {
     "category": "crafted",
     "label": "Bronze",
     "recipe": { "inputs": { "copper": 2, "tin": 1 }, "laborType": "smith" }
+  },
+  "iron": {
+    "category": "crafted",
+    "label": "Iron",
+    "recipe": { "inputs": { "ironOre": 1 }, "laborType": "smith", "requiredTechId": "iron_smelting" }
   },
   "food":   { "category": "flow", "label": "Food" }
 }

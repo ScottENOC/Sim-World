@@ -1,4 +1,4 @@
-import { canSeeMap } from './knowledge.js?v=20260903-adaptive-clock2';
+import { canSeeMap } from './knowledge.js?v=20260903-iron1';
 
 export class FogOfWar {
   constructor(regions) {

@@ -1,8 +1,8 @@
-import { extractionRate, selectActiveTier } from '../world/resources/extraction.js?v=20260903-adaptive-clock2';
-import { regrow, neighborSpreadBonus } from '../world/resources/renewables.js?v=20260903-adaptive-clock2';
-import { toolEfficiencyMultiplier, desiredToolInvestment, investInTools } from './tools.js?v=20260903-adaptive-clock2';
-import { adjustArmySize, adjustNavyCrew } from '../military/army.js?v=20260903-adaptive-clock2';
-import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260903-adaptive-clock2';
+import { extractionRate, selectActiveTier } from '../world/resources/extraction.js?v=20260903-iron1';
+import { regrow, neighborSpreadBonus } from '../world/resources/renewables.js?v=20260903-iron1';
+import { toolEfficiencyMultiplier, desiredToolInvestment, investInTools } from './tools.js?v=20260903-iron1';
+import { adjustArmySize, adjustNavyCrew } from '../military/army.js?v=20260903-iron1';
+import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260903-iron1';
 
 // --- Tunable constants -----------------------------------------------------
 // All placeholders, calibrated so a "typical" region can just about feed
@@ -40,7 +40,7 @@ const BRONZE_PER_SMITH = 0.5;
 // wanted, not by what's numerically biggest. There's no full price/market
 // system yet (that's the trade system), so this is a placeholder stand-in
 // for background (non-tool-demand) mining priority.
-const ORE_PRIORITY = { copper: 3, tin: 3, gold: 2, stone: 1 };
+const ORE_PRIORITY = { copper: 3, tin: 3, ironOre: 2, gold: 2, stone: 1 };
 
 // A little bronze demand exists even with every tool bought — prestige
 // goods, trade goods, everyday repairs — so smithing doesn't collapse to
@@ -49,6 +49,7 @@ const ORE_PRIORITY = { copper: 3, tin: 3, gold: 2, stone: 1 };
 // small, and this must never be large enough to structurally starve tool
 // investment the way an earlier, too-large value did.
 const BASELINE_BRONZE_DEMAND = 0.5;
+const IRON_PER_SMITH = 0.35;
 
 // Fishing: a third food source alongside farming and gathering, drawn from
 // whichever sea(s) a region borders. Real commons — multiple land regions
@@ -315,68 +316,85 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   }
   remainingSurplus -= boatMakers;
 
-  // --- Demand for bronze: what do farmers, lumberjacks, and (last tick's)
-  // miners want to spend on new tools this tick, plus a small baseline and
-  // whatever the military wants (0 until edicts exist)? This — not a stale
-  // "is there copper sitting around" check — is what determines how many
-  // smiths we actually want.
-  const farmerWant = desiredToolInvestment(region, 'farmer', farmers, toolTypes.farmer, region.unlockedTechIds);
-  const lumberjackWant = desiredToolInvestment(region, 'lumberjack', lumberjacks, toolTypes.lumberjack, region.unlockedTechIds);
-  const prevMiners = region.occupations?.miner || 0; // lagged: this tick's miner count isn't decided yet
-  const minerWant = desiredToolInvestment(region, 'miner', prevMiners, toolTypes.miner, region.unlockedTechIds);
-  const soldierWant = desiredToolInvestment(region, 'soldier', Math.round(region.army.personnel), toolTypes.soldier, region.unlockedTechIds);
+  // Work out which depth tier is accessible before tool demand is chosen.
+  // This lets the tool market distinguish "expensive bronze" from bronze
+  // which genuinely cannot be produced from any accessible copper/tin.
+  const activeTiers = {};
+  for (const [key, deposit] of Object.entries(region.deposits)) {
+    activeTiers[key] = selectActiveTier(deposit.tiers, region.unlockedTechIds);
+  }
+  const openResources = Object.keys(activeTiers).filter((key) => activeTiers[key] !== null);
+  const canSupply = (resource) => (region.stockpile[resource] || 0) > 0 || Boolean(activeTiers[resource]);
+  const materialAvailability = {
+    bronze: (region.stockpile.bronze || 0) > 0 || (canSupply('copper') && canSupply('tin')),
+    iron: region.unlockedTechIds.has('iron_smelting') && (
+      (region.stockpile.iron || 0) > 0 || canSupply('ironOre')
+    ),
+  };
 
-  const desiredBronzeOutput =
-    farmerWant.bronzeWanted + lumberjackWant.bronzeWanted + minerWant.bronzeWanted + soldierWant.bronzeWanted +
-    BASELINE_BRONZE_DEMAND + region.militaryBronzeDemand;
+  const prevMiners = region.occupations?.miner || 0;
+  const toolWants = [
+    ['farmer', desiredToolInvestment(region, 'farmer', farmers, toolTypes.farmer, region.unlockedTechIds, materialAvailability)],
+    ['lumberjack', desiredToolInvestment(region, 'lumberjack', lumberjacks, toolTypes.lumberjack, region.unlockedTechIds, materialAvailability)],
+    ['miner', desiredToolInvestment(region, 'miner', prevMiners, toolTypes.miner, region.unlockedTechIds, materialAvailability)],
+    ['soldier', desiredToolInvestment(region, 'soldier', Math.round(region.army.personnel), toolTypes.soldier, region.unlockedTechIds, materialAvailability)],
+  ];
+  const wantedByMaterial = { bronze: 0, iron: 0 };
+  for (const [, want] of toolWants) {
+    if (want.material) wantedByMaterial[want.material] += want.materialWanted;
+  }
+
+  const desiredBronzeOutput = wantedByMaterial.bronze + BASELINE_BRONZE_DEMAND + region.militaryBronzeDemand;
+  const desiredIronOutput = wantedByMaterial.iron;
 
   // Skill computed once, upfront, so the labor reservation below and the
   // actual production later use the same figure — otherwise a region that's
   // gotten good at smithing would over-reserve labor for a bronze target it
   // no longer needs that many hands to hit.
   const bronzePerSmith = BRONZE_PER_SMITH * skillMultiplier(region, 'smithing');
+  const ironPerSmith = IRON_PER_SMITH * skillMultiplier(region, 'smithing');
 
   // Reserve labor for smiths against that demand, up front — this is what
   // stops smith count from depending on a boolean "is there stock" check.
-  const desiredSmithsLabor = Math.min(remainingSurplus, bronzePerSmith > 0 ? desiredBronzeOutput / bronzePerSmith : 0);
+  const desiredSmithsLabor = Math.min(
+    remainingSurplus,
+    (bronzePerSmith > 0 ? desiredBronzeOutput / bronzePerSmith : 0) +
+      (ironPerSmith > 0 ? desiredIronOutput / ironPerSmith : 0)
+  );
   const minerBudget = remainingSurplus - desiredSmithsLabor;
 
   // --- Mining, co-optimized with smith demand: mine enough copper/tin to
   // actually cover what smithing wants to make this tick, before falling
   // back to background priority mining for whatever budget is left over. ---
-  const activeTiers = {};
-  for (const [key, deposit] of Object.entries(region.deposits)) {
-    activeTiers[key] = selectActiveTier(deposit.tiers, region.unlockedTechIds);
-  }
-  const openResources = Object.keys(activeTiers).filter((k) => activeTiers[k] !== null);
-
   const copperNeeded = Math.max(0, desiredBronzeOutput * 2 - (region.stockpile.copper || 0));
   const tinNeeded = Math.max(0, desiredBronzeOutput * 1 - (region.stockpile.tin || 0));
+  const ironOreNeeded = Math.max(0, desiredIronOutput - (region.stockpile.ironOre || 0));
   const miningSkill = skillMultiplier(region, 'mining');
   const oreYieldPerMiner = ORE_YIELD_PER_MINER * miningSkill;
   const targetLabor = {
     copper: activeTiers.copper ? Math.min(copperNeeded / oreYieldPerMiner, activeTiers.copper.maxWorkers) : 0,
     tin: activeTiers.tin ? Math.min(tinNeeded / oreYieldPerMiner, activeTiers.tin.maxWorkers) : 0,
+    ironOre: activeTiers.ironOre ? Math.min(ironOreNeeded / oreYieldPerMiner, activeTiers.ironOre.maxWorkers) : 0,
   };
-  const targetLaborTotal = targetLabor.copper + targetLabor.tin;
+  const targetLaborTotal = targetLabor.copper + targetLabor.tin + targetLabor.ironOre;
 
   const minerAllocation = {};
   for (const key of openResources) minerAllocation[key] = 0;
 
-  // Phase 1: satisfy copper/tin's demand-driven targets first (split
+  // Phase 1: satisfy tool-metal demand-driven targets first (split
   // proportionally if the budget can't cover both in full).
   let budgetLeft = minerBudget;
   if (targetLaborTotal > 0) {
     const scale = Math.min(1, budgetLeft / targetLaborTotal);
-    for (const key of ['copper', 'tin']) {
+    for (const key of ['copper', 'tin', 'ironOre']) {
       if (activeTiers[key]) {
         minerAllocation[key] = targetLabor[key] * scale;
         budgetLeft -= minerAllocation[key];
       }
     }
   }
-  // Phase 2: whatever's left (including all of gold/stone, and any copper/
-  // tin room beyond their targets) goes to background priority mining —
+  // Phase 2: whatever is left, including spare metal capacity, goes to
+  // background priority mining —
   // this is the "keep stockpiling in case it's useful" behavior from before.
   if (budgetLeft > 0.01) {
     const items = openResources.map((key) => ({
@@ -406,19 +424,40 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   accumulateExperience(region, 'mining', minersUsed);
   report.mining = { workers: Math.round(minersUsed), ...minedThisTick };
 
-  // --- Smithing: bounded by labor AND by what mining actually delivered
-  // this tick (existing stockpile + fresh output), not a boolean gate. ---
-  const maxBronzeByLabor = desiredSmithsLabor * bronzePerSmith;
+  // --- Smithing: bronze and iron share one workforce and the same accumulated
+  // smithing experience. Each metal has its own material and labor ceiling;
+  // unused smith capacity is redistributed to the other metal. ---
   const maxBronzeByCopper = (region.stockpile.copper || 0) / 2; // recipe: 2 copper + 1 tin -> 1 bronze
   const maxBronzeByTin = (region.stockpile.tin || 0) / 1;
-  const bronzeMade = Math.max(0, Math.min(maxBronzeByLabor, maxBronzeByCopper, maxBronzeByTin, desiredBronzeOutput));
-  const actualSmiths = bronzePerSmith > 0 ? bronzeMade / bronzePerSmith : 0;
+  const bronzeLaborCap = bronzePerSmith > 0
+    ? Math.min(desiredBronzeOutput, maxBronzeByCopper, maxBronzeByTin) / bronzePerSmith
+    : 0;
+  const ironLaborCap = ironPerSmith > 0
+    ? Math.min(desiredIronOutput, region.stockpile.ironOre || 0) / ironPerSmith
+    : 0;
+  const smithPriorities = {
+    bronze: bronzePerSmith > 0 ? desiredBronzeOutput / bronzePerSmith : 0,
+    iron: ironPerSmith > 0 ? desiredIronOutput / ironPerSmith : 0,
+  };
+  const { allocation: smithAllocation } = allocateWithCaps(
+    desiredSmithsLabor,
+    [
+      { key: 'bronze', cap: bronzeLaborCap },
+      { key: 'iron', cap: ironLaborCap },
+    ],
+    (key) => smithPriorities[key]
+  );
+  const bronzeMade = (smithAllocation.bronze || 0) * bronzePerSmith;
+  const ironMade = (smithAllocation.iron || 0) * ironPerSmith;
+  const actualSmiths = (smithAllocation.bronze || 0) + (smithAllocation.iron || 0);
   accumulateExperience(region, 'smithing', actualSmiths);
-  report.smithing = { workers: Math.round(actualSmiths), bronze: bronzeMade };
+  report.smithing = { workers: Math.round(actualSmiths), bronze: bronzeMade, iron: ironMade };
 
   region.stockpile.copper = (region.stockpile.copper || 0) - bronzeMade * 2;
   region.stockpile.tin = (region.stockpile.tin || 0) - bronzeMade * 1;
   region.stockpile.bronze = (region.stockpile.bronze || 0) + bronzeMade;
+  region.stockpile.ironOre = (region.stockpile.ironOre || 0) - ironMade;
+  region.stockpile.iron = (region.stockpile.iron || 0) + ironMade;
 
   // --- Spend it: baseline/military demand is consumed outright (prestige
   // goods, upkeep — not modeled as owned stock); whatever's left funds tool
@@ -427,13 +466,19 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   const consumedOffTop = Math.min(region.stockpile.bronze, BASELINE_BRONZE_DEMAND + region.militaryBronzeDemand);
   region.stockpile.bronze -= consumedOffTop;
 
-  const totalToolWant = farmerWant.bronzeWanted + lumberjackWant.bronzeWanted + minerWant.bronzeWanted + soldierWant.bronzeWanted;
-  if (totalToolWant > 0 && region.stockpile.bronze > 0) {
-    const pool = region.stockpile.bronze;
-    region.stockpile.bronze -= investInTools(region, 'farmer', farmerWant, pool * (farmerWant.bronzeWanted / totalToolWant));
-    region.stockpile.bronze -= investInTools(region, 'lumberjack', lumberjackWant, pool * (lumberjackWant.bronzeWanted / totalToolWant));
-    region.stockpile.bronze -= investInTools(region, 'miner', minerWant, pool * (minerWant.bronzeWanted / totalToolWant));
-    region.stockpile.bronze -= investInTools(region, 'soldier', soldierWant, pool * (soldierWant.bronzeWanted / totalToolWant));
+  for (const material of ['bronze', 'iron']) {
+    const totalToolWant = wantedByMaterial[material];
+    if (totalToolWant <= 0 || (region.stockpile[material] || 0) <= 0) continue;
+    const pool = region.stockpile[material];
+    for (const [occupation, want] of toolWants) {
+      if (want.material !== material || want.materialWanted <= 0) continue;
+      region.stockpile[material] -= investInTools(
+        region,
+        occupation,
+        want,
+        pool * (want.materialWanted / totalToolWant)
+      );
+    }
   }
 
   const leftover = Math.round(Math.max(0, surplus - lumberjacks - boatMakers - minersUsed - actualSmiths));

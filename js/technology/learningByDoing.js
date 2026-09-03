@@ -4,8 +4,9 @@
 // worker-effort a region has put into an activity, the better it gets at
 // it — same saturating-curve shape used everywhere else in this sim (fast
 // early gains, tapering toward a ceiling). A genuine technological leap
-// (iron working, real metallurgy) is a separate, future mechanic — nobody
-// practices their way past a Bronze Age ceiling into the Iron Age.
+// (such as iron smelting) is a separate breakthrough. Smithing experience
+// raises that breakthrough's chance, and bronze and iron work both continue
+// contributing to this same shared store of practical metallurgy knowledge.
 
 const CEILING = {
   farming: 0.50,     // up to +50% from technique alone: rotation instinct, soil reading, timing

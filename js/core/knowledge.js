@@ -501,6 +501,10 @@ export function recordDirectTrade(regionA, regionB, volume, receivedAt = null) {
   if (!(regionB.tradeLinks instanceof Map)) regionB.tradeLinks = new Map();
   regionA.tradeLinks.set(regionB.id, (regionA.tradeLinks.get(regionB.id) || 0) + volume);
   regionB.tradeLinks.set(regionA.id, (regionB.tradeLinks.get(regionA.id) || 0) + volume);
+  if (!(regionA.tradePartnerIds instanceof Set)) regionA.tradePartnerIds = new Set();
+  if (!(regionB.tradePartnerIds instanceof Set)) regionB.tradePartnerIds = new Set();
+  regionA.tradePartnerIds.add(regionB.id);
+  regionB.tradePartnerIds.add(regionA.id);
 
   const provenance = { type: 'direct_trade', from: regionA.id, to: regionB.id, volume };
   const add = (observer, subject) => {

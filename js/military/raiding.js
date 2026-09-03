@@ -1,6 +1,6 @@
-import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260903-adaptive-clock2';
-import { hasDirectContact, learnAbout } from '../core/knowledge.js?v=20260903-adaptive-clock2';
-import { centroidDistanceKm } from '../world/distance.js?v=20260903-adaptive-clock2';
+import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260903-iron1';
+import { hasDirectContact, learnAbout } from '../core/knowledge.js?v=20260903-iron1';
+import { centroidDistanceKm } from '../world/distance.js?v=20260903-iron1';
 
 const RAIDERS_PER_BOAT = 10;
 const LAND_SPEED_KM_PER_WEEK = 120;

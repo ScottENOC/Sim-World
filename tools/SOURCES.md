@@ -77,7 +77,7 @@ full-time non-farm specialists — without it, "surplus" labor after farming
 was landing in the hundreds of thousands and strip-mining regions instantly.
 
 ## Deposit tiers and tech gates
-Ore deposits (copper, tin, gold) are no longer one smooth difficulty curve
+Ore deposits (copper, tin, iron ore, gold) are no longer one smooth difficulty curve
 from 100% to 0% — that implied enough labor could always get more out,
 which isn't true below the water table with Bronze Age tools. Each is now
 a list of tiers (`data/world/resources.initial.json`), shallowest first:
@@ -91,16 +91,16 @@ smooth continuation into the next tier.
 
 Each tier also carries a `maxWorkers` cap modeling physical mine-face
 capacity (there's only so much rock face regardless of population), fixed
-priority weights for copper/tin/gold/stone instead of splitting miners by
+priority weights for copper/tin/iron/gold/stone instead of splitting miners by
 raw remaining tonnage (stone is so much more abundant it was swallowing the
 whole miner pool), and a proper water-filling allocator (`allocateWithCaps`
 in `labor.js`) so labor that a capped-out resource turns away correctly
 flows to whichever resource still has room, rather than either overshooting
 a cap or vanishing.
 
-`region.unlockedTechIds` is a stub (empty `Set`) for now — real tech
-diffusion is Phase 3. Nothing unlocks deeper tiers yet, which is why every
-region's shaft/deep tiers sit untouched no matter how long you run it.
+`region.unlockedTechIds` now receives the `iron_smelting` breakthrough, but
+shaft mining and mine drainage still have no discovery mechanic. Those deeper
+tiers therefore remain untouched no matter how long you run the current build.
 Confirmed with a 1000-year headless run before shipping: surface tiers for
 well-endowed regions deplete over roughly 100-300 years, shaft/deep sit at
 100% the entire time, and famine-stability regions (no labor surplus to
@@ -119,14 +119,14 @@ single "development score"), gives the first N equipped workers a
 productivity bonus (lagged one tick — this tick's efficiency is based on
 last tick's headcount/equipment, which avoids solving a circular "how many
 farmers, how equipped are they" system simultaneously), and computes how
-much bronze each occupation wants to spend equipping more of itself this
+much tool metal each occupation wants to spend equipping more of itself this
 tick, capped at 2% newly-equipped per week so adoption takes real time.
 Farmer, lumberjack, and miner demand (miner's own headcount is lagged too,
 since it isn't decided until later in the same tick) plus a small baseline
 and a `region.militaryBronzeDemand` stub sum to a demand target *before*
-mining runs. `labor.js` then mines enough copper/tin to actually cover that
-target (subject to tier caps), before falling back to background priority
-mining for stone/gold/spare capacity. Smithing is bounded by both labor and
+mining runs. `labor.js` then mines enough copper/tin or iron ore to cover the
+selected tool demand (subject to tier caps), before falling back to background
+priority mining for stone/gold/spare capacity. Smithing is bounded by labor and
 actual input availability — never a stock-existence boolean.
 
 `region.equipment[occupation]`, once populated, is durable — if the
@@ -145,6 +145,26 @@ throughput became workable. Re-verified over 1000 simulated years: France's
 farmer tool coverage grows steadily for ~300 years then plateaus around 7.6%
 once surface copper/tin are both exhausted, sitting there — correctly —
 until `shaft_mining` exists to unlock more.
+
+## Iron working
+Iron ore uses the same surface/shaft/deep structure as copper and tin, but is
+deliberately abundant: the world contains 15 times as much iron ore as copper
+and tin combined, with broader workable mine faces. It can be mined before it
+can be smelted, allowing regions to accumulate and trade ore while iron
+working remains unknown.
+
+`technology/breakthroughs.js` makes `iron_smelting` a probabilistic discrete
+breakthrough rather than another point on the learning curve. Independent
+discovery is extremely rare across the map, becomes more likely as a region's
+existing `smithing` experience grows, and diffuses much faster through its
+recorded trading partners once one of them knows the technique. The player's
+own discovery pauses the clock and opens a prominent event.
+
+Bronze and iron production both add to the same `smithing` experience. Iron
+tools are weaker equivalents of bronze tools, not a superior tier. New tools
+use iron only if its raw-input cost per unit of productivity is at least 35%
+better than bronze, or if accessible bronze cannot be supplied; existing
+bronze tools remain in service and are used before weaker iron equipment.
 
 ## Full employment note
 "General" population is not an artificial cap anymore — the flat 8%

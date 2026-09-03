@@ -1,18 +1,19 @@
-import { Clock } from './core/clock.js?v=20260903-adaptive-clock2';
-import { EventBus } from './core/eventBus.js?v=20260903-adaptive-clock2';
-import { loadWorld } from './world/region.js?v=20260903-adaptive-clock2';
-import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260903-adaptive-clock2';
-import { seedCensus, densityPerKm2 } from './society/census.js?v=20260903-adaptive-clock2';
-import { tickEconomy } from './economy/labor.js?v=20260903-adaptive-clock2';
-import { tickTrade } from './economy/trade.js?v=20260903-adaptive-clock2';
-import { tickDemographics } from './society/demographics.js?v=20260903-adaptive-clock2';
-import { tickBanditry } from './military/banditry.js?v=20260903-adaptive-clock2';
-import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable } from './military/raiding.js?v=20260903-adaptive-clock2';
-import { tickNationAi } from './ai/nationAi.js?v=20260903-adaptive-clock2';
-import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260903-adaptive-clock2';
-import { MapRenderer } from './ui/mapRenderer.js?v=20260903-adaptive-clock2';
-import { FogOfWar } from './core/fogOfWar.js?v=20260903-adaptive-clock2';
-import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260903-adaptive-clock2';
+import { Clock } from './core/clock.js?v=20260903-iron1';
+import { EventBus } from './core/eventBus.js?v=20260903-iron1';
+import { loadWorld } from './world/region.js?v=20260903-iron1';
+import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260903-iron1';
+import { seedCensus, densityPerKm2 } from './society/census.js?v=20260903-iron1';
+import { tickEconomy } from './economy/labor.js?v=20260903-iron1';
+import { tickTrade } from './economy/trade.js?v=20260903-iron1';
+import { tickDemographics } from './society/demographics.js?v=20260903-iron1';
+import { tickBanditry } from './military/banditry.js?v=20260903-iron1';
+import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable } from './military/raiding.js?v=20260903-iron1';
+import { tickNationAi } from './ai/nationAi.js?v=20260903-iron1';
+import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260903-iron1';
+import { tickBreakthroughs, IRON_SMELTING_TECH_ID } from './technology/breakthroughs.js?v=20260903-iron1';
+import { MapRenderer } from './ui/mapRenderer.js?v=20260903-iron1';
+import { FogOfWar } from './core/fogOfWar.js?v=20260903-iron1';
+import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260903-iron1';
 
 const START_YEAR = -1200; // Bronze Age start, mid-collapse-era — tune later
 const LAYERS = {
@@ -50,7 +51,7 @@ async function main() {
   linkSeaAdjacency(regions, seaRegions);
   const fishingContactPairs = buildFishingContactPairs(regions, seaRegions);
   initialiseKnowledge(regions);
-  const toolTypes = await (await fetch('data/world/toolTypes.json')).json();
+  const toolTypes = await (await fetch('data/world/toolTypes.json?v=20260903-iron1')).json();
 
   console.log(
     `Loaded ${regions.length} regions:`,
@@ -110,6 +111,7 @@ async function main() {
     pruneKnowledge(regions, clock.tickIndex);
     tickFishingKnowledge(fishingContactPairs, clock.tickIndex);
     tickTrade(regions, clock.tickIndex);
+    const breakthroughEvents = tickBreakthroughs(regions, clock.tickIndex, Math.random);
     tickDemographics(regions);
     tickBanditry(regions, toolTypes);
     tickNationAi(regions, playerRegionId, activeRaids, clock.tickIndex, toolTypes, Math.random);
@@ -119,11 +121,15 @@ async function main() {
 
     // The player does not get a global news feed. Only raids involving their
     // own region are shown; other AI conflicts remain behind the fog.
-    const playerEvents = fogOfWar.devMode
+    const playerRaidEvents = fogOfWar.devMode
       ? events
       : events.filter((event) =>
         event.raid.attackerId === playerRegionId || event.raid.defenderId === playerRegionId
       );
+    const playerEvents = [
+      ...breakthroughEvents.filter((event) => event.regionId === playerRegionId),
+      ...playerRaidEvents,
+    ];
     if (playerEvents.length > 0) {
       clock.requestAutoPause();
       eventQueue.push(...playerEvents);
@@ -573,6 +579,17 @@ function showNextEvent(clock, eventQueue) {
   if (eventQueue.length === 0) return;
 
   const event = eventQueue.shift();
+  if (event.type === 'iron_smelting_breakthrough') {
+    document.getElementById('event-title').textContent = 'Breakthrough: Iron smelting';
+    document.getElementById('event-body').innerHTML = `
+      Smiths in ${event.regionName} have learnt to smelt the plentiful local iron ore.<br><br>
+      Your workshops can now produce iron and make iron tools. Bronze remains stronger,
+      so smiths will use iron only when it is substantially cheaper or bronze is unavailable.
+    `;
+    wireEventContinue(clock, eventQueue);
+    return;
+  }
+
   const { attackerName, defenderName, outcome, raid } = event;
   const won = outcome.attackerRatio > 0.5;
 
@@ -597,6 +614,10 @@ function showNextEvent(clock, eventQueue) {
     ${knowledgeText}
   `;
 
+  wireEventContinue(clock, eventQueue);
+}
+
+function wireEventContinue(clock, eventQueue) {
   document.getElementById('event-options').innerHTML = '<button id="btn-event-continue">Continue</button>';
   document.getElementById('event-modal').classList.remove('hidden');
 
@@ -611,6 +632,11 @@ function showNextEvent(clock, eventQueue) {
   });
 }
 
+const RESOURCE_LABELS = { ironOre: 'iron ore' };
+function resourceLabel(key) {
+  return RESOURCE_LABELS[key] || key;
+}
+
 const ACTIVITY_LABELS = {
   farming: 'Farming',
   gathering: 'Gathering',
@@ -623,7 +649,7 @@ const ACTIVITY_LABELS = {
 };
 
 function buildResourcesSection(region, seaRegionsById) {
-  const depositLines = ['copper', 'tin', 'gold', 'stone']
+  const depositLines = ['copper', 'tin', 'ironOre', 'gold', 'stone']
     .map((key) => {
       const dep = region.deposits[key];
       if (!dep) return '';
@@ -636,7 +662,7 @@ function buildResourcesSection(region, seaRegionsById) {
         })
         .join(', ');
 
-      return `<div>${key}: ${tierText}</div>`;
+      return `<div>${key === 'ironOre' ? 'iron ore' : key}: ${tierText}</div>`;
     })
     .join('');
 
@@ -677,7 +703,7 @@ function buildReportSection(region) {
     const outputs = Object.entries(data)
       .filter(([k]) => k !== 'workers' && k !== 'seaName')
       .filter(([, v]) => typeof v === 'number' && v > 0.05)
-      .map(([k, v]) => `${v.toFixed(k === 'bronze' ? 1 : 0)} ${k}`)
+      .map(([k, v]) => `${v.toFixed(k === 'bronze' || k === 'iron' ? 1 : 0)} ${resourceLabel(k)}`)
       .join(', ');
 
     lines.push(
@@ -750,17 +776,21 @@ function updateRegionStats(region, seaRegionsById, fogOfWar, regions, playerRegi
   const stockLine = Object.keys(stock).length
     ? Object.entries(stock)
         .filter(([, v]) => v > 0.05)
-        .map(([k, v]) => `${k} ${v.toFixed(k === 'bronze' ? 1 : 0)}`)
+        .map(([k, v]) => `${resourceLabel(k)} ${v.toFixed(k === 'bronze' || k === 'iron' ? 1 : 0)}`)
         .join(' &middot; ') || 'none yet'
     : 'none yet';
 
-  const ploughs = region.equipment.farmer?.bronze_plough || 0;
+  const bronzePloughs = region.equipment.farmer?.bronze_plough || 0;
+  const ironPloughs = region.equipment.farmer?.iron_plough || 0;
+  const ploughs = bronzePloughs + ironPloughs;
   const toolLine = occ.farmer
-    ? `${ploughs.toLocaleString()} / ${occ.farmer.toLocaleString()} farmers have a bronze plough (${((Math.min(ploughs, occ.farmer) / occ.farmer) * 100).toFixed(0)}%)`
+    ? `${ploughs.toLocaleString()} / ${occ.farmer.toLocaleString()} farmers have a plough (${bronzePloughs.toLocaleString()} bronze, ${ironPloughs.toLocaleString()} iron; ${((Math.min(ploughs, occ.farmer) / occ.farmer) * 100).toFixed(0)}%)`
     : 'n/a';
 
-  const armyEquipped = region.equipment.soldier?.bronze_weapons || 0;
-  const militaryLine = `${occ.soldier || 0} soldiers (${Math.min(armyEquipped, occ.soldier || 0).toFixed(0)} equipped) &middot; ${occ.sailor || 0} sailors &middot; ${Math.round(region.navy.boats)} navy boats`;
+  const bronzeArms = region.equipment.soldier?.bronze_weapons || 0;
+  const ironArms = region.equipment.soldier?.iron_weapons || 0;
+  const armyEquipped = bronzeArms + ironArms;
+  const militaryLine = `${occ.soldier || 0} soldiers (${Math.min(armyEquipped, occ.soldier || 0).toFixed(0)} equipped: ${bronzeArms.toFixed(0)} bronze, ${ironArms.toFixed(0)} iron) &middot; ${occ.sailor || 0} sailors &middot; ${Math.round(region.navy.boats)} navy boats`;
 
   const fishingLine = region.adjacentSeaIds.length
     ? `${Math.round(region.fishingBoats)} fishing boats &middot; fishes ${region.adjacentSeaIds.join(', ')}`
@@ -793,6 +823,7 @@ function updateRegionStats(region, seaRegionsById, fogOfWar, regions, playerRegi
     ${knowsDetailed ? `<div>Banditry: ${banditLine}</div><div>Military: ${militaryLine}</div>` : '<div>Military strength: unknown</div>'}
     ${knowsResources ? `<div>Fishing: ${fishingLine}</div>` : '<div>Fishing activity: unknown</div>'}
     ${knowsDetailed ? `<div>Skill (learning by doing): ${skillLine}</div>` : ''}
+    ${knowsDetailed ? `<div>Iron smelting: ${region.unlockedTechIds.has(IRON_SMELTING_TECH_ID) ? 'discovered' : 'not yet discovered'}</div>` : ''}
     ${knowsEconomy ? `<div>Wealth: ${region.wallet.toFixed(0)} populace &middot; ${region.treasury.toFixed(0)} treasury</div>` : '<div>Wealth: unknown</div>'}
     ${knowsDetailed ? `<div>Tools: ${toolLine}</div><div>Culture: ${culture.cultureId} &middot; identity strength ${(culture.identityStrength * 100).toFixed(0)}%</div>` : ''}
     <div>Neighbours: ${neighbourLine}</div>

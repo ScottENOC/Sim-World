@@ -1,5 +1,5 @@
-import { effectivePower } from './army.js?v=20260903-adaptive-clock2';
-import { removeFromBands, syncPopulation } from '../society/demographics.js?v=20260903-adaptive-clock2';
+import { effectivePower } from './army.js?v=20260903-iron1';
+import { removeFromBands, syncPopulation } from '../society/demographics.js?v=20260903-iron1';
 
 // Even with zero army, a bandit group doesn't last forever — disorganized,
 // exposed, some natural die-off. Suppression on top of that scales with

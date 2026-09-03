@@ -3,9 +3,9 @@
 // a military target that scales with how threatened it feels, and an
 // occasional, cautious evaluation of whether raiding a reachable neighbor
 // is clearly worth it. AI only considers regions it has actually met.
-import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260903-adaptive-clock2';
-import { canRaid, launchRaid } from '../military/raiding.js?v=20260903-adaptive-clock2';
-import { directContactIds, knowledgeOf, KNOWLEDGE_THRESHOLDS } from '../core/knowledge.js?v=20260903-adaptive-clock2';
+import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260903-iron1';
+import { canRaid, launchRaid } from '../military/raiding.js?v=20260903-iron1';
+import { directContactIds, knowledgeOf, KNOWLEDGE_THRESHOLDS } from '../core/knowledge.js?v=20260903-iron1';
 
 const BASE_ARMY_FRACTION = 0.02;
 const THREAT_ARMY_MULTIPLIER = 2.0;

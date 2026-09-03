@@ -4,8 +4,17 @@
       "id": "bronze_plough",
       "label": "Bronze-tipped plough",
       "productivityBonus": 0.35,
-      "bronzeCost": 2,
+      "material": "bronze",
+      "materialCost": 2,
       "requiredTechId": null
+    },
+    {
+      "id": "iron_plough",
+      "label": "Iron-tipped plough",
+      "productivityBonus": 0.22,
+      "material": "iron",
+      "materialCost": 2,
+      "requiredTechId": "iron_smelting"
     }
   ],
   "miner": [
@@ -13,8 +22,17 @@
       "id": "bronze_picks",
       "label": "Bronze picks & chisels",
       "productivityBonus": 0.30,
-      "bronzeCost": 1.5,
+      "material": "bronze",
+      "materialCost": 1.5,
       "requiredTechId": null
+    },
+    {
+      "id": "iron_picks",
+      "label": "Iron picks & chisels",
+      "productivityBonus": 0.18,
+      "material": "iron",
+      "materialCost": 1.5,
+      "requiredTechId": "iron_smelting"
     }
   ],
   "lumberjack": [
@@ -22,8 +40,17 @@
       "id": "bronze_axes",
       "label": "Bronze axes",
       "productivityBonus": 0.30,
-      "bronzeCost": 1,
+      "material": "bronze",
+      "materialCost": 1,
       "requiredTechId": null
+    },
+    {
+      "id": "iron_axes",
+      "label": "Iron axes",
+      "productivityBonus": 0.18,
+      "material": "iron",
+      "materialCost": 1,
+      "requiredTechId": "iron_smelting"
     }
   ],
   "soldier": [
@@ -31,8 +58,17 @@
       "id": "bronze_weapons",
       "label": "Bronze weapons & armor",
       "productivityBonus": 0.60,
-      "bronzeCost": 4,
+      "material": "bronze",
+      "materialCost": 4,
       "requiredTechId": null
+    },
+    {
+      "id": "iron_weapons",
+      "label": "Iron weapons & armor",
+      "productivityBonus": 0.38,
+      "material": "iron",
+      "materialCost": 4,
+      "requiredTechId": "iron_smelting"
     }
   ]
 }

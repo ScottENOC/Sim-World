@@ -1,4 +1,4 @@
-import { KnowledgeLedger } from '../core/knowledge.js?v=20260903-adaptive-clock2';
+import { KnowledgeLedger } from '../core/knowledge.js?v=20260903-iron1';
 
 export class Region {
   constructor({ id, name, feature, centroid, areaSqKm, neighbors }) {
@@ -13,6 +13,7 @@ export class Region {
     this.landQuality = null; this.forest = null; this.deposits = null; this.stockpile = {};
     this.occupations = {}; this.report = {}; this.equipment = {}; this.militaryBronzeDemand = 0;
     this.wallet = 0; this.treasury = 0; this.unlockedTechIds = new Set();
+    this.tradePartnerIds = new Set();
     this.knowledge = new KnowledgeLedger(id);
   }
 }
@@ -20,7 +21,7 @@ export class Region {
 export async function loadWorld() {
   const [geoRes, metaRes, resourcesRes] = await Promise.all([
     fetch('data/world/regions.geo.json'), fetch('data/world/regions.meta.json'),
-    fetch('data/world/resources.initial.json'),
+    fetch('data/world/resources.initial.json?v=20260903-iron1'),
   ]);
   const geo = await geoRes.json(); const meta = await metaRes.json(); const resources = await resourcesRes.json();
   const metaById = new Map(meta.regions.map((r) => [r.id, r]));
