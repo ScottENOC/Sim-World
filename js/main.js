@@ -1,19 +1,19 @@
-import { Clock } from './core/clock.js?v=20260903-mechanics1';
-import { EventBus } from './core/eventBus.js?v=20260903-mechanics1';
-import { loadWorld } from './world/region.js?v=20260903-mechanics1';
-import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260903-mechanics1';
-import { seedCensus, densityPerKm2 } from './society/census.js?v=20260903-mechanics1';
-import { tickEconomy } from './economy/labor.js?v=20260903-mechanics1';
-import { tickTrade } from './economy/trade.js?v=20260903-mechanics1';
-import { tickDemographics } from './society/demographics.js?v=20260903-mechanics1';
-import { tickBanditry } from './military/banditry.js?v=20260903-mechanics1';
-import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable } from './military/raiding.js?v=20260903-mechanics1';
-import { tickNationAi } from './ai/nationAi.js?v=20260903-mechanics1';
-import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260903-mechanics1';
-import { tickBreakthroughs, IRON_SMELTING_TECH_ID } from './technology/breakthroughs.js?v=20260903-mechanics1';
-import { MapRenderer } from './ui/mapRenderer.js?v=20260903-mechanics1';
-import { FogOfWar } from './core/fogOfWar.js?v=20260903-mechanics1';
-import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260903-mechanics1';
+import { Clock } from './core/clock.js?v=20260904-potteryboats1';
+import { EventBus } from './core/eventBus.js?v=20260904-potteryboats1';
+import { loadWorld } from './world/region.js?v=20260904-potteryboats1';
+import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260904-potteryboats1';
+import { seedCensus, densityPerKm2 } from './society/census.js?v=20260904-potteryboats1';
+import { tickEconomy } from './economy/labor.js?v=20260904-potteryboats1';
+import { tickTrade } from './economy/trade.js?v=20260904-potteryboats1';
+import { tickDemographics } from './society/demographics.js?v=20260904-potteryboats1';
+import { tickBanditry } from './military/banditry.js?v=20260904-potteryboats1';
+import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable } from './military/raiding.js?v=20260904-potteryboats1';
+import { tickNationAi } from './ai/nationAi.js?v=20260904-potteryboats1';
+import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260904-potteryboats1';
+import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID } from './technology/breakthroughs.js?v=20260904-potteryboats1';
+import { MapRenderer } from './ui/mapRenderer.js?v=20260904-potteryboats1';
+import { FogOfWar } from './core/fogOfWar.js?v=20260904-potteryboats1';
+import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260904-potteryboats1';
 
 const START_YEAR = -1400; // prosperous runway before century-scale surface tin begins to fail
 const LAYERS = {
@@ -51,7 +51,7 @@ async function main() {
   linkSeaAdjacency(regions, seaRegions);
   const fishingContactPairs = buildFishingContactPairs(regions, seaRegions);
   initialiseKnowledge(regions);
-  const toolTypes = await (await fetch('data/world/toolTypes.json?v=20260903-mechanics1')).json();
+  const toolTypes = await (await fetch('data/world/toolTypes.json?v=20260904-potteryboats1')).json();
 
   console.log(
     `Loaded ${regions.length} regions:`,
@@ -589,6 +589,16 @@ function showNextEvent(clock, eventQueue) {
     wireEventContinue(clock, eventQueue);
     return;
   }
+  if (event.type === 'advanced_boatbuilding_breakthrough') {
+    document.getElementById('event-title').textContent = 'Breakthrough: Advanced boatbuilding';
+    document.getElementById('event-body').innerHTML = `
+      Shipwrights in ${event.regionName} have learnt to build larger, stronger seagoing vessels.<br><br>
+      Advanced boats require wood, pitch, textiles and bronze or iron fittings. They carry more
+      cargo and soldiers, travel faster and farther, improve offshore fishing and perform better in war.
+    `;
+    wireEventContinue(clock, eventQueue);
+    return;
+  }
 
   const { attackerName, defenderName, outcome, raid } = event;
   const won = outcome.attackerRatio > 0.5;
@@ -632,7 +642,8 @@ function wireEventContinue(clock, eventQueue) {
   });
 }
 
-const RESOURCE_LABELS = { ironOre: 'iron ore' };
+const RESOURCE_LABELS = { ironOre: 'iron ore', advancedNavyBoats: 'advanced navy boats',
+  advancedFishingBoats: 'advanced fishing boats', boatLosses: 'boats lost', potteryBroken: 'pots broken' };
 function resourceLabel(key) {
   return RESOURCE_LABELS[key] || key;
 }
@@ -646,10 +657,12 @@ const ACTIVITY_LABELS = {
   mining: 'Mining',
   smithing: 'Smithing',
   boatmaking: 'Boat-making',
+  materialCrafts: 'Pitch and textiles',
+  pottery: 'Pottery',
 };
 
 function buildResourcesSection(region, seaRegionsById) {
-  const depositLines = ['copper', 'tin', 'ironOre', 'gold', 'stone']
+  const depositLines = ['copper', 'tin', 'ironOre', 'clay', 'gold', 'stone']
     .map((key) => {
       const dep = region.deposits[key];
       if (!dep) return '';
@@ -710,6 +723,17 @@ function buildReportSection(region) {
       }
       continue;
     }
+    if (key === 'foodStorage') {
+      lines.push(`<div>Food storage: ${Math.round(data.potteryCoverage * 100)}% pottery coverage &middot; ${data.weeks.toFixed(1)} weeks capacity &middot; ${(data.spoilage * 100).toFixed(1)}% weekly spoilage</div>`);
+      continue;
+    }
+    if (key === 'maintenance') {
+      const losses = [];
+      if (data.boatLosses > 0.01) losses.push(`${data.boatLosses.toFixed(2)} boats worn out`);
+      if (data.potteryBroken > 0.1) losses.push(`${data.potteryBroken.toFixed(0)} pots broken`);
+      if (losses.length) lines.push(`<div>Wear and breakage: ${losses.join(' &middot; ')}</div>`);
+      continue;
+    }
     if (key === 'banditry') {
       const outcomes = [];
       if (data.reintegrated > 0.5) outcomes.push(`${data.reintegrated.toFixed(0)} returned to civilian life`);
@@ -722,7 +746,7 @@ function buildReportSection(region) {
     if (!data || data.workers === 0) continue;
 
     const outputs = Object.entries(data)
-      .filter(([k]) => k !== 'workers' && k !== 'seaName')
+      .filter(([k]) => k !== 'workers' && k !== 'seaName' && k !== 'advancedShare' && k !== 'ironReadiness')
       .filter(([, v]) => typeof v === 'number' && v > 0.05)
       .map(([k, v]) => `${v.toFixed(k === 'bronze' || k === 'iron' ? 1 : 0)} ${resourceLabel(k)}`)
       .join(', ');
@@ -785,7 +809,7 @@ function updateRegionStats(region, seaRegionsById, fogOfWar, regions, playerRegi
 
   const occLine = occ.farmer === undefined
     ? 'not yet ticked'
-    : `farmers ${occ.farmer.toLocaleString()} &middot; gatherers ${(occ.gatherer || 0).toLocaleString()} &middot; shore fishers ${occ.shoreFisher || 0} &middot; boat fishers ${occ.boatFisher || 0} &middot; lumberjacks ${occ.lumberjack} &middot; boatmakers ${occ.boatmaker || 0} &middot; miners ${occ.miner} &middot; smiths ${occ.smith} &middot; traders ${occ.trader || 0} &middot; general ${occ.general.toLocaleString()}`;
+    : `farmers ${occ.farmer.toLocaleString()} &middot; gatherers ${(occ.gatherer || 0).toLocaleString()} &middot; shore fishers ${occ.shoreFisher || 0} &middot; boat fishers ${occ.boatFisher || 0} &middot; lumberjacks ${occ.lumberjack} &middot; boatmakers ${occ.boatmaker || 0} &middot; potters ${occ.potter || 0} &middot; textile workers ${occ.textileWorker || 0} &middot; pitch makers ${occ.pitchMaker || 0} &middot; miners ${occ.miner} &middot; smiths ${occ.smith} &middot; traders ${occ.trader || 0} &middot; general ${occ.general.toLocaleString()}`;
 
   const d = region.demographics;
   const demoLine = `${Math.round(d.children).toLocaleString()} children &middot; ${Math.round(d.workingAge).toLocaleString()} working-age &middot; ${Math.round(d.elderly).toLocaleString()} elderly`;
@@ -812,10 +836,10 @@ function updateRegionStats(region, seaRegionsById, fogOfWar, regions, playerRegi
   const bronzeArms = region.equipment.soldier?.bronze_weapons || 0;
   const ironArms = region.equipment.soldier?.iron_weapons || 0;
   const armyEquipped = bronzeArms + ironArms;
-  const militaryLine = `${occ.soldier || 0} soldiers (${Math.min(armyEquipped * 2, occ.soldier || 0).toFixed(0)} equipped by ${armyEquipped.toFixed(0)} weapon sets: ${bronzeArms.toFixed(0)} bronze, ${ironArms.toFixed(0)} iron) &middot; ${occ.sailor || 0} sailors &middot; ${Math.round(region.navy.boats)} navy boats`;
+  const militaryLine = `${occ.soldier || 0} soldiers (${Math.min(armyEquipped * 2, occ.soldier || 0).toFixed(0)} equipped by ${armyEquipped.toFixed(0)} weapon sets: ${bronzeArms.toFixed(0)} bronze, ${ironArms.toFixed(0)} iron) &middot; ${occ.sailor || 0} sailors &middot; ${Math.round(region.navy.boats)} navy boats (${Math.round(region.navy.advancedBoats || 0)} advanced)`;
 
   const fishingLine = region.adjacentSeaIds.length
-    ? `${Math.round(region.fishingBoats)} fishing boats &middot; fishes ${region.adjacentSeaIds.join(', ')}`
+    ? `${Math.round(region.fishingBoats)} fishing boats (${Math.round(region.advancedFishingBoats || 0)} advanced) &middot; fishes ${region.adjacentSeaIds.join(', ')}`
     : 'landlocked — no fishing';
 
   const tradeEconomy = region.tradeEconomy || {};
@@ -853,6 +877,7 @@ function updateRegionStats(region, seaRegionsById, fogOfWar, regions, playerRegi
     ${knowsResources ? `<div>Fishing: ${fishingLine}</div>` : '<div>Fishing activity: unknown</div>'}
     ${knowsDetailed ? `<div>Skill (learning by doing): ${skillLine}</div>` : ''}
     ${knowsDetailed ? `<div>Iron smelting: ${region.unlockedTechIds.has(IRON_SMELTING_TECH_ID) ? `discovered &middot; industry ${(region.ironWorkingReadiness * 100).toFixed(0)}% established` : 'not yet discovered'}</div>` : ''}
+    ${knowsDetailed ? `<div>Advanced boatbuilding: ${region.unlockedTechIds.has(ADVANCED_BOATBUILDING_TECH_ID) ? 'discovered' : 'not yet discovered'}</div>` : ''}
     ${knowsEconomy ? `<div>Wealth: ${region.wallet.toFixed(0)} populace &middot; ${region.treasury.toFixed(0)} treasury${creditLine}</div><div>Trade: ${tradeLine}</div>` : '<div>Wealth: unknown</div>'}
     ${knowsDetailed ? `<div>Tools: ${toolLine}</div><div>Culture: ${culture.cultureId} &middot; identity strength ${(culture.identityStrength * 100).toFixed(0)}%</div>` : ''}
     <div>Neighbours: ${neighbourLine}</div>

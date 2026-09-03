@@ -1,8 +1,8 @@
-import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260903-mechanics1';
-import { hasDirectContact, learnAbout } from '../core/knowledge.js?v=20260903-mechanics1';
-import { centroidDistanceKm } from '../world/distance.js?v=20260903-mechanics1';
+import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-potteryboats1';
+import { hasDirectContact, learnAbout } from '../core/knowledge.js?v=20260904-potteryboats1';
+import { centroidDistanceKm } from '../world/distance.js?v=20260904-potteryboats1';
+import { advancedNavyShare, navyTransportCapacity } from './army.js?v=20260904-potteryboats1';
 
-const RAIDERS_PER_BOAT = 10;
 const LAND_SPEED_KM_PER_WEEK = 120;
 const SEA_SPEED_KM_PER_WEEK = 200;
 const DEFENDER_HOME_ADVANTAGE = 1.3;
@@ -12,10 +12,12 @@ const STABILITY_LOSS_BASE = 0.15;
 const RAID_KNOWLEDGE_SUCCESS = 0.35;
 const RAID_KNOWLEDGE_REPELLED = 0.75;
 
-export function maxSeaRaidersAvailable(region) { return Math.floor(region.navy.boats * RAIDERS_PER_BOAT); }
+export function maxSeaRaidersAvailable(region) { return Math.floor(navyTransportCapacity(region)); }
 export function computeTravelWeeks(attacker, defender, viaSea) {
   const distanceKm = centroidDistanceKm(attacker, defender) ?? 500;
-  const speed = viaSea ? SEA_SPEED_KM_PER_WEEK : LAND_SPEED_KM_PER_WEEK;
+  const speed = viaSea
+    ? SEA_SPEED_KM_PER_WEEK * (1 + advancedNavyShare(attacker) * 0.75)
+    : LAND_SPEED_KM_PER_WEEK;
   return Math.max(1, Math.ceil(distanceKm / speed));
 }
 
@@ -53,7 +55,7 @@ export function tickRaids(raids, regionsById, currentTick, toolTypes, rng) {
     if (!raid.resolved && currentTick >= raid.arriveTick) {
       const attacker = regionsById.get(raid.attackerId);
       const defender = regionsById.get(raid.defenderId);
-      const outcome = resolveCombat(attacker, defender, raid.personnel, toolTypes, rng);
+      const outcome = resolveCombat(attacker, defender, raid.personnel, toolTypes, rng, raid.viaSea);
       const won = outcome.attackerRatio > 0.5;
       const knowledgeGained = won ? RAID_KNOWLEDGE_SUCCESS : RAID_KNOWLEDGE_REPELLED;
       learnAbout(defender, attacker, knowledgeGained, currentTick);
@@ -85,10 +87,11 @@ export function tickRaids(raids, regionsById, currentTick, toolTypes, rng) {
   return { remaining: raids.filter((r) => !r.completed), events };
 }
 
-function resolveCombat(attacker, defender, raidingPersonnel, toolTypes, rng) {
+function resolveCombat(attacker, defender, raidingPersonnel, toolTypes, rng, viaSea = false) {
   const attackerEquip = toolEfficiencyMultiplier(attacker, 'soldier', toolTypes.soldier, attacker.unlockedTechIds);
   const defenderEquip = toolEfficiencyMultiplier(defender, 'soldier', toolTypes.soldier, defender.unlockedTechIds);
-  const attackerPower = raidingPersonnel * attackerEquip;
+  const maritimeAssaultBonus = viaSea ? 1 + advancedNavyShare(attacker) * 0.5 : 1;
+  const attackerPower = raidingPersonnel * attackerEquip * maritimeAssaultBonus;
   const defenderPower = defender.army.personnel * defenderEquip * DEFENDER_HOME_ADVANTAGE;
   const totalPower = attackerPower + defenderPower;
   const attackerRatio = totalPower > 0 ? attackerPower / totalPower : 0.5;
@@ -114,5 +117,6 @@ function resolveCombat(attacker, defender, raidingPersonnel, toolTypes, rng) {
   attacker.wallet += walletStolen;
   const stabilityLoss = STABILITY_LOSS_BASE * attackerRatio;
   defender.stability = Math.max(0, defender.stability - stabilityLoss);
-  return { attackerRatio, attackerLosses, defenderLosses, attackerSurvivors, looted, walletStolen, stabilityLoss };
+  return { attackerRatio, attackerLosses, defenderLosses, attackerSurvivors, looted, walletStolen, stabilityLoss,
+    maritimeAssaultBonus };
 }

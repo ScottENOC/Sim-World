@@ -1,4 +1,4 @@
-import { KnowledgeLedger } from '../core/knowledge.js?v=20260903-mechanics1';
+import { KnowledgeLedger } from '../core/knowledge.js?v=20260904-potteryboats1';
 
 export class Region {
   constructor({ id, name, feature, centroid, areaSqKm, neighbors }) {
@@ -8,8 +8,9 @@ export class Region {
     this.controllingActorId = id; this.stability = 1.0; this.banditPopulation = 0;
     this.safetyRating = 1.0; this.educationLevel = 0.05; this.experience = {};
     this.targetArmySize = 0; this.army = { personnel: 0, away: 0 };
-    this.targetNavySize = 0; this.navy = { boats: 0, personnel: 0 };
-    this.isCoastal = false; this.adjacentSeaIds = []; this.fishingBoats = 0; this.targetFishingBoats = 0;
+    this.targetNavySize = 0; this.navy = { boats: 0, advancedBoats: 0, personnel: 0 };
+    this.isCoastal = false; this.adjacentSeaIds = []; this.fishingBoats = 0;
+    this.advancedFishingBoats = 0; this.targetFishingBoats = 0;
     this.landQuality = null; this.forest = null; this.deposits = null; this.stockpile = {};
     this.occupations = {}; this.report = {}; this.equipment = {}; this.militaryBronzeDemand = 0;
     this.wallet = 0; this.treasury = 0; this.unlockedTechIds = new Set();
@@ -46,7 +47,7 @@ export class Region {
 export async function loadWorld() {
   const [geoRes, metaRes, resourcesRes] = await Promise.all([
     fetch('data/world/regions.geo.json'), fetch('data/world/regions.meta.json'),
-    fetch('data/world/resources.initial.json?v=20260903-mechanics1'),
+    fetch('data/world/resources.initial.json?v=20260904-potteryboats1'),
   ]);
   const geo = await geoRes.json(); const meta = await metaRes.json(); const resources = await resourcesRes.json();
   const metaById = new Map(meta.regions.map((r) => [r.id, r]));
@@ -62,6 +63,17 @@ export async function loadWorld() {
     region.deposits = {};
     for (const [key, dep] of Object.entries(endowment.deposits)) {
       region.deposits[key] = { tiers: dep.tiers.map((tier) => ({ ...tier, remainingStock: tier.initialStock })) };
+    }
+    // Clay is deliberately common rather than another rare strategic ore.
+    // The procedural stock avoids inflating the already-large static map data
+    // with an almost identical entry for every region.
+    if (!region.deposits.clay) {
+      const clayStock = Math.max(50_000, Math.round(region.areaSqKm * 2_000));
+      region.deposits.clay = { tiers: [{
+        id: 'surface', label: 'Surface clay beds', initialStock: clayStock,
+        remainingStock: clayStock, difficulty: 0.12, requiredTechId: null,
+        maxWorkers: Math.max(20, Math.round(region.areaSqKm * 0.2)),
+      }] };
     }
     return region;
   });

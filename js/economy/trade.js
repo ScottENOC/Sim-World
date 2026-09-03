@@ -1,6 +1,7 @@
-import { localPrice, TRADABLE_RESOURCES } from './prices.js?v=20260903-mechanics1';
-import { directContactIds, knownRegionIds, recordDirectTrade, diffuseTradeNetworkKnowledge } from '../core/knowledge.js?v=20260903-mechanics1';
-import { centroidDistanceKm } from '../world/distance.js?v=20260903-mechanics1';
+import { localPrice, TRADABLE_RESOURCES } from './prices.js?v=20260904-potteryboats1';
+import { directContactIds, knownRegionIds, recordDirectTrade, diffuseTradeNetworkKnowledge } from '../core/knowledge.js?v=20260904-potteryboats1';
+import { centroidDistanceKm } from '../world/distance.js?v=20260904-potteryboats1';
+import { advancedMaritimeShare } from '../military/army.js?v=20260904-potteryboats1';
 
 const LAND_ADJACENT_COST = 0.02;
 const SEA_COST_PER_KM = 0.0002;
@@ -12,6 +13,37 @@ const CREDIT_WEEKS_OF_EXPORT_INCOME = 2;
 const CREDIT_PER_CAPITA_CAP = 0.002;
 const CREDIT_REPAYMENT_SHARE_OF_EXPORTS = 0.25;
 const ARREARS_STABILITY_LOSS = 0.001;
+const MAX_OPPORTUNITIES_PER_REGION = 64;
+const BASIC_SEA_RANGE_KM = 600;
+const ADVANCED_SEA_RANGE_KM = 1800;
+
+function sharesSea(regionA, regionB) {
+  return regionA.adjacentSeaIds.some((id) => regionB.adjacentSeaIds.includes(id));
+}
+
+function seaTransportProfile(regionA, regionB) {
+  const advancedShare = Math.max(advancedMaritimeShare(regionA), advancedMaritimeShare(regionB));
+  return {
+    advancedShare,
+    rangeKm: BASIC_SEA_RANGE_KM + (ADVANCED_SEA_RANGE_KM - BASIC_SEA_RANGE_KM) * advancedShare,
+    capacityMultiplier: 1 + advancedShare * 1.5,
+    costMultiplier: 1 - advancedShare * 0.45,
+  };
+}
+
+function routeGeometry(regionA, regionB) {
+  if (!(regionA._routeGeometryCache instanceof Map)) regionA._routeGeometryCache = new Map();
+  let geometry = regionA._routeGeometryCache.get(regionB.id);
+  if (!geometry) {
+    geometry = {
+      adjacent: regionA.neighbors.includes(regionB.id),
+      sharedSea: sharesSea(regionA, regionB),
+      distanceKm: centroidDistanceKm(regionA, regionB) ?? 500,
+    };
+    regionA._routeGeometryCache.set(regionB.id, geometry);
+  }
+  return geometry;
+}
 
 function clamp01(value) {
   return Math.max(0, Math.min(1, value));
@@ -84,32 +116,49 @@ function finishTradeWeek(region) {
 }
 
 export function routeCost(regionA, regionB) {
-  if (regionA.neighbors.includes(regionB.id)) return LAND_ADJACENT_COST;
-  const distanceKm = centroidDistanceKm(regionA, regionB);
-  return SEA_COST_PER_KM * (distanceKm ?? 500);
+  const geometry = routeGeometry(regionA, regionB);
+  if (geometry.adjacent) return LAND_ADJACENT_COST;
+  if (geometry.sharedSea) {
+    return SEA_COST_PER_KM * geometry.distanceKm * seaTransportProfile(regionA, regionB).costMultiplier;
+  }
+  // Non-adjacent inland markets represent a chain of short overland legs,
+  // not a magically available ocean route.
+  return LAND_ADJACENT_COST * 2 + SEA_COST_PER_KM * geometry.distanceKm * 0.25;
 }
 
-function findOpportunities(region, candidateRegions, knownIdsByRegion) {
+function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByRegion) {
   const opportunities = [];
+  const pricesHere = pricesByRegion.get(region.id);
+  const stockedResources = TRADABLE_RESOURCES.filter((resource) => (region.stockpile[resource] || 0) > 0.01);
   for (const dest of candidateRegions) {
     if (dest.id === region.id) continue;
     if (!knownIdsByRegion.get(dest.id)?.has(region.id)) continue;
+    const geometry = routeGeometry(region, dest);
+    const seaRoute = geometry.sharedSea && !geometry.adjacent;
+    const distanceKm = seaRoute ? geometry.distanceKm : 0;
+    const transport = seaRoute ? seaTransportProfile(region, dest) : { capacityMultiplier: 1, rangeKm: Infinity };
+    if (seaRoute && distanceKm > transport.rangeKm) continue;
     const reliability = routeReliability(region, dest);
     if (reliability <= 0.001) continue;
     const cost = routeCost(region, dest) + (1 - reliability) * 0.1;
-    for (const resource of TRADABLE_RESOURCES) {
-      const priceHere = localPrice(region, resource);
-      const priceThere = localPrice(dest, resource);
+    const pricesThere = pricesByRegion.get(dest.id);
+    for (const resource of stockedResources) {
+      const priceHere = pricesHere[resource];
+      const priceThere = pricesThere[resource];
       const gap = priceThere - priceHere - cost;
       if (gap <= MIN_PROFIT_THRESHOLD) continue;
       const stockAvailable = (region.stockpile[resource] || 0) * MAX_EXPORT_FRACTION_PER_TICK;
       if (stockAvailable <= 0) continue;
       const price = (priceHere + priceThere) / 2;
-      opportunities.push({ resource, dest, gap, stockAvailable, stockRemaining: stockAvailable, price, reliability });
+      opportunities.push({ resource, dest, gap, stockAvailable, stockRemaining: stockAvailable, price, reliability,
+        transportMultiplier: transport.capacityMultiplier });
     }
   }
   opportunities.sort((a, b) => b.gap - a.gap);
-  return opportunities;
+  // Once a region has dozens of profitable routes, evaluating hundreds of
+  // inferior alternatives in all three settlement rounds adds cost without
+  // changing what its limited traders can actually carry.
+  return opportunities.slice(0, MAX_OPPORTUNITIES_PER_REGION);
 }
 
 function executeTrades(region, opportunities, currentTick = null) {
@@ -121,7 +170,7 @@ function executeTrades(region, opportunities, currentTick = null) {
     const creditAvailable = Math.max(0, buyerEconomy.creditLimit - buyerEconomy.debt);
     const purchasingPower = Math.max(0, opp.dest.wallet) + creditAvailable;
     const maxByBuyerFunds = opp.price > 0 ? purchasingPower / opp.price : Infinity;
-    const maxByLabor = laborLeft * TRADE_UNITS_PER_TRADER * opp.reliability;
+    const maxByLabor = laborLeft * TRADE_UNITS_PER_TRADER * opp.reliability * (opp.transportMultiplier || 1);
     const volume = Math.max(0, Math.min(opp.stockRemaining, maxByBuyerFunds, maxByLabor));
     if (volume <= 0.01) continue;
     region.stockpile[opp.resource] -= volume;
@@ -154,7 +203,7 @@ function executeTrades(region, opportunities, currentTick = null) {
       opp.dest.recentTradePartners.set(region.id, currentTick);
     }
     recordDirectTrade(region, opp.dest, volume, currentTick);
-    const laborForThis = volume / TRADE_UNITS_PER_TRADER;
+    const laborForThis = volume / (TRADE_UNITS_PER_TRADER * (opp.transportMultiplier || 1));
     laborLeft -= laborForThis;
     laborUsed += laborForThis;
   }
@@ -189,6 +238,11 @@ export function tickTrade(regions, currentTick = null) {
   }
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   const knownIdsByRegion = new Map(regions.map((region) => [region.id, knownRegionIds(region)]));
+  // Local scarcity prices are invariant throughout opportunity discovery.
+  // Calculate each region/resource once rather than once per candidate pair.
+  const pricesByRegion = new Map(regions.map((region) => [region.id,
+    Object.fromEntries(TRADABLE_RESOURCES.map((resource) => [resource, localPrice(region, resource)]))
+  ]));
   const opportunitiesByRegion = new Map(regions.map((region) => {
     // A merchant chain may connect mutually-known markets beyond a literal
     // border. A cached breadth-first neighbourhood bounds this to 32 without
@@ -201,7 +255,7 @@ export function tickTrade(regions, currentTick = null) {
     const candidates = [...candidateIds]
       .map((id) => regionsById.get(id))
       .filter(Boolean);
-    return [region.id, findOpportunities(region, candidates, knownIdsByRegion)];
+    return [region.id, findOpportunities(region, candidates, knownIdsByRegion, pricesByRegion)];
   }));
   const laborUsedByRegion = new Map();
   for (const region of regions) {

@@ -1,4 +1,5 @@
 export const IRON_SMELTING_TECH_ID = 'iron_smelting';
+export const ADVANCED_BOATBUILDING_TECH_ID = 'advanced_boatbuilding';
 
 // With hundreds of independent regions, even a tiny per-region chance can
 // produce an early world-first. These values make accumulated craft knowledge
@@ -12,10 +13,34 @@ const TRADE_DIFFUSION_MEMORY_WEEKS = 104;
 const MAX_SCARCITY_EXPERIMENT_CHANCE = 3e-6;
 const IRON_ADOPTION_BASE_WEEKS = 520; // roughly a decade from first furnace to mature industry
 const MIGRANT_EXPOSURE_CHANCE = 0.02;
+const BOATBUILDING_EXPERIENCE_SCALE = 120_000;
+const MAX_ADVANCED_BOAT_CHANCE = 2e-5;
+const CHANCE_PER_ADVANCED_BOAT_PARTNER = 0.002;
 
 function smithingKnowledge(region) {
   const experience = region.experience?.smithing || 0;
   return 1 - Math.exp(-experience / SMITHING_EXPERIENCE_SCALE);
+}
+
+function boatbuildingKnowledge(region) {
+  const experience = region.experience?.boatbuilding || 0;
+  return 1 - Math.exp(-experience / BOATBUILDING_EXPERIENCE_SCALE);
+}
+
+export function advancedBoatbuildingChance(region, regionsById, currentTick = null) {
+  if (region.unlockedTechIds.has(ADVANCED_BOATBUILDING_TECH_ID) || !region.isCoastal) return 0;
+  const independentChance = boatbuildingKnowledge(region) * MAX_ADVANCED_BOAT_CHANCE;
+  let knowledgeablePartners = 0;
+  const recentPartners = region.recentTradePartners instanceof Map
+    ? [...region.recentTradePartners.entries()]
+        .filter(([, tick]) => currentTick === null || currentTick - tick <= TRADE_DIFFUSION_MEMORY_WEEKS)
+        .map(([id]) => id)
+    : [...(region.tradePartnerIds || [])];
+  for (const partnerId of recentPartners) {
+    if (regionsById.get(partnerId)?.unlockedTechIds.has(ADVANCED_BOATBUILDING_TECH_ID)) knowledgeablePartners++;
+  }
+  const partnerChance = 1 - Math.pow(1 - CHANCE_PER_ADVANCED_BOAT_PARTNER, knowledgeablePartners);
+  return 1 - (1 - independentChance) * (1 - partnerChance);
 }
 
 function bronzeScarcityPressure(region) {
@@ -69,12 +94,22 @@ export function tickBreakthroughs(regions, currentTick, rng = Math.random) {
   // Calculate all chances from the start-of-tick state. A discovery therefore
   // begins influencing partners next week instead of cascading through an
   // entire trade network in one loop iteration.
-  const discoveries = regions.filter((region) => rng() < ironSmeltingChance(region, regionsById, currentTick));
-  for (const region of discoveries) {
+  const ironDiscoveries = regions.filter((region) => rng() < ironSmeltingChance(region, regionsById, currentTick));
+  const boatDiscoveries = regions.filter((region) => rng() < advancedBoatbuildingChance(region, regionsById, currentTick));
+  for (const region of ironDiscoveries) {
     region.unlockedTechIds.add(IRON_SMELTING_TECH_ID);
     region.ironWorkingReadiness = Math.max(0.02, region.ironWorkingReadiness || 0);
     events.push({
       type: 'iron_smelting_breakthrough',
+      regionId: region.id,
+      regionName: region.name,
+      tick: currentTick,
+    });
+  }
+  for (const region of boatDiscoveries) {
+    region.unlockedTechIds.add(ADVANCED_BOATBUILDING_TECH_ID);
+    events.push({
+      type: 'advanced_boatbuilding_breakthrough',
       regionId: region.id,
       regionName: region.name,
       tick: currentTick,

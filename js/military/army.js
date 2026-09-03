@@ -1,4 +1,4 @@
-import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260903-mechanics1';
+import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-potteryboats1';
 
 // Recruitment/demobilization ramps toward the player's target rather than
 // snapping instantly — mobilizing an army takes real time, and disbanding
@@ -7,6 +7,27 @@ const ARMY_MOBILIZATION_RATE = 0.08;
 const ARMY_DEMOBILIZATION_RATE = 0.15;
 
 export const CREW_PER_BOAT = 8; // sailors needed to crew one boat
+export const CREW_PER_ADVANCED_BOAT = 12;
+
+export function basicNavyBoats(region) {
+  return Math.max(0, (region.navy?.boats || 0) - (region.navy?.advancedBoats || 0));
+}
+
+export function navyTransportCapacity(region) {
+  return basicNavyBoats(region) * 10 + Math.max(0, region.navy?.advancedBoats || 0) * 18;
+}
+
+export function advancedNavyShare(region) {
+  const total = Math.max(0, region.navy?.boats || 0);
+  return total > 0 ? Math.max(0, region.navy?.advancedBoats || 0) / total : 0;
+}
+
+export function advancedMaritimeShare(region) {
+  const advanced = Math.max(0, region.navy?.advancedBoats || 0) +
+    Math.max(0, region.advancedFishingBoats || 0);
+  const total = Math.max(0, region.navy?.boats || 0) + Math.max(0, region.fishingBoats || 0);
+  return total > 0 ? Math.min(1, advanced / total) : 0;
+}
 
 // Adjusts region.army.personnel toward region.targetArmySize, drawing from
 // (or releasing back to) `availableLabor`. Gap is measured against total
@@ -34,7 +55,8 @@ export function adjustArmySize(region, availableLabor) {
 // (region.navy.boats * CREW_PER_BOAT), not set directly by the player —
 // the player sets a target *fleet size* in boats; crew follows from that.
 export function adjustNavyCrew(region, availableLabor) {
-  const targetCrew = region.navy.boats * CREW_PER_BOAT;
+  const targetCrew = basicNavyBoats(region) * CREW_PER_BOAT +
+    Math.max(0, region.navy.advancedBoats || 0) * CREW_PER_ADVANCED_BOAT;
   const gap = targetCrew - region.navy.personnel;
   let change = 0;
   if (gap > 0) {

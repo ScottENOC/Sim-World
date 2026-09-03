@@ -4,6 +4,7 @@
   "copper": { "category": "extractive", "label": "Copper" },
   "tin":    { "category": "extractive", "label": "Tin" },
   "ironOre": { "category": "extractive", "label": "Iron ore" },
+  "clay":   { "category": "extractive", "label": "Clay" },
   "gold":   { "category": "extractive", "label": "Gold" },
   "bronze": {
     "category": "crafted",
@@ -15,5 +16,16 @@
     "label": "Iron",
     "recipe": { "inputs": { "ironOre": 1 }, "laborType": "smith", "requiredTechId": "iron_smelting" }
   },
+  "pottery": {
+    "category": "crafted",
+    "label": "Pottery",
+    "recipe": { "inputs": { "clay": 1, "wood": 0.2 }, "laborType": "potter" }
+  },
+  "pitch": {
+    "category": "crafted",
+    "label": "Pitch",
+    "recipe": { "inputs": { "wood": 2 }, "laborType": "pitchMaker" }
+  },
+  "textiles": { "category": "crafted", "label": "Textiles", "laborType": "textileWorker" },
   "food":   { "category": "flow", "label": "Food" }
 }

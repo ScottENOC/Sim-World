@@ -15,6 +15,9 @@ const CEILING = {
   lumberjack: 0.35,
   mining: 0.40,
   smithing: 0.45,
+  pottery: 0.35,
+  textiles: 0.30,
+  boatbuilding: 0.45,
 };
 
 // Cumulative worker-ticks to reach ~63% of the ceiling (1 - 1/e). Scaled
@@ -32,6 +35,9 @@ const EXPERIENCE_HALFLIFE = {
   lumberjack: 20_000,
   mining: 2_500_000,
   smithing: 75_000,
+  pottery: 250_000,
+  textiles: 300_000,
+  boatbuilding: 120_000,
 };
 
 export const LEARNABLE_ACTIVITIES = Object.keys(CEILING);

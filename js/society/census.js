@@ -36,6 +36,10 @@ export function seedCensus(regions, rng = Math.random) {
     // not credit: borrowing remains capped far below this in trade.js.
     region.wallet = region.population * 0.05;
     region.treasury = region.population * 0.002;
+    // Pottery predates the starting era. Regions begin with ordinary household
+    // vessels, while continued production is needed to replace breakage and
+    // expand storage as populations grow.
+    region.stockpile.pottery = region.population * 0.45;
 
     region.cultureGroups = [
       {
