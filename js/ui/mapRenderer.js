@@ -27,13 +27,14 @@ function lerpColor(hexA, hexB, t) {
 }
 
 export class MapRenderer {
-  constructor(canvas, regions, { onSelect, seaRegions = [], isRegionVisible = () => true } = {}) {
+  constructor(canvas, regions, { onSelect, seaRegions = [], isRegionVisible = () => true, isSeaRegionVisible = () => true } = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.regions = regions;
     this.seaRegions = seaRegions;
     this.onSelect = onSelect || (() => {});
     this.isRegionVisible = isRegionVisible;
+    this.isSeaRegionVisible = isSeaRegionVisible;
     this.selectedId = null;
     this.transform = d3.zoomIdentity;
     this.layer = null;
@@ -42,13 +43,13 @@ export class MapRenderer {
     this._resize();
     window.addEventListener('resize', () => this._resize());
 
-    this.featureCollection = {
+    const featureCollection = {
       type: 'FeatureCollection',
       features: [...regions.map((r) => r.feature), ...seaRegions.map((s) => s.feature)],
     };
 
     this.projection = d3.geoMercator();
-    this._fitProjection(this.featureCollection);
+    this._fitProjection(featureCollection);
     this.path = d3.geoPath(this.projection, this.ctx);
 
     this._setupZoom();
@@ -71,10 +72,7 @@ export class MapRenderer {
     this.canvas.width = this.width * dpr;
     this.canvas.height = this.height * dpr;
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    if (this.path) {
-      this._fitProjection(this.featureCollection);
-      this.draw();
-    }
+    if (this.path) this.draw();
   }
 
   _setupZoom() {
@@ -120,27 +118,6 @@ export class MapRenderer {
     }
 
     return null;
-  }
-
-  focusRegion(region) {
-    if (!region?.feature || !this._zoom) return;
-
-    const bounds = d3.geoPath(this.projection).bounds(region.feature);
-    const [[x0, y0], [x1, y1]] = bounds;
-    const dx = Math.max(1, x1 - x0);
-    const dy = Math.max(1, y1 - y0);
-    const cx = (x0 + x1) / 2;
-    const cy = (y0 + y1) / 2;
-
-    // Leave generous context around the starting region; cap at the same
-    // maximum scale allowed to pinch-zoom manually.
-    const k = Math.max(1, Math.min(12, 0.55 / Math.max(dx / this.width, dy / this.height)));
-    const transform = d3.zoomIdentity
-      .translate(this.width / 2, this.height / 2)
-      .scale(k)
-      .translate(-cx, -cy);
-
-    d3.select(this.canvas).call(this._zoom.transform, transform);
   }
 
   setLayer(config) {
@@ -243,13 +220,14 @@ export class MapRenderer {
     ctx.translate(this.transform.x, this.transform.y);
     ctx.scale(this.transform.k, this.transform.k);
 
-    // Seas remain visible: fog of war hides land regions and their
-    // information, while the existing sea layer continues to provide
-    // geographic context.
+    // A sea is only drawn once at least one adjacent land region is visible.
+    // Otherwise the outline of a hidden coastline would leak map knowledge.
     ctx.lineWidth = 1 / this.transform.k;
     ctx.strokeStyle = COLORS.seaBorder;
 
     for (const sea of this.seaRegions) {
+      if (!this.isSeaRegionVisible(sea)) continue;
+
       const stockFraction = sea.fish.K > 0 ? sea.fish.currentStock / sea.fish.K : 0;
 
       ctx.beginPath();
