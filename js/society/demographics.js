@@ -41,6 +41,7 @@ function clamp01(v) {
 }
 
 export function tickDemographics(regions) {
+  const regionsById = new Map(regions.map((region) => [region.id, region]));
   for (const region of regions) {
     applyBaselineDemographics(region);
   }
@@ -48,7 +49,7 @@ export function tickDemographics(regions) {
   // destinations, so it runs as its own pass once baseline demographics are
   // settled for everyone this tick.
   for (const region of regions) {
-    applyFamineResponse(region, regions);
+    applyFamineResponse(region, regionsById);
   }
 }
 
@@ -85,7 +86,7 @@ function applyBaselineDemographics(region) {
   region.population = Math.round(d.children + d.workingAge + d.elderly);
 }
 
-function applyFamineResponse(region, allRegions) {
+function applyFamineResponse(region, regionsById) {
   const foodNeeded = region._foodNeeded || 0;
   const shortfall = Math.max(0, -(region.stockpile.food || 0));
   const deficitRatio = foodNeeded > 0 ? shortfall / foodNeeded : 0;
@@ -104,13 +105,19 @@ function applyFamineResponse(region, allRegions) {
   const emigrants = distressed * FAMINE_EMIGRATE_SHARE;
   const banditsNew = distressed * FAMINE_BANDIT_SHARE;
 
-  removeFromBands(region, deaths + emigrants + banditsNew);
+  const destinations = emigrants > 0
+    ? chooseEmigrationDestinations(region, regionsById, emigrants)
+    : [];
+  const emigrantsWhoFoundADestination = destinations.reduce((sum, route) => sum + route.count, 0);
+
+  // People only leave for places their community knows about. If no known
+  // destination can receive them, the would-be emigrants remain at home this
+  // week rather than disappearing from the simulated population.
+  removeFromBands(region, deaths + emigrantsWhoFoundADestination + banditsNew);
   region.banditPopulation += banditsNew;
 
-  if (emigrants > 0) {
-    for (const { dest, count } of chooseEmigrationDestinations(region, allRegions, emigrants)) {
-      addToBands(dest, count);
-    }
+  for (const { dest, count } of destinations) {
+    addToBands(dest, count);
   }
 
   syncPopulation(region);

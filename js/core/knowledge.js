@@ -105,6 +105,7 @@ export class KnowledgeLedger {
   constructor(ownerId) {
     this.ownerId = ownerId;
     this.observations = [];
+    this.knownSubjectIds = new Set();
     this.directContactIds = new Set();
     this._observationByStream = new Map();
   }
@@ -123,10 +124,12 @@ export class KnowledgeLedger {
   }
 
   _rebuildIndexes() {
+    this.knownSubjectIds.clear();
     this.directContactIds.clear();
     this._observationByStream.clear();
     for (const observation of this.observations) {
       this._observationByStream.set(this._streamKey(observation), observation);
+      this.knownSubjectIds.add(observation.subjectId);
       if (DIRECT_CONTACT_SOURCES.has(observation.source)) {
         this.directContactIds.add(observation.subjectId);
       }
@@ -191,6 +194,7 @@ export class KnowledgeLedger {
 
     this.observations.push(observation);
     this._observationByStream.set(streamKey, observation);
+    this.knownSubjectIds.add(subjectId);
     if (DIRECT_CONTACT_SOURCES.has(source)) this.directContactIds.add(subjectId);
     return observation;
   }
@@ -458,6 +462,11 @@ export function hasDirectContact(regionA, regionB) {
 export function directContactIds(region) {
   if (!region) return new Set();
   return new Set([...(region.neighbors || []), ...(getLedger(region)?.directContactIds || [])]);
+}
+
+export function knownRegionIds(region) {
+  if (!region) return new Set();
+  return new Set([...(region.neighbors || []), ...(getLedger(region)?.knownSubjectIds || [])]);
 }
 
 export function pruneKnowledge(regions, currentTick, maxAgeWeeks = MAX_OBSERVATION_AGE_WEEKS) {

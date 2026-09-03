@@ -1,5 +1,6 @@
 import { localPrice } from '../economy/prices.js';
 import { routeCost } from '../economy/trade.js';
+import { knownRegionIds } from '../core/knowledge.js';
 
 const DENSITY_REFERENCE = 6; // people/km² — same "crowded" threshold gathering uses
 
@@ -14,15 +15,15 @@ function attractiveness(dest) {
   return Math.max(0.01, dest.stability) * landScore * breadScore;
 }
 
-// Splits `emigrantCount` people leaving `region` across every other region,
-// weighted by attractiveness and discounted by distance/route cost — most
-// go to the single best nearby option, but desperate populations don't
-// coordinate perfectly, so it's a distribution, not a single winner-take-all
-// destination. Returns [] if literally nowhere looks better than staying
-// (everywhere is equally bad, or unreachable).
-export function chooseEmigrationDestinations(region, allRegions, emigrantCount) {
-  const scored = allRegions
-    .filter((r) => r.id !== region.id)
+// Splits `emigrantCount` people leaving `region` across destinations present
+// in that region's knowledge ledger, weighted by attractiveness and discounted
+// by distance/route cost. Knowledge creates a natural local horizon early on,
+// then permits longer migrations as exploration and trade spread information.
+// Returns [] if no known destination is viable.
+export function chooseEmigrationDestinations(region, regionsById, emigrantCount) {
+  const scored = [...knownRegionIds(region)]
+    .map((id) => regionsById.get(id))
+    .filter((dest) => dest && dest.id !== region.id)
     .map((dest) => {
       const cost = routeCost(region, dest);
       return { dest, score: attractiveness(dest) / (1 + cost) };

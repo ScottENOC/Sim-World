@@ -5,7 +5,7 @@
 // is clearly worth it. AI only considers regions it has actually met.
 import { toolEfficiencyMultiplier } from '../economy/tools.js';
 import { canRaid, launchRaid } from '../military/raiding.js';
-import { knowledgeOf, KNOWLEDGE_THRESHOLDS } from '../core/knowledge.js';
+import { directContactIds, knowledgeOf, KNOWLEDGE_THRESHOLDS } from '../core/knowledge.js';
 
 const BASE_ARMY_FRACTION = 0.02;
 const THREAT_ARMY_MULTIPLIER = 2.0;
@@ -21,10 +21,11 @@ function clamp01(v) {
 }
 
 export function tickNationAi(regions, playerRegionId, activeRaids, currentTick, toolTypes, rng) {
+  const regionsById = new Map(regions.map((region) => [region.id, region]));
   for (const region of regions) {
     if (region.controllingActorId === playerRegionId) continue;
     setMilitaryTargets(region);
-    maybeRaid(region, regions, activeRaids, currentTick, toolTypes, rng);
+    maybeRaid(region, regionsById, activeRaids, currentTick, toolTypes, rng);
   }
 }
 
@@ -38,7 +39,7 @@ function setMilitaryTargets(region) {
   }
 }
 
-function maybeRaid(region, allRegions, activeRaids, currentTick, toolTypes, rng) {
+function maybeRaid(region, regionsById, activeRaids, currentTick, toolTypes, rng) {
   if (region.army.away > 0) return;
   if (region.army.personnel < MIN_HOME_ARMY_TO_CONSIDER_RAIDING) return;
   if (region.safetyRating < MIN_SAFETY_TO_CONSIDER_RAIDING) return;
@@ -49,8 +50,9 @@ function maybeRaid(region, allRegions, activeRaids, currentTick, toolTypes, rng)
 
   let best = null;
   let bestScore = -Infinity;
-  for (const target of allRegions) {
-    if (target.id === region.id) continue;
+  for (const targetId of directContactIds(region)) {
+    const target = regionsById.get(targetId);
+    if (!target || target.id === region.id) continue;
     const reach = canRaid(region, target);
     if (!reach.possible) continue; // includes the knowledge/fog-of-war check
 
