@@ -1,7 +1,7 @@
-import { effectivePower } from './army.js?v=20260904-potteryboats1';
-import { addWorkingAgePopulation, removeFromBands, syncPopulation } from '../society/demographics.js?v=20260904-potteryboats1';
-import { FOOD_PER_PERSON_PER_WEEK } from '../economy/labor.js?v=20260904-potteryboats1';
-import { directContactIds } from '../core/knowledge.js?v=20260904-potteryboats1';
+import { effectivePower } from './army.js?v=20260904-finance1';
+import { addWorkingAgePopulation, removeFromBands, syncPopulation } from '../society/demographics.js?v=20260904-finance1';
+import { FOOD_PER_PERSON_PER_WEEK } from '../economy/labor.js?v=20260904-finance1';
+import { directContactIds } from '../core/knowledge.js?v=20260904-finance1';
 
 // Even with zero army, a bandit group doesn't last forever — disorganized,
 // exposed, some natural die-off. Suppression on top of that scales with
@@ -83,6 +83,7 @@ export function tickBanditry(regions, toolTypes) {
       // the state cannot control the roads. This directly weakens a failed
       // region's ability to replace scarce tools or equip an army.
       region.wallet *= (1 - raidLossFraction * 0.1);
+      region.treasury *= (1 - raidLossFraction * 0.15);
     }
 
     // Bandits eat from what they seized, holding at most a few weeks of food.

@@ -1,19 +1,20 @@
-import { Clock } from './core/clock.js?v=20260904-potteryboats1';
-import { EventBus } from './core/eventBus.js?v=20260904-potteryboats1';
-import { loadWorld } from './world/region.js?v=20260904-potteryboats1';
-import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260904-potteryboats1';
-import { seedCensus, densityPerKm2 } from './society/census.js?v=20260904-potteryboats1';
-import { tickEconomy } from './economy/labor.js?v=20260904-potteryboats1';
-import { tickTrade } from './economy/trade.js?v=20260904-potteryboats1';
-import { tickDemographics } from './society/demographics.js?v=20260904-potteryboats1';
-import { tickBanditry } from './military/banditry.js?v=20260904-potteryboats1';
-import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable } from './military/raiding.js?v=20260904-potteryboats1';
-import { tickNationAi } from './ai/nationAi.js?v=20260904-potteryboats1';
-import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260904-potteryboats1';
-import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID } from './technology/breakthroughs.js?v=20260904-potteryboats1';
-import { MapRenderer } from './ui/mapRenderer.js?v=20260904-potteryboats1';
-import { FogOfWar } from './core/fogOfWar.js?v=20260904-potteryboats1';
-import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260904-potteryboats1';
+import { Clock } from './core/clock.js?v=20260904-finance1';
+import { EventBus } from './core/eventBus.js?v=20260904-finance1';
+import { loadWorld } from './world/region.js?v=20260904-finance1';
+import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260904-finance1';
+import { seedCensus, densityPerKm2 } from './society/census.js?v=20260904-finance1';
+import { tickEconomy } from './economy/labor.js?v=20260904-finance1';
+import { tickTrade } from './economy/trade.js?v=20260904-finance1';
+import { tickStateFinance } from './economy/stateFinance.js?v=20260904-finance1';
+import { tickDemographics } from './society/demographics.js?v=20260904-finance1';
+import { tickBanditry } from './military/banditry.js?v=20260904-finance1';
+import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable } from './military/raiding.js?v=20260904-finance1';
+import { tickNationAi } from './ai/nationAi.js?v=20260904-finance1';
+import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260904-finance1';
+import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID } from './technology/breakthroughs.js?v=20260904-finance1';
+import { MapRenderer } from './ui/mapRenderer.js?v=20260904-finance1';
+import { FogOfWar } from './core/fogOfWar.js?v=20260904-finance1';
+import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260904-finance1';
 
 const START_YEAR = -1400; // prosperous runway before century-scale surface tin begins to fail
 const LAYERS = {
@@ -51,7 +52,7 @@ async function main() {
   linkSeaAdjacency(regions, seaRegions);
   const fishingContactPairs = buildFishingContactPairs(regions, seaRegions);
   initialiseKnowledge(regions);
-  const toolTypes = await (await fetch('data/world/toolTypes.json?v=20260904-potteryboats1')).json();
+  const toolTypes = await (await fetch('data/world/toolTypes.json?v=20260904-finance1')).json();
 
   console.log(
     `Loaded ${regions.length} regions:`,
@@ -111,6 +112,7 @@ async function main() {
     pruneKnowledge(regions, clock.tickIndex);
     tickFishingKnowledge(fishingContactPairs, clock.tickIndex);
     tickTrade(regions, clock.tickIndex);
+    tickStateFinance(regions);
     const breakthroughEvents = tickBreakthroughs(regions, clock.tickIndex, Math.random);
     tickDemographics(regions);
     tickBanditry(regions, toolTypes);
@@ -619,7 +621,7 @@ function showNextEvent(clock, eventQueue) {
     ${won ? 'The raid succeeded.' : 'The defenders held them off.'}<br><br>
     Attacker losses: ${outcome.attackerLosses.toLocaleString()}<br>
     Defender losses: ${outcome.defenderLosses.toLocaleString()}<br>
-    Looted: ${lootText}${outcome.walletStolen > 0.5 ? `, ${outcome.walletStolen.toFixed(0)} wealth` : ''}<br>
+    Looted: ${lootText}${outcome.walletStolen > 0.5 ? `, ${outcome.walletStolen.toFixed(0)} household wealth` : ''}${outcome.treasuryStolen > 0.5 ? `, ${outcome.treasuryStolen.toFixed(0)} treasury wealth` : ''}<br>
     ${defenderName}'s stability fell ${(outcome.stabilityLoss * 100).toFixed(0)} points.<br>
     ${knowledgeText}
   `;
@@ -732,6 +734,13 @@ function buildReportSection(region) {
       if (data.boatLosses > 0.01) losses.push(`${data.boatLosses.toFixed(2)} boats worn out`);
       if (data.potteryBroken > 0.1) losses.push(`${data.potteryBroken.toFixed(0)} pots broken`);
       if (losses.length) lines.push(`<div>Wear and breakage: ${losses.join(' &middot; ')}</div>`);
+      continue;
+    }
+    if (key === 'stateFinance') {
+      const payroll = data.payrollDue > 0
+        ? `${(data.payRatio * 100).toFixed(0)}% payroll funded`
+        : 'no military payroll';
+      lines.push(`<div>State finance: ${data.revenue.toFixed(1)} revenue &middot; ${payroll} &middot; ${(data.readiness * 100).toFixed(0)}% military readiness &middot; ${(data.stateCapacity * 100).toFixed(0)}% administrative capacity${data.procurementSpent > 0.05 ? ` &middot; ${data.procurementSpent.toFixed(1)} arms spending` : ''}${data.deserters > 0.5 ? ` &middot; ${data.deserters.toFixed(0)} deserters` : ''}</div>`);
       continue;
     }
     if (key === 'banditry') {
@@ -848,6 +857,8 @@ function updateRegionStats(region, seaRegionsById, fogOfWar, regions, playerRegi
     : '';
   const foodDependence = region.report?.foodPlan?.importDependence || 0;
   const tradeLine = `Recent exports ${(tradeEconomy.exportIncomeEma || 0).toFixed(0)}/week &middot; food imports ${(tradeEconomy.foodImportEma || 0).toFixed(0)} rations/week${foodDependence > 0.005 ? ` &middot; planned food dependence ${(foodDependence * 100).toFixed(0)}%` : ''}`;
+  const militaryFinance = region.militaryFinance || {};
+  const financeLine = `Revenue ${(militaryFinance.revenueEma || 0).toFixed(1)}/week &middot; administration ${((militaryFinance.stateCapacity ?? 1) * 100).toFixed(0)}% &middot; payroll ${((militaryFinance.payRatio ?? 1) * 100).toFixed(0)}% &middot; readiness ${((militaryFinance.readiness ?? 1) * 100).toFixed(0)}% &middot; funded force cap ${Number.isFinite(militaryFinance.fundedPersonnelCap) ? Math.round(militaryFinance.fundedPersonnelCap).toLocaleString() : 'unlimited'}${militaryFinance.arrearsWeeks > 0 ? ` &middot; ${militaryFinance.arrearsWeeks} weeks arrears` : ''}`;
 
   const skillLine = LEARNABLE_ACTIVITIES
     .map((activity) => `${activity} +${((skillMultiplier(region, activity) - 1) * 100).toFixed(0)}%`)
@@ -878,7 +889,7 @@ function updateRegionStats(region, seaRegionsById, fogOfWar, regions, playerRegi
     ${knowsDetailed ? `<div>Skill (learning by doing): ${skillLine}</div>` : ''}
     ${knowsDetailed ? `<div>Iron smelting: ${region.unlockedTechIds.has(IRON_SMELTING_TECH_ID) ? `discovered &middot; industry ${(region.ironWorkingReadiness * 100).toFixed(0)}% established` : 'not yet discovered'}</div>` : ''}
     ${knowsDetailed ? `<div>Advanced boatbuilding: ${region.unlockedTechIds.has(ADVANCED_BOATBUILDING_TECH_ID) ? 'discovered' : 'not yet discovered'}</div>` : ''}
-    ${knowsEconomy ? `<div>Wealth: ${region.wallet.toFixed(0)} populace &middot; ${region.treasury.toFixed(0)} treasury${creditLine}</div><div>Trade: ${tradeLine}</div>` : '<div>Wealth: unknown</div>'}
+    ${knowsEconomy ? `<div>Wealth: ${region.wallet.toFixed(0)} populace &middot; ${region.treasury.toFixed(0)} treasury${creditLine}</div><div>State: ${financeLine}</div><div>Trade: ${tradeLine}</div>` : '<div>Wealth: unknown</div>'}
     ${knowsDetailed ? `<div>Tools: ${toolLine}</div><div>Culture: ${culture.cultureId} &middot; identity strength ${(culture.identityStrength * 100).toFixed(0)}%</div>` : ''}
     <div>Neighbours: ${neighbourLine}</div>
     <div>Controlled by: ${fogOfWar.devMode ? region.controllingActorId : (region.controllingActorId === region.id ? region.name : 'another ruler')}</div>

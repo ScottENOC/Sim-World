@@ -1,7 +1,8 @@
-import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-potteryboats1';
-import { hasDirectContact, learnAbout } from '../core/knowledge.js?v=20260904-potteryboats1';
-import { centroidDistanceKm } from '../world/distance.js?v=20260904-potteryboats1';
-import { advancedNavyShare, navyTransportCapacity } from './army.js?v=20260904-potteryboats1';
+import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-finance1';
+import { hasDirectContact, learnAbout } from '../core/knowledge.js?v=20260904-finance1';
+import { centroidDistanceKm } from '../world/distance.js?v=20260904-finance1';
+import { advancedNavyShare, navyTransportCapacity } from './army.js?v=20260904-finance1';
+import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-finance1';
 
 const LAND_SPEED_KM_PER_WEEK = 120;
 const SEA_SPEED_KM_PER_WEEK = 200;
@@ -91,8 +92,8 @@ function resolveCombat(attacker, defender, raidingPersonnel, toolTypes, rng, via
   const attackerEquip = toolEfficiencyMultiplier(attacker, 'soldier', toolTypes.soldier, attacker.unlockedTechIds);
   const defenderEquip = toolEfficiencyMultiplier(defender, 'soldier', toolTypes.soldier, defender.unlockedTechIds);
   const maritimeAssaultBonus = viaSea ? 1 + advancedNavyShare(attacker) * 0.5 : 1;
-  const attackerPower = raidingPersonnel * attackerEquip * maritimeAssaultBonus;
-  const defenderPower = defender.army.personnel * defenderEquip * DEFENDER_HOME_ADVANTAGE;
+  const attackerPower = raidingPersonnel * attackerEquip * maritimeAssaultBonus * militaryReadiness(attacker);
+  const defenderPower = defender.army.personnel * defenderEquip * DEFENDER_HOME_ADVANTAGE * militaryReadiness(defender);
   const totalPower = attackerPower + defenderPower;
   const attackerRatio = totalPower > 0 ? attackerPower / totalPower : 0.5;
   const variance = () => 0.7 + rng() * 0.6;
@@ -113,10 +114,13 @@ function resolveCombat(attacker, defender, raidingPersonnel, toolTypes, rng, via
     }
   }
   const walletStolen = defender.wallet * stealFraction;
+  const treasuryStolen = defender.treasury * stealFraction;
   defender.wallet -= walletStolen;
-  attacker.wallet += walletStolen;
+  defender.treasury -= treasuryStolen;
+  attacker.wallet += walletStolen + treasuryStolen;
   const stabilityLoss = STABILITY_LOSS_BASE * attackerRatio;
   defender.stability = Math.max(0, defender.stability - stabilityLoss);
-  return { attackerRatio, attackerLosses, defenderLosses, attackerSurvivors, looted, walletStolen, stabilityLoss,
+  return { attackerRatio, attackerLosses, defenderLosses, attackerSurvivors, looted, walletStolen,
+    treasuryStolen, stabilityLoss,
     maritimeAssaultBonus };
 }

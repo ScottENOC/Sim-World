@@ -1,4 +1,4 @@
-import { KnowledgeLedger } from '../core/knowledge.js?v=20260904-potteryboats1';
+import { KnowledgeLedger } from '../core/knowledge.js?v=20260904-finance1';
 
 export class Region {
   constructor({ id, name, feature, centroid, areaSqKm, neighbors }) {
@@ -14,6 +14,13 @@ export class Region {
     this.landQuality = null; this.forest = null; this.deposits = null; this.stockpile = {};
     this.occupations = {}; this.report = {}; this.equipment = {}; this.militaryBronzeDemand = 0;
     this.wallet = 0; this.treasury = 0; this.unlockedTechIds = new Set();
+    this.militaryFinance = {
+      weeklyTaxRevenue: 0, weeklyTradeDuties: 0, revenueEma: 0,
+      payrollDue: 0, payrollPaid: 0, payRatio: 1, readiness: 1,
+      arrearsWeeks: 0, procurementBudget: 0, procurementSpent: 0,
+      weeklyProcurementSpent: 0, fundedPersonnelCap: Infinity, deserters: 0,
+      administrationDue: 0, administrationPaid: 0, stateCapacity: 1,
+    };
     // Knowing iron smelting and having an iron industry are deliberately
     // separate. Readiness ramps as mines, furnaces and smiths adapt.
     this.ironWorkingReadiness = 0;
@@ -47,7 +54,7 @@ export class Region {
 export async function loadWorld() {
   const [geoRes, metaRes, resourcesRes] = await Promise.all([
     fetch('data/world/regions.geo.json'), fetch('data/world/regions.meta.json'),
-    fetch('data/world/resources.initial.json?v=20260904-potteryboats1'),
+    fetch('data/world/resources.initial.json?v=20260904-finance1'),
   ]);
   const geo = await geoRes.json(); const meta = await metaRes.json(); const resources = await resourcesRes.json();
   const metaById = new Map(meta.regions.map((r) => [r.id, r]));

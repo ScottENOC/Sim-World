@@ -1,8 +1,9 @@
-import { extractionRate, selectActiveTier } from '../world/resources/extraction.js?v=20260904-potteryboats1';
-import { regrow, neighborSpreadBonus } from '../world/resources/renewables.js?v=20260904-potteryboats1';
-import { toolEfficiencyMultiplier, desiredToolInvestment, investInTools, wearOutTools } from './tools.js?v=20260904-potteryboats1';
-import { adjustArmySize, adjustNavyCrew } from '../military/army.js?v=20260904-potteryboats1';
-import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260904-potteryboats1';
+import { extractionRate, selectActiveTier } from '../world/resources/extraction.js?v=20260904-finance1';
+import { regrow, neighborSpreadBonus } from '../world/resources/renewables.js?v=20260904-finance1';
+import { toolEfficiencyMultiplier, desiredToolInvestment, investInTools, wearOutTools, materialUnitCost } from './tools.js?v=20260904-finance1';
+import { adjustArmySize, adjustNavyCrew } from '../military/army.js?v=20260904-finance1';
+import { spendMilitaryProcurement } from './stateFinance.js?v=20260904-finance1';
+import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260904-finance1';
 
 // --- Tunable constants -----------------------------------------------------
 // All placeholders, calibrated so a "typical" region can just about feed
@@ -773,12 +774,24 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
     const pool = region.stockpile[material];
     for (const [occupation, want] of toolWants) {
       if (want.material !== material || want.materialWanted <= 0) continue;
-      region.stockpile[material] -= investInTools(
+      let materialAvailable = pool * (want.materialWanted / totalToolWant);
+      const unitCost = materialUnitCost(region, material);
+      if (occupation === 'soldier') {
+        materialAvailable = Math.min(
+          materialAvailable,
+          (region.militaryFinance?.procurementBudget || 0) / Math.max(0.001, unitCost)
+        );
+      }
+      const materialSpent = investInTools(
         region,
         occupation,
         want,
-        pool * (want.materialWanted / totalToolWant)
+        materialAvailable
       );
+      region.stockpile[material] -= materialSpent;
+      if (occupation === 'soldier' && materialSpent > 0) {
+        spendMilitaryProcurement(region, materialSpent * unitCost);
+      }
     }
   }
 

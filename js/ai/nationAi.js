@@ -3,9 +3,10 @@
 // a military target that scales with how threatened it feels, and an
 // occasional, cautious evaluation of whether raiding a reachable neighbor
 // is clearly worth it. AI only considers regions it has actually met.
-import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-potteryboats1';
-import { canRaid, launchRaid } from '../military/raiding.js?v=20260904-potteryboats1';
-import { directContactIds, knowledgeOf, KNOWLEDGE_THRESHOLDS } from '../core/knowledge.js?v=20260904-potteryboats1';
+import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-finance1';
+import { canRaid, launchRaid } from '../military/raiding.js?v=20260904-finance1';
+import { directContactIds, knowledgeOf, KNOWLEDGE_THRESHOLDS } from '../core/knowledge.js?v=20260904-finance1';
+import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-finance1';
 
 const BASE_ARMY_FRACTION = 0.02;
 const THREAT_ARMY_MULTIPLIER = 2.0;
@@ -46,7 +47,7 @@ function maybeRaid(region, regionsById, activeRaids, currentTick, toolTypes, rng
   if (rng() > RAID_CONSIDERATION_CHANCE_PER_WEEK) return;
 
   const ownEquip = toolEfficiencyMultiplier(region, 'soldier', toolTypes.soldier, region.unlockedTechIds);
-  const ownPower = region.army.personnel * ownEquip;
+  const ownPower = region.army.personnel * ownEquip * militaryReadiness(region);
 
   let best = null;
   let bestScore = -Infinity;
@@ -64,7 +65,7 @@ function maybeRaid(region, regionsById, activeRaids, currentTick, toolTypes, rng
     // uses broad population-based estimates; only detailed knowledge exposes
     // actual military strength and wealth.
     const estimatedArmy = knowsDetailed
-      ? target.army.personnel
+      ? target.army.personnel * militaryReadiness(target)
       : knowsPopulation
         ? Math.max(10, target.demographics.workingAge * 0.02)
         : Math.max(10, target.population * 0.005);

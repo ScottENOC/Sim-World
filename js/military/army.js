@@ -1,4 +1,5 @@
-import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-potteryboats1';
+import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-finance1';
+import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-finance1';
 
 // Recruitment/demobilization ramps toward the player's target rather than
 // snapping instantly — mobilizing an army takes real time, and disbanding
@@ -38,7 +39,10 @@ export function advancedMaritimeShare(region) {
 // tick's labor pool.
 export function adjustArmySize(region, availableLabor) {
   const totalArmy = region.army.personnel + (region.army.away || 0);
-  const gap = region.targetArmySize - totalArmy;
+  const fiscalCap = Math.max(0, (region.militaryFinance?.fundedPersonnelCap ?? Infinity) -
+    (region.navy.personnel || 0));
+  const fundedTarget = Math.min(region.targetArmySize, fiscalCap);
+  const gap = fundedTarget - totalArmy;
   let change = 0;
   if (gap > 0) {
     change = Math.min(gap * ARMY_MOBILIZATION_RATE, availableLabor);
@@ -55,8 +59,11 @@ export function adjustArmySize(region, availableLabor) {
 // (region.navy.boats * CREW_PER_BOAT), not set directly by the player —
 // the player sets a target *fleet size* in boats; crew follows from that.
 export function adjustNavyCrew(region, availableLabor) {
-  const targetCrew = basicNavyBoats(region) * CREW_PER_BOAT +
+  const desiredCrew = basicNavyBoats(region) * CREW_PER_BOAT +
     Math.max(0, region.navy.advancedBoats || 0) * CREW_PER_ADVANCED_BOAT;
+  const fiscalCap = Math.max(0, (region.militaryFinance?.fundedPersonnelCap ?? Infinity) -
+    (region.army.personnel || 0));
+  const targetCrew = Math.min(desiredCrew, fiscalCap);
   const gap = targetCrew - region.navy.personnel;
   let change = 0;
   if (gap > 0) {
@@ -77,5 +84,5 @@ export function effectivePower(region, toolTypes) {
   const soldierEfficiency = toolEfficiencyMultiplier(region, 'soldier', toolTypes.soldier, region.unlockedTechIds);
   const armyPower = region.army.personnel * soldierEfficiency;
   const navyPower = region.navy.personnel * soldierEfficiency * NAVY_LAND_CONTRIBUTION;
-  return armyPower + navyPower;
+  return (armyPower + navyPower) * militaryReadiness(region);
 }
