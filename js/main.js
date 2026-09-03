@@ -14,7 +14,7 @@ import { MapRenderer } from './ui/mapRenderer.js';
 import { FogOfWar } from './core/fogOfWar.js';
 import { initialiseKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js';
 
-const START_YEAR = -1200; // Bronze Age start, mid-collapse-era — tune later, or have alternative start year options
+const START_YEAR = -1200; // Bronze Age start, mid-collapse-era — tune later
 const LAYERS = {
   density: {
     valueFn: (r) => densityPerKm2(r),
@@ -70,6 +70,10 @@ async function main() {
   const map = new MapRenderer(canvas, regions, {
     seaRegions,
     isRegionVisible: (region) => fogOfWar.isVisible(region),
+    isSeaRegionVisible: (sea) => sea.adjacentLand.some((landId) => {
+      const land = regionsById.get(landId);
+      return land ? fogOfWar.isVisible(land) : false;
+    }),
     onSelect: (region) => {
       selectedRegion = region;
       renderRegionControls(region, regions, clock, activeRaids, playerRegionId, fogOfWar);
