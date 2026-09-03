@@ -1,4 +1,4 @@
-Western Europe mapping v1
+Western Europe mapping v1.0
 This package completes the first Western Europe mapping pass.
 Land
 283 permanent land regions total.
