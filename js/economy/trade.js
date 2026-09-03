@@ -1,6 +1,6 @@
-import { localPrice, TRADABLE_RESOURCES } from './prices.js';
-import { directContactIds, hasDirectContact, recordDirectTrade, diffuseTradeNetworkKnowledge } from '../core/knowledge.js';
-import { centroidDistanceKm } from '../world/distance.js';
+import { localPrice, TRADABLE_RESOURCES } from './prices.js?v=20260903-adaptive-clock2';
+import { directContactIds, hasDirectContact, recordDirectTrade, diffuseTradeNetworkKnowledge } from '../core/knowledge.js?v=20260903-adaptive-clock2';
+import { centroidDistanceKm } from '../world/distance.js?v=20260903-adaptive-clock2';
 
 const LAND_ADJACENT_COST = 0.1;
 const SEA_COST_PER_KM = 0.001;

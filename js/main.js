@@ -1,18 +1,18 @@
-import { Clock } from './core/clock.js';
-import { EventBus } from './core/eventBus.js';
-import { loadWorld } from './world/region.js';
-import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js';
-import { seedCensus, densityPerKm2 } from './society/census.js';
-import { tickEconomy } from './economy/labor.js';
-import { tickTrade } from './economy/trade.js';
-import { tickDemographics } from './society/demographics.js';
-import { tickBanditry } from './military/banditry.js';
-import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable } from './military/raiding.js';
-import { tickNationAi } from './ai/nationAi.js';
-import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js';
-import { MapRenderer } from './ui/mapRenderer.js';
-import { FogOfWar } from './core/fogOfWar.js';
-import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js';
+import { Clock } from './core/clock.js?v=20260903-adaptive-clock2';
+import { EventBus } from './core/eventBus.js?v=20260903-adaptive-clock2';
+import { loadWorld } from './world/region.js?v=20260903-adaptive-clock2';
+import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260903-adaptive-clock2';
+import { seedCensus, densityPerKm2 } from './society/census.js?v=20260903-adaptive-clock2';
+import { tickEconomy } from './economy/labor.js?v=20260903-adaptive-clock2';
+import { tickTrade } from './economy/trade.js?v=20260903-adaptive-clock2';
+import { tickDemographics } from './society/demographics.js?v=20260903-adaptive-clock2';
+import { tickBanditry } from './military/banditry.js?v=20260903-adaptive-clock2';
+import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable } from './military/raiding.js?v=20260903-adaptive-clock2';
+import { tickNationAi } from './ai/nationAi.js?v=20260903-adaptive-clock2';
+import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260903-adaptive-clock2';
+import { MapRenderer } from './ui/mapRenderer.js?v=20260903-adaptive-clock2';
+import { FogOfWar } from './core/fogOfWar.js?v=20260903-adaptive-clock2';
+import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260903-adaptive-clock2';
 
 const START_YEAR = -1200; // Bronze Age start, mid-collapse-era — tune later
 const LAYERS = {

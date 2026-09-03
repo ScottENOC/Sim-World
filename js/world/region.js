@@ -1,4 +1,4 @@
-import { KnowledgeLedger } from '../core/knowledge.js';
+import { KnowledgeLedger } from '../core/knowledge.js?v=20260903-adaptive-clock2';
 
 export class Region {
   constructor({ id, name, feature, centroid, areaSqKm, neighbors }) {

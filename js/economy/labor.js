@@ -1,8 +1,8 @@
-import { extractionRate, selectActiveTier } from '../world/resources/extraction.js';
-import { regrow, neighborSpreadBonus } from '../world/resources/renewables.js';
-import { toolEfficiencyMultiplier, desiredToolInvestment, investInTools } from './tools.js';
-import { adjustArmySize, adjustNavyCrew } from '../military/army.js';
-import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js';
+import { extractionRate, selectActiveTier } from '../world/resources/extraction.js?v=20260903-adaptive-clock2';
+import { regrow, neighborSpreadBonus } from '../world/resources/renewables.js?v=20260903-adaptive-clock2';
+import { toolEfficiencyMultiplier, desiredToolInvestment, investInTools } from './tools.js?v=20260903-adaptive-clock2';
+import { adjustArmySize, adjustNavyCrew } from '../military/army.js?v=20260903-adaptive-clock2';
+import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260903-adaptive-clock2';
 
 // --- Tunable constants -----------------------------------------------------
 // All placeholders, calibrated so a "typical" region can just about feed

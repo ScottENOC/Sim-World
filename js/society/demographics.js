@@ -4,8 +4,8 @@
 // actually benefit from that before anyone starves, emigrates, or turns
 // to banditry over a shortfall that no longer exists.
 
-import { FOOD_PER_PERSON_PER_WEEK } from '../economy/labor.js';
-import { chooseEmigrationDestinations } from './migration.js';
+import { FOOD_PER_PERSON_PER_WEEK } from '../economy/labor.js?v=20260903-adaptive-clock2';
+import { chooseEmigrationDestinations } from './migration.js?v=20260903-adaptive-clock2';
 
 const CHILD_BAND_YEARS = 14;
 const WORKING_BAND_YEARS = 45; // 15-59; elderly is open-ended above that
