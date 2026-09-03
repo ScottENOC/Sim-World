@@ -51,6 +51,7 @@ export class MapRenderer {
     this.projection = d3.geoMercator();
     this._fitProjection(featureCollection);
     this.path = d3.geoPath(this.projection, this.ctx);
+    this._cacheProjectedPaths();
 
     this._setupZoom();
     this._setupTap();
@@ -63,6 +64,34 @@ export class MapRenderer {
       [[pad, pad], [this.width - pad, this.height - pad]],
       featureCollection
     );
+  }
+
+  _cacheProjectedPaths() {
+    if (typeof Path2D !== 'function') {
+      this._regionPaths = null;
+      this._seaPaths = null;
+      return;
+    }
+
+    const makePath = (feature) => {
+      const path = new Path2D();
+      d3.geoPath(this.projection, path)(feature);
+      return path;
+    };
+    this._regionPaths = new Map(this.regions.map((region) => [region.id, makePath(region.feature)]));
+    this._seaPaths = new Map(this.seaRegions.map((sea) => [sea.id, makePath(sea.feature)]));
+  }
+
+  _fillAndStroke(feature, cachedPath) {
+    if (cachedPath) {
+      this.ctx.fill(cachedPath);
+      this.ctx.stroke(cachedPath);
+      return;
+    }
+    this.ctx.beginPath();
+    this.path(feature);
+    this.ctx.fill();
+    this.ctx.stroke();
   }
 
   _resize() {
@@ -230,15 +259,12 @@ export class MapRenderer {
 
       const stockFraction = sea.fish.K > 0 ? sea.fish.currentStock / sea.fish.K : 0;
 
-      ctx.beginPath();
-      this.path(sea.feature);
       ctx.fillStyle = lerpColor(
         COLORS.seaLow,
         COLORS.seaHigh,
         Math.max(0, Math.min(1, stockFraction))
       );
-      ctx.fill();
-      ctx.stroke();
+      this._fillAndStroke(sea.feature, this._seaPaths?.get(sea.id));
     }
 
     for (const region of this.regions) {
@@ -246,14 +272,10 @@ export class MapRenderer {
 
       const selected = region.id === this.selectedId;
 
-      ctx.beginPath();
-      this.path(region.feature);
       ctx.fillStyle = this._fillForRegion(region);
-      ctx.fill();
-
       ctx.lineWidth = (selected ? 2.5 : 1) / this.transform.k;
       ctx.strokeStyle = selected ? COLORS.borderSelected : COLORS.border;
-      ctx.stroke();
+      this._fillAndStroke(region.feature, this._regionPaths?.get(region.id));
     }
 
     ctx.restore();

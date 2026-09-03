@@ -93,6 +93,30 @@ button, input, select {
   padding: 0;
 }
 
+.adaptive-speed.hidden { display: none; }
+
+#hud.performance-limited #btn-speed-4 { display: none; }
+
+.performance-notice {
+  position: absolute;
+  top: max(58px, calc(env(safe-area-inset-top) + 48px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(92vw, 430px);
+  padding: 9px 12px;
+  border: 1px solid var(--bronze-dim);
+  border-radius: 8px;
+  background: rgba(23, 29, 41, 0.96);
+  color: var(--parchment);
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.performance-notice.hidden { display: none; }
+
 /* ---------- Legend ---------- */
 .legend {
   position: absolute;

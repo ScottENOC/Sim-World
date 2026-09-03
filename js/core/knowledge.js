@@ -429,27 +429,46 @@ function addFishingReport(observer, subject, sharedSeaIds, confidence, receivedA
   });
 }
 
-export function tickFishingKnowledge(regions, seaRegions = [], currentTick = null) {
-  void seaRegions; // adjacency is already linked onto land regions
+// Coastlines are static. Build the relatively small set of land pairs which
+// share a sea once at world load, rather than testing every possible pair on
+// every game week. A pair can share more than one sea, so retain all sea IDs.
+export function buildFishingContactPairs(regions, seaRegions) {
+  const regionsById = new Map(regions.map((region) => [region.id, region]));
+  const pairsByKey = new Map();
 
-  for (let i = 0; i < regions.length; i += 1) {
-    for (let j = i + 1; j < regions.length; j += 1) {
-      const a = regions[i];
-      const b = regions[j];
-      const sharedSeaIds = (a.adjacentSeaIds || []).filter((id) => (b.adjacentSeaIds || []).includes(id));
-      if (!sharedSeaIds.length) continue;
-
-      const effortA = fishingEffort(a);
-      const effortB = fishingEffort(b);
-      const totalEffort = effortA + effortB;
-      if (totalEffort <= 0) continue;
-
-      // More fishing produces better reports, while repeated weeks provide
-      // further corroborating reports through evidenceStrength().
-      const confidence = Math.min(0.85, 0.08 + Math.log10(totalEffort + 1) * 0.12);
-      addFishingReport(a, b, sharedSeaIds, confidence, currentTick);
-      addFishingReport(b, a, sharedSeaIds, confidence, currentTick);
+  for (const sea of seaRegions) {
+    const adjacent = (sea.adjacentLand || []).filter((id) => regionsById.has(id));
+    for (let i = 0; i < adjacent.length; i += 1) {
+      for (let j = i + 1; j < adjacent.length; j += 1) {
+        const firstId = adjacent[i];
+        const secondId = adjacent[j];
+        const [aId, bId] = firstId < secondId ? [firstId, secondId] : [secondId, firstId];
+        const key = `${aId}|${bId}`;
+        let pair = pairsByKey.get(key);
+        if (!pair) {
+          pair = { a: regionsById.get(aId), b: regionsById.get(bId), sharedSeaIds: [] };
+          pairsByKey.set(key, pair);
+        }
+        if (!pair.sharedSeaIds.includes(sea.id)) pair.sharedSeaIds.push(sea.id);
+      }
     }
+  }
+
+  return [...pairsByKey.values()];
+}
+
+export function tickFishingKnowledge(contactPairs, currentTick = null) {
+  for (const { a, b, sharedSeaIds } of contactPairs) {
+    const effortA = fishingEffort(a);
+    const effortB = fishingEffort(b);
+    const totalEffort = effortA + effortB;
+    if (totalEffort <= 0) continue;
+
+    // More fishing produces better reports, while repeated weeks provide
+    // further corroborating reports through evidenceStrength().
+    const confidence = Math.min(0.85, 0.08 + Math.log10(totalEffort + 1) * 0.12);
+    addFishingReport(a, b, sharedSeaIds, confidence, currentTick);
+    addFishingReport(b, a, sharedSeaIds, confidence, currentTick);
   }
 }
 

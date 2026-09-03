@@ -164,9 +164,10 @@ resource (falls smoothly as that region's own stock rises — not a cleared
 market price, just enough of a signal to make goods flow from abundant
 regions to scarce ones). `economy/trade.js` computes route cost per region
 pair — land-adjacent pairs get a small flat cost, everything else goes by
-sea using the great-circle distances already in `regions.meta.json` (France
-has no land border with anyone in this six-region set, so sea routes are
-load-bearing, not decorative). Each region's trader labor — whatever's left
+sea using a great-circle distance calculated on demand from the two stored
+region centroids. The old all-pairs distance matrix was removed because it
+grew quadratically with the map while almost all routes were never examined.
+Each region's trader labor — whatever's left
 over after farming/lumber/mining/smithing, via `region._availableForTrade`
 set by `labor.js` — chases its best price-gap opportunities across every
 resource and destination, in order, until it runs out of labor, stock, or a
@@ -365,7 +366,7 @@ each region running its own economy/demographics in isolation.
 `military/raiding.js` handles the whole lifecycle: launch (deducts
 personnel from the attacker's home army immediately, marking them "away"),
 transit (real travel time — `LAND_SPEED_KM_PER_WEEK`/`SEA_SPEED_KM_PER_WEEK`
-against the same centroid distances trade already uses, so a raid can
+against the same on-demand centroid distances trade uses, so a raid can
 genuinely take months round-trip), combat resolution on arrival, and a
 separate return trip for survivors. Sea raids need a shared sea *and*
 enough navy — `maxSeaRaidersAvailable = boats × 10` — a boat carries more

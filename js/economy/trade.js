@@ -1,5 +1,6 @@
 import { localPrice, TRADABLE_RESOURCES } from './prices.js';
 import { directContactIds, hasDirectContact, recordDirectTrade, diffuseTradeNetworkKnowledge } from '../core/knowledge.js';
+import { centroidDistanceKm } from '../world/distance.js';
 
 const LAND_ADJACENT_COST = 0.1;
 const SEA_COST_PER_KM = 0.001;
@@ -9,7 +10,8 @@ const MIN_PROFIT_THRESHOLD = 0.05;
 
 export function routeCost(regionA, regionB) {
   if (regionA.neighbors.includes(regionB.id)) return LAND_ADJACENT_COST;
-  return SEA_COST_PER_KM * regionA.distanceKm[regionB.id];
+  const distanceKm = centroidDistanceKm(regionA, regionB);
+  return SEA_COST_PER_KM * (distanceKm ?? 500);
 }
 
 function findOpportunities(region, candidateRegions) {

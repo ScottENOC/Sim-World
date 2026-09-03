@@ -1,9 +1,9 @@
 import { KnowledgeLedger } from '../core/knowledge.js';
 
 export class Region {
-  constructor({ id, name, feature, centroid, areaSqKm, neighbors, distanceKm }) {
+  constructor({ id, name, feature, centroid, areaSqKm, neighbors }) {
     this.id = id; this.name = name; this.feature = feature; this.centroid = centroid;
-    this.areaSqKm = areaSqKm; this.neighbors = neighbors; this.distanceKm = distanceKm;
+    this.areaSqKm = areaSqKm; this.neighbors = neighbors;
     this.population = null; this.demographics = null; this.cultureGroups = null;
     this.controllingActorId = id; this.stability = 1.0; this.banditPopulation = 0;
     this.safetyRating = 1.0; this.educationLevel = 0.05; this.experience = {};
@@ -27,7 +27,7 @@ export async function loadWorld() {
   const regions = geo.features.map((feature) => {
     const id = feature.properties.id; const m = metaById.get(id);
     const region = new Region({ id, name: feature.properties.name, feature, centroid: m.centroid,
-      areaSqKm: m.areaSqKm, neighbors: m.neighbors, distanceKm: m.distanceKm });
+      areaSqKm: m.areaSqKm, neighbors: m.neighbors });
     const endowment = resources[id];
     if (!endowment) throw new Error(`Missing resource endowment for region ${id} (${region.name})`);
     region.landQuality = endowment.landQuality;

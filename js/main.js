@@ -12,7 +12,7 @@ import { tickNationAi } from './ai/nationAi.js';
 import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js';
 import { MapRenderer } from './ui/mapRenderer.js';
 import { FogOfWar } from './core/fogOfWar.js';
-import { initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js';
+import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js';
 
 const START_YEAR = -1200; // Bronze Age start, mid-collapse-era — tune later
 const LAYERS = {
@@ -48,6 +48,7 @@ async function main() {
   seedCensus(regions);
   const seaRegions = await loadSeaWorld();
   linkSeaAdjacency(regions, seaRegions);
+  const fishingContactPairs = buildFishingContactPairs(regions, seaRegions);
   initialiseKnowledge(regions);
   const toolTypes = await (await fetch('data/world/toolTypes.json')).json();
 
@@ -107,7 +108,7 @@ async function main() {
   clock.onTick(() => {
     tickEconomy(regions, seaRegions, toolTypes);
     pruneKnowledge(regions, clock.tickIndex);
-    tickFishingKnowledge(regions, seaRegions, clock.tickIndex);
+    tickFishingKnowledge(fishingContactPairs, clock.tickIndex);
     tickTrade(regions, clock.tickIndex);
     tickDemographics(regions);
     tickBanditry(regions, toolTypes);
@@ -345,21 +346,47 @@ function wireLayerToggle(map) {
 
 function wireHud(clock) {
   const pauseBtn = document.getElementById('btn-pause');
+  const hud = document.getElementById('hud');
+  const halfSpeedBtn = document.getElementById('btn-speed-half');
+  const notice = document.getElementById('performance-notice');
+  let noticeTimer = null;
+
+  const syncSpeedControls = () => {
+    document.querySelectorAll('.speed-btn').forEach((btn) => {
+      btn.classList.toggle('active', Number(btn.dataset.speed) === clock.speed);
+    });
+    pauseBtn.textContent = clock.speed === 0 ? '►' : 'II';
+  };
+
+  const showPerformanceNotice = ({ previousSpeed, speed, tickDurationMs }) => {
+    if (speed === 0.5) {
+      halfSpeedBtn.classList.remove('hidden');
+      hud.classList.add('performance-limited');
+    }
+    const measured = Math.max(1, Math.round(tickDurationMs));
+    notice.textContent = `A week is taking about ${measured} ms on this device, so ${previousSpeed}x was reduced to ${speed}x. Every week will still be simulated.`;
+    notice.classList.remove('hidden');
+    if (noticeTimer) clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => notice.classList.add('hidden'), 8000);
+  };
+
+  clock.onSpeedChange((detail) => {
+    syncSpeedControls();
+    if (detail.automatic && detail.reason === 'performance') showPerformanceNotice(detail);
+  });
 
   pauseBtn.addEventListener('click', () => {
     clock.togglePause();
-    pauseBtn.textContent = clock.speed === 0 ? '►' : 'II';
   });
 
   document.querySelectorAll('.speed-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const speed = Number(btn.dataset.speed);
       clock.setSpeed(speed);
-      document.querySelectorAll('.speed-btn').forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
-      pauseBtn.textContent = 'II';
     });
   });
+
+  syncSpeedControls();
 }
 
 function wireMenu({ fogOfWar, map, getSelectedRegion, clearSelection }) {

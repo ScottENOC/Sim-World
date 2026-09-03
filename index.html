@@ -14,11 +14,13 @@
       <div id="hud-controls">
         <button id="btn-menu" class="hud-btn menu-btn" aria-label="Open menu">☰</button>
         <button id="btn-pause" class="hud-btn" aria-label="Pause">II</button>
+        <button id="btn-speed-half" class="hud-btn speed-btn adaptive-speed hidden" data-speed="0.5">0.5x</button>
         <button id="btn-speed-1" class="hud-btn speed-btn active" data-speed="1">1x</button>
         <button id="btn-speed-2" class="hud-btn speed-btn" data-speed="2">2x</button>
         <button id="btn-speed-4" class="hud-btn speed-btn" data-speed="4">4x</button>
       </div>
     </div>
+    <div id="performance-notice" class="performance-notice hidden" role="status" aria-live="polite"></div>
     <div id="legend" class="legend hidden">
       <div class="layer-toggle">
         <button class="layer-btn active" data-layer="density">Pop</button>
@@ -72,6 +74,6 @@
     </div>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
-  <script type="module" src="js/main.js?v=20260903-performance1"></script>
+  <script type="module" src="js/main.js?v=20260903-adaptive-clock1"></script>
 </body>
 </html>

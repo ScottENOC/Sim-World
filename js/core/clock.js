@@ -1,81 +1,144 @@
-// One tick = one game-week. Real-time speed is how often ticks fire, not
-// how much happens per tick — that keeps the sim's math independent of
-// how fast the player has the clock running.
-const MS_PER_TICK_AT_1X = 600; // 1x = ~0.6s per game-week
+// One tick = one game-week. The scheduler deliberately runs at most one week
+// per animation frame: a slow device may run the game more slowly in real
+// time, but it never builds up time debt and bursts through unseen weeks.
+export const MS_PER_TICK_AT_1X = 600;
+const RUNNING_SPEEDS = [0.5, 1, 2, 4];
+const PERFORMANCE_HEADROOM = 1.08;
 
 export class Clock {
-  constructor() {
-    this.tickIndex = 0;       // weeks since game start
-    this.speed = 1;           // 0 = paused, 1/2/4 = multiplier
-    this._lastFrameTime = 0;
-    this._accumulatorMs = 0;
+  constructor({
+    now = () => performance.now(),
+    requestFrame = (fn) => requestAnimationFrame(fn),
+    cancelFrame = (handle) => cancelAnimationFrame(handle),
+  } = {}) {
+    this.tickIndex = 0;
+    this.speed = 1;
+    this._resumeSpeed = 1;
+    this._nextTickAt = null;
     this._tickListeners = [];
-    this._pendingResponseRequired = 0; // count of events awaiting a decision
+    this._speedListeners = [];
+    this._pendingResponseRequired = 0;
     this._rafHandle = null;
+    this._estimatedTickMs = null;
+    this._now = now;
+    this._requestFrame = requestFrame;
+    this._cancelFrame = cancelFrame;
   }
 
   onTick(fn) {
     this._tickListeners.push(fn);
   }
 
-  setSpeed(speed) {
-    if (this._pendingResponseRequired > 0 && speed !== 0) {
-      // Can't un-pause past a response-required event.
-      return;
-    }
+  onSpeedChange(fn) {
+    this._speedListeners.push(fn);
+  }
+
+  _emitSpeedChange(detail) {
+    for (const fn of this._speedListeners) fn(detail);
+  }
+
+  _applySpeed(speed, detail = {}) {
+    const previousSpeed = this.speed;
+    if (speed === previousSpeed) return true;
     this.speed = speed;
+    if (speed > 0) this._resumeSpeed = speed;
+    this._nextTickAt = null;
+    this._emitSpeedChange({ previousSpeed, speed, ...detail });
+    return true;
+  }
+
+  setSpeed(speed) {
+    if (this._pendingResponseRequired > 0 && speed !== 0) return false;
+    if (speed !== 0 && !RUNNING_SPEEDS.includes(speed)) return false;
+    return this._applySpeed(speed, { automatic: false, reason: 'player' });
   }
 
   togglePause() {
-    this.setSpeed(this.speed === 0 ? 1 : 0);
+    return this.setSpeed(this.speed === 0 ? this._resumeSpeed : 0);
   }
 
-  // Called by the event scheduler when a response-required popup appears.
   requestAutoPause() {
     this._pendingResponseRequired++;
-    this.speed = 0;
+    this._applySpeed(0, { automatic: true, reason: 'event' });
   }
 
-  // Called once the player resolves that popup.
   releaseAutoPause() {
     this._pendingResponseRequired = Math.max(0, this._pendingResponseRequired - 1);
   }
 
-  // Auto-throttle: as more decisions are queued up, cap the max speed so
-  // the player doesn't blow past things that need attention. This is what
-  // stands in for "slows down over time" — it tracks how much is happening,
-  // not the calendar date.
+  // Retained for event-pressure callers. Hardware performance is enforced
+  // independently after each measured tick.
   effectiveMaxSpeed(pendingEventCount) {
     if (pendingEventCount >= 3) return 1;
     if (pendingEventCount >= 1) return 2;
     return 4;
   }
 
-  start() {
-    const loop = (now) => {
-      if (this._lastFrameTime === 0) this._lastFrameTime = now;
-      const dt = now - this._lastFrameTime;
-      this._lastFrameTime = now;
+  _targetIntervalMs(speed = this.speed) {
+    return MS_PER_TICK_AT_1X / speed;
+  }
 
+  _recordTickDuration(durationMs) {
+    this._estimatedTickMs = this._estimatedTickMs === null
+      ? durationMs
+      : this._estimatedTickMs * 0.75 + durationMs * 0.25;
+
+    if (this.speed <= 0 || durationMs * PERFORMANCE_HEADROOM <= this._targetIntervalMs()) return;
+
+    const previousSpeed = this.speed;
+    const sustainableSpeed = [...RUNNING_SPEEDS]
+      .reverse()
+      .find((candidate) => (
+        candidate < previousSpeed &&
+        durationMs * PERFORMANCE_HEADROOM <= this._targetIntervalMs(candidate)
+      )) || 0.5;
+
+    this._applySpeed(sustainableSpeed, {
+      automatic: true,
+      reason: 'performance',
+      tickDurationMs: durationMs,
+    });
+  }
+
+  start() {
+    if (this._rafHandle !== null) return;
+
+    const loop = (frameTime) => {
       if (this.speed > 0) {
-        this._accumulatorMs += dt * this.speed;
-        const msPerTick = MS_PER_TICK_AT_1X;
-        while (this._accumulatorMs >= msPerTick) {
-          this._accumulatorMs -= msPerTick;
+        if (this._nextTickAt === null) {
+          this._nextTickAt = frameTime + this._targetIntervalMs();
+        } else if (frameTime >= this._nextTickAt) {
+          const startedAt = this._now();
           this.tickIndex++;
           for (const fn of this._tickListeners) fn(this.tickIndex);
+          const finishedAt = this._now();
+          const durationMs = Math.max(0, finishedAt - startedAt);
+
+          this._recordTickDuration(durationMs);
+
+          if (this.speed > 0) {
+            // Schedule from the start of the completed tick. If it overran,
+            // finishedAt wins and the next frame runs the next week. There is
+            // never a backlog and never more than one simulated week here.
+            this._nextTickAt = Math.max(finishedAt, startedAt + this._targetIntervalMs());
+          }
         }
+      } else {
+        this._nextTickAt = null;
       }
-      this._rafHandle = requestAnimationFrame(loop);
+
+      this._rafHandle = this._requestFrame(loop);
     };
-    this._rafHandle = requestAnimationFrame(loop);
+
+    this._rafHandle = this._requestFrame(loop);
   }
 
   stop() {
-    if (this._rafHandle) cancelAnimationFrame(this._rafHandle);
+    if (this._rafHandle !== null) this._cancelFrame(this._rafHandle);
+    this._rafHandle = null;
+    this._nextTickAt = null;
   }
 
-  // Human-readable in-game date from tickIndex, given a start year.
   formatDate(startYear) {
     const totalWeeks = this.tickIndex;
     const year = startYear + Math.floor(totalWeeks / 52);

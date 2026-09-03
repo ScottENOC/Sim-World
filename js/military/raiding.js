@@ -1,5 +1,6 @@
 import { toolEfficiencyMultiplier } from '../economy/tools.js';
 import { hasDirectContact, learnAbout } from '../core/knowledge.js';
+import { centroidDistanceKm } from '../world/distance.js';
 
 const RAIDERS_PER_BOAT = 10;
 const LAND_SPEED_KM_PER_WEEK = 120;
@@ -13,7 +14,7 @@ const RAID_KNOWLEDGE_REPELLED = 0.75;
 
 export function maxSeaRaidersAvailable(region) { return Math.floor(region.navy.boats * RAIDERS_PER_BOAT); }
 export function computeTravelWeeks(attacker, defender, viaSea) {
-  const distanceKm = attacker.distanceKm[defender.id] || 500;
+  const distanceKm = centroidDistanceKm(attacker, defender) ?? 500;
   const speed = viaSea ? SEA_SPEED_KM_PER_WEEK : LAND_SPEED_KM_PER_WEEK;
   return Math.max(1, Math.ceil(distanceKm / speed));
 }
