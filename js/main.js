@@ -44,6 +44,7 @@ async function main() {
   const bus = new EventBus();
   const clock = new Clock();
   const regions = await loadWorld();
+  console.log(`Western Europe map loaded: ${regions.length} permanent land regions`);
   seedCensus(regions);
   const seaRegions = await loadSeaWorld();
   linkSeaAdjacency(regions, seaRegions);
