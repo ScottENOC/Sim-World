@@ -208,8 +208,10 @@ function showRegionPicker(regions, onChosen) {
       'PRT': { continent: 'Europe', country: 'Portugal' },
       'IRL': { continent: 'Europe', country: 'Ireland' },
       'GIB': { continent: 'Europe', country: 'Gibraltar' },
+      'AND': { continent: 'Europe', country: 'Andorra' },
       'IMN': { continent: 'Europe', country: 'Isle of Man' },
-      'CHI': { continent: 'Europe', country: 'Channel Islands' },
+      'JEY': { continent: 'Europe', country: 'Jersey' },
+      'GGY': { continent: 'Europe', country: 'Guernsey' },
     };
 
     return groups[sourceGroup] || { continent: 'Other', country: sourceGroup || 'Other' };
