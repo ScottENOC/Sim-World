@@ -152,7 +152,6 @@ async function main() {
     document.getElementById('region-sheet').classList.remove('hidden');
 
     map.refreshLayer();
-    map.focusRegion(chosen);
     clock.start();
   });
 
