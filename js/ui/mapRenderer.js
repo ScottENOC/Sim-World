@@ -42,13 +42,13 @@ export class MapRenderer {
     this._resize();
     window.addEventListener('resize', () => this._resize());
 
-    const featureCollection = {
+    this.featureCollection = {
       type: 'FeatureCollection',
       features: [...regions.map((r) => r.feature), ...seaRegions.map((s) => s.feature)],
     };
 
     this.projection = d3.geoMercator();
-    this._fitProjection(featureCollection);
+    this._fitProjection(this.featureCollection);
     this.path = d3.geoPath(this.projection, this.ctx);
 
     this._setupZoom();
@@ -71,7 +71,10 @@ export class MapRenderer {
     this.canvas.width = this.width * dpr;
     this.canvas.height = this.height * dpr;
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    if (this.path) this.draw();
+    if (this.path) {
+      this._fitProjection(this.featureCollection);
+      this.draw();
+    }
   }
 
   _setupZoom() {
@@ -117,6 +120,27 @@ export class MapRenderer {
     }
 
     return null;
+  }
+
+  focusRegion(region) {
+    if (!region?.feature || !this._zoom) return;
+
+    const bounds = d3.geoPath(this.projection).bounds(region.feature);
+    const [[x0, y0], [x1, y1]] = bounds;
+    const dx = Math.max(1, x1 - x0);
+    const dy = Math.max(1, y1 - y0);
+    const cx = (x0 + x1) / 2;
+    const cy = (y0 + y1) / 2;
+
+    // Leave generous context around the starting region; cap at the same
+    // maximum scale allowed to pinch-zoom manually.
+    const k = Math.max(1, Math.min(12, 0.55 / Math.max(dx / this.width, dy / this.height)));
+    const transform = d3.zoomIdentity
+      .translate(this.width / 2, this.height / 2)
+      .scale(k)
+      .translate(-cx, -cy);
+
+    d3.select(this.canvas).call(this._zoom.transform, transform);
   }
 
   setLayer(config) {
