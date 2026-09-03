@@ -31,7 +31,10 @@ export function seedCensus(regions, rng = Math.random) {
     // there's no production of currency yet (that's taxation, still
     // future), so these are placeholders scaled to population, not derived
     // from anything region-specific.
-    region.wallet = region.population * 0.01;
+    // Several months of portable household/merchant wealth provide enough
+    // liquidity for trade to specialise before the first shock. This is cash,
+    // not credit: borrowing remains capped far below this in trade.js.
+    region.wallet = region.population * 0.05;
     region.treasury = region.population * 0.002;
 
     region.cultureGroups = [

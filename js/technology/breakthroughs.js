@@ -8,19 +8,25 @@ const BASE_WEEKLY_IRON_CHANCE = 1e-8;
 const MAX_SMITHING_EXPERIENCE_BONUS = 5e-7;
 const SMITHING_EXPERIENCE_SCALE = 75_000;
 const CHANCE_PER_IRONWORKING_TRADE_PARTNER = 0.003;
+const TRADE_DIFFUSION_MEMORY_WEEKS = 104;
 
 function smithingKnowledge(region) {
   const experience = region.experience?.smithing || 0;
   return 1 - Math.exp(-experience / SMITHING_EXPERIENCE_SCALE);
 }
 
-export function ironSmeltingChance(region, regionsById) {
+export function ironSmeltingChance(region, regionsById, currentTick = null) {
   if (region.unlockedTechIds.has(IRON_SMELTING_TECH_ID)) return 0;
 
   const independentChance = BASE_WEEKLY_IRON_CHANCE +
     smithingKnowledge(region) * MAX_SMITHING_EXPERIENCE_BONUS;
   let knowledgeablePartners = 0;
-  for (const partnerId of region.tradePartnerIds || []) {
+  const recentPartners = region.recentTradePartners instanceof Map
+    ? [...region.recentTradePartners.entries()]
+        .filter(([, lastTradeTick]) => currentTick === null || currentTick - lastTradeTick <= TRADE_DIFFUSION_MEMORY_WEEKS)
+        .map(([partnerId]) => partnerId)
+    : [...(region.tradePartnerIds || [])];
+  for (const partnerId of recentPartners) {
     if (regionsById.get(partnerId)?.unlockedTechIds.has(IRON_SMELTING_TECH_ID)) {
       knowledgeablePartners++;
     }
@@ -39,7 +45,7 @@ export function tickBreakthroughs(regions, currentTick, rng = Math.random) {
   // Calculate all chances from the start-of-tick state. A discovery therefore
   // begins influencing partners next week instead of cascading through an
   // entire trade network in one loop iteration.
-  const discoveries = regions.filter((region) => rng() < ironSmeltingChance(region, regionsById));
+  const discoveries = regions.filter((region) => rng() < ironSmeltingChance(region, regionsById, currentTick));
   for (const region of discoveries) {
     region.unlockedTechIds.add(IRON_SMELTING_TECH_ID);
     events.push({

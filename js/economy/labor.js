@@ -1,8 +1,8 @@
-import { extractionRate, selectActiveTier } from '../world/resources/extraction.js?v=20260903-iron1';
-import { regrow, neighborSpreadBonus } from '../world/resources/renewables.js?v=20260903-iron1';
-import { toolEfficiencyMultiplier, desiredToolInvestment, investInTools } from './tools.js?v=20260903-iron1';
-import { adjustArmySize, adjustNavyCrew } from '../military/army.js?v=20260903-iron1';
-import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260903-iron1';
+import { extractionRate, selectActiveTier } from '../world/resources/extraction.js?v=20260903-collapse1';
+import { regrow, neighborSpreadBonus } from '../world/resources/renewables.js?v=20260903-collapse1';
+import { toolEfficiencyMultiplier, desiredToolInvestment, investInTools, wearOutTools } from './tools.js?v=20260903-collapse1';
+import { adjustArmySize, adjustNavyCrew } from '../military/army.js?v=20260903-collapse1';
+import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260903-collapse1';
 
 // --- Tunable constants -----------------------------------------------------
 // All placeholders, calibrated so a "typical" region can just about feed
@@ -12,9 +12,11 @@ import { accumulateExperience, skillMultiplier } from '../technology/learningByD
 // the population noise vs. land-quality noise below are independent random
 // draws — that's the point (see the Bronze Age collapse conversation).
 export const FOOD_PER_PERSON_PER_WEEK = 1; // 1 "ration" per person per tick, arbitrary unit
-const FOOD_YIELD_PER_KM2 = 4.2;     // theoretical max rations/km²/week at saturating labor
+const FOOD_YIELD_PER_KM2 = 5.8;     // bronze plough teams lift this substantially during the prosperous phase
 const FARM_LABOR_SATURATION_PER_KM2 = 1.5; // people/km² before diminishing returns bite hard
 const MAX_FARMER_FRACTION = 0.9; // always leave some working-age labor for gathering/other pursuits
+const FOOD_STORAGE_WEEKS = 13;
+const FOOD_WEEKLY_SPOILAGE = 0.01;
 
 // Gathering: a real profession, not a fallback hack — foraging/hunting that
 // barely benefits from bronze tools but is genuinely productive when there
@@ -31,8 +33,8 @@ const WOOD_PER_LUMBERJACK = 0.8;
 const WOOD_REGROWTH_RATE = 0.015;
 const FOREST_SPREAD_RATE = 0.002;
 
-const ORE_YIELD_PER_MINER = 0.6;
-const BRONZE_PER_SMITH = 0.5;
+const ORE_YIELD_PER_MINER = 3.0;
+const BRONZE_PER_SMITH = 2.0;
 
 // Fixed priority, not proportional-to-remaining-stock — stone is orders of
 // magnitude more abundant than copper/tin, so weighting by raw tonnage let
@@ -41,6 +43,7 @@ const BRONZE_PER_SMITH = 0.5;
 // system yet (that's the trade system), so this is a placeholder stand-in
 // for background (non-tool-demand) mining priority.
 const ORE_PRIORITY = { copper: 3, tin: 3, ironOre: 2, gold: 2, stone: 1 };
+const MINE_SALE_BUFFER = { copper: 2000, tin: 1000, ironOre: 3000 };
 
 // A little bronze demand exists even with every tool bought — prestige
 // goods, trade goods, everyday repairs — so smithing doesn't collapse to
@@ -49,7 +52,17 @@ const ORE_PRIORITY = { copper: 3, tin: 3, ironOre: 2, gold: 2, stone: 1 };
 // small, and this must never be large enough to structurally starve tool
 // investment the way an earlier, too-large value did.
 const BASELINE_BRONZE_DEMAND = 0.5;
-const IRON_PER_SMITH = 0.35;
+const IRON_PER_SMITH = 1.2;
+const BRONZE_RESERVE_PER_PERSON = 0.005;
+const BRONZE_RESERVE_BUILD_WEEKS = 26;
+
+// Specialisation begins cautiously and only deepens after the market has
+// actually delivered food and paid for non-food exports. The one-year EMAs
+// in trade.js provide hysteresis: a region cannot turn all its farmers into
+// miners on the strength of one good caravan.
+const MAX_IMPORTED_FOOD_DEPENDENCE = 0.25;
+const MAX_FOOD_EXPORT_SURPLUS = 0.16;
+const FOOD_ACCOUNTING_VALUE = 0.2;
 
 // Fishing: a third food source alongside farming and gathering, drawn from
 // whichever sea(s) a region borders. Real commons — multiple land regions
@@ -68,6 +81,9 @@ const FISHERS_PER_FISHING_BOAT = 4;
 const FISH_REGROWTH_RATE = 0.02;
 
 const LUMBER_CAPACITY_DIVISOR = 400; // physical cap on lumberjacks a forest can usefully employ
+const WOOD_RESERVE_PER_PERSON = 0.05;
+const WOOD_RESERVE_BUILD_WEEKS = 52;
+const TRADE_LABOR_RESERVE_FRACTION = 0.01;
 
 // Boats: needs a sea border (region.isCoastal), lots of wood, and a
 // dedicated profession. Fleet size ramps toward the player's target
@@ -100,6 +116,46 @@ function farmersNeededFor(targetFood, maxFoodOutput, kLabor) {
 
 function clamp01(v) {
   return Math.max(0, Math.min(1, v));
+}
+
+function plannedFoodProduction(region, foodNeeded) {
+  const economy = region.tradeEconomy || {};
+  const importCoverage = foodNeeded > 0 ? (economy.foodImportEma || 0) / foodNeeded : 0;
+  const industrialIncomeCoverage = foodNeeded > 0
+    ? (economy.nonFoodExportIncomeEma || 0) / (foodNeeded * FOOD_ACCOUNTING_VALUE)
+    : 0;
+  // A small successful delivery proves that a route can carry food; the
+  // sustainable scale is then set by what industrial exports can actually
+  // pay for. Requiring imports to equal the final dependency would trap the
+  // system at zero because a self-feeding region only ever buys a buffer.
+  const deliveryConfidence = clamp01(importCoverage / 0.001);
+  const affordableDependence = Math.min(
+    MAX_IMPORTED_FOOD_DEPENDENCE,
+    industrialIncomeCoverage * 0.75 * deliveryConfidence
+  );
+  const previousDependence = region.foodImportDependence || 0;
+  const targetDependence = previousDependence > 0.005
+    ? Math.min(MAX_IMPORTED_FOOD_DEPENDENCE, industrialIncomeCoverage * 0.75)
+    : affordableDependence;
+  const adjustmentWeeks = targetDependence > previousDependence ? 10 * 52 : 60 * 52;
+  region.foodImportDependence = previousDependence +
+    (targetDependence - previousDependence) / adjustmentWeeks;
+
+  const hasSurfaceMetal = ['copper', 'tin'].some((key) =>
+    region.deposits?.[key]?.tiers?.some((tier) => tier.requiredTechId === null && tier.remainingStock > 0)
+  );
+  // Good non-metal farmland intentionally produces a modest market surplus,
+  // which lets mining/smelting regions accumulate an imported buffer. They
+  // only reduce their own farming after real deliveries and export income
+  // prove that the route works; there is no assumed week-one dependence.
+  const farmAdvantage = clamp01((region.landQuality - 0.75) / 0.55);
+  const exportSurplus = hasSurfaceMetal ? 0 : farmAdvantage * MAX_FOOD_EXPORT_SURPLUS;
+  const importDependence = region.foodImportDependence;
+  return {
+    target: foodNeeded * Math.max(0.65, 1 + exportSurplus - importDependence),
+    importDependence,
+    exportSurplus,
+  };
 }
 
 // Distributes `totalRequested` workers across `items` ({key, cap}) by
@@ -135,6 +191,15 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random) {
   const regionsById = new Map(regions.map((r) => [r.id, r]));
   const seaRegionsById = new Map(seaRegions.map((s) => [s.id, s]));
 
+  // Workshops see last week's unmet finished-bronze demand in neighbouring
+  // markets. This is the order signal that makes them produce for export,
+  // rather than stopping once their own farmers and soldiers are equipped.
+  for (const region of regions) {
+    region._externalBronzeDemand = region.neighbors.reduce((sum, id) =>
+      sum + (regionsById.get(id)?.marketDemand?.bronze || 0), 0
+    ) * 0.25;
+  }
+
   for (const region of regions) {
     allocateAndProduce(region, seaRegionsById, toolTypes, rng);
   }
@@ -152,6 +217,7 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random) {
 
 function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   const report = {}; // this tick's production, by activity — see region.report, read by the UI
+  report.toolWear = { tools: wearOutTools(region) };
 
   const totalPop = region.population;       // everyone eats
   const workingAge = region.demographics.workingAge;
@@ -167,6 +233,8 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   const maxFoodOutput = region.areaSqKm * region.landQuality * FOOD_YIELD_PER_KM2 * noise;
   const kLabor = region.areaSqKm * FARM_LABOR_SATURATION_PER_KM2;
   const foodNeeded = totalPop * FOOD_PER_PERSON_PER_WEEK;
+  const foodPlan = plannedFoodProduction(region, foodNeeded);
+  const foodProductionTarget = foodPlan.target;
 
   // Tool bonus is lagged one tick (last tick's headcount/equipment) so this
   // doesn't need to solve "how many farmers" and "how equipped are they"
@@ -174,7 +242,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   // top: well-practiced AND well-equipped beats either alone.
   const farmerEfficiency = toolEfficiencyMultiplier(region, 'farmer', toolTypes.farmer, region.unlockedTechIds)
     * skillMultiplier(region, 'farming');
-  const farmersNeededRaw = farmersNeededFor(foodNeeded, maxFoodOutput, kLabor) / farmerEfficiency;
+  const farmersNeededRaw = farmersNeededFor(foodProductionTarget, maxFoodOutput, kLabor) / farmerEfficiency;
   // Always leave some working-age labor free for gathering and everything
   // else — otherwise a genuine crisis (farmersNeeded >= laborPool) claims
   // 100% of the workforce for farming and leaves nothing for the fallback
@@ -193,7 +261,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   const gatherYieldPerWorker = BASE_GATHER_YIELD_PER_WORKER *
     Math.max(GATHER_MIN_FACTOR, 1 - density / GATHER_DENSITY_CEILING) *
     skillMultiplier(region, 'gathering');
-  const remainingFoodNeeded = Math.max(0, foodNeeded - foodFromFarming);
+  const remainingFoodNeeded = Math.max(0, foodProductionTarget - foodFromFarming);
   const laborAfterFarming = Math.max(0, laborPool - farmers);
   const gatherersNeeded = gatherYieldPerWorker > 0 ? remainingFoodNeeded / gatherYieldPerWorker : 0;
   const gatherers = Math.min(laborAfterFarming * MAX_GATHERER_FRACTION, gatherersNeeded);
@@ -209,7 +277,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   let boatFishers = 0;
   let foodFromFishing = 0;
   const laborAfterGathering = Math.max(0, laborAfterFarming - gatherers);
-  const remainingAfterGather = Math.max(0, foodNeeded - foodFromFarming - foodFromGathering);
+  const remainingAfterGather = Math.max(0, foodProductionTarget - foodFromFarming - foodFromGathering);
 
   if (region.adjacentSeaIds.length > 0 && remainingAfterGather > 0 && laborAfterGathering > 0) {
     const sea = seaRegionsById.get(region.adjacentSeaIds[0]); // multi-sea prioritization: future refinement
@@ -267,6 +335,11 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   }
 
   const foodProduced = foodFromFarming + foodFromGathering + foodFromFishing;
+  report.foodPlan = {
+    target: foodProductionTarget,
+    importDependence: foodPlan.importDependence,
+    exportSurplus: foodPlan.exportSurplus,
+  };
 
   // Stability isn't decided here anymore — trade gets a chance to cover any
   // remaining shortfall first. See society/demographics.js, called after
@@ -278,7 +351,10 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   // --- Lumberjacks: capped by physical forest capacity, not population share ---
   const forestFraction = region.forest.K > 0 ? region.forest.currentStock / region.forest.K : 0;
   const lumberCapacity = forestFraction > 0.05 ? Math.round(region.forest.K / LUMBER_CAPACITY_DIVISOR) : 0;
-  const lumberjacks = Math.min(lumberCapacity, surplus);
+  const woodReserveTarget = region.population * WOOD_RESERVE_PER_PERSON;
+  const woodWanted = Math.max(0, woodReserveTarget - (region.stockpile.wood || 0)) / WOOD_RESERVE_BUILD_WEEKS;
+  const lumberjacksWanted = WOOD_PER_LUMBERJACK > 0 ? woodWanted / WOOD_PER_LUMBERJACK : 0;
+  const lumberjacks = Math.min(lumberCapacity, surplus, lumberjacksWanted);
   let remainingSurplus = surplus - lumberjacks;
 
   // --- Boat-making: needs a sea border, wood, and labor. Crew for navy
@@ -316,6 +392,12 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   }
   remainingSurplus -= boatMakers;
 
+  // A specialised economy needs carriers as well as producers. Reserve a
+  // small share before mines and workshops absorb the entire surplus; any
+  // unused reserve remains general labour after trade.js has had its turn.
+  const tradeLaborReserve = Math.min(remainingSurplus, laborPool * TRADE_LABOR_RESERVE_FRACTION);
+  remainingSurplus -= tradeLaborReserve;
+
   // Work out which depth tier is accessible before tool demand is chosen.
   // This lets the tool market distinguish "expensive bronze" from bronze
   // which genuinely cannot be produced from any accessible copper/tin.
@@ -323,10 +405,17 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   for (const [key, deposit] of Object.entries(region.deposits)) {
     activeTiers[key] = selectActiveTier(deposit.tiers, region.unlockedTechIds);
   }
-  const openResources = Object.keys(activeTiers).filter((key) => activeTiers[key] !== null);
+  // Iron is ubiquitous but not commercially useful before the breakthrough.
+  // Leaving it in the ground prevents every region quietly accumulating a
+  // huge ready-to-smelt ore reserve before iron working is discovered.
+  const openResources = Object.keys(activeTiers).filter((key) =>
+    activeTiers[key] !== null && (key !== 'ironOre' || region.unlockedTechIds.has('iron_smelting'))
+  );
   const canSupply = (resource) => (region.stockpile[resource] || 0) > 0 || Boolean(activeTiers[resource]);
   const materialAvailability = {
-    bronze: (region.stockpile.bronze || 0) > 0 || (canSupply('copper') && canSupply('tin')),
+    // Bronze can be demanded from the market even where neither ore occurs.
+    // If it cannot be bought, the want remains unmet and prices rise.
+    bronze: true,
     iron: region.unlockedTechIds.has('iron_smelting') && (
       (region.stockpile.iron || 0) > 0 || canSupply('ironOre')
     ),
@@ -344,8 +433,31 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
     if (want.material) wantedByMaterial[want.material] += want.materialWanted;
   }
 
-  const desiredBronzeOutput = wantedByMaterial.bronze + BASELINE_BRONZE_DEMAND + region.militaryBronzeDemand;
+  // Bronze production concentrates in ore-rich origins and well-connected
+  // intermediary hubs. Finished-bronze consumers buy metal from those hubs
+  // rather than every village importing two raw ores and smelting for itself.
+  const hasLocalCopperAndTin = Boolean(region.deposits.copper && region.deposits.tin);
+  const isIntermediaryHub = !region.deposits.copper && !region.deposits.tin && region.neighbors.length >= 7;
+  const hasSmeltingInputs = (region.stockpile.copper || 0) >= 2 && (region.stockpile.tin || 0) >= 1;
+  const isBronzeWorkshop = hasLocalCopperAndTin || isIntermediaryHub || hasSmeltingInputs ||
+    (region.experience.smithing || 0) > 100;
+  region.canSmeltBronze = isBronzeWorkshop;
+  const bronzeReserveTarget = Math.max(5, region.population * BRONZE_RESERVE_PER_PERSON);
+  const commercialBronzeDemand = Math.max(
+    0,
+    (bronzeReserveTarget - (region.stockpile.bronze || 0)) / BRONZE_RESERVE_BUILD_WEEKS
+  ) + (region.tradeEconomy?.bronzeExportEma || 0);
+  const desiredBronzeOutput = isBronzeWorkshop
+    ? wantedByMaterial.bronze + BASELINE_BRONZE_DEMAND + region.militaryBronzeDemand +
+      commercialBronzeDemand + (region._externalBronzeDemand || 0)
+    : 0;
   const desiredIronOutput = wantedByMaterial.iron;
+  region.marketDemand = {
+    bronze: isBronzeWorkshop ? 0 : wantedByMaterial.bronze,
+    copper: isBronzeWorkshop ? Math.max(0, desiredBronzeOutput * 2 - (region.stockpile.copper || 0)) : 0,
+    tin: isBronzeWorkshop ? Math.max(0, desiredBronzeOutput - (region.stockpile.tin || 0)) : 0,
+    ironOre: desiredIronOutput,
+  };
 
   // Skill computed once, upfront, so the labor reservation below and the
   // actual production later use the same figure — otherwise a region that's
@@ -366,15 +478,26 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   // --- Mining, co-optimized with smith demand: mine enough copper/tin to
   // actually cover what smithing wants to make this tick, before falling
   // back to background priority mining for whatever budget is left over. ---
-  const copperNeeded = Math.max(0, desiredBronzeOutput * 2 - (region.stockpile.copper || 0));
-  const tinNeeded = Math.max(0, desiredBronzeOutput * 1 - (region.stockpile.tin || 0));
-  const ironOreNeeded = Math.max(0, desiredIronOutput - (region.stockpile.ironOre || 0));
+  const copperTarget = region.deposits.copper
+    ? Math.max(desiredBronzeOutput * 2, MINE_SALE_BUFFER.copper)
+    : desiredBronzeOutput * 2;
+  const tinTarget = region.deposits.tin
+    ? Math.max(desiredBronzeOutput, MINE_SALE_BUFFER.tin)
+    : desiredBronzeOutput;
+  const ironOreTarget = region.deposits.ironOre
+    ? Math.max(desiredIronOutput, MINE_SALE_BUFFER.ironOre)
+    : desiredIronOutput;
+  const copperNeeded = Math.max(0, copperTarget - (region.stockpile.copper || 0));
+  const tinNeeded = Math.max(0, tinTarget - (region.stockpile.tin || 0));
+  const ironOreNeeded = Math.max(0, ironOreTarget - (region.stockpile.ironOre || 0));
   const miningSkill = skillMultiplier(region, 'mining');
   const oreYieldPerMiner = ORE_YIELD_PER_MINER * miningSkill;
   const targetLabor = {
     copper: activeTiers.copper ? Math.min(copperNeeded / oreYieldPerMiner, activeTiers.copper.maxWorkers) : 0,
     tin: activeTiers.tin ? Math.min(tinNeeded / oreYieldPerMiner, activeTiers.tin.maxWorkers) : 0,
-    ironOre: activeTiers.ironOre ? Math.min(ironOreNeeded / oreYieldPerMiner, activeTiers.ironOre.maxWorkers) : 0,
+    ironOre: activeTiers.ironOre && region.unlockedTechIds.has('iron_smelting')
+      ? Math.min(ironOreNeeded / oreYieldPerMiner, activeTiers.ironOre.maxWorkers)
+      : 0,
   };
   const targetLaborTotal = targetLabor.copper + targetLabor.tin + targetLabor.ironOre;
 
@@ -397,12 +520,13 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   // background priority mining —
   // this is the "keep stockpiling in case it's useful" behavior from before.
   if (budgetLeft > 0.01) {
-    const items = openResources.map((key) => ({
+    const backgroundResources = openResources.filter((key) => key === 'gold' || key === 'stone');
+    const items = backgroundResources.map((key) => ({
       key,
       cap: activeTiers[key].maxWorkers - minerAllocation[key],
     }));
     const { allocation } = allocateWithCaps(budgetLeft, items, (key) => ORE_PRIORITY[key] || 1);
-    for (const key of openResources) minerAllocation[key] += allocation[key] || 0;
+    for (const key of backgroundResources) minerAllocation[key] += allocation[key] || 0;
   }
 
   let minersUsed = 0;
@@ -512,7 +636,14 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   // No more "+deficit" cancel-out trick — a shortfall now genuinely shows as
   // negative stock, which is exactly the signal applyFoodSecurity() and the
   // trade price system (scarcity -> high local price) need to see.
-  region.stockpile.food = (region.stockpile.food || 0) + foodProduced - foodNeeded;
+  let foodBalance = (region.stockpile.food || 0) + foodProduced - foodNeeded;
+  if (foodBalance > 0) {
+    // Grain, dried food and storehouses buy a season, not immortality. This
+    // prevents prosperous exporters accumulating centuries of food that make
+    // a later trade-network collapse harmless.
+    foodBalance = Math.min(foodBalance * (1 - FOOD_WEEKLY_SPOILAGE), foodNeeded * FOOD_STORAGE_WEEKS);
+  }
+  region.stockpile.food = foodBalance;
 
   const lumberjackEfficiency = toolEfficiencyMultiplier(region, 'lumberjack', toolTypes.lumberjack, region.unlockedTechIds)
     * skillMultiplier(region, 'lumberjack');

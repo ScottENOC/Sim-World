@@ -1,4 +1,4 @@
-import { KnowledgeLedger } from '../core/knowledge.js?v=20260903-iron1';
+import { KnowledgeLedger } from '../core/knowledge.js?v=20260903-collapse1';
 
 export class Region {
   constructor({ id, name, feature, centroid, areaSqKm, neighbors }) {
@@ -14,6 +14,24 @@ export class Region {
     this.occupations = {}; this.report = {}; this.equipment = {}; this.militaryBronzeDemand = 0;
     this.wallet = 0; this.treasury = 0; this.unlockedTechIds = new Set();
     this.tradePartnerIds = new Set();
+    // A deliberately small, rolling Bronze Age commercial ledger. Credit is
+    // calculated from recent exports in trade.js; it is working-capital for
+    // timing mismatches, never enough to prop up a failed regional economy.
+    this.tradeEconomy = {
+      debt: 0,
+      creditLimit: 0,
+      arrearsWeeks: 0,
+      exportIncomeEma: 0,
+      nonFoodExportIncomeEma: 0,
+      importSpendEma: 0,
+      foodImportEma: 0,
+      bronzeExportEma: 0,
+      routeReliabilityEma: 0,
+      weeklyExports: 0,
+      weeklyImports: 0,
+    };
+    this.recentTradePartners = new Map();
+    this.foodImportDependence = 0;
     this.knowledge = new KnowledgeLedger(id);
   }
 }
@@ -21,7 +39,7 @@ export class Region {
 export async function loadWorld() {
   const [geoRes, metaRes, resourcesRes] = await Promise.all([
     fetch('data/world/regions.geo.json'), fetch('data/world/regions.meta.json'),
-    fetch('data/world/resources.initial.json?v=20260903-iron1'),
+    fetch('data/world/resources.initial.json?v=20260903-collapse1'),
   ]);
   const geo = await geoRes.json(); const meta = await metaRes.json(); const resources = await resourcesRes.json();
   const metaById = new Map(meta.regions.map((r) => [r.id, r]));

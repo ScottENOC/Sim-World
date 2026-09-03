@@ -3,17 +3,19 @@
     {
       "id": "bronze_plough",
       "label": "Bronze-tipped plough",
-      "productivityBonus": 0.35,
+      "productivityBonus": 1.50,
       "material": "bronze",
       "materialCost": 2,
+      "workersPerTool": 10,
       "requiredTechId": null
     },
     {
       "id": "iron_plough",
       "label": "Iron-tipped plough",
-      "productivityBonus": 0.22,
+      "productivityBonus": 0.80,
       "material": "iron",
       "materialCost": 2,
+      "workersPerTool": 10,
       "requiredTechId": "iron_smelting"
     }
   ],
@@ -24,6 +26,7 @@
       "productivityBonus": 0.30,
       "material": "bronze",
       "materialCost": 1.5,
+      "workersPerTool": 3,
       "requiredTechId": null
     },
     {
@@ -32,6 +35,7 @@
       "productivityBonus": 0.18,
       "material": "iron",
       "materialCost": 1.5,
+      "workersPerTool": 3,
       "requiredTechId": "iron_smelting"
     }
   ],
@@ -42,6 +46,7 @@
       "productivityBonus": 0.30,
       "material": "bronze",
       "materialCost": 1,
+      "workersPerTool": 3,
       "requiredTechId": null
     },
     {
@@ -50,6 +55,7 @@
       "productivityBonus": 0.18,
       "material": "iron",
       "materialCost": 1,
+      "workersPerTool": 3,
       "requiredTechId": "iron_smelting"
     }
   ],
@@ -60,6 +66,7 @@
       "productivityBonus": 0.60,
       "material": "bronze",
       "materialCost": 4,
+      "workersPerTool": 2,
       "requiredTechId": null
     },
     {
@@ -68,6 +75,7 @@
       "productivityBonus": 0.38,
       "material": "iron",
       "materialCost": 4,
+      "workersPerTool": 2,
       "requiredTechId": "iron_smelting"
     }
   ]

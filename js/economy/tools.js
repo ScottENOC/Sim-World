@@ -1,11 +1,32 @@
-import { localPrice } from './prices.js?v=20260903-iron1';
+import { localPrice } from './prices.js?v=20260903-collapse1';
 
-// Tools are durable counts, not a development score. Bronze and iron are
-// alternative materials: bronze remains the better tool, while iron becomes
-// attractive when abundant ore makes it substantially cheaper.
+// Tools are physical counts, not a permanent development score. They wear
+// out slowly, creating the replacement demand that makes a metal shortage
+// propagate into farms, mines and armies instead of being a harmless pause
+// in new adoption.
 const MAX_ADOPTION_RATE_PER_WEEK = 0.02;
 const IRON_MAX_RELATIVE_VALUE_COST = 0.65;
 const IRON_SMELTING_COST_MULTIPLIER = 2.5;
+const ANNUAL_TOOL_ATTRITION = {
+  farmer: 0.04,
+  miner: 0.05,
+  lumberjack: 0.04,
+  soldier: 0.06,
+};
+
+export function wearOutTools(region) {
+  let lost = 0;
+  for (const [occupation, equipment] of Object.entries(region.equipment || {})) {
+    const annualRate = ANNUAL_TOOL_ATTRITION[occupation] ?? 0.04;
+    const weeklyRate = 1 - Math.pow(1 - annualRate, 1 / 52);
+    for (const [toolId, count] of Object.entries(equipment || {})) {
+      const wornOut = Math.max(0, count) * weeklyRate;
+      equipment[toolId] = Math.max(0, count - wornOut);
+      lost += wornOut;
+    }
+  }
+  return lost;
+}
 
 function availableDefinitions(toolDefs, unlockedTechIds) {
   return toolDefs.filter((definition) => (
@@ -19,6 +40,10 @@ function definitionMaterial(definition) {
 
 function definitionMaterialCost(definition) {
   return definition.materialCost ?? definition.bronzeCost ?? 0;
+}
+
+function workersPerTool(definition) {
+  return Math.max(1, definition.workersPerTool || 1);
 }
 
 // Raw-input scarcity is the closest thing the current economy has to a
@@ -65,7 +90,7 @@ export function toolEfficiencyMultiplier(region, occupation, toolDefs, unlockedT
   let bonus = 0;
   for (const definition of definitions) {
     const owned = region.equipment[occupation]?.[definition.id] || 0;
-    const used = Math.min(workersRemaining, owned);
+    const used = Math.min(workersRemaining, owned * workersPerTool(definition));
     bonus += (used / prevHeadcount) * definition.productivityBonus;
     workersRemaining -= used;
     if (workersRemaining <= 0) break;
@@ -87,12 +112,14 @@ export function desiredToolInvestment(
   if (!choice) return { materialWanted: 0, material: null, tier: null, newToolsWanted: 0 };
 
   const totalEquipped = definitions.reduce(
-    (sum, definition) => sum + (region.equipment[occupation]?.[definition.id] || 0),
+    (sum, definition) => sum +
+      (region.equipment[occupation]?.[definition.id] || 0) * workersPerTool(definition),
     0
   );
   const unequipped = Math.max(0, headcount - totalEquipped);
   const adoptionCap = Math.max(1, Math.round(headcount * MAX_ADOPTION_RATE_PER_WEEK));
-  const newToolsWanted = Math.min(unequipped, adoptionCap);
+  const workersToEquip = Math.min(unequipped, adoptionCap);
+  const newToolsWanted = Math.ceil(workersToEquip / workersPerTool(choice.definition));
   const materialCost = definitionMaterialCost(choice.definition);
   return {
     materialWanted: newToolsWanted * materialCost,

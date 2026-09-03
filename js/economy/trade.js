@@ -1,12 +1,87 @@
-import { localPrice, TRADABLE_RESOURCES } from './prices.js?v=20260903-iron1';
-import { directContactIds, hasDirectContact, recordDirectTrade, diffuseTradeNetworkKnowledge } from '../core/knowledge.js?v=20260903-iron1';
-import { centroidDistanceKm } from '../world/distance.js?v=20260903-iron1';
+import { localPrice, TRADABLE_RESOURCES } from './prices.js?v=20260903-collapse1';
+import { directContactIds, knownRegionIds, recordDirectTrade, diffuseTradeNetworkKnowledge } from '../core/knowledge.js?v=20260903-collapse1';
+import { centroidDistanceKm } from '../world/distance.js?v=20260903-collapse1';
 
-const LAND_ADJACENT_COST = 0.1;
-const SEA_COST_PER_KM = 0.001;
+const LAND_ADJACENT_COST = 0.02;
+const SEA_COST_PER_KM = 0.0002;
 const MAX_EXPORT_FRACTION_PER_TICK = 0.15;
-const TRADE_UNITS_PER_TRADER = 5;
-const MIN_PROFIT_THRESHOLD = 0.05;
+const TRADE_UNITS_PER_TRADER = 25;
+const MIN_PROFIT_THRESHOLD = 0.01;
+const TRADE_HISTORY_ALPHA = 1 / 52;
+const CREDIT_WEEKS_OF_EXPORT_INCOME = 2;
+const CREDIT_PER_CAPITA_CAP = 0.002;
+const CREDIT_REPAYMENT_SHARE_OF_EXPORTS = 0.25;
+const ARREARS_STABILITY_LOSS = 0.001;
+
+function clamp01(value) {
+  return Math.max(0, Math.min(1, value));
+}
+
+function ensureTradeEconomy(region) {
+  if (!region.tradeEconomy) region.tradeEconomy = {};
+  const defaults = {
+    debt: 0, creditLimit: 0, arrearsWeeks: 0,
+    exportIncomeEma: 0, nonFoodExportIncomeEma: 0, importSpendEma: 0,
+    foodImportEma: 0, bronzeExportEma: 0, routeReliabilityEma: 0,
+    weeklyExports: 0, weeklyImports: 0,
+  };
+  for (const [key, value] of Object.entries(defaults)) {
+    if (!Number.isFinite(region.tradeEconomy[key])) region.tradeEconomy[key] = value;
+  }
+  return region.tradeEconomy;
+}
+
+function routeReliability(regionA, regionB) {
+  const security = Math.min(
+    regionA.safetyRating ?? 1,
+    regionB.safetyRating ?? 1
+  );
+  // Below 20% security ordinary commerce is effectively impossible. The
+  // squared curve makes worsening banditry bite route capacity early.
+  return Math.pow(clamp01((security - 0.2) / 0.8), 2);
+}
+
+function beginTradeWeek(region) {
+  const economy = ensureTradeEconomy(region);
+  economy.weeklyExports = 0;
+  economy.weeklyImports = 0;
+  economy.weeklyFoodImports = 0;
+  economy.weeklyBronzeExports = 0;
+  economy.weeklyNonFoodExportIncome = 0;
+  economy.weeklyRouteReliability = 0;
+  economy.weeklyTradeCount = 0;
+  economy.creditLimit = Math.max(0, Math.min(
+    economy.exportIncomeEma * CREDIT_WEEKS_OF_EXPORT_INCOME,
+    region.population * CREDIT_PER_CAPITA_CAP
+  ));
+
+  // Cash earned since last week services old obligations first. The share is
+  // intentionally material, because Bronze Age credit is scarce and short.
+  const repayment = Math.min(economy.debt, region.wallet * 0.1);
+  region.wallet -= repayment;
+  economy.debt -= repayment;
+
+  if (economy.debt > economy.creditLimit + 0.01) {
+    economy.arrearsWeeks += 1;
+    region.stability = Math.max(0, region.stability - ARREARS_STABILITY_LOSS);
+  } else {
+    economy.arrearsWeeks = Math.max(0, economy.arrearsWeeks - 1);
+  }
+}
+
+function finishTradeWeek(region) {
+  const economy = ensureTradeEconomy(region);
+  const ema = (oldValue, currentValue) => oldValue + (currentValue - oldValue) * TRADE_HISTORY_ALPHA;
+  economy.exportIncomeEma = ema(economy.exportIncomeEma, economy.weeklyExports);
+  economy.nonFoodExportIncomeEma = ema(economy.nonFoodExportIncomeEma, economy.weeklyNonFoodExportIncome);
+  economy.importSpendEma = ema(economy.importSpendEma, economy.weeklyImports);
+  economy.foodImportEma = ema(economy.foodImportEma, economy.weeklyFoodImports);
+  economy.bronzeExportEma = ema(economy.bronzeExportEma, economy.weeklyBronzeExports);
+  const reliability = economy.weeklyTradeCount > 0
+    ? economy.weeklyRouteReliability / economy.weeklyTradeCount
+    : 0;
+  economy.routeReliabilityEma = ema(economy.routeReliabilityEma, reliability);
+}
 
 export function routeCost(regionA, regionB) {
   if (regionA.neighbors.includes(regionB.id)) return LAND_ADJACENT_COST;
@@ -14,12 +89,14 @@ export function routeCost(regionA, regionB) {
   return SEA_COST_PER_KM * (distanceKm ?? 500);
 }
 
-function findOpportunities(region, candidateRegions) {
+function findOpportunities(region, candidateRegions, knownIdsByRegion) {
   const opportunities = [];
   for (const dest of candidateRegions) {
     if (dest.id === region.id) continue;
-    if (!hasDirectContact(region, dest) || !hasDirectContact(dest, region)) continue;
-    const cost = routeCost(region, dest);
+    if (!knownIdsByRegion.get(dest.id)?.has(region.id)) continue;
+    const reliability = routeReliability(region, dest);
+    if (reliability <= 0.001) continue;
+    const cost = routeCost(region, dest) + (1 - reliability) * 0.1;
     for (const resource of TRADABLE_RESOURCES) {
       const priceHere = localPrice(region, resource);
       const priceThere = localPrice(dest, resource);
@@ -28,7 +105,7 @@ function findOpportunities(region, candidateRegions) {
       const stockAvailable = (region.stockpile[resource] || 0) * MAX_EXPORT_FRACTION_PER_TICK;
       if (stockAvailable <= 0) continue;
       const price = (priceHere + priceThere) / 2;
-      opportunities.push({ resource, dest, gap, stockAvailable, price });
+      opportunities.push({ resource, dest, gap, stockAvailable, stockRemaining: stockAvailable, price, reliability });
     }
   }
   opportunities.sort((a, b) => b.gap - a.gap);
@@ -36,40 +113,115 @@ function findOpportunities(region, candidateRegions) {
 }
 
 function executeTrades(region, opportunities, currentTick = null) {
-  let laborLeft = region._availableForTrade || 0;
+  let laborLeft = region._tradeLaborRemaining || 0;
   let laborUsed = 0;
   for (const opp of opportunities) {
     if (laborLeft <= 0.01) break;
-    const maxByBuyerWallet = opp.price > 0 ? opp.dest.wallet / opp.price : Infinity;
-    const maxByLabor = laborLeft * TRADE_UNITS_PER_TRADER;
-    const volume = Math.max(0, Math.min(opp.stockAvailable, maxByBuyerWallet, maxByLabor));
+    const buyerEconomy = ensureTradeEconomy(opp.dest);
+    const creditAvailable = Math.max(0, buyerEconomy.creditLimit - buyerEconomy.debt);
+    const purchasingPower = Math.max(0, opp.dest.wallet) + creditAvailable;
+    const maxByBuyerFunds = opp.price > 0 ? purchasingPower / opp.price : Infinity;
+    const maxByLabor = laborLeft * TRADE_UNITS_PER_TRADER * opp.reliability;
+    const volume = Math.max(0, Math.min(opp.stockRemaining, maxByBuyerFunds, maxByLabor));
     if (volume <= 0.01) continue;
     region.stockpile[opp.resource] -= volume;
+    opp.stockRemaining -= volume;
     opp.dest.stockpile[opp.resource] = (opp.dest.stockpile[opp.resource] || 0) + volume;
     const payment = volume * opp.price;
-    opp.dest.wallet -= payment;
-    region.wallet += payment;
+    const cashPaid = Math.min(opp.dest.wallet, payment);
+    const borrowed = payment - cashPaid;
+    opp.dest.wallet -= cashPaid;
+    buyerEconomy.debt += borrowed;
+
+    const sellerEconomy = ensureTradeEconomy(region);
+    const debtRepaid = Math.min(sellerEconomy.debt, payment * CREDIT_REPAYMENT_SHARE_OF_EXPORTS);
+    sellerEconomy.debt -= debtRepaid;
+    region.wallet += payment - debtRepaid;
+
+    sellerEconomy.weeklyExports += payment;
+    buyerEconomy.weeklyImports += payment;
+    if (opp.resource !== 'food') sellerEconomy.weeklyNonFoodExportIncome += payment;
+    if (opp.resource === 'food') buyerEconomy.weeklyFoodImports += volume;
+    if (opp.resource === 'bronze') sellerEconomy.weeklyBronzeExports += volume;
+    sellerEconomy.weeklyRouteReliability += opp.reliability;
+    buyerEconomy.weeklyRouteReliability += opp.reliability;
+    sellerEconomy.weeklyTradeCount += 1;
+    buyerEconomy.weeklyTradeCount += 1;
+    if (!(region.recentTradePartners instanceof Map)) region.recentTradePartners = new Map();
+    if (!(opp.dest.recentTradePartners instanceof Map)) opp.dest.recentTradePartners = new Map();
+    if (currentTick !== null) {
+      region.recentTradePartners.set(opp.dest.id, currentTick);
+      opp.dest.recentTradePartners.set(region.id, currentTick);
+    }
     recordDirectTrade(region, opp.dest, volume, currentTick);
     const laborForThis = volume / TRADE_UNITS_PER_TRADER;
     laborLeft -= laborForThis;
     laborUsed += laborForThis;
   }
+  region._tradeLaborRemaining = laborLeft;
   return laborUsed;
 }
 
+function nearbyMarketIds(region, regionsById, limit = 32) {
+  if (Array.isArray(region._nearbyMarketIds)) return region._nearbyMarketIds;
+  const visited = new Set([region.id]);
+  const queue = [...(region.neighbors || [])];
+  const result = [];
+  while (queue.length > 0 && result.length < limit) {
+    const id = queue.shift();
+    if (visited.has(id)) continue;
+    visited.add(id);
+    const candidate = regionsById.get(id);
+    if (!candidate) continue;
+    result.push(id);
+    for (const nextId of candidate.neighbors || []) {
+      if (!visited.has(nextId)) queue.push(nextId);
+    }
+  }
+  region._nearbyMarketIds = result;
+  return result;
+}
+
 export function tickTrade(regions, currentTick = null) {
-  for (const region of regions) region.tradeLinks = new Map();
+  for (const region of regions) {
+    region.tradeLinks = new Map();
+    beginTradeWeek(region);
+  }
   const regionsById = new Map(regions.map((region) => [region.id, region]));
+  const knownIdsByRegion = new Map(regions.map((region) => [region.id, knownRegionIds(region)]));
   const opportunitiesByRegion = new Map(regions.map((region) => {
-    const candidates = [...directContactIds(region)]
+    // A merchant chain may connect mutually-known markets beyond a literal
+    // border. A cached breadth-first neighbourhood bounds this to 32 without
+    // sorting or scanning the whole map every week.
+    const knownIds = knownIdsByRegion.get(region.id);
+    const candidateIds = new Set([
+      ...directContactIds(region),
+      ...nearbyMarketIds(region, regionsById).filter((id) => knownIds.has(id)),
+    ]);
+    const candidates = [...candidateIds]
       .map((id) => regionsById.get(id))
       .filter(Boolean);
-    return [region.id, findOpportunities(region, candidates)];
+    return [region.id, findOpportunities(region, candidates, knownIdsByRegion)];
   }));
+  const laborUsedByRegion = new Map();
   for (const region of regions) {
-    const tradersUsed = executeTrades(region, opportunitiesByRegion.get(region.id), currentTick);
+    region._tradeLaborRemaining = region._availableForTrade || 0;
+    laborUsedByRegion.set(region.id, 0);
+  }
+  // Several clearing rounds let a region spend proceeds it earned earlier in
+  // the same week. That is settlement, not long-term credit, and avoids the
+  // outcome depending on array order while keeping the actual credit limit tiny.
+  for (let round = 0; round < 3; round++) {
+    for (const region of regions) {
+      const used = executeTrades(region, opportunitiesByRegion.get(region.id), currentTick);
+      laborUsedByRegion.set(region.id, laborUsedByRegion.get(region.id) + used);
+    }
+  }
+  for (const region of regions) {
+    const tradersUsed = laborUsedByRegion.get(region.id) || 0;
     region.occupations.trader = Math.round(tradersUsed);
     region.occupations.general = Math.max(0, region.occupations.general - Math.round(tradersUsed));
   }
+  for (const region of regions) finishTradeWeek(region);
   diffuseTradeNetworkKnowledge(regions, currentTick);
 }

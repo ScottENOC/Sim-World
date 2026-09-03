@@ -4,8 +4,10 @@
 // abundant regions to scarce ones, which is all that's needed right now.
 
 const BASE_PRICE = {
-  food: 1, wood: 0.5, stone: 0.3,
-  copper: 2, tin: 4, ironOre: 0.7, gold: 15, bronze: 6, iron: 3.5,
+  // Metal is high-value relative to bulk food: a small specialist mine must
+  // be capable of supporting a much larger food-importing population.
+  food: 0.2, wood: 0.5, stone: 0.3,
+  copper: 8, tin: 20, ironOre: 2, gold: 40, bronze: 60, iron: 24,
 };
 
 // Roughly "how much stock makes this feel abundant" per resource — sets the
@@ -19,8 +21,13 @@ export function localPrice(region, resource) {
   const base = BASE_PRICE[resource];
   const ref = REFERENCE_STOCK[resource];
   if (base === undefined || ref === undefined) return 0;
-  const stock = Math.max(0, region.stockpile[resource] || 0);
-  return base * (ref / (stock + ref));
+  // Workshops bid for enough input to cover a season of planned production;
+  // without this demand signal, raw ore is sprayed evenly across every
+  // region and copper/tin never meet in a real smelting centre.
+  const demand = Math.max(0, region.marketDemand?.[resource] || 0);
+  const stock = Math.max(0, (region.stockpile[resource] || 0) - demand * 26);
+  const demandPremium = 1 + Math.min(9, demand / Math.max(1, ref * 0.01));
+  return base * (ref / (stock + ref)) * demandPremium;
 }
 
 export const TRADABLE_RESOURCES = Object.keys(BASE_PRICE);

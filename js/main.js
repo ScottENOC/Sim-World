@@ -1,21 +1,21 @@
-import { Clock } from './core/clock.js?v=20260903-iron1';
-import { EventBus } from './core/eventBus.js?v=20260903-iron1';
-import { loadWorld } from './world/region.js?v=20260903-iron1';
-import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260903-iron1';
-import { seedCensus, densityPerKm2 } from './society/census.js?v=20260903-iron1';
-import { tickEconomy } from './economy/labor.js?v=20260903-iron1';
-import { tickTrade } from './economy/trade.js?v=20260903-iron1';
-import { tickDemographics } from './society/demographics.js?v=20260903-iron1';
-import { tickBanditry } from './military/banditry.js?v=20260903-iron1';
-import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable } from './military/raiding.js?v=20260903-iron1';
-import { tickNationAi } from './ai/nationAi.js?v=20260903-iron1';
-import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260903-iron1';
-import { tickBreakthroughs, IRON_SMELTING_TECH_ID } from './technology/breakthroughs.js?v=20260903-iron1';
-import { MapRenderer } from './ui/mapRenderer.js?v=20260903-iron1';
-import { FogOfWar } from './core/fogOfWar.js?v=20260903-iron1';
-import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260903-iron1';
+import { Clock } from './core/clock.js?v=20260903-collapse1';
+import { EventBus } from './core/eventBus.js?v=20260903-collapse1';
+import { loadWorld } from './world/region.js?v=20260903-collapse1';
+import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260903-collapse1';
+import { seedCensus, densityPerKm2 } from './society/census.js?v=20260903-collapse1';
+import { tickEconomy } from './economy/labor.js?v=20260903-collapse1';
+import { tickTrade } from './economy/trade.js?v=20260903-collapse1';
+import { tickDemographics } from './society/demographics.js?v=20260903-collapse1';
+import { tickBanditry } from './military/banditry.js?v=20260903-collapse1';
+import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable } from './military/raiding.js?v=20260903-collapse1';
+import { tickNationAi } from './ai/nationAi.js?v=20260903-collapse1';
+import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260903-collapse1';
+import { tickBreakthroughs, IRON_SMELTING_TECH_ID } from './technology/breakthroughs.js?v=20260903-collapse1';
+import { MapRenderer } from './ui/mapRenderer.js?v=20260903-collapse1';
+import { FogOfWar } from './core/fogOfWar.js?v=20260903-collapse1';
+import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260903-collapse1';
 
-const START_YEAR = -1200; // Bronze Age start, mid-collapse-era — tune later
+const START_YEAR = -1400; // prosperous runway before century-scale surface tin begins to fail
 const LAYERS = {
   density: {
     valueFn: (r) => densityPerKm2(r),
@@ -51,7 +51,7 @@ async function main() {
   linkSeaAdjacency(regions, seaRegions);
   const fishingContactPairs = buildFishingContactPairs(regions, seaRegions);
   initialiseKnowledge(regions);
-  const toolTypes = await (await fetch('data/world/toolTypes.json?v=20260903-iron1')).json();
+  const toolTypes = await (await fetch('data/world/toolTypes.json?v=20260903-collapse1')).json();
 
   console.log(
     `Loaded ${regions.length} regions:`,
@@ -698,6 +698,18 @@ function buildReportSection(region) {
   const lines = [];
 
   for (const [key, data] of Object.entries(r)) {
+    if (key === 'toolWear') {
+      if (data.tools > 0.05) lines.push(`<div>Wear and breakage: ${data.tools.toFixed(1)} tools lost</div>`);
+      continue;
+    }
+    if (key === 'foodPlan') {
+      if (data.importDependence > 0.005) {
+        lines.push(`<div>Food strategy: plans to import ${(data.importDependence * 100).toFixed(0)}% of need</div>`);
+      } else if (data.exportSurplus > 0.005) {
+        lines.push(`<div>Food strategy: plans a ${(data.exportSurplus * 100).toFixed(0)}% export surplus</div>`);
+      }
+      continue;
+    }
     if (!data || data.workers === 0) continue;
 
     const outputs = Object.entries(data)
@@ -783,18 +795,26 @@ function updateRegionStats(region, seaRegionsById, fogOfWar, regions, playerRegi
   const bronzePloughs = region.equipment.farmer?.bronze_plough || 0;
   const ironPloughs = region.equipment.farmer?.iron_plough || 0;
   const ploughs = bronzePloughs + ironPloughs;
+  const farmersSupported = ploughs * 10;
   const toolLine = occ.farmer
-    ? `${ploughs.toLocaleString()} / ${occ.farmer.toLocaleString()} farmers have a plough (${bronzePloughs.toLocaleString()} bronze, ${ironPloughs.toLocaleString()} iron; ${((Math.min(ploughs, occ.farmer) / occ.farmer) * 100).toFixed(0)}%)`
+    ? `${ploughs.toLocaleString()} plough teams support ${Math.min(farmersSupported, occ.farmer).toLocaleString()} / ${occ.farmer.toLocaleString()} farmers (${bronzePloughs.toLocaleString()} bronze, ${ironPloughs.toLocaleString()} iron; ${((Math.min(farmersSupported, occ.farmer) / occ.farmer) * 100).toFixed(0)}%)`
     : 'n/a';
 
   const bronzeArms = region.equipment.soldier?.bronze_weapons || 0;
   const ironArms = region.equipment.soldier?.iron_weapons || 0;
   const armyEquipped = bronzeArms + ironArms;
-  const militaryLine = `${occ.soldier || 0} soldiers (${Math.min(armyEquipped, occ.soldier || 0).toFixed(0)} equipped: ${bronzeArms.toFixed(0)} bronze, ${ironArms.toFixed(0)} iron) &middot; ${occ.sailor || 0} sailors &middot; ${Math.round(region.navy.boats)} navy boats`;
+  const militaryLine = `${occ.soldier || 0} soldiers (${Math.min(armyEquipped * 2, occ.soldier || 0).toFixed(0)} equipped by ${armyEquipped.toFixed(0)} weapon sets: ${bronzeArms.toFixed(0)} bronze, ${ironArms.toFixed(0)} iron) &middot; ${occ.sailor || 0} sailors &middot; ${Math.round(region.navy.boats)} navy boats`;
 
   const fishingLine = region.adjacentSeaIds.length
     ? `${Math.round(region.fishingBoats)} fishing boats &middot; fishes ${region.adjacentSeaIds.join(', ')}`
     : 'landlocked — no fishing';
+
+  const tradeEconomy = region.tradeEconomy || {};
+  const creditLine = (tradeEconomy.debt || 0) > 0.05 || (tradeEconomy.creditLimit || 0) > 0.05
+    ? ` &middot; debt ${(tradeEconomy.debt || 0).toFixed(0)} / ${(tradeEconomy.creditLimit || 0).toFixed(0)} limit`
+    : '';
+  const foodDependence = region.report?.foodPlan?.importDependence || 0;
+  const tradeLine = `Recent exports ${(tradeEconomy.exportIncomeEma || 0).toFixed(0)}/week &middot; food imports ${(tradeEconomy.foodImportEma || 0).toFixed(0)} rations/week${foodDependence > 0.005 ? ` &middot; planned food dependence ${(foodDependence * 100).toFixed(0)}%` : ''}`;
 
   const skillLine = LEARNABLE_ACTIVITIES
     .map((activity) => `${activity} +${((skillMultiplier(region, activity) - 1) * 100).toFixed(0)}%`)
@@ -824,7 +844,7 @@ function updateRegionStats(region, seaRegionsById, fogOfWar, regions, playerRegi
     ${knowsResources ? `<div>Fishing: ${fishingLine}</div>` : '<div>Fishing activity: unknown</div>'}
     ${knowsDetailed ? `<div>Skill (learning by doing): ${skillLine}</div>` : ''}
     ${knowsDetailed ? `<div>Iron smelting: ${region.unlockedTechIds.has(IRON_SMELTING_TECH_ID) ? 'discovered' : 'not yet discovered'}</div>` : ''}
-    ${knowsEconomy ? `<div>Wealth: ${region.wallet.toFixed(0)} populace &middot; ${region.treasury.toFixed(0)} treasury</div>` : '<div>Wealth: unknown</div>'}
+    ${knowsEconomy ? `<div>Wealth: ${region.wallet.toFixed(0)} populace &middot; ${region.treasury.toFixed(0)} treasury${creditLine}</div><div>Trade: ${tradeLine}</div>` : '<div>Wealth: unknown</div>'}
     ${knowsDetailed ? `<div>Tools: ${toolLine}</div><div>Culture: ${culture.cultureId} &middot; identity strength ${(culture.identityStrength * 100).toFixed(0)}%</div>` : ''}
     <div>Neighbours: ${neighbourLine}</div>
     <div>Controlled by: ${fogOfWar.devMode ? region.controllingActorId : (region.controllingActorId === region.id ? region.name : 'another ruler')}</div>

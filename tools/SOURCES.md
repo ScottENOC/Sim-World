@@ -115,7 +115,9 @@ run at all or run once and instantly drain the whole stockpile.
 
 Replaced with actual demand: `economy/tools.js` tracks equipment as real
 tool counts per occupation (`region.equipment.farmer.bronze_plough`, not a
-single "development score"), gives the first N equipped workers a
+single "development score"), and lets a shared implement set support a small
+work team (ten farmers per plough team, three miners/lumberjacks per set and
+two soldiers per weapon set). It gives the supported workers a
 productivity bonus (lagged one tick — this tick's efficiency is based on
 last tick's headcount/equipment, which avoids solving a circular "how many
 farmers, how equipped are they" system simultaneously), and computes how
@@ -129,36 +131,30 @@ selected tool demand (subject to tier caps), before falling back to background
 priority mining for stone/gold/spare capacity. Smithing is bounded by labor and
 actual input availability — never a stock-existence boolean.
 
-`region.equipment[occupation]`, once populated, is durable — if the
-workforce shrinks, existing tools just sit unused rather than disappearing,
-ready for when headcount grows again.
+`region.equipment[occupation]` stores physical tools. Tools now wear out at
+roughly 4% annually (6% for military equipment), so copper/tin disruption
+eventually reaches farms, mines and armies through failed replacement. If a
+workforce shrinks, unused tools remain available, but still deteriorate.
 
-Two calibration bugs caught by simulation before shipping: baseline bronze
-demand (a flat weekly draw representing prestige/trade goods) was larger
-than realistic weekly mine-face output, so it was eating 100% of production
-before any tools could be bought — cut from 5 to 0.5. And mine-face worker
-caps, tuned purely for century-scale depletion in the previous session, came
-out too small to run any meaningful bronze economy at all — scaled workers
-and stock up together 6x so the stock-to-worker *ratio* (and therefore the
-already-verified depletion timescale) stayed the same while weekly
-throughput became workable. Re-verified over 1000 simulated years: France's
-farmer tool coverage grows steadily for ~300 years then plateaus around 7.6%
-once surface copper/tin are both exhausted, sitting there — correctly —
-until `shaft_mining` exists to unlock more.
+Mines maintain a modest sale buffer for copper/tin instead of extracting into
+permanent mountains of unsold ore. Additional production follows sales and
+workshop demand; only stone and gold retain background extraction. Workshops
+form where both inputs meet, persist as their shared smithing skill grows, and
+respond to unmet finished-bronze demand in neighbouring markets.
 
 ## Iron working
 Iron ore uses the same surface/shaft/deep structure as copper and tin, but is
-deliberately abundant: the world contains 15 times as much iron ore as copper
-and tin combined, with broader workable mine faces. It can be mined before it
-can be smelted, allowing regions to accumulate and trade ore while iron
-working remains unknown.
+deliberately abundant and has broader workable mine faces. Deposits are visible
+before the breakthrough, but commercial mining begins only once a region can
+smelt the ore; this prevents centuries of pre-breakthrough stockpiling.
 
 `technology/breakthroughs.js` makes `iron_smelting` a probabilistic discrete
 breakthrough rather than another point on the learning curve. Independent
 discovery is extremely rare across the map, becomes more likely as a region's
-existing `smithing` experience grows, and diffuses much faster through its
-recorded trading partners once one of them knows the technique. The player's
-own discovery pauses the clock and opens a prominent event.
+existing `smithing` experience grows, and diffuses much faster through partners
+with whom it has actually traded in the last two years once one of them knows
+the technique. The player's own discovery pauses the clock and opens a
+prominent event.
 
 Bronze and iron production both add to the same `smithing` experience. Iron
 tools are weaker equivalents of bronze tools, not a superior tier. New tools
@@ -183,18 +179,16 @@ trade/currency system.
 resource (falls smoothly as that region's own stock rises — not a cleared
 market price, just enough of a signal to make goods flow from abundant
 regions to scarce ones). `economy/trade.js` computes route cost per region
-pair — land-adjacent pairs get a small flat cost, everything else goes by
-sea using a great-circle distance calculated on demand from the two stored
-region centroids. The old all-pairs distance matrix was removed because it
-grew quadratically with the map while almost all routes were never examined.
-Each region's trader labor — whatever's left
-over after farming/lumber/mining/smithing, via `region._availableForTrade`
-set by `labor.js` — chases its best price-gap opportunities across every
-resource and destination, in order, until it runs out of labor, stock, or a
-buyer's ability to pay. Currency is `region.wallet` (populace, active in
-trade) and `region.treasury` (government, inert until taxation/edicts
-exist), both seeded proportional to population — placeholders, not derived
-from anything.
+pair — land-adjacent pairs get a small flat cost, everything else uses a
+great-circle distance calculated on demand from the two stored region
+centroids. Merchant chains can reach mutually-known markets in a cached,
+breadth-first neighbourhood capped at 32 candidates; this avoids returning to
+an all-regions-per-region weekly scan on a much larger map. One percent of
+working labour is reserved for carriers before mines/workshops allocate their
+surplus. Three settlement rounds let a region spend exports earned earlier in
+the same week without treating that timing as long-term credit. Currency is
+`region.wallet` (populace, active in trade) and `region.treasury` (government,
+inert until taxation/edicts exist), both seeded proportional to population.
 
 One real calibration bug caught before shipping: the first version of
 `routeCost` was almost an order of magnitude too large relative to the price
@@ -203,16 +197,36 @@ any good), so nothing was ever profitable enough to trade. Fixed by
 rescaling `LAND_ADJACENT_COST` and `SEA_COST_PER_KM` down to where real
 routes can clear real price gaps.
 
-Confirmed behavior, deliberately not patched: a region that spends its
-wallet on imports and has nothing profitable left to export cannot earn any
-more money and stays locked out of trade — under the current starting
-wallet seeds (population × 0.01), that's most of the six-region world within
-about a month of simulated time, including the wealthy regions once their
-customers go broke. This is intentional per the design direction (economic
-distress is a real path into Bronze Age collapse, not something to
-smooth over with passive income) — flagged here rather than fixed since the
-pacing (how long trade stays active before freezing) is a starting-wallet
-tuning question, not a bug, and hasn't been revisited yet.
+Regions now retain a one-year exponential history of imports, exports and
+route reliability. Credit is intentionally tiny: at most two weeks of recent
+export income and never more than population × 0.002, only 4% of the current
+population × 0.05 starting cash seed. Export receipts service debt before becoming spendable cash;
+shrinking export income can put old borrowing into arrears and lower stability.
+This bridges caravan timing but cannot finance a failed region through a tin
+shock. Banditry reduces route capacity, raises route cost, and steals both
+stock and populace wealth, so commercial failure also degrades tool replacement
+and military equipment.
+
+Regions specialise slowly. Good non-metal farmland plans a modest food export
+surplus. Industrial regions do not assume week-one imports: dependence only
+deepens over roughly a decade after rolling history shows food actually
+arriving and non-food exports paying for it, and is capped at 25%. Unwinding a
+specialisation takes roughly two generations, so a failed route cannot turn a
+smithing centre back into a self-sufficient village instantly. Bronze workshops
+build a commercial reserve and replace exports, allowing external demand to
+pull copper and tin through intermediary smelting regions.
+
+Stored food spoils 1% weekly and is capped at thirteen weeks of local need.
+This leaves a useful seasonal reserve without allowing prosperous regions to
+accumulate centuries of immortal food that nullifies a later collapse.
+
+Copper and tin geography is deliberately sparse and procedurally assigned for
+gameplay rather than claimed as historical geology: 85 of 283 regions have
+copper, 25 have tin, seven have both, and 180 have neither. The accessible
+surface-tin pool is deliberately small and extraction becomes uneconomic as
+the remaining seams thin; deeper tiers remain technology-gated. Iron ore
+remains nearly universal, but is not commercially mined until iron smelting is
+discovered.
 
 ## Demographics, gathering, and famine response
 Population is dynamic now, not a number set once at game start. Each region

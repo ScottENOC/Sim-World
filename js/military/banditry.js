@@ -1,5 +1,5 @@
-import { effectivePower } from './army.js?v=20260903-iron1';
-import { removeFromBands, syncPopulation } from '../society/demographics.js?v=20260903-iron1';
+import { effectivePower } from './army.js?v=20260903-collapse1';
+import { removeFromBands, syncPopulation } from '../society/demographics.js?v=20260903-collapse1';
 
 // Even with zero army, a bandit group doesn't last forever — disorganized,
 // exposed, some natural die-off. Suppression on top of that scales with
@@ -44,6 +44,10 @@ export function tickBanditry(regions, toolTypes) {
       for (const key of Object.keys(region.stockpile)) {
         region.stockpile[key] *= (1 - raidLossFraction);
       }
+      // Caravans, coin hoards and merchant credit are unusually exposed when
+      // the state cannot control the roads. This directly weakens a failed
+      // region's ability to replace scarce tools or equip an army.
+      region.wallet *= (1 - raidLossFraction * 0.1);
     }
 
     const banditDeathRate = BANDIT_DEATH_INTENSITY * severity;

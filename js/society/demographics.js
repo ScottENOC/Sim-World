@@ -4,8 +4,8 @@
 // actually benefit from that before anyone starves, emigrates, or turns
 // to banditry over a shortfall that no longer exists.
 
-import { FOOD_PER_PERSON_PER_WEEK } from '../economy/labor.js?v=20260903-iron1';
-import { chooseEmigrationDestinations } from './migration.js?v=20260903-iron1';
+import { FOOD_PER_PERSON_PER_WEEK } from '../economy/labor.js?v=20260903-collapse1';
+import { chooseEmigrationDestinations } from './migration.js?v=20260903-collapse1';
 
 const CHILD_BAND_YEARS = 14;
 const WORKING_BAND_YEARS = 45; // 15-59; elderly is open-ended above that
@@ -15,7 +15,7 @@ const WORKING_TO_ELDERLY_RATE = 1 / (WORKING_BAND_YEARS * 52);
 
 // High pre-modern rates on both sides — this isn't a slow, gentle
 // demographic system, it's meant to be genuinely volatile.
-const BASE_ANNUAL_BIRTH_RATE = 0.045; // per capita of total population
+const BASE_ANNUAL_BIRTH_RATE = 0.030; // prosperous growth without a pre-collapse Malthusian explosion
 const EDUCATION_BIRTH_PENALTY = 0.5;  // at educationLevel=1, birth rate halves — the "double-edged sword"
 
 const BASE_ANNUAL_DEATH_RATE = { children: 0.025, workingAge: 0.01, elderly: 0.07 };
