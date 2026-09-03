@@ -147,7 +147,6 @@ async function main() {
     document.getElementById('region-sheet').classList.remove('hidden');
 
     map.refreshLayer();
-    map.focusRegion(chosen);
     clock.start();
   });
 
@@ -182,93 +181,21 @@ async function main() {
 }
 
 function showRegionPicker(regions, onChosen) {
-  const pickerList = document.getElementById('picker-list');
-  const pickerTitle = document.getElementById('picker-title');
-  const pickerHelp = document.getElementById('picker-help');
+  document.getElementById('picker-list').innerHTML = regions
+    .map((r) => `
+      <button class="picker-option" data-id="${r.id}">
+        <strong>${r.name}</strong>
+        <span>pop ${r.population.toLocaleString()} &middot; land quality ${r.landQuality.toFixed(2)}&times;</span>
+      </button>
+    `)
+    .join('');
 
-  // Geography hierarchy is presentation metadata only. Permanent region IDs
-  // remain politically neutral and do not depend on these labels.
-  const groupForRegion = (region) => {
-    const sourceGroup = region.feature?.properties?.sourceGroup;
-    const groups = {
-      'GBR-ENG': { continent: 'Europe', area: 'England' },
-      'GBR-WLS': { continent: 'Europe', area: 'Wales' },
-      'GBR-SCT': { continent: 'Europe', area: 'Scotland' },
-      'FRA': { continent: 'Europe', area: 'France' },
-      'ESP': { continent: 'Europe', area: 'Spain' },
-      'PRT': { continent: 'Europe', area: 'Portugal' },
-    };
-    return groups[sourceGroup] || { continent: 'Other', area: sourceGroup || 'Other' };
-  };
-
-  const enriched = regions.map((region) => ({ region, ...groupForRegion(region) }));
-
-  const button = (label, count, onClick) => {
-    const el = document.createElement('button');
-    el.className = 'picker-group';
-    el.innerHTML = `<strong>${label}</strong><span class="picker-count">${count}</span>`;
-    el.addEventListener('click', onClick);
-    return el;
-  };
-
-  const backButton = (label, onClick) => {
-    const el = document.createElement('button');
-    el.className = 'picker-back';
-    el.textContent = `← ${label}`;
-    el.addEventListener('click', onClick);
-    return el;
-  };
-
-  const renderContinents = () => {
-    pickerTitle.textContent = 'Choose your region';
-    pickerHelp.textContent = 'First choose a part of the world.';
-    pickerList.replaceChildren();
-
-    const continents = [...new Set(enriched.map((x) => x.continent))].sort();
-    for (const continent of continents) {
-      const matches = enriched.filter((x) => x.continent === continent);
-      pickerList.appendChild(button(continent, `${matches.length} regions`, () => renderAreas(continent)));
-    }
-  };
-
-  const renderAreas = (continent) => {
-    pickerTitle.textContent = continent;
-    pickerHelp.textContent = 'Choose an area.';
-    pickerList.replaceChildren(backButton('World', renderContinents));
-
-    const areas = [...new Set(enriched.filter((x) => x.continent === continent).map((x) => x.area))].sort();
-    for (const area of areas) {
-      const matches = enriched.filter((x) => x.continent === continent && x.area === area);
-      pickerList.appendChild(button(area, `${matches.length} regions`, () => renderRegions(continent, area)));
-    }
-    pickerList.scrollTop = 0;
-  };
-
-  const renderRegions = (continent, area) => {
-    pickerTitle.textContent = area;
-    pickerHelp.textContent = 'Choose the region you will govern.';
-    pickerList.replaceChildren(backButton(continent, () => renderAreas(continent)));
-
-    const matches = enriched
-      .filter((x) => x.continent === continent && x.area === area)
-      .map((x) => x.region)
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    for (const region of matches) {
-      const el = document.createElement('button');
-      el.className = 'picker-option';
-      el.dataset.id = region.id;
-      el.innerHTML = `
-        <strong>${region.name}</strong>
-        <span>pop ${region.population.toLocaleString()} &middot; land quality ${region.landQuality.toFixed(2)}&times;</span>
-      `;
-      el.addEventListener('click', () => onChosen(region));
-      pickerList.appendChild(el);
-    }
-    pickerList.scrollTop = 0;
-  };
-
-  renderContinents();
+  document.querySelectorAll('.picker-option').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const region = regions.find((r) => r.id === btn.dataset.id);
+      if (region) onChosen(region);
+    });
+  });
 }
 
 function wireLayerToggle(map) {
