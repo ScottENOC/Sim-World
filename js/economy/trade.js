@@ -4,6 +4,7 @@ import { centroidDistanceKm } from '../world/distance.js?v=20260904-weather1';
 import { advancedMaritimeShare } from '../military/army.js?v=20260904-weather1';
 import { horseTransportMultiplier } from './horses.js?v=20260904-weather1';
 import { recordDiplomaticTrade, tradeRelationMultiplier } from '../diplomacy/relations.js?v=20260904-save1';
+import { navalMissionProfile, postureProfile } from '../military/policies.js?v=20260904-policy1';
 
 const LAND_ADJACENT_COST = 0.02;
 const SEA_COST_PER_KM = 0.0002;
@@ -66,10 +67,15 @@ function ensureTradeEconomy(region) {
 }
 
 function routeReliability(regionA, regionB) {
-  const security = Math.min(
-    regionA.safetyRating ?? 1,
-    regionB.safetyRating ?? 1
-  );
+  const routeSecurity = (region) => {
+    const posture = postureProfile(region);
+    const naval = navalMissionProfile(region);
+    const patrolCoverage = clamp01((region.navy?.personnel || 0) /
+      Math.max(1, (region.population || 0) * 0.005));
+    return clamp01((region.safetyRating ?? 1) * posture.tradeSecurity +
+      patrolCoverage * Math.max(0, naval.trade - 1) * 0.35);
+  };
+  const security = Math.min(routeSecurity(regionA), routeSecurity(regionB));
   // Below 20% security ordinary commerce is effectively impossible. The
   // squared curve makes worsening banditry bite route capacity early.
   return clamp01(Math.pow(clamp01((security - 0.2) / 0.8), 2) * tradeRelationMultiplier(regionA, regionB));

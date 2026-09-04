@@ -1,8 +1,9 @@
-import { effectivePower } from './army.js?v=20260904-weather1';
+import { effectivePower } from './army.js?v=20260904-policy1';
 import { addWorkingAgePopulation, removeFromBands, syncPopulation } from '../society/demographics.js?v=20260904-weather1';
 import { FOOD_PER_PERSON_PER_WEEK } from '../economy/labor.js?v=20260904-weather1';
 import { directContactIds } from '../core/knowledge.js?v=20260904-weather1';
 import { protectionPowerFor } from '../diplomacy/relations.js?v=20260904-save1';
+import { ensureMilitaryPolicy, postureProfile } from './policies.js?v=20260904-policy1';
 
 // Even with zero army, a bandit group doesn't last forever — disorganized,
 // exposed, some natural die-off. Suppression on top of that scales with
@@ -51,8 +52,10 @@ export function tickBanditry(regions, toolTypes, agreements = []) {
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   const movements = [];
   for (const region of regions) {
+    const policy = ensureMilitaryPolicy(region);
+    const posture = postureProfile(region);
     const alliedProtection = protectionPowerFor(region.id, agreements);
-    const power = effectivePower(region, toolTypes) + alliedProtection;
+    const power = (effectivePower(region, toolTypes) + alliedProtection) * posture.localPower;
     const banditPop = region.banditPopulation;
     const totalLocal = region.population + banditPop;
     const banditPressure = totalLocal > 0 ? banditPop / totalLocal : 0;
@@ -65,16 +68,21 @@ export function tickBanditry(regions, toolTypes, agreements = []) {
     // Suppression — this is what finally gives the ever-growing bandit
     // number from last pass somewhere to go.
     const suppressionRate = power > 0 ? power / (power + banditPop + 1) : 0;
-    const suppressed = Math.min(banditPop, banditPop * suppressionRate * SUPPRESSION_REFERENCE);
+    const punishmentSuppression = policy.raiderTreatment === 'punish' ? 1.25 : 1;
+    const suppressed = Math.min(banditPop, banditPop * suppressionRate * SUPPRESSION_REFERENCE * punishmentSuppression);
     region.banditPopulation = Math.max(0, banditPop - suppressed);
-    const capturedReturn = suppressed * CAPTURED_REINTEGRATION_SHARE * (0.25 + 0.75 * region.stability);
-    addWorkingAgePopulation(region, capturedReturn);
+    const baseCaptured = suppressed * CAPTURED_REINTEGRATION_SHARE * (0.25 + 0.75 * region.stability);
+    const capturedReturn = policy.raiderTreatment === 'reintegrate' ? baseCaptured * 1.7
+      : policy.raiderTreatment === 'recruit' ? baseCaptured * 0.3 : 0;
+    const recruited = policy.raiderTreatment === 'recruit' ? baseCaptured * 1.15 : 0;
+    addWorkingAgePopulation(region, capturedReturn + recruited);
+    region.army.personnel += recruited;
 
     // Ongoing raiding: bandits steal from the stockpile and cause some
     // deaths, both scaled down by how safe the region currently is (a
     // strong army suppresses the *impact*, not just the eventual headcount).
     const severity = banditPressure * (1 - region.safetyRating);
-    const raidLossFraction = RAID_INTENSITY * severity;
+    const raidLossFraction = RAID_INTENSITY * severity / posture.settlementProtection;
     let foodLooted = 0;
     if (raidLossFraction > 0) {
       for (const key of Object.keys(region.stockpile)) {
@@ -84,8 +92,9 @@ export function tickBanditry(regions, toolTypes, agreements = []) {
       // Caravans, coin hoards and merchant credit are unusually exposed when
       // the state cannot control the roads. This directly weakens a failed
       // region's ability to replace scarce tools or equip an army.
-      region.wallet *= (1 - raidLossFraction * 0.1);
-      region.treasury *= (1 - raidLossFraction * 0.15);
+      const tradeExposure = policy.defensivePosture === 'trade_routes' ? 0.45 : 1;
+      region.wallet *= (1 - raidLossFraction * 0.1 * tradeExposure);
+      region.treasury *= (1 - raidLossFraction * 0.15 * tradeExposure);
     }
 
     // Bandits eat from what they seized, holding at most a few weeks of food.
@@ -120,21 +129,25 @@ export function tickBanditry(regions, toolTypes, agreements = []) {
       region.banditPopulation * BANDIT_STARVATION_RATE * livelihoodShortfall);
     region.banditPopulation -= starved;
 
-    const banditDeathRate = BANDIT_DEATH_INTENSITY * severity;
+    const banditDeathRate = BANDIT_DEATH_INTENSITY * severity / posture.settlementProtection;
     if (banditDeathRate > 0) {
       removeFromBands(region, region.population * banditDeathRate);
       syncPopulation(region);
     }
     region.report.banditry = {
       foodLooted, foodEaten, livelihoodShortfall, suppressed,
-      reintegrated: reintegrated + capturedReturn, dispersed: dispersing, starved,
-      alliedProtection,
+      reintegrated: reintegrated + capturedReturn, recruited,
+      punished: Math.max(0, suppressed - capturedReturn - recruited),
+      dispersed: dispersing, starved, alliedProtection,
+      defensivePosture: policy.defensivePosture, raiderTreatment: policy.raiderTreatment,
     };
   }
   // Apply transfers after all destinations have been assessed so loop order
   // cannot let newly arrived groups raid twice in the same week.
   for (const movement of movements) {
-    movement.to.banditPopulation += movement.count;
+    const borderControl = postureProfile(movement.to).borderControl;
+    const arrived = movement.count / borderControl;
+    movement.to.banditPopulation += arrived;
     movement.to.banditFoodStores = (movement.to.banditFoodStores || 0);
   }
 }

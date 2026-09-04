@@ -4,12 +4,13 @@
 // occasional, cautious evaluation of whether raiding a reachable neighbor
 // is clearly worth it. AI only considers regions it has actually met.
 import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-weather1';
-import { canRaid, launchRaid } from '../military/raiding.js?v=20260904-save1';
+import { canRaid, launchRaid } from '../military/raiding.js?v=20260904-policy1';
 import { directContactIds, knowledgeOf, KNOWLEDGE_THRESHOLDS } from '../core/knowledge.js?v=20260904-weather1';
 import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-weather1';
-import { horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-weather1';
+import { horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-policy1';
 import { activeAgreementBetween, attitudeToward, canDiplomaticallyReach, powerRatio, proposeAgreement } from '../diplomacy/relations.js?v=20260904-save1';
 import { demandVassalage } from '../politics/polities.js?v=20260904-kingdom1';
+import { chooseAiMilitaryPolicies } from '../military/policies.js?v=20260904-policy1';
 
 // A one-percent peacetime levy is supportable while trade and taxation are
 // healthy. Threatened states still expand this through the safety multiplier;
@@ -37,6 +38,7 @@ export function tickNationAi(regions, playerRegionId, activeRaids, agreements, p
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   for (const region of regions) {
     if (region.controllingActorId === playerRegionId) continue;
+    chooseAiMilitaryPolicies(region);
     setMilitaryTargets(region);
     maybeMakeAgreement(region, regionsById, playerRegionId, agreements, polities, currentTick, toolTypes, rng);
     maybeRaid(region, regionsById, activeRaids, polities, currentTick, toolTypes, rng);

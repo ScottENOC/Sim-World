@@ -1,11 +1,12 @@
 import { extractionRate, selectActiveTier } from '../world/resources/extraction.js?v=20260904-weather1';
 import { regrow, neighborSpreadBonus } from '../world/resources/renewables.js?v=20260904-weather1';
 import { toolEfficiencyMultiplier, desiredToolInvestment, investInTools, wearOutTools, materialUnitCost } from './tools.js?v=20260904-weather1';
-import { adjustArmySize, adjustNavyCrew } from '../military/army.js?v=20260904-weather1';
+import { adjustArmySize, adjustNavyCrew } from '../military/army.js?v=20260904-policy1';
 import { spendMilitaryProcurement } from './stateFinance.js?v=20260904-weather1';
 import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260904-weather1';
-import { tickHorseEconomy, draughtFarmMultiplier } from './horses.js?v=20260904-weather1';
+import { tickHorseEconomy, draughtFarmMultiplier } from './horses.js?v=20260904-policy1';
 import { tickWeather } from '../world/weather.js?v=20260904-weather1';
+import { navalMissionProfile } from '../military/policies.js?v=20260904-policy1';
 
 // --- Tunable constants -----------------------------------------------------
 // All placeholders, calibrated so a "typical" region can just about feed
@@ -440,8 +441,12 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
       const advancedShare = region.fishingBoats > 0
         ? Math.min(1, (region.advancedFishingBoats || 0) / region.fishingBoats)
         : 0;
+      const navalMission = navalMissionProfile(region);
+      const fisheryPatrolCoverage = clamp01((region.navy?.personnel || 0) /
+        Math.max(1, region.population * 0.005));
+      const fisheryProtection = 1 + Math.max(0, navalMission.fishing - 1) * fisheryPatrolCoverage;
       const boatYieldPerWorker = BOAT_FISH_YIELD_PER_WORKER_BASE * (1 + advancedShare * 0.5) *
-        stockFraction * fishingSkill;
+        stockFraction * fishingSkill * fisheryProtection;
       const boatCapacityTotal = Math.round(sea.fish.K / BOAT_FISH_CAPACITY_DIVISOR);
       const boatCapacityShare = Math.round(boatCapacityTotal / Math.max(1, sea.adjacentLand.length));
       const effectiveFishingBoats = Math.max(0, region.fishingBoats - (region.advancedFishingBoats || 0)) +
@@ -459,7 +464,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
       const catchScale = totalWanted > 0 ? foodFromFishing / totalWanted : 0;
       report.shoreFishing = { workers: Math.round(shoreFishers), food: foodFromShore * catchScale, seaName: sea.name };
       report.boatFishing = { workers: Math.round(boatFishers), food: foodFromBoat * catchScale,
-        advancedShare, seaName: sea.name };
+        advancedShare, fisheryProtection, seaName: sea.name };
 
       // Grow fishing-boat demand when boat fishing is capacity-bound and
       // there's still unmet need — but only up to the sea's own physical

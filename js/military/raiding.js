@@ -1,12 +1,13 @@
 import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-weather1';
 import { hasDirectContact, learnAbout } from '../core/knowledge.js?v=20260904-weather1';
 import { centroidDistanceKm } from '../world/distance.js?v=20260904-weather1';
-import { advancedNavyShare, navyTransportCapacity } from './army.js?v=20260904-weather1';
+import { advancedNavyShare, navyTransportCapacity } from './army.js?v=20260904-policy1';
 import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-weather1';
 import { horseLandSpeedMultiplier, horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-weather1';
 import { localPrice } from '../economy/prices.js?v=20260904-weather1';
 import { changeAttitude } from '../diplomacy/relations.js?v=20260904-save1';
 import { findLandStagingRegion, recordContingentReturns } from '../politics/polities.js?v=20260904-kingdom1';
+import { armyCohesionMultiplier, navalMissionProfile, postureProfile } from './policies.js?v=20260904-policy1';
 
 const LAND_SPEED_KM_PER_WEEK = 120;
 const SEA_SPEED_KM_PER_WEEK = 200;
@@ -17,7 +18,9 @@ const STABILITY_LOSS_BASE = 0.15;
 const RAID_KNOWLEDGE_SUCCESS = 0.35;
 const RAID_KNOWLEDGE_REPELLED = 0.75;
 
-export function maxSeaRaidersAvailable(region) { return Math.floor(navyTransportCapacity(region)); }
+export function maxSeaRaidersAvailable(region) {
+  return Math.floor(navyTransportCapacity(region) * navalMissionProfile(region).war);
+}
 export function computeTravelWeeks(attacker, defender, viaSea) {
   const distanceKm = centroidDistanceKm(attacker, defender) ?? 500;
   const speed = viaSea
@@ -134,9 +137,10 @@ function resolveCombat(attacker, defender, raidingPersonnel, toolTypes, rng, via
   const defenderEquip = toolEfficiencyMultiplier(defender, 'soldier', toolTypes.soldier, defender.unlockedTechIds);
   const maritimeAssaultBonus = viaSea ? 1 + advancedNavyShare(attacker) * 0.5 : 1;
   const attackerPower = raidingPersonnel * attackerEquip * maritimeAssaultBonus * militaryReadiness(attacker) *
-    (viaSea ? 1 : horseMilitaryMultiplier(attacker));
-  const defenderPower = defender.army.personnel * defenderEquip * DEFENDER_HOME_ADVANTAGE * militaryReadiness(defender) *
-    horseMilitaryMultiplier(defender);
+    armyCohesionMultiplier(attacker) * (viaSea ? 1 : horseMilitaryMultiplier(attacker));
+  const defenderPower = defender.army.personnel * defenderEquip * DEFENDER_HOME_ADVANTAGE *
+    postureProfile(defender).raidDefence * militaryReadiness(defender) *
+    armyCohesionMultiplier(defender) * horseMilitaryMultiplier(defender);
   const totalPower = attackerPower + defenderPower;
   const attackerRatio = totalPower > 0 ? attackerPower / totalPower : 0.5;
   const variance = () => 0.7 + rng() * 0.6;

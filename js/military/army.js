@@ -1,6 +1,7 @@
 import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-weather1';
 import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-weather1';
 import { horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-weather1';
+import { armyCohesionMultiplier, mobilisedArmyTarget } from './policies.js?v=20260904-policy1';
 
 // Recruitment/demobilization ramps toward the player's target rather than
 // snapping instantly — mobilizing an army takes real time, and disbanding
@@ -42,7 +43,7 @@ export function adjustArmySize(region, availableLabor) {
   const totalArmy = region.army.personnel + (region.army.away || 0);
   const fiscalCap = Math.max(0, (region.militaryFinance?.fundedPersonnelCap ?? Infinity) -
     (region.navy.personnel || 0));
-  const fundedTarget = Math.min(region.targetArmySize, fiscalCap);
+  const fundedTarget = Math.min(mobilisedArmyTarget(region), fiscalCap);
   const gap = fundedTarget - totalArmy;
   let change = 0;
   if (gap > 0) {
@@ -85,5 +86,5 @@ export function effectivePower(region, toolTypes) {
   const soldierEfficiency = toolEfficiencyMultiplier(region, 'soldier', toolTypes.soldier, region.unlockedTechIds);
   const armyPower = region.army.personnel * soldierEfficiency * horseMilitaryMultiplier(region);
   const navyPower = region.navy.personnel * soldierEfficiency * NAVY_LAND_CONTRIBUTION;
-  return (armyPower + navyPower) * militaryReadiness(region);
+  return (armyPower + navyPower) * militaryReadiness(region) * armyCohesionMultiplier(region);
 }

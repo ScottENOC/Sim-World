@@ -1,6 +1,7 @@
-import { canRaid, launchRaid, maxSeaRaidersAvailable } from '../military/raiding.js?v=20260904-save1';
+import { canRaid, launchRaid, maxSeaRaidersAvailable } from '../military/raiding.js?v=20260904-policy1';
 import { attitudeLabel, attitudeToward } from '../diplomacy/relations.js?v=20260904-save1';
 import { governanceLabel } from '../politics/polities.js?v=20260904-kingdom1';
+import { ensureMilitaryPolicy, mobilisedArmyTarget, setMilitaryPolicy } from '../military/policies.js?v=20260904-policy1';
 
 const ADVISORS = [
   { id: 'marshal', icon: '\u2694', name: 'Marshal', brief: 'Forces & raids' },
@@ -90,18 +91,39 @@ export class AdvisorCouncil {
     const targets = this.raidTargets(player);
     const away = this.getActiveRaids().filter((raid) => raid.attackerId === player.id && !raid.completed);
     const finance = player.militaryFinance || {};
+    const policy = ensureMilitaryPolicy(player);
     return `
       <p class="advisor-voice">“I will keep the fighting strength of the realm before you, and speak plainly about what we can afford.”</p>
       ${section('Military report',
         row('Army at home', number(player.army.personnel)) +
         row('Army away', number(player.army.away)) +
+        row('Mobilised target', number(mobilisedArmyTarget(player))) +
         row('Navy', `${number(player.navy.boats)} boats · ${number(player.navy.personnel)} sailors`) +
         row('Readiness', percent(finance.readiness ?? 1), (finance.readiness ?? 1) < .7 ? 'warning' : '') +
         row('Sustainable force', Number.isFinite(finance.fundedPersonnelCap) ? number(finance.fundedPersonnelCap) : 'Unknown') +
         row('Active expeditions', number(away.length)))}
       ${section('Standing orders', `
-        <label class="advisor-field"><span>Target army size</span><input id="council-army-target" type="number" min="0" step="100" value="${Math.round(player.targetArmySize)}"></label>
-        <label class="advisor-field"><span>Target navy size</span><input id="council-navy-target" type="number" min="0" step="1" value="${Math.round(player.targetNavySize)}" ${player.isCoastal ? '' : 'disabled'}></label>`)}
+        <label class="advisor-field"><span>Full army establishment</span><input id="council-army-target" type="number" min="0" step="100" value="${Math.round(player.targetArmySize)}"></label>
+        <label class="advisor-field"><span>Target navy size</span><input id="council-navy-target" type="number" min="0" step="1" value="${Math.round(player.targetNavySize)}" ${player.isCoastal ? '' : 'disabled'}></label>
+        <label class="advisor-field advisor-slider"><span>Army permanence <b id="army-permanence-label">${Math.round(policy.armyPermanence * 100)}%</b></span><input id="army-permanence" type="range" min="0" max="100" value="${Math.round(policy.armyPermanence * 100)}"></label>
+        <p class="advisor-note">Low permanence leaves most troops in civilian work until danger rises. A standing force is readier and more cohesive, but remains on the payroll.</p>
+        <label class="advisor-field"><span>Defensive posture</span><select id="defensive-posture">
+          <option value="settlements" ${policy.defensivePosture === 'settlements' ? 'selected' : ''}>Protect settlements</option>
+          <option value="trade_routes" ${policy.defensivePosture === 'trade_routes' ? 'selected' : ''}>Protect trade routes</option>
+          <option value="borders" ${policy.defensivePosture === 'borders' ? 'selected' : ''}>Guard borders</option>
+        </select></label>
+        <label class="advisor-field"><span>Captured raiders</span><select id="raider-treatment">
+          <option value="reintegrate" ${policy.raiderTreatment === 'reintegrate' ? 'selected' : ''}>Offer reintegration</option>
+          <option value="recruit" ${policy.raiderTreatment === 'recruit' ? 'selected' : ''}>Recruit into army</option>
+          <option value="punish" ${policy.raiderTreatment === 'punish' ? 'selected' : ''}>Punish harshly</option>
+        </select></label>
+        <label class="advisor-field"><span>Naval priority</span><select id="naval-priority" ${player.isCoastal ? '' : 'disabled'}>
+          <option value="fisheries" ${policy.navalPriority === 'fisheries' ? 'selected' : ''}>Protect fisheries</option>
+          <option value="trade" ${policy.navalPriority === 'trade' ? 'selected' : ''}>Escort trade</option>
+          <option value="war" ${policy.navalPriority === 'war' ? 'selected' : ''}>Prepare for war</option>
+        </select></label>
+        <label class="advisor-field advisor-slider"><span>War-horse allocation <b id="war-horse-label">${Math.round(policy.warHorseAllocation * 100)}%</b></span><input id="war-horse-allocation" type="range" min="0" max="100" value="${Math.round(policy.warHorseAllocation * 100)}"></label>
+        <p class="advisor-note">Military priority draws scarce trained horses away from plough teams and merchant transport.</p>`)}
       ${section('Order a raid', targets.length ? `
         <label class="advisor-field"><span>Target</span><select id="council-raid-target"><option value="">Choose a known target</option>${targets.map((target) => `<option value="${target.region.id}">${target.region.name}${target.viaSea ? ' · by sea' : ''}</option>`).join('')}</select></label>
         <label class="advisor-field advisor-slider"><span>Commit <b id="council-raid-share-label">50%</b></span><input id="council-raid-share" type="range" min="0" max="100" value="50"></label>
@@ -164,6 +186,19 @@ export class AdvisorCouncil {
     const navy = document.getElementById('council-navy-target');
     army?.addEventListener('change', () => { player.targetArmySize = Math.max(0, Number(army.value) || 0); });
     navy?.addEventListener('change', () => { player.targetNavySize = Math.max(0, Number(navy.value) || 0); });
+    const permanence = document.getElementById('army-permanence');
+    const horseAllocation = document.getElementById('war-horse-allocation');
+    permanence?.addEventListener('input', () => {
+      setMilitaryPolicy(player, 'armyPermanence', Number(permanence.value) / 100);
+      document.getElementById('army-permanence-label').textContent = `${permanence.value}%`;
+    });
+    horseAllocation?.addEventListener('input', () => {
+      setMilitaryPolicy(player, 'warHorseAllocation', Number(horseAllocation.value) / 100);
+      document.getElementById('war-horse-label').textContent = `${horseAllocation.value}%`;
+    });
+    for (const [id, key] of [['defensive-posture', 'defensivePosture'], ['raider-treatment', 'raiderTreatment'], ['naval-priority', 'navalPriority']]) {
+      document.getElementById(id)?.addEventListener('change', (event) => setMilitaryPolicy(player, key, event.target.value));
+    }
     const target = document.getElementById('council-raid-target');
     const share = document.getElementById('council-raid-share');
     const launch = document.getElementById('council-launch-raid');

@@ -1,4 +1,5 @@
 import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260904-weather1';
+import { ensureMilitaryPolicy } from '../military/policies.js?v=20260904-policy1';
 
 const HORSES_PER_SQ_KM_AT_CAPACITY = 0.12;
 const STARTING_CAPACITY_FRACTION = 0.28;
@@ -98,9 +99,13 @@ export function tickHorseEconomy(region, workingAge) {
   const workforceCap = Math.max(0, workingAge * MAX_HORSE_WORKFORCE_FRACTION);
   horses.breeders = Math.min(workforceCap, totalHorses(region) / HORSES_PER_BREEDER);
   const laborAfterBreeding = Math.max(0, workforceCap - horses.breeders);
-  const draftWanted = (region.occupations?.farmer || 0) / FARMERS_PER_DRAUGHT_HORSE;
-  const transportWanted = (region.occupations?.trader || 0) / TRADERS_PER_TRANSPORT_HORSE;
-  const warWanted = Math.max(0, region.army?.personnel || 0) * WAR_HORSES_PER_SOLDIER;
+  const horsePriority = ensureMilitaryPolicy(region).warHorseAllocation;
+  const civilScale = 1.2 - horsePriority * 0.65;
+  const transportScale = 1.1 - horsePriority * 0.45;
+  const warScale = 0.25 + horsePriority * 1.25;
+  const draftWanted = (region.occupations?.farmer || 0) / FARMERS_PER_DRAUGHT_HORSE * civilScale;
+  const transportWanted = (region.occupations?.trader || 0) / TRADERS_PER_TRANSPORT_HORSE * transportScale;
+  const warWanted = Math.max(0, region.army?.personnel || 0) * WAR_HORSES_PER_SOLDIER * warScale;
   const released = releaseSurplusRole(region, 'draft', draftWanted) +
     releaseSurplusRole(region, 'transport', transportWanted) +
     releaseSurplusRole(region, 'war', warWanted);
@@ -109,9 +114,10 @@ export function tickHorseEconomy(region, workingAge) {
   horses.trainers = Math.min(laborAfterBreeding,
     totalTrainingWanted / (TRAINING_PER_WORKER_PER_WEEK * husbandrySkill));
   let training = horses.trainers * TRAINING_PER_WORKER_PER_WEEK * husbandrySkill;
-  training -= trainForRole(region, 'draft', draftWanted, training);
-  training -= trainForRole(region, 'transport', transportWanted, training);
-  trainForRole(region, 'war', warWanted, training);
+  const priorities = horsePriority >= 0.5
+    ? [['war', warWanted], ['draft', draftWanted], ['transport', transportWanted]]
+    : [['draft', draftWanted], ['transport', transportWanted], ['war', warWanted]];
+  for (const [role, wanted] of priorities) training -= trainForRole(region, role, wanted, training);
 
   accumulateExperience(region, 'horseHusbandry', horses.breeders + horses.trainers);
   horses.pastureFraction = Math.min(0.06, 0.06 * totalHorses(region) / horses.capacity);
@@ -132,6 +138,7 @@ export function tickHorseEconomy(region, workingAge) {
     unmetDemand: Math.max(0, draftWanted + transportWanted + warWanted -
       horses.draft - horses.transport - horses.war - region.stockpile.horses),
     released,
+    warHorseAllocation: horsePriority,
     herdBefore,
   };
 }

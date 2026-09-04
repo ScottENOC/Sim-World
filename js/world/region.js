@@ -10,6 +10,8 @@ export class Region {
     this.safetyRating = 1.0; this.educationLevel = 0.05; this.experience = {};
     this.targetArmySize = 0; this.army = { personnel: 0, away: 0 };
     this.targetNavySize = 0; this.navy = { boats: 0, advancedBoats: 0, personnel: 0 };
+    this.militaryPolicy = { armyPermanence: 0.5, defensivePosture: 'settlements',
+      raiderTreatment: 'reintegrate', navalPriority: 'trade', warHorseAllocation: 0.5 };
     this.isCoastal = false; this.adjacentSeaIds = []; this.fishingBoats = 0;
     this.advancedFishingBoats = 0; this.targetFishingBoats = 0;
     this.landQuality = null; this.forest = null; this.deposits = null; this.stockpile = {};
