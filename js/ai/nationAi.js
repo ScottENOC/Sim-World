@@ -9,8 +9,9 @@ import { directContactIds, knowledgeOf, KNOWLEDGE_THRESHOLDS } from '../core/kno
 import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-weather1';
 import { horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-policy1';
 import { activeAgreementBetween, attitudeToward, canDiplomaticallyReach, powerRatio, proposeAgreement } from '../diplomacy/relations.js?v=20260904-save1';
-import { demandVassalage } from '../politics/polities.js?v=20260904-kingdom1';
+import { demandVassalage } from '../politics/polities.js?v=20260904-war1';
 import { chooseAiMilitaryPolicies } from '../military/policies.js?v=20260904-policy1';
+import { canCampaign, launchCampaign, massMobiliseDefender, requestCampaignWithdrawal } from '../military/campaigns.js?v=20260904-war1';
 
 // A one-percent peacetime levy is supportable while trade and taxation are
 // healthy. Threatened states still expand this through the safety multiplier;
@@ -29,20 +30,67 @@ const MIN_SAFETY_TO_CONSIDER_RAIDING = 0.3;
 const MIN_ADVANTAGE_TO_RAID = 1.5;
 const DEFENDER_HOME_ADVANTAGE = 1.3;
 const DIPLOMACY_CONSIDERATION_CHANCE_PER_WEEK = 0.0015;
+const CAMPAIGN_CONSIDERATION_CHANCE_PER_WEEK = 0.0007;
 
 function clamp01(v) {
   return Math.max(0, Math.min(1, v));
 }
 
-export function tickNationAi(regions, playerRegionId, activeRaids, agreements, polities, currentTick, toolTypes, rng) {
+export function tickNationAi(regions, playerRegionId, activeRaids, activeCampaigns, agreements, polities, currentTick, toolTypes, rng) {
   const regionsById = new Map(regions.map((region) => [region.id, region]));
+  manageCampaigns(activeCampaigns, regionsById, playerRegionId, rng);
   for (const region of regions) {
     if (region.controllingActorId === playerRegionId) continue;
     chooseAiMilitaryPolicies(region);
     setMilitaryTargets(region);
     maybeMakeAgreement(region, regionsById, playerRegionId, agreements, polities, currentTick, toolTypes, rng);
+    maybeCampaign(region, regionsById, activeCampaigns, polities, currentTick, toolTypes, rng);
     maybeRaid(region, regionsById, activeRaids, polities, currentTick, toolTypes, rng);
   }
+}
+
+function manageCampaigns(campaigns, regionsById, playerRegionId, rng) {
+  for (const campaign of campaigns) {
+    if (campaign.phase !== 'engaged') continue;
+    const attacker = regionsById.get(campaign.attackerId);
+    const defender = regionsById.get(campaign.defenderId);
+    if (!attacker || !defender) continue;
+    if (defender.controllingActorId !== playerRegionId && campaign.militia <= 0 &&
+        (campaign.pressure >= 0.18 || campaign.defenderMorale < 0.65)) {
+      massMobiliseDefender(campaign, defender, 0.1 + rng() * 0.1);
+    }
+    if (attacker.controllingActorId !== playerRegionId &&
+        (campaign.attackerMorale < 0.28 || (campaign.supply < 0.3 && campaign.pressure < 0.45))) {
+      requestCampaignWithdrawal(campaign);
+    }
+  }
+}
+
+function maybeCampaign(region, regionsById, activeCampaigns, polities, currentTick, toolTypes, rng) {
+  if (region.army.away > 0 || region.army.personnel < 100) return;
+  if (rng() > CAMPAIGN_CONSIDERATION_CHANCE_PER_WEEK) return;
+  const candidates = [...directContactIds(region)].map((id) => regionsById.get(id)).filter(Boolean);
+  let best = null;
+  for (const target of candidates) {
+    const reach = canCampaign(region, target, activeCampaigns, [...regionsById.values()], polities);
+    if (!reach.possible) continue;
+    const familiarity = knowledgeOf(region, target.id);
+    const estimatedDefenders = familiarity >= KNOWLEDGE_THRESHOLDS.DETAILED
+      ? target.army.personnel : familiarity >= KNOWLEDGE_THRESHOLDS.POPULATION
+        ? target.demographics.workingAge * 0.015 : target.population * 0.006;
+    const advantage = region.army.personnel / Math.max(25, estimatedDefenders * 1.8);
+    if (advantage < 1.35) continue;
+    const hostility = -attitudeToward(region, target.id);
+    const score = advantage + hostility + (target.wallet || 0) / Math.max(1, target.population) * 0.01;
+    if (!best || score > best.score) best = { target, score, advantage };
+  }
+  if (!best) return;
+  const objective = best.advantage > 2.4 && rng() < 0.35 ? 'subjugation'
+    : attitudeToward(region, best.target.id) < -0.65 ? 'devastation' : 'punitive';
+  const requested = Math.floor(region.army.personnel * (0.65 + rng() * 0.25));
+  const campaign = launchCampaign(region, best.target, objective, requested, currentTick,
+    { campaigns: activeCampaigns, regions: [...regionsById.values()], polities });
+  if (campaign) activeCampaigns.push(campaign);
 }
 
 function maybeMakeAgreement(region, regionsById, playerRegionId, agreements, polities, currentTick, toolTypes, rng) {

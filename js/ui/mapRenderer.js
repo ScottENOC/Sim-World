@@ -27,7 +27,8 @@ function lerpColor(hexA, hexB, t) {
 }
 
 export class MapRenderer {
-  constructor(canvas, regions, { onSelect, seaRegions = [], isRegionVisible = () => true, isSeaRegionVisible = () => true } = {}) {
+  constructor(canvas, regions, { onSelect, seaRegions = [], isRegionVisible = () => true,
+    isSeaRegionVisible = () => true, getConflictPressure = () => 0 } = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.regions = regions;
@@ -35,6 +36,7 @@ export class MapRenderer {
     this.onSelect = onSelect || (() => {});
     this.isRegionVisible = isRegionVisible;
     this.isSeaRegionVisible = isSeaRegionVisible;
+    this.getConflictPressure = getConflictPressure;
     this.selectedId = null;
     this.transform = d3.zoomIdentity;
     this.layer = null;
@@ -271,10 +273,11 @@ export class MapRenderer {
       if (!this.isRegionVisible(region)) continue;
 
       const selected = region.id === this.selectedId;
+      const conflictPressure = Math.max(0, Math.min(1, this.getConflictPressure(region) || 0));
 
       ctx.fillStyle = this._fillForRegion(region);
-      ctx.lineWidth = (selected ? 2.5 : 1) / this.transform.k;
-      ctx.strokeStyle = selected ? COLORS.borderSelected : COLORS.border;
+      ctx.lineWidth = (selected ? 2.5 : conflictPressure > 0 ? 2 + conflictPressure * 3 : 1) / this.transform.k;
+      ctx.strokeStyle = selected ? COLORS.borderSelected : conflictPressure > 0 ? '#c94f43' : COLORS.border;
       this._fillAndStroke(region.feature, this._regionPaths?.get(region.id));
     }
 

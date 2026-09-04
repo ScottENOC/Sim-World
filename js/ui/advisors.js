@@ -2,6 +2,7 @@ import { canRaid, launchRaid, maxSeaRaidersAvailable } from '../military/raiding
 import { attitudeLabel, attitudeToward } from '../diplomacy/relations.js?v=20260904-save1';
 import { governanceLabel } from '../politics/polities.js?v=20260904-kingdom1';
 import { ensureMilitaryPolicy, mobilisedArmyTarget, setMilitaryPolicy } from '../military/policies.js?v=20260904-policy1';
+import { CAMPAIGN_OBJECTIVES, canCampaign, launchCampaign, massMobiliseDefender, requestCampaignWithdrawal } from '../military/campaigns.js?v=20260904-war1';
 
 const ADVISORS = [
   { id: 'marshal', icon: '\u2694', name: 'Marshal', brief: 'Forces & raids' },
@@ -18,7 +19,8 @@ const row = (label, value, tone = '') => `<div class="advisor-report-row ${tone}
 const section = (title, body) => `<section class="advisor-section"><h3>${title}</h3>${body}</section>`;
 
 export class AdvisorCouncil {
-  constructor({ regions, polities, fogOfWar, clock, getPlayerRegionId, getActiveRaids, addRaid, openRegion }) {
+  constructor({ regions, polities, fogOfWar, clock, getPlayerRegionId, getActiveRaids, addRaid,
+    getCampaigns, addCampaign, openRegion }) {
     this.regions = regions;
     this.polities = polities;
     this.fogOfWar = fogOfWar;
@@ -26,7 +28,10 @@ export class AdvisorCouncil {
     this.getPlayerRegionId = getPlayerRegionId;
     this.getActiveRaids = getActiveRaids;
     this.addRaid = addRaid;
+    this.getCampaigns = getCampaigns;
+    this.addCampaign = addCampaign;
     this.openRegion = openRegion;
+    this.expandedCampaignId = null;
     this.activeAdvisor = 'marshal';
     this.panel = document.getElementById('council-panel');
     this.content = document.getElementById('advisor-content');
@@ -59,12 +64,19 @@ export class AdvisorCouncil {
     this.render();
   }
 
+  openCampaign(campaignId) {
+    this.expandedCampaignId = Number(campaignId);
+    this.open('marshal');
+  }
+
   close() { this.panel.classList.add('hidden'); }
 
   refresh() {
-    // Do not rebuild an order form beneath the player's finger. Reports can
-    // refresh live; the Marshal refreshes when opened or after issuing orders.
-    if (!this.panel.classList.contains('hidden') && this.activeAdvisor !== 'marshal') this.render(false);
+    if (this.panel.classList.contains('hidden')) return;
+    const active = document.activeElement;
+    if (this.activeAdvisor === 'marshal' && this.content.contains(active) &&
+      (active.tagName === 'INPUT' || active.tagName === 'SELECT')) return;
+    this.render(false);
   }
 
   render(resetScroll = true) {
@@ -92,6 +104,14 @@ export class AdvisorCouncil {
     const away = this.getActiveRaids().filter((raid) => raid.attackerId === player.id && !raid.completed);
     const finance = player.militaryFinance || {};
     const policy = ensureMilitaryPolicy(player);
+    const playerPolityId = player.governance?.sovereignPolityId;
+    const campaigns = this.getCampaigns().filter((campaign) => {
+      const attacker = this.regions.find((region) => region.id === campaign.attackerId);
+      const defender = this.regions.find((region) => region.id === campaign.defenderId);
+      return attacker?.governance?.sovereignPolityId === playerPolityId ||
+        defender?.governance?.sovereignPolityId === playerPolityId;
+    });
+    const campaignTargets = this.campaignTargets(player);
     return `
       <p class="advisor-voice">“I will keep the fighting strength of the realm before you, and speak plainly about what we can afford.”</p>
       ${section('Military report',
@@ -101,7 +121,10 @@ export class AdvisorCouncil {
         row('Navy', `${number(player.navy.boats)} boats · ${number(player.navy.personnel)} sailors`) +
         row('Readiness', percent(finance.readiness ?? 1), (finance.readiness ?? 1) < .7 ? 'warning' : '') +
         row('Sustainable force', Number.isFinite(finance.fundedPersonnelCap) ? number(finance.fundedPersonnelCap) : 'Unknown') +
-        row('Active expeditions', number(away.length)))}
+        row('Active expeditions', number(away.length + campaigns.filter((campaign) => campaign.attackerId === player.id).length)))}
+      ${section('Active conflicts', campaigns.length
+        ? campaigns.map((campaign) => this.renderCampaignCard(campaign, player)).join('')
+        : '<p class="advisor-note">The realm is not fighting a sustained campaign.</p>')}
       ${section('Standing orders', `
         <label class="advisor-field"><span>Full army establishment</span><input id="council-army-target" type="number" min="0" step="100" value="${Math.round(player.targetArmySize)}"></label>
         <label class="advisor-field"><span>Target navy size</span><input id="council-navy-target" type="number" min="0" step="1" value="${Math.round(player.targetNavySize)}" ${player.isCoastal ? '' : 'disabled'}></label>
@@ -124,11 +147,54 @@ export class AdvisorCouncil {
         </select></label>
         <label class="advisor-field advisor-slider"><span>War-horse allocation <b id="war-horse-label">${Math.round(policy.warHorseAllocation * 100)}%</b></span><input id="war-horse-allocation" type="range" min="0" max="100" value="${Math.round(policy.warHorseAllocation * 100)}"></label>
         <p class="advisor-note">Military priority draws scarce trained horses away from plough teams and merchant transport.</p>`)}
+      ${section('Begin a campaign', campaignTargets.length ? `
+        <label class="advisor-field"><span>Target region</span><select id="campaign-target"><option value="">Choose a known target</option>${campaignTargets.map((target) => `<option value="${target.region.id}">${target.region.name}${target.viaSea ? ' · overseas' : ''}</option>`).join('')}</select></label>
+        <label class="advisor-field"><span>Objective</span><select id="campaign-objective">
+          <option value="subjugation">Force surrender and loyalty</option>
+          <option value="punitive">Inflict damage, then leave</option>
+          <option value="devastation">Destroy the region</option>
+        </select></label>
+        <label class="advisor-field advisor-slider"><span>Commit <b id="campaign-share-label">60%</b> of the home army</span><input id="campaign-share" type="range" min="10" max="100" value="60"></label>
+        <div id="campaign-assessment" class="advisor-note">Select a target for a supply and access assessment.</div>
+        <button id="launch-campaign" class="advisor-order danger" disabled>Begin campaign</button>`
+        : '<p class="advisor-note">No known region can presently be invaded. Overseas campaigns need transport capacity assigned to war.</p>')}
       ${section('Order a raid', targets.length ? `
         <label class="advisor-field"><span>Target</span><select id="council-raid-target"><option value="">Choose a known target</option>${targets.map((target) => `<option value="${target.region.id}">${target.region.name}${target.viaSea ? ' · by sea' : ''}</option>`).join('')}</select></label>
         <label class="advisor-field advisor-slider"><span>Commit <b id="council-raid-share-label">50%</b></span><input id="council-raid-share" type="range" min="0" max="100" value="50"></label>
         <div id="council-raid-assessment" class="advisor-note">Choose a target for the Marshal's assessment.</div>
         <button id="council-launch-raid" class="advisor-order danger" disabled>Launch raid</button>` : '<p class="advisor-note">There are no visible targets we can currently reach.</p>')}`;
+  }
+
+  campaignTargets(player) {
+    return this.regions.filter((region) => region.id !== player.id && this.fogOfWar.isVisible(region))
+      .map((region) => ({ region, ...canCampaign(player, region, this.getCampaigns(), this.regions, this.polities) }))
+      .filter((entry) => entry.possible);
+  }
+
+  renderCampaignCard(campaign, player) {
+    const attacker = this.regions.find((region) => region.id === campaign.attackerId);
+    const defender = this.regions.find((region) => region.id === campaign.defenderId);
+    const expanded = this.expandedCampaignId === campaign.id;
+    const last = campaign.lastWeek;
+    const objective = CAMPAIGN_OBJECTIVES[campaign.objective]?.label || campaign.objective;
+    return `<article class="conflict-card">
+      <button class="conflict-pressure" data-campaign-toggle="${campaign.id}">
+        <span><strong>${attacker?.name || 'Unknown'} → ${defender?.name || 'Unknown'}</strong><small>${objective} · ${campaign.stage.replaceAll('_', ' ')}</small></span>
+        <b>${Math.round(campaign.pressure * 100)}%</b>
+        <i><span style="width:${Math.round(campaign.pressure * 100)}%"></span></i>
+      </button>
+      ${expanded ? `<div class="conflict-detail">
+        ${row('Attacking force', number(campaign.personnel))}
+        ${row('Emergency militia', number(campaign.militia))}
+        ${row('Attacker morale', percent(campaign.attackerMorale), campaign.attackerMorale < .35 ? 'warning' : '')}
+        ${row('Defender morale', percent(campaign.defenderMorale), campaign.defenderMorale < .35 ? 'warning' : '')}
+        ${row('Supply', percent(campaign.supply), campaign.supply < .4 ? 'warning' : '')}
+        ${row('Economic damage', percent(campaign.damage))}
+        ${last ? `<p class="advisor-note">Last week: ${number(last.attackerLosses)} attacker and ${number(last.defenderLosses + last.militiaLosses)} defender losses. Relative field strength ${last.strengthRatio.toFixed(2)}×.</p>` : ''}
+        ${campaign.attackerId === player.id && campaign.phase !== 'returning' ? `<button class="advisor-order" data-withdraw-campaign="${campaign.id}">Order withdrawal</button>` : ''}
+        ${campaign.defenderId === player.id && campaign.phase === 'engaged' && campaign.militia <= 0 ? `<button class="advisor-order danger" data-mobilise-campaign="${campaign.id}">Mass mobilisation</button><p class="advisor-note">Call roughly 15% of available working adults into an inefficient emergency militia. Production will fall sharply until the campaign ends.</p>` : ''}
+      </div>` : ''}
+    </article>`;
   }
 
   raidTargets(player) {
@@ -198,6 +264,47 @@ export class AdvisorCouncil {
     });
     for (const [id, key] of [['defensive-posture', 'defensivePosture'], ['raider-treatment', 'raiderTreatment'], ['naval-priority', 'navalPriority']]) {
       document.getElementById(id)?.addEventListener('change', (event) => setMilitaryPolicy(player, key, event.target.value));
+    }
+    document.querySelectorAll('[data-campaign-toggle]').forEach((button) => button.addEventListener('click', () => {
+      const id = Number(button.dataset.campaignToggle);
+      this.expandedCampaignId = this.expandedCampaignId === id ? null : id;
+      this.render(false);
+    }));
+    document.querySelectorAll('[data-withdraw-campaign]').forEach((button) => button.addEventListener('click', () => {
+      const campaign = this.getCampaigns().find((item) => item.id === Number(button.dataset.withdrawCampaign));
+      requestCampaignWithdrawal(campaign); this.render(false);
+    }));
+    document.querySelectorAll('[data-mobilise-campaign]').forEach((button) => button.addEventListener('click', () => {
+      const campaign = this.getCampaigns().find((item) => item.id === Number(button.dataset.mobiliseCampaign));
+      if (campaign) massMobiliseDefender(campaign, player, 0.15);
+      this.render(false);
+    }));
+    const campaignTarget = document.getElementById('campaign-target');
+    const campaignObjective = document.getElementById('campaign-objective');
+    const campaignShare = document.getElementById('campaign-share');
+    const campaignLaunch = document.getElementById('launch-campaign');
+    if (campaignTarget && campaignShare && campaignLaunch) {
+      const assessCampaign = () => {
+        const shareValue = Number(campaignShare.value) / 100;
+        document.getElementById('campaign-share-label').textContent = `${campaignShare.value}%`;
+        const chosen = this.campaignTargets(player).find((entry) => entry.region.id === campaignTarget.value);
+        if (!chosen) { campaignLaunch.disabled = true; return; }
+        let troops = Math.floor(player.army.personnel * shareValue);
+        if (chosen.viaSea) troops = Math.min(troops, chosen.seaCapacity);
+        document.getElementById('campaign-assessment').textContent = `${number(troops)} troops can depart for ${chosen.region.name}${chosen.viaSea ? ' by sea; fleet capacity limits the force' : ''}. The defender will fight with a strong home advantage.`;
+        campaignLaunch.disabled = troops < 25;
+      };
+      campaignTarget.addEventListener('change', assessCampaign);
+      campaignShare.addEventListener('input', assessCampaign);
+      campaignObjective.addEventListener('change', assessCampaign);
+      campaignLaunch.addEventListener('click', () => {
+        const chosen = this.campaignTargets(player).find((entry) => entry.region.id === campaignTarget.value);
+        if (!chosen) return;
+        const campaign = launchCampaign(player, chosen.region, campaignObjective.value,
+          Math.floor(player.army.personnel * Number(campaignShare.value) / 100), this.clock.tickIndex,
+          { campaigns: this.getCampaigns(), regions: this.regions, polities: this.polities });
+        if (campaign) { this.addCampaign(campaign); this.expandedCampaignId = campaign.id; this.render(false); }
+      });
     }
     const target = document.getElementById('council-raid-target');
     const share = document.getElementById('council-raid-share');

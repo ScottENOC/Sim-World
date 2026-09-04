@@ -3,22 +3,23 @@ import { EventBus } from './core/eventBus.js?v=20260904-weather1';
 import { loadWorld } from './world/region.js?v=20260904-policy1';
 import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260904-weather1';
 import { seedCensus, densityPerKm2 } from './society/census.js?v=20260904-weather1';
-import { tickEconomy } from './economy/labor.js?v=20260904-policy1';
+import { tickEconomy } from './economy/labor.js?v=20260904-war1';
 import { tickTrade } from './economy/trade.js?v=20260904-policy1';
 import { tickStateFinance } from './economy/stateFinance.js?v=20260904-weather1';
 import { tickDemographics } from './society/demographics.js?v=20260904-weather1';
 import { tickBanditry } from './military/banditry.js?v=20260904-policy1';
 import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable, syncNextRaidId } from './military/raiding.js?v=20260904-policy1';
-import { tickNationAi } from './ai/nationAi.js?v=20260904-policy1';
+import { tickNationAi } from './ai/nationAi.js?v=20260904-war1';
 import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260904-weather1';
 import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID } from './technology/breakthroughs.js?v=20260904-weather1';
-import { MapRenderer } from './ui/mapRenderer.js?v=20260904-weather1';
-import { AdvisorCouncil } from './ui/advisors.js?v=20260904-policy1';
+import { MapRenderer } from './ui/mapRenderer.js?v=20260904-war1';
+import { AdvisorCouncil } from './ui/advisors.js?v=20260904-war1';
 import { FogOfWar } from './core/fogOfWar.js?v=20260904-weather1';
 import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260904-weather1';
 import { attitudeLabel, attitudeToward, canDiplomaticallyReach, endAgreement, proposeAgreement, syncNextAgreementId, tickDiplomacy } from './diplomacy/relations.js?v=20260904-save1';
-import { availableVassalLevies, changeGovernanceForm, demandVassalage, governanceFormAvailability, governanceLabel, initialisePolities, musterVassalLevies, setDelegatedPower, setGovernancePolicy, sovereignPolity, tickPolities } from './politics/polities.js?v=20260904-kingdom1';
-import { createGameSnapshot, readSave, restoreGameSnapshot, saveSummary, writeSave } from './core/saveGame.js?v=20260904-save1';
+import { availableVassalLevies, changeGovernanceForm, demandVassalage, governanceFormAvailability, governanceLabel, initialisePolities, musterVassalLevies, setDelegatedPower, setGovernancePolicy, sovereignPolity, tickPolities } from './politics/polities.js?v=20260904-war1';
+import { createGameSnapshot, readSave, restoreGameSnapshot, saveSummary, writeSave } from './core/saveGame.js?v=20260904-war1';
+import { syncNextCampaignId, tickCampaigns } from './military/campaigns.js?v=20260904-war1';
 
 const START_YEAR = -1300; // target: roughly eighty prosperous years before a c.1220 BCE collapse
 const LAYERS = {
@@ -73,12 +74,23 @@ async function main() {
   const regionsById = new Map(regions.map((r) => [r.id, r]));
   const seaRegionsById = new Map(seaRegions.map((s) => [s.id, s]));
   let activeRaids = [];
+  let activeCampaigns = [];
   const agreements = [];
   const eventQueue = [];
   let council;
 
   const map = new MapRenderer(canvas, regions, {
     seaRegions,
+    getConflictPressure: (region) => {
+      const campaign = activeCampaigns.find((item) => item.defenderId === region.id && item.phase === 'engaged');
+      if (!campaign) return 0;
+      if (fogOfWar.devMode) return campaign.pressure;
+      const playerPolity = regionsById.get(playerRegionId)?.governance?.sovereignPolityId;
+      const attacker = regionsById.get(campaign.attackerId);
+      const defender = regionsById.get(campaign.defenderId);
+      return attacker?.governance?.sovereignPolityId === playerPolity ||
+        defender?.governance?.sovereignPolityId === playerPolity ? campaign.pressure : 0;
+    },
     isRegionVisible: (region) => fogOfWar.isVisible(region),
     isSeaRegionVisible: (sea) => sea.adjacentLand.some((landId) => {
       const land = regionsById.get(landId);
@@ -87,6 +99,7 @@ async function main() {
     onSelect: (region) => {
       selectedRegion = region;
       renderRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
+      appendCampaignShortcut(region, activeCampaigns, regionsById, playerRegionId, council);
       updateRegionStats(region, seaRegionsById, fogOfWar, regions, playerRegionId);
       document.getElementById('region-sheet').classList.remove('hidden');
     },
@@ -97,12 +110,15 @@ async function main() {
     getPlayerRegionId: () => playerRegionId,
     getActiveRaids: () => activeRaids,
     addRaid: (raid) => activeRaids.push(raid),
+    getCampaigns: () => activeCampaigns,
+    addCampaign: (campaign) => activeCampaigns.push(campaign),
     openRegion: (regionId) => {
       const region = regionsById.get(regionId);
       if (!region || !fogOfWar.isVisible(region)) return;
       selectedRegion = region;
       map.selectedId = region.id;
       renderRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
+      appendCampaignShortcut(region, activeCampaigns, regionsById, playerRegionId, council);
       updateRegionStats(region, seaRegionsById, fogOfWar, regions, playerRegionId);
       document.getElementById('region-sheet').classList.remove('hidden');
       map.draw();
@@ -125,10 +141,11 @@ async function main() {
   const loadSavedGame = () => {
     const snapshot = readSave();
     if (!snapshot) throw new Error('No saved game was found.');
-    const restored = restoreGameSnapshot(snapshot, { regions, seaRegions, polities, agreements, activeRaids, clock, fogOfWar });
+    const restored = restoreGameSnapshot(snapshot, { regions, seaRegions, polities, agreements, activeRaids, activeCampaigns, clock, fogOfWar });
     playerRegionId = restored.playerRegionId;
     syncNextRaidId(activeRaids);
     syncNextAgreementId(agreements);
+    syncNextCampaignId(activeCampaigns);
     eventQueue.length = 0;
     document.getElementById('event-modal').classList.add('hidden');
     document.getElementById('picker-modal').classList.add('hidden');
@@ -156,6 +173,7 @@ async function main() {
     polities,
     agreements,
     getActiveRaids: () => activeRaids,
+    getActiveCampaigns: () => activeCampaigns,
     getPlayerRegionId: () => playerRegionId,
     loadGame: loadSavedGame,
     getSelectedRegion: () => selectedRegion,
@@ -166,6 +184,8 @@ async function main() {
   });
 
   clock.onTick(() => {
+    const campaignResult = tickCampaigns(activeCampaigns, regionsById, polities, clock.tickIndex, toolTypes, Math.random);
+    activeCampaigns = campaignResult.remaining;
     tickEconomy(regions, seaRegions, toolTypes, Math.random, clock.tickIndex);
     pruneKnowledge(regions, clock.tickIndex);
     tickFishingKnowledge(fishingContactPairs, clock.tickIndex);
@@ -176,7 +196,7 @@ async function main() {
     const diplomacyEvents = tickDiplomacy(regions, agreements, toolTypes, clock.tickIndex);
     const polityEvents = tickPolities(polities, regions, clock.tickIndex);
     tickBanditry(regions, toolTypes, agreements);
-    tickNationAi(regions, playerRegionId, activeRaids, agreements, polities, clock.tickIndex, toolTypes, Math.random);
+    tickNationAi(regions, playerRegionId, activeRaids, activeCampaigns, agreements, polities, clock.tickIndex, toolTypes, Math.random);
 
     const { remaining, events } = tickRaids(activeRaids, regionsById, clock.tickIndex, toolTypes, Math.random);
     activeRaids = remaining;
@@ -198,6 +218,12 @@ async function main() {
       ...playerRaidEvents,
       ...diplomacyEvents.filter((event) => event.agreement.fromId === playerRegionId || event.agreement.toId === playerRegionId),
       ...polityEvents.filter((event) => event.regionId === playerRegionId),
+      ...campaignResult.events.filter((event) => {
+        const attacker = regionsById.get(event.campaign.attackerId);
+        const defender = regionsById.get(event.campaign.defenderId);
+        const playerPolity = regionsById.get(playerRegionId)?.governance?.sovereignPolityId;
+        return attacker?.governance?.sovereignPolityId === playerPolity || defender?.governance?.sovereignPolityId === playerPolity;
+      }),
     ];
     if (playerEvents.length > 0) {
       clock.requestAutoPause();
@@ -211,6 +237,7 @@ async function main() {
     if (selectedRegion && fogOfWar.isVisible(selectedRegion)) {
       updateRegionStats(selectedRegion, seaRegionsById, fogOfWar, regions, playerRegionId);
     }
+    council.refresh();
   });
 
   document.getElementById('hud-date').textContent = clock.formatDate(START_YEAR);
@@ -248,7 +275,8 @@ async function main() {
     clock,
     regions,
     seaRegions,
-    activeRaids,
+    get activeRaids() { return activeRaids; },
+    get activeCampaigns() { return activeCampaigns; },
     agreements,
     polities,
     map,
@@ -273,6 +301,25 @@ async function main() {
     map.refreshLayer();
     if (map.layer) showLegend(map);
   }
+}
+
+function appendCampaignShortcut(region, campaigns, regionsById, playerRegionId, council) {
+  const playerPolity = regionsById.get(playerRegionId)?.governance?.sovereignPolityId;
+  const campaign = campaigns.find((item) => {
+    if (item.completed || (item.attackerId !== region.id && item.defenderId !== region.id)) return false;
+    const attacker = regionsById.get(item.attackerId);
+    const defender = regionsById.get(item.defenderId);
+    return attacker?.governance?.sovereignPolityId === playerPolity ||
+      defender?.governance?.sovereignPolityId === playerPolity;
+  });
+  if (!campaign) return;
+  const controls = document.getElementById('region-controls');
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'conflict-shortcut';
+  button.innerHTML = `<span>Active campaign · ${campaign.stage.replaceAll('_', ' ')}</span><strong>${Math.round(campaign.pressure * 100)}% pressure</strong>`;
+  button.addEventListener('click', () => council?.openCampaign(campaign.id));
+  controls.appendChild(button);
 }
 
 function showRegionPicker(regions, onChosen) {
@@ -478,7 +525,8 @@ function wireHud(clock) {
   syncSpeedControls();
 }
 
-function wireMenu({ fogOfWar, map, clock, regions, seaRegions, polities, agreements, getActiveRaids, getPlayerRegionId, loadGame, getSelectedRegion, clearSelection }) {
+function wireMenu({ fogOfWar, map, clock, regions, seaRegions, polities, agreements, getActiveRaids,
+  getActiveCampaigns, getPlayerRegionId, loadGame, getSelectedRegion, clearSelection }) {
   const menuModal = document.getElementById('menu-modal');
   const menuButton = document.getElementById('btn-menu');
   const closeButton = document.getElementById('btn-close-menu');
@@ -530,7 +578,9 @@ function wireMenu({ fogOfWar, map, clock, regions, seaRegions, polities, agreeme
 
   saveButton.addEventListener('click', () => {
     try {
-      const snapshot = createGameSnapshot({ regions, seaRegions, polities, agreements, activeRaids: getActiveRaids(), clock, playerRegionId: getPlayerRegionId(), fogOfWar });
+      const snapshot = createGameSnapshot({ regions, seaRegions, polities, agreements,
+        activeRaids: getActiveRaids(), activeCampaigns: getActiveCampaigns(),
+        clock, playerRegionId: getPlayerRegionId(), fogOfWar });
       writeSave(snapshot);
       refreshSaveStatus(`Game saved · ${clock.formatDate(START_YEAR)}.`);
     } catch (error) {
@@ -861,6 +911,31 @@ function showNextEvent(clock, eventQueue) {
   if (eventQueue.length === 0) return;
 
   const event = eventQueue.shift();
+  if (event.type === 'campaign_arrived') {
+    document.getElementById('event-title').textContent = `Campaign reaches ${event.defenderName}`;
+    document.getElementById('event-body').textContent = `${event.attackerName}'s army has completed its march and begun applying military pressure to ${event.defenderName}. Open the Marshal's conflict report to follow the fighting or issue orders.`;
+    wireEventContinue(clock, eventQueue);
+    return;
+  }
+  if (event.type === 'campaign_decided') {
+    const outcomes = {
+      withdrawn: 'The attacker has ordered a withdrawal.',
+      attacker_broke: 'Losses, poor supply and failing morale have broken the attacking army.',
+      punitive_success: 'The punitive expedition has inflicted its intended damage and is withdrawing.',
+      submission: `${event.defenderName} has surrendered and pledged loyalty.`,
+      devastated: `${event.defenderName} has been devastated. The surviving attackers are withdrawing.`,
+    };
+    document.getElementById('event-title').textContent = `Campaign decided: ${event.defenderName}`;
+    document.getElementById('event-body').textContent = `${outcomes[event.campaign.outcome] || 'The campaign has ended.'} Attacker losses: ${Math.round(event.campaign.attackerCasualties).toLocaleString()}. Defender military losses: ${Math.round(event.campaign.defenderCasualties).toLocaleString()}. Civilian deaths: ${Math.round(event.campaign.civilianDeaths).toLocaleString()}.`;
+    wireEventContinue(clock, eventQueue);
+    return;
+  }
+  if (event.type === 'campaign_returned') {
+    document.getElementById('event-title').textContent = `${event.attackerName}'s army returns`;
+    document.getElementById('event-body').textContent = `${Math.round(event.campaign.personnel).toLocaleString()} surviving troops have returned from the campaign against ${event.defenderName}.`;
+    wireEventContinue(clock, eventQueue);
+    return;
+  }
   if (event.type === 'agreement_ended') {
     document.getElementById('event-title').textContent = 'Agreement ended';
     document.getElementById('event-body').textContent = `The agreement between ${event.fromName} and ${event.toName} has broken down.`;

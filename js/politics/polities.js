@@ -111,14 +111,27 @@ export function canDemandVassalage(overlord, target, polities, toolTypes) {
 export function demandVassalage(overlord, target, polities, toolTypes, currentTick, regions = []) {
   const check = canDemandVassalage(overlord, target, polities, toolTypes);
   if (!check.possible) return { accepted: false, ...check };
-  const overlordPolity = sovereignPolity(overlord, polities);
-  const targetPolity = sovereignPolity(target, polities);
   const attitude = attitudeToward(target, overlord.id);
   const acceptanceThreshold = 1.8 + Math.max(0, -attitude) * 0.6;
   if (check.ratio < acceptanceThreshold) {
     changeAttitude(target, overlord.id, -0.15, 'refused_vassalage', currentTick);
     return { accepted: false, reason: 'refused', ratio: check.ratio };
   }
+
+  return establishVassalage(overlord, target, polities, currentTick, regions, check.ratio);
+}
+
+// A campaign reaching full submission pressure has already answered the
+// diplomatic power test. Keep the resulting government identical to a
+// peacefully accepted demand so conquest does not create a parallel polity
+// model that later administration code cannot understand.
+export function establishVassalage(overlord, target, polities, currentTick, regions = [], ratio = null) {
+  const overlordPolity = sovereignPolity(overlord, polities);
+  const targetPolity = sovereignPolity(target, polities);
+  if (!overlordPolity || !target || target.id === overlord.id) {
+    return { accepted: false, reason: 'invalid_vassalage' };
+  }
+  const attitude = attitudeToward(target, overlord.id);
 
   target.governance = {
     ...target.governance,
@@ -156,7 +169,7 @@ export function demandVassalage(overlord, target, polities, toolTypes, currentTi
     if (neighbour) learnAbout(overlord, neighbour, 0.4, currentTick);
   }
   changeAttitude(target, overlord.id, -0.25, 'submitted_to_overlord', currentTick);
-  return { accepted: true, ratio: check.ratio, polity: overlordPolity, region: target };
+  return { accepted: true, ratio, polity: overlordPolity, region: target };
 }
 
 export function setGovernancePolicy(region, policy, value) {

@@ -7,6 +7,7 @@ import { accumulateExperience, skillMultiplier } from '../technology/learningByD
 import { tickHorseEconomy, draughtFarmMultiplier } from './horses.js?v=20260904-policy1';
 import { tickWeather } from '../world/weather.js?v=20260904-weather1';
 import { navalMissionProfile } from '../military/policies.js?v=20260904-policy1';
+import { conflictResourceAccess } from '../military/campaigns.js?v=20260904-war1';
 
 // --- Tunable constants -----------------------------------------------------
 // All placeholders, calibrated so a "typical" region can just about feed
@@ -336,15 +337,18 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
 
   const totalPop = region.population;       // everyone eats
   const workingAge = region.demographics.workingAge;
-  const horseReport = tickHorseEconomy(region, workingAge);
+  const emergencyMilitia = Math.max(0, region.emergencyMilitiaPersonnel || 0);
+  const civilianWorkingAge = Math.max(0, workingAge - emergencyMilitia);
+  const resourceAccess = conflictResourceAccess(region);
+  const horseReport = tickHorseEconomy(region, civilianWorkingAge);
   report.horses = horseReport;
 
   // Military recruitment happens first and is sticky — personnel stay
   // committed tick to tick (ramping toward the player's target) rather
   // than being freely reallocated like every other occupation below.
-  adjustArmySize(region, Math.max(0, workingAge - region.army.personnel - region.navy.personnel - horseReport.workers));
-  adjustNavyCrew(region, Math.max(0, workingAge - region.army.personnel - region.navy.personnel - horseReport.workers));
-  const laborPool = Math.max(0, workingAge - region.army.personnel - region.navy.personnel - horseReport.workers);
+  adjustArmySize(region, Math.max(0, civilianWorkingAge - region.army.personnel - region.navy.personnel - horseReport.workers));
+  adjustNavyCrew(region, Math.max(0, civilianWorkingAge - region.army.personnel - region.navy.personnel - horseReport.workers));
+  const laborPool = Math.max(0, civilianWorkingAge - region.army.personnel - region.navy.personnel - horseReport.workers);
 
   const noise = foodYieldNoise(region, rng);
   const seasonalMultiplier = region.weather?.seasonalMultiplier ?? 1;
@@ -358,7 +362,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   // by assigning every available adult to the same finite acreage.
   const toolYieldMultiplier = 0.7 + 0.3 * farmerToolMultiplier;
   const maxFoodOutput = region.areaSqKm * region.landQuality * FOOD_YIELD_PER_KM2 * noise *
-    (1 - horseReport.pastureFraction) * seasonalMultiplier * weatherMultiplier * toolYieldMultiplier;
+    (1 - horseReport.pastureFraction) * seasonalMultiplier * weatherMultiplier * toolYieldMultiplier * resourceAccess;
   const kLabor = region.areaSqKm * FARM_LABOR_SATURATION_PER_KM2;
   const humanFoodNeeded = totalPop * FOOD_PER_PERSON_PER_WEEK;
   const foodNeeded = humanFoodNeeded + horseReport.fodderNeeded;
@@ -488,6 +492,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
     importDependence: foodPlan.importDependence,
     exportSurplus: foodPlan.exportSurplus,
   };
+  report.conflict = { pressure: region.conflictPressure || 0, resourceAccess, emergencyMilitia };
 
   // Stability isn't decided here anymore — trade gets a chance to cover any
   // remaining shortfall first. See society/demographics.js, called after
@@ -737,7 +742,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
       initialStock: tier.initialStock,
       remainingStock: tier.remainingStock,
       workers: minerAllocation[key],
-      baseYieldPerWorker: oreYieldPerMiner * (key === 'ironOre' ? ironReadiness : 1),
+      baseYieldPerWorker: oreYieldPerMiner * resourceAccess * (key === 'ironOre' ? ironReadiness : 1),
       difficulty: tier.difficulty,
     });
     tier.remainingStock -= gathered;
@@ -886,7 +891,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
 
   const lumberjackEfficiency = toolEfficiencyMultiplier(region, 'lumberjack', toolTypes.lumberjack, region.unlockedTechIds)
     * skillMultiplier(region, 'lumberjack');
-  const woodGathered = Math.min(lumberjacks * WOOD_PER_LUMBERJACK * lumberjackEfficiency, region.forest.currentStock);
+  const woodGathered = Math.min(lumberjacks * WOOD_PER_LUMBERJACK * lumberjackEfficiency * resourceAccess, region.forest.currentStock);
   region.forest.currentStock -= woodGathered;
   region.stockpile.wood = (region.stockpile.wood || 0) + woodGathered;
   accumulateExperience(region, 'lumberjack', lumberjacks);

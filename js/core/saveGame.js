@@ -51,7 +51,7 @@ function restoreRegion(region, saved) {
   if (!(knowledge._observationByStream instanceof Map)) knowledge._observationByStream = new Map();
 }
 
-export function createGameSnapshot({ regions, seaRegions, polities, agreements, activeRaids, clock, playerRegionId, fogOfWar }) {
+export function createGameSnapshot({ regions, seaRegions, polities, agreements, activeRaids, activeCampaigns, clock, playerRegionId, fogOfWar }) {
   if (!playerRegionId) throw new Error('Choose a starting region before saving.');
   return {
     format: 'worldsim-save', version: SAVE_VERSION, savedAt: new Date().toISOString(),
@@ -60,11 +60,11 @@ export function createGameSnapshot({ regions, seaRegions, polities, agreements, 
     fogOfWar: { devMode: fogOfWar.devMode },
     regions: regions.map(regionSnapshot), polities: encode(polities),
     seaRegions: seaRegions.map((sea) => ({ id: sea.id, fish: encode(sea.fish) })),
-    agreements: encode(agreements), activeRaids: encode(activeRaids),
+    agreements: encode(agreements), activeRaids: encode(activeRaids), activeCampaigns: encode(activeCampaigns),
   };
 }
 
-export function restoreGameSnapshot(snapshot, { regions, seaRegions, polities, agreements, activeRaids, clock, fogOfWar }) {
+export function restoreGameSnapshot(snapshot, { regions, seaRegions, polities, agreements, activeRaids, activeCampaigns, clock, fogOfWar }) {
   if (!snapshot || snapshot.format !== 'worldsim-save') throw new Error('This is not a Worldsim save.');
   if (snapshot.version !== SAVE_VERSION) throw new Error(`Unsupported save version ${snapshot.version}.`);
   const expectedIds = regions.map((region) => region.id);
@@ -86,6 +86,7 @@ export function restoreGameSnapshot(snapshot, { regions, seaRegions, polities, a
   polities.splice(0, polities.length, ...decode(snapshot.polities));
   agreements.splice(0, agreements.length, ...decode(snapshot.agreements));
   activeRaids.splice(0, activeRaids.length, ...decode(snapshot.activeRaids));
+  activeCampaigns.splice(0, activeCampaigns.length, ...decode(snapshot.activeCampaigns || []));
   clock.stop();
   clock.tickIndex = Math.max(0, Number(snapshot.clock.tickIndex) || 0);
   clock._pendingResponseRequired = 0;
