@@ -500,6 +500,26 @@ button, input, select {
 
 #event-options button:active { background: var(--bronze-dim); }
 
+.diplomacy-section { margin-top: 14px; }
+
+.agreement-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.agreement-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--parchment-dim);
+  font-size: 13px;
+}
+
+.agreement-row button { padding: 5px 8px; }
+
 /* ---------- Region picker (game start) ---------- */
 .picker-card {
   display: flex;

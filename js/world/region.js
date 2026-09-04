@@ -57,6 +57,10 @@ export class Region {
       raidsLaunched: 0, raidsWon: 0, totalLootValue: 0,
       totalCasualties: 0, lastRaidTick: null,
     };
+    // Directional feelings toward other regional cultures. A Map keeps the
+    // large world sparse: entries only appear after actual interaction.
+    this.relations = new Map();
+    this.diplomacyReport = { paid: 0, received: 0, woodTaken: 0, support: 0 };
     this.foodImportDependence = 0;
     this.knowledge = new KnowledgeLedger(id);
   }

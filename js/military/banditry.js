@@ -2,6 +2,7 @@ import { effectivePower } from './army.js?v=20260904-weather1';
 import { addWorkingAgePopulation, removeFromBands, syncPopulation } from '../society/demographics.js?v=20260904-weather1';
 import { FOOD_PER_PERSON_PER_WEEK } from '../economy/labor.js?v=20260904-weather1';
 import { directContactIds } from '../core/knowledge.js?v=20260904-weather1';
+import { protectionPowerFor } from '../diplomacy/relations.js?v=20260904-diplomacy1';
 
 // Even with zero army, a bandit group doesn't last forever — disorganized,
 // exposed, some natural die-off. Suppression on top of that scales with
@@ -46,11 +47,12 @@ function bestDispersalTarget(region, regionsById) {
   return best?.region || null;
 }
 
-export function tickBanditry(regions, toolTypes) {
+export function tickBanditry(regions, toolTypes, agreements = []) {
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   const movements = [];
   for (const region of regions) {
-    const power = effectivePower(region, toolTypes);
+    const alliedProtection = protectionPowerFor(region.id, agreements);
+    const power = effectivePower(region, toolTypes) + alliedProtection;
     const banditPop = region.banditPopulation;
     const totalLocal = region.population + banditPop;
     const banditPressure = totalLocal > 0 ? banditPop / totalLocal : 0;
@@ -126,6 +128,7 @@ export function tickBanditry(regions, toolTypes) {
     region.report.banditry = {
       foodLooted, foodEaten, livelihoodShortfall, suppressed,
       reintegrated: reintegrated + capturedReturn, dispersed: dispersing, starved,
+      alliedProtection,
     };
   }
   // Apply transfers after all destinations have been assessed so loop order

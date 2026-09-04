@@ -13,6 +13,7 @@ import { tickStateFinance } from '../js/economy/stateFinance.js';
 import { tickDemographics } from '../js/society/demographics.js';
 import { tickBanditry } from '../js/military/banditry.js';
 import { tickNationAi } from '../js/ai/nationAi.js';
+import { tickDiplomacy } from '../js/diplomacy/relations.js';
 import { tickRaids } from '../js/military/raiding.js';
 import { tickBreakthroughs } from '../js/technology/breakthroughs.js';
 import { initialiseKnowledge, buildFishingContactPairs, tickFishingKnowledge,
@@ -209,6 +210,7 @@ function run(seed) {
     surfaceCopper: total(regions, (r) => r.deposits.copper?.tiers[0]?.initialStock || 0),
   };
   let raids = [];
+  const agreements = [];
   let window = newWindow(regions);
   const timeline = [];
   for (let tick = 1; tick <= years * 52; tick += 1) {
@@ -218,8 +220,9 @@ function run(seed) {
     tickStateFinance(regions);
     tickBreakthroughs(regions, tick, rng);
     tickDemographics(regions);
-    tickBanditry(regions, toolTypes);
-    tickNationAi(regions, '__calibration__', raids, tick, toolTypes, rng);
+    tickDiplomacy(regions, agreements, toolTypes, tick);
+    tickBanditry(regions, toolTypes, agreements);
+    tickNationAi(regions, '__calibration__', raids, agreements, tick, toolTypes, rng);
     const raidResult = tickRaids(raids, regionsById, tick, toolTypes, rng);
     raids = raidResult.remaining;
     pruneKnowledge(regions, tick);

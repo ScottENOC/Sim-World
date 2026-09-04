@@ -5,6 +5,7 @@ import { advancedNavyShare, navyTransportCapacity } from './army.js?v=20260904-w
 import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-weather1';
 import { horseLandSpeedMultiplier, horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-weather1';
 import { localPrice } from '../economy/prices.js?v=20260904-weather1';
+import { changeAttitude } from '../diplomacy/relations.js?v=20260904-diplomacy1';
 
 const LAND_SPEED_KM_PER_WEEK = 120;
 const SEA_SPEED_KM_PER_WEEK = 200;
@@ -64,6 +65,10 @@ export function tickRaids(raids, regionsById, currentTick, toolTypes, rng) {
       const defender = regionsById.get(raid.defenderId);
       const outcome = resolveCombat(attacker, defender, raid.personnel, toolTypes, rng, raid.viaSea);
       const won = outcome.attackerRatio > 0.5;
+      // The victim remembers even an unsuccessful raid. The attacker also
+      // becomes somewhat more contemptuous, particularly after a victory.
+      changeAttitude(defender, attacker.id, won ? -0.45 : -0.32, 'raided', currentTick);
+      changeAttitude(attacker, defender.id, won ? -0.1 : -0.04, 'raid', currentTick);
       if (attacker.raidEconomy) {
         if (won) attacker.raidEconomy.raidsWon += 1;
         attacker.raidEconomy.totalLootValue += outcome.lootValue;

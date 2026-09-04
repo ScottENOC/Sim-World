@@ -1,20 +1,21 @@
 import { Clock } from './core/clock.js?v=20260904-weather1';
 import { EventBus } from './core/eventBus.js?v=20260904-weather1';
-import { loadWorld } from './world/region.js?v=20260904-weather1';
+import { loadWorld } from './world/region.js?v=20260904-diplomacy1';
 import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260904-weather1';
 import { seedCensus, densityPerKm2 } from './society/census.js?v=20260904-weather1';
 import { tickEconomy } from './economy/labor.js?v=20260904-weather1';
-import { tickTrade } from './economy/trade.js?v=20260904-weather1';
+import { tickTrade } from './economy/trade.js?v=20260904-diplomacy1';
 import { tickStateFinance } from './economy/stateFinance.js?v=20260904-weather1';
 import { tickDemographics } from './society/demographics.js?v=20260904-weather1';
-import { tickBanditry } from './military/banditry.js?v=20260904-weather1';
-import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable } from './military/raiding.js?v=20260904-weather1';
-import { tickNationAi } from './ai/nationAi.js?v=20260904-weather1';
+import { tickBanditry } from './military/banditry.js?v=20260904-diplomacy1';
+import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable } from './military/raiding.js?v=20260904-diplomacy1';
+import { tickNationAi } from './ai/nationAi.js?v=20260904-diplomacy1';
 import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260904-weather1';
 import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID } from './technology/breakthroughs.js?v=20260904-weather1';
 import { MapRenderer } from './ui/mapRenderer.js?v=20260904-weather1';
 import { FogOfWar } from './core/fogOfWar.js?v=20260904-weather1';
 import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260904-weather1';
+import { attitudeLabel, attitudeToward, canDiplomaticallyReach, endAgreement, proposeAgreement, tickDiplomacy } from './diplomacy/relations.js?v=20260904-diplomacy1';
 
 const START_YEAR = -1300; // target: roughly eighty prosperous years before a c.1220 BCE collapse
 const LAYERS = {
@@ -68,6 +69,7 @@ async function main() {
   const regionsById = new Map(regions.map((r) => [r.id, r]));
   const seaRegionsById = new Map(seaRegions.map((s) => [s.id, s]));
   let activeRaids = [];
+  const agreements = [];
   const eventQueue = [];
 
   const map = new MapRenderer(canvas, regions, {
@@ -79,7 +81,7 @@ async function main() {
     }),
     onSelect: (region) => {
       selectedRegion = region;
-      renderRegionControls(region, regions, clock, activeRaids, playerRegionId, fogOfWar);
+      renderRegionControls(region, regions, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
       updateRegionStats(region, seaRegionsById, fogOfWar, regions, playerRegionId);
       document.getElementById('region-sheet').classList.remove('hidden');
     },
@@ -115,8 +117,9 @@ async function main() {
     tickStateFinance(regions);
     const breakthroughEvents = tickBreakthroughs(regions, clock.tickIndex, Math.random);
     tickDemographics(regions);
-    tickBanditry(regions, toolTypes);
-    tickNationAi(regions, playerRegionId, activeRaids, clock.tickIndex, toolTypes, Math.random);
+    const diplomacyEvents = tickDiplomacy(regions, agreements, toolTypes, clock.tickIndex);
+    tickBanditry(regions, toolTypes, agreements);
+    tickNationAi(regions, playerRegionId, activeRaids, agreements, clock.tickIndex, toolTypes, Math.random);
 
     const { remaining, events } = tickRaids(activeRaids, regionsById, clock.tickIndex, toolTypes, Math.random);
     activeRaids = remaining;
@@ -131,6 +134,7 @@ async function main() {
     const playerEvents = [
       ...breakthroughEvents.filter((event) => event.regionId === playerRegionId),
       ...playerRaidEvents,
+      ...diplomacyEvents.filter((event) => event.agreement.fromId === playerRegionId || event.agreement.toId === playerRegionId),
     ];
     if (playerEvents.length > 0) {
       clock.requestAutoPause();
@@ -156,7 +160,7 @@ async function main() {
     selectedRegion = chosen;
     map.selectedId = chosen.id;
 
-    renderRegionControls(chosen, regions, clock, activeRaids, playerRegionId, fogOfWar);
+    renderRegionControls(chosen, regions, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
     updateRegionStats(chosen, seaRegionsById, fogOfWar, regions, playerRegionId);
     document.getElementById('region-sheet').classList.remove('hidden');
 
@@ -170,6 +174,7 @@ async function main() {
     regions,
     seaRegions,
     activeRaids,
+    agreements,
     map,
     fogOfWar,
     setDevMode: (enabled) => setDevMode(enabled),
@@ -464,7 +469,7 @@ function showLegend(map) {
 
 // Built once when the player taps a region — never rebuilt on the periodic
 // refresh below, or every keystroke in the input would get wiped mid-edit.
-function renderRegionControls(region, regions, clock, activeRaids, playerRegionId, fogOfWar) {
+function renderRegionControls(region, regions, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes) {
   document.getElementById('region-name').textContent = region.name;
 
   if (region.controllingActorId !== playerRegionId) {
@@ -485,6 +490,9 @@ function renderRegionControls(region, regions, clock, activeRaids, playerRegionI
     .filter((t) => t.possible);
 
   const inFlight = activeRaids.filter((r) => r.attackerId === region.id && !r.completed);
+  const diplomaticTargets = regions
+    .filter((r) => r.id !== region.id && fogOfWar.isVisible(r) && canDiplomaticallyReach(region, r));
+  const activeAgreements = agreements.filter((a) => a.active && (a.fromId === region.id || a.toId === region.id));
   const inFlightLine = inFlight.length
     ? `<div class="raid-status">${inFlight.length} raid(s) currently away (${inFlight.reduce((s, r) => s + r.personnel, 0).toLocaleString()} soldiers)</div>`
     : '';
@@ -514,6 +522,41 @@ function renderRegionControls(region, regions, clock, activeRaids, playerRegionI
         `}
       ${inFlightLine}
     </div>
+    <div class="raid-section diplomacy-section">
+      <strong>Relations and agreements</strong>
+      ${diplomaticTargets.length === 0
+        ? '<div class="raid-status">No known neighbouring cultures to negotiate with.</div>'
+        : `<label class="control-row">Neighbour
+            <select id="diplomacy-target">
+              <option value="">— select —</option>
+              ${diplomaticTargets.map((target) => {
+                const feeling = attitudeToward(target, region.id);
+                return `<option value="${target.id}">${target.name} — ${attitudeLabel(feeling)}</option>`;
+              }).join('')}
+            </select>
+          </label>
+          <label class="control-row">Offer or demand
+            <select id="diplomacy-action">
+              <option value="military_support">Send troops against bandits</option>
+              <option value="tribute">Demand weekly tribute</option>
+              <option value="resource_access">Claim wood-harvesting rights</option>
+            </select>
+          </label>
+          <label class="control-row" id="support-personnel-row">Troops to send
+            <input type="number" min="10" step="10" id="support-personnel" value="${Math.max(10, Math.floor(region.army.personnel * 0.1))}">
+          </label>
+          <div id="diplomacy-info" class="raid-status"></div>
+          <button id="btn-diplomacy-propose" disabled>Make proposal</button>`}
+      ${activeAgreements.length === 0 ? '' : `
+        <div class="agreement-list">
+          ${activeAgreements.map((agreement) => {
+            const otherId = agreement.fromId === region.id ? agreement.toId : agreement.fromId;
+            const other = regions.find((r) => r.id === otherId);
+            const labels = { military_support: 'military support', tribute: 'tribute', resource_access: 'wood access' };
+            return `<div class="agreement-row"><span>${labels[agreement.type]} — ${other?.name || otherId}</span><button data-end-agreement="${agreement.id}">End</button></div>`;
+          }).join('')}
+        </div>`}
+    </div>
   `;
 
   document.getElementById('input-army').addEventListener('change', (e) => {
@@ -524,11 +567,10 @@ function renderRegionControls(region, regions, clock, activeRaids, playerRegionI
     region.targetNavySize = Math.max(0, Number(e.target.value) || 0);
   });
 
-  if (targets.length === 0) return;
-
-  const targetSelect = document.getElementById('raid-target');
-  const fractionSlider = document.getElementById('raid-fraction');
-  const launchBtn = document.getElementById('btn-raid-launch');
+  if (targets.length > 0) {
+    const targetSelect = document.getElementById('raid-target');
+    const fractionSlider = document.getElementById('raid-fraction');
+    const launchBtn = document.getElementById('btn-raid-launch');
 
   const updateRaidInfo = () => {
     const fraction = Number(fractionSlider.value) / 100;
@@ -558,11 +600,11 @@ function renderRegionControls(region, regions, clock, activeRaids, playerRegionI
     launchBtn.disabled = requested <= 0;
   };
 
-  targetSelect.addEventListener('change', updateRaidInfo);
-  fractionSlider.addEventListener('input', updateRaidInfo);
-  updateRaidInfo();
+    targetSelect.addEventListener('change', updateRaidInfo);
+    fractionSlider.addEventListener('input', updateRaidInfo);
+    updateRaidInfo();
 
-  launchBtn.addEventListener('click', () => {
+    launchBtn.addEventListener('click', () => {
     const target = targets.find((t) => t.region.id === targetSelect.value);
     if (!target) return;
 
@@ -572,8 +614,46 @@ function renderRegionControls(region, regions, clock, activeRaids, playerRegionI
 
     if (raid) {
       activeRaids.push(raid);
-      renderRegionControls(region, regions, clock, activeRaids, playerRegionId, fogOfWar);
+      renderRegionControls(region, regions, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
     }
+    });
+  }
+
+  const diplomacyTarget = document.getElementById('diplomacy-target');
+  const diplomacyAction = document.getElementById('diplomacy-action');
+  const diplomacyButton = document.getElementById('btn-diplomacy-propose');
+  if (diplomacyTarget && diplomacyAction && diplomacyButton) {
+    const supportRow = document.getElementById('support-personnel-row');
+    const updateDiplomacyInfo = () => {
+      supportRow.classList.toggle('hidden', diplomacyAction.value !== 'military_support');
+      diplomacyButton.disabled = !diplomacyTarget.value;
+      const target = diplomaticTargets.find((r) => r.id === diplomacyTarget.value);
+      document.getElementById('diplomacy-info').textContent = target
+        ? `${target.name}'s culture is ${attitudeLabel(attitudeToward(target, region.id))} toward yours. Coercive demands require a clear military advantage.`
+        : '';
+    };
+    diplomacyTarget.addEventListener('change', updateDiplomacyInfo);
+    diplomacyAction.addEventListener('change', updateDiplomacyInfo);
+    updateDiplomacyInfo();
+
+    diplomacyButton.addEventListener('click', () => {
+      const target = diplomaticTargets.find((r) => r.id === diplomacyTarget.value);
+      if (!target) return;
+      const result = proposeAgreement(diplomacyAction.value, region, target, agreements, toolTypes,
+        clock.tickIndex, { personnel: Number(document.getElementById('support-personnel')?.value) || 0 });
+      document.getElementById('diplomacy-info').textContent = result.accepted
+        ? `${target.name} accepted the agreement.`
+        : `The proposal failed (${String(result.reason).replaceAll('_', ' ')}).`;
+      if (result.accepted) renderRegionControls(region, regions, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
+    });
+  }
+
+  document.querySelectorAll('[data-end-agreement]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const agreement = agreements.find((candidate) => candidate.id === Number(button.dataset.endAgreement));
+      endAgreement(agreement, new Map(regions.map((r) => [r.id, r])), clock.tickIndex);
+      renderRegionControls(region, regions, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
+    });
   });
 }
 
@@ -581,6 +661,12 @@ function showNextEvent(clock, eventQueue) {
   if (eventQueue.length === 0) return;
 
   const event = eventQueue.shift();
+  if (event.type === 'agreement_ended') {
+    document.getElementById('event-title').textContent = 'Agreement ended';
+    document.getElementById('event-body').textContent = `The agreement between ${event.fromName} and ${event.toName} has broken down.`;
+    wireEventContinue(clock, eventQueue);
+    return;
+  }
   if (event.type === 'iron_smelting_breakthrough') {
     document.getElementById('event-title').textContent = 'Breakthrough: Iron smelting';
     document.getElementById('event-body').innerHTML = `

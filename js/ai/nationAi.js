@@ -4,10 +4,11 @@
 // occasional, cautious evaluation of whether raiding a reachable neighbor
 // is clearly worth it. AI only considers regions it has actually met.
 import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-weather1';
-import { canRaid, launchRaid } from '../military/raiding.js?v=20260904-weather1';
+import { canRaid, launchRaid } from '../military/raiding.js?v=20260904-diplomacy1';
 import { directContactIds, knowledgeOf, KNOWLEDGE_THRESHOLDS } from '../core/knowledge.js?v=20260904-weather1';
 import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-weather1';
 import { horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-weather1';
+import { activeAgreementBetween, attitudeToward, canDiplomaticallyReach, powerRatio, proposeAgreement } from '../diplomacy/relations.js?v=20260904-diplomacy1';
 
 // A one-percent peacetime levy is supportable while trade and taxation are
 // healthy. Threatened states still expand this through the safety multiplier;
@@ -25,18 +26,48 @@ const MIN_HOME_ARMY_TO_CONSIDER_RAIDING = 30;
 const MIN_SAFETY_TO_CONSIDER_RAIDING = 0.3;
 const MIN_ADVANTAGE_TO_RAID = 1.5;
 const DEFENDER_HOME_ADVANTAGE = 1.3;
+const DIPLOMACY_CONSIDERATION_CHANCE_PER_WEEK = 0.0015;
 
 function clamp01(v) {
   return Math.max(0, Math.min(1, v));
 }
 
-export function tickNationAi(regions, playerRegionId, activeRaids, currentTick, toolTypes, rng) {
+export function tickNationAi(regions, playerRegionId, activeRaids, agreements, currentTick, toolTypes, rng) {
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   for (const region of regions) {
     if (region.controllingActorId === playerRegionId) continue;
     setMilitaryTargets(region);
+    maybeMakeAgreement(region, regionsById, playerRegionId, agreements, currentTick, toolTypes, rng);
     maybeRaid(region, regionsById, activeRaids, currentTick, toolTypes, rng);
   }
+}
+
+function maybeMakeAgreement(region, regionsById, playerRegionId, agreements, currentTick, toolTypes, rng) {
+  if (rng() > DIPLOMACY_CONSIDERATION_CHANCE_PER_WEEK) return;
+  const candidates = [...directContactIds(region)]
+    .map((id) => regionsById.get(id))
+    .filter((target) => target && target.id !== playerRegionId && canDiplomaticallyReach(region, target));
+  if (candidates.length === 0) return;
+
+  // Aid a friendly neighbour in real disorder; otherwise strong chiefdoms
+  // occasionally turn an obvious imbalance into tribute or resource access.
+  const aidTarget = candidates
+    .filter((target) => target.banditPopulation > target.population * 0.02 && attitudeToward(region, target.id) > 0.2)
+    .sort((a, b) => b.banditPopulation / Math.max(1, b.population) - a.banditPopulation / Math.max(1, a.population))[0];
+  if (aidTarget && !activeAgreementBetween(agreements, region.id, aidTarget.id, 'military_support')) {
+    const personnel = Math.floor(Math.min(region.army.personnel * 0.15, aidTarget.banditPopulation * 0.5));
+    proposeAgreement('military_support', region, aidTarget, agreements, toolTypes, currentTick, { personnel });
+    return;
+  }
+
+  const weakTargets = candidates
+    .map((target) => ({ target, ratio: powerRatio(region, target, toolTypes) }))
+    .filter(({ target, ratio }) => ratio >= 1.6 && attitudeToward(region, target.id) < 0.45 &&
+      !activeAgreementBetween(agreements, region.id, target.id))
+    .sort((a, b) => b.ratio - a.ratio);
+  if (weakTargets.length === 0) return;
+  const type = rng() < 0.65 ? 'tribute' : 'resource_access';
+  proposeAgreement(type, region, weakTargets[0].target, agreements, toolTypes, currentTick);
 }
 
 function setMilitaryTargets(region) {
@@ -85,12 +116,18 @@ function maybeRaid(region, regionsById, activeRaids, currentTick, toolTypes, rng
     const advantage = ownPower / (targetPower + 1);
     if (advantage < MIN_ADVANTAGE_TO_RAID) continue;
 
+    const attitude = attitudeToward(region, target.id);
+    // Friendly cultures are rarely selected merely because they are rich;
+    // grudges make an otherwise marginal target more attractive.
+    if (attitude > 0.65 && advantage < MIN_ADVANTAGE_TO_RAID * 2) continue;
+
     const knownWealth = knowsDetailed
       ? target.wallet + (target.stockpile.bronze || 0) * 5 + (target.stockpile.gold || 0) * 15
       : knowsPopulation
         ? target.population * 0.1
         : 1;
-    const score = advantage * (knownWealth + 1);
+    const hostilityMultiplier = Math.max(0.2, 1 - attitude * 0.8);
+    const score = advantage * (knownWealth + 1) * hostilityMultiplier;
     if (score > bestScore) {
       bestScore = score;
       best = { target, viaSea: reach.viaSea };

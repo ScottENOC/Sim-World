@@ -3,6 +3,7 @@ import { directContactIds, knownRegionIds, recordDirectTrade, diffuseTradeNetwor
 import { centroidDistanceKm } from '../world/distance.js?v=20260904-weather1';
 import { advancedMaritimeShare } from '../military/army.js?v=20260904-weather1';
 import { horseTransportMultiplier } from './horses.js?v=20260904-weather1';
+import { recordDiplomaticTrade, tradeRelationMultiplier } from '../diplomacy/relations.js?v=20260904-diplomacy1';
 
 const LAND_ADJACENT_COST = 0.02;
 const SEA_COST_PER_KM = 0.0002;
@@ -71,7 +72,7 @@ function routeReliability(regionA, regionB) {
   );
   // Below 20% security ordinary commerce is effectively impossible. The
   // squared curve makes worsening banditry bite route capacity early.
-  return Math.pow(clamp01((security - 0.2) / 0.8), 2);
+  return clamp01(Math.pow(clamp01((security - 0.2) / 0.8), 2) * tradeRelationMultiplier(regionA, regionB));
 }
 
 function beginTradeWeek(region) {
@@ -216,6 +217,7 @@ function executeTrades(region, opportunities, currentTick = null) {
       opp.dest.recentTradePartners.set(region.id, currentTick);
     }
     recordDirectTrade(region, opp.dest, volume, currentTick);
+    recordDiplomaticTrade(region, opp.dest, payment, currentTick);
     const laborForThis = volume / (TRADE_UNITS_PER_TRADER * (opp.transportMultiplier || 1));
     laborLeft -= laborForThis;
     laborUsed += laborForThis;
