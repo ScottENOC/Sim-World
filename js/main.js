@@ -7,15 +7,16 @@ import { tickEconomy } from './economy/labor.js?v=20260904-weather1';
 import { tickTrade } from './economy/trade.js?v=20260904-diplomacy1';
 import { tickStateFinance } from './economy/stateFinance.js?v=20260904-weather1';
 import { tickDemographics } from './society/demographics.js?v=20260904-weather1';
-import { tickBanditry } from './military/banditry.js?v=20260904-diplomacy1';
-import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable } from './military/raiding.js?v=20260904-diplomacy1';
-import { tickNationAi } from './ai/nationAi.js?v=20260904-diplomacy1';
+import { tickBanditry } from './military/banditry.js?v=20260904-kingdom1';
+import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable } from './military/raiding.js?v=20260904-kingdom1';
+import { tickNationAi } from './ai/nationAi.js?v=20260904-kingdom1';
 import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260904-weather1';
 import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID } from './technology/breakthroughs.js?v=20260904-weather1';
 import { MapRenderer } from './ui/mapRenderer.js?v=20260904-weather1';
 import { FogOfWar } from './core/fogOfWar.js?v=20260904-weather1';
 import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260904-weather1';
-import { attitudeLabel, attitudeToward, canDiplomaticallyReach, endAgreement, proposeAgreement, tickDiplomacy } from './diplomacy/relations.js?v=20260904-diplomacy1';
+import { attitudeLabel, attitudeToward, canDiplomaticallyReach, endAgreement, proposeAgreement, tickDiplomacy } from './diplomacy/relations.js?v=20260904-kingdom1';
+import { availableVassalLevies, changeGovernanceForm, demandVassalage, governanceFormAvailability, governanceLabel, initialisePolities, musterVassalLevies, setDelegatedPower, setGovernancePolicy, sovereignPolity, tickPolities } from './politics/polities.js?v=20260904-kingdom1';
 
 const START_YEAR = -1300; // target: roughly eighty prosperous years before a c.1220 BCE collapse
 const LAYERS = {
@@ -38,7 +39,7 @@ const LAYERS = {
   },
   political: {
     type: 'categorical',
-    valueFn: (r) => r.controllingActorId,
+    valueFn: (r) => r.governance?.sovereignPolityId || r.controllingActorId,
     label: 'Controlled by',
   },
 };
@@ -49,6 +50,7 @@ async function main() {
   const regions = await loadWorld();
   console.log(`Western Europe map loaded: ${regions.length} permanent land regions`);
   seedCensus(regions);
+  const polities = initialisePolities(regions);
   const seaRegions = await loadSeaWorld();
   linkSeaAdjacency(regions, seaRegions);
   const fishingContactPairs = buildFishingContactPairs(regions, seaRegions);
@@ -81,7 +83,7 @@ async function main() {
     }),
     onSelect: (region) => {
       selectedRegion = region;
-      renderRegionControls(region, regions, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
+      renderRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
       updateRegionStats(region, seaRegionsById, fogOfWar, regions, playerRegionId);
       document.getElementById('region-sheet').classList.remove('hidden');
     },
@@ -118,8 +120,9 @@ async function main() {
     const breakthroughEvents = tickBreakthroughs(regions, clock.tickIndex, Math.random);
     tickDemographics(regions);
     const diplomacyEvents = tickDiplomacy(regions, agreements, toolTypes, clock.tickIndex);
+    const polityEvents = tickPolities(polities, regions, clock.tickIndex);
     tickBanditry(regions, toolTypes, agreements);
-    tickNationAi(regions, playerRegionId, activeRaids, agreements, clock.tickIndex, toolTypes, Math.random);
+    tickNationAi(regions, playerRegionId, activeRaids, agreements, polities, clock.tickIndex, toolTypes, Math.random);
 
     const { remaining, events } = tickRaids(activeRaids, regionsById, clock.tickIndex, toolTypes, Math.random);
     activeRaids = remaining;
@@ -128,13 +131,19 @@ async function main() {
     // own region are shown; other AI conflicts remain behind the fog.
     const playerRaidEvents = fogOfWar.devMode
       ? events
-      : events.filter((event) =>
-        event.raid.attackerId === playerRegionId || event.raid.defenderId === playerRegionId
-      );
+      : events.filter((event) => {
+        const playerPolityId = regionsById.get(playerRegionId)?.governance?.sovereignPolityId;
+        const attacker = regionsById.get(event.raid.attackerId);
+        const defender = regionsById.get(event.raid.defenderId);
+        return event.raid.attackerId === playerRegionId || event.raid.defenderId === playerRegionId ||
+          attacker?.governance?.sovereignPolityId === playerPolityId ||
+          defender?.governance?.sovereignPolityId === playerPolityId;
+      });
     const playerEvents = [
       ...breakthroughEvents.filter((event) => event.regionId === playerRegionId),
       ...playerRaidEvents,
       ...diplomacyEvents.filter((event) => event.agreement.fromId === playerRegionId || event.agreement.toId === playerRegionId),
+      ...polityEvents.filter((event) => event.regionId === playerRegionId),
     ];
     if (playerEvents.length > 0) {
       clock.requestAutoPause();
@@ -160,7 +169,7 @@ async function main() {
     selectedRegion = chosen;
     map.selectedId = chosen.id;
 
-    renderRegionControls(chosen, regions, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
+    renderRegionControls(chosen, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
     updateRegionStats(chosen, seaRegionsById, fogOfWar, regions, playerRegionId);
     document.getElementById('region-sheet').classList.remove('hidden');
 
@@ -175,6 +184,7 @@ async function main() {
     seaRegions,
     activeRaids,
     agreements,
+    polities,
     map,
     fogOfWar,
     setDevMode: (enabled) => setDevMode(enabled),
@@ -469,16 +479,25 @@ function showLegend(map) {
 
 // Built once when the player taps a region — never rebuilt on the periodic
 // refresh below, or every keystroke in the input would get wiped mid-edit.
-function renderRegionControls(region, regions, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes) {
+function renderRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes) {
   document.getElementById('region-name').textContent = region.name;
 
-  if (region.controllingActorId !== playerRegionId) {
+  const playerCapital = regions.find((candidate) => candidate.id === playerRegionId);
+  const playerPolity = sovereignPolity(playerCapital, polities);
+  const isPlayerSubject = playerPolity && region.id !== playerRegionId &&
+    region.governance?.sovereignPolityId === playerPolity.id;
+  if (isPlayerSubject) {
+    renderSubjectRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
+    return;
+  }
+
+  if (region.id !== playerRegionId) {
     const rulerName = fogOfWar.devMode
       ? (regions.find((r) => r.id === region.controllingActorId)?.name || region.controllingActorId)
       : 'another ruler';
 
     document.getElementById('region-controls').innerHTML = `
-      <div class="raid-status">Ruled by ${rulerName} — you can't issue orders here. Annexing it (conquest) would change that.</div>
+      <div class="raid-status">Ruled by ${rulerName} — you cannot issue domestic orders here.</div>
     `;
     return;
   }
@@ -486,13 +505,16 @@ function renderRegionControls(region, regions, clock, activeRaids, agreements, p
   const targets = regions
     .filter((r) => r.id !== region.id)
     .filter((r) => fogOfWar.isVisible(r))
-    .map((r) => ({ region: r, ...canRaid(region, r) }))
+    .map((r) => ({ region: r, ...canRaid(region, r, regions, polities) }))
     .filter((t) => t.possible);
 
   const inFlight = activeRaids.filter((r) => r.attackerId === region.id && !r.completed);
   const diplomaticTargets = regions
     .filter((r) => r.id !== region.id && fogOfWar.isVisible(r) && canDiplomaticallyReach(region, r));
   const activeAgreements = agreements.filter((a) => a.active && (a.fromId === region.id || a.toId === region.id));
+  const polity = sovereignPolity(region, polities);
+  const levyOffers = availableVassalLevies(region, regions, polities, clock.tickIndex);
+  const totalVassalLevies = levyOffers.reduce((sum, offer) => sum + offer.available, 0);
   const inFlightLine = inFlight.length
     ? `<div class="raid-status">${inFlight.length} raid(s) currently away (${inFlight.reduce((s, r) => s + r.personnel, 0).toLocaleString()} soldiers)</div>`
     : '';
@@ -504,6 +526,9 @@ function renderRegionControls(region, regions, clock, activeRaids, agreements, p
     <label class="control-row">Target navy size (boats)
       <input type="number" min="0" step="1" id="input-navy" value="${Math.round(region.targetNavySize)}" ${region.isCoastal ? '' : 'disabled title="not a coastal region"'}>
     </label>
+    ${polity ? `<div class="raid-status"><strong>${polity.name}</strong> · ${polity.report.subjectCount || 0} subject region(s) · legitimacy ${(polity.administration.legitimacy * 100).toFixed(0)}%<br>
+      Administration: records ${(polity.administration.recordKeeping * 100).toFixed(0)}%, accounting ${(polity.administration.accounting * 100).toFixed(0)}%, communications ${(polity.administration.communications * 100).toFixed(0)}%, officials ${(polity.administration.officialdom * 100).toFixed(0)}%, delegation ${(polity.administration.delegation * 100).toFixed(0)}%<br>
+      Institutions: ${[...polity.administration.breakthroughs].map((name) => name.replaceAll('_', ' ')).join(', ') || 'custom and oral authority'}</div>` : ''}
     <div class="raid-section">
       ${targets.length === 0
         ? '<div class="raid-status">No visible reachable raid targets (need a land border, or a shared sea plus navy capacity)</div>'
@@ -518,6 +543,9 @@ function renderRegionControls(region, regions, clock, activeRaids, agreements, p
             <input type="range" id="raid-fraction" min="0" max="100" value="50">
           </label>
           <div id="raid-info" class="raid-status"></div>
+          ${levyOffers.length ? `<label class="control-row"><span>Call vassal contingents (up to ${totalVassalLevies.toLocaleString()} now)</span>
+            <input type="checkbox" id="raid-use-vassals" ${totalVassalLevies > 0 ? '' : 'disabled'}>
+          </label>` : ''}
           <button id="btn-raid-launch" disabled>Launch Raid</button>
         `}
       ${inFlightLine}
@@ -540,6 +568,7 @@ function renderRegionControls(region, regions, clock, activeRaids, agreements, p
               <option value="military_support">Send troops against bandits</option>
               <option value="tribute">Demand weekly tribute</option>
               <option value="resource_access">Claim wood-harvesting rights</option>
+              <option value="vassalage">Demand submission as a vassal</option>
             </select>
           </label>
           <label class="control-row" id="support-personnel-row">Troops to send
@@ -597,11 +626,15 @@ function renderRegionControls(region, regions, clock, activeRaids, agreements, p
 
     document.getElementById('raid-info').textContent =
       `Sending ${requested.toLocaleString()} of ${Math.round(region.army.personnel).toLocaleString()} home soldiers${capNote}`;
-    launchBtn.disabled = requested <= 0;
+    const useVassals = !target.viaSea && document.getElementById('raid-use-vassals')?.checked;
+    document.getElementById('raid-info').textContent += useVassals
+      ? ` plus up to ${totalVassalLevies.toLocaleString()} vassal troops` : '';
+    launchBtn.disabled = requested <= 0 && !(useVassals && totalVassalLevies > 0);
   };
 
     targetSelect.addEventListener('change', updateRaidInfo);
     fractionSlider.addEventListener('input', updateRaidInfo);
+    document.getElementById('raid-use-vassals')?.addEventListener('change', updateRaidInfo);
     updateRaidInfo();
 
     launchBtn.addEventListener('click', () => {
@@ -610,11 +643,14 @@ function renderRegionControls(region, regions, clock, activeRaids, agreements, p
 
     const fraction = Number(fractionSlider.value) / 100;
     const requested = Math.floor(region.army.personnel * fraction);
-    const raid = launchRaid(region, target.region, requested, target.viaSea, clock.tickIndex);
+    const useVassals = !target.viaSea && document.getElementById('raid-use-vassals')?.checked;
+    const contingents = useVassals ? musterVassalLevies(region, regions, polities, clock.tickIndex) : [];
+    const raid = launchRaid(region, target.region, requested, target.viaSea, clock.tickIndex,
+      { regions, polities, contingents });
 
     if (raid) {
       activeRaids.push(raid);
-      renderRegionControls(region, regions, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
+      renderRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
     }
     });
   }
@@ -639,12 +675,14 @@ function renderRegionControls(region, regions, clock, activeRaids, agreements, p
     diplomacyButton.addEventListener('click', () => {
       const target = diplomaticTargets.find((r) => r.id === diplomacyTarget.value);
       if (!target) return;
-      const result = proposeAgreement(diplomacyAction.value, region, target, agreements, toolTypes,
-        clock.tickIndex, { personnel: Number(document.getElementById('support-personnel')?.value) || 0 });
+      const result = diplomacyAction.value === 'vassalage'
+        ? demandVassalage(region, target, polities, toolTypes, clock.tickIndex, regions)
+        : proposeAgreement(diplomacyAction.value, region, target, agreements, toolTypes,
+          clock.tickIndex, { personnel: Number(document.getElementById('support-personnel')?.value) || 0 });
       document.getElementById('diplomacy-info').textContent = result.accepted
         ? `${target.name} accepted the agreement.`
         : `The proposal failed (${String(result.reason).replaceAll('_', ' ')}).`;
-      if (result.accepted) renderRegionControls(region, regions, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
+      if (result.accepted) renderRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
     });
   }
 
@@ -652,8 +690,68 @@ function renderRegionControls(region, regions, clock, activeRaids, agreements, p
     button.addEventListener('click', () => {
       const agreement = agreements.find((candidate) => candidate.id === Number(button.dataset.endAgreement));
       endAgreement(agreement, new Map(regions.map((r) => [r.id, r])), clock.tickIndex);
-      renderRegionControls(region, regions, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
+      renderRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
     });
+  });
+}
+
+function renderSubjectRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes) {
+  const governance = region.governance;
+  const capital = regions.find((candidate) => candidate.id === playerRegionId);
+  const polity = sovereignPolity(capital, polities);
+  const forms = governanceFormAvailability(region, polity);
+  const offer = availableVassalLevies(capital, regions, polities, clock.tickIndex)
+    .find((candidate) => candidate.region.id === region.id);
+  const history = governance.levyHistory;
+  const survival = history.sent > 0 ? history.returned / history.sent : null;
+  const reportAge = governance.lastReport ? clock.tickIndex - governance.lastReport.asOfTick : null;
+  document.getElementById('region-controls').innerHTML = `
+    <div class="raid-status"><strong>${governanceLabel(region)}</strong><br>
+      Administrative control ${(governance.administrativeControl * 100).toFixed(0)}% · autonomy ${(governance.autonomy * 100).toFixed(0)}% · estimated corruption ${(governance.corruption * 100).toFixed(0)}%<br>
+      Reports arrive about ${governance.reportDelayWeeks} week(s) apart${reportAge === null ? '; no regular report has arrived yet' : `; latest report is ${reportAge} week(s) old`}. Local passage is guaranteed.</div>
+    <label class="control-row">Form of rule
+      <select id="subject-form">
+        <option value="vassal" ${governance.relationship === 'vassal' ? 'selected' : ''}>Subordinate local ruler</option>
+        <option value="delegated" ${governance.relationship === 'delegated' ? 'selected' : ''} ${forms.delegated ? '' : 'disabled'}>Delegated royal province</option>
+        <option value="integrated" ${governance.relationship === 'integrated' ? 'selected' : ''} ${forms.integrated ? '' : 'disabled'}>Integrated province</option>
+      </select>
+    </label>
+    <div class="raid-status">Governor: ${governance.governor?.type?.replaceAll('_', ' ') || 'none'} · competence ${((governance.governor?.competence || 0) * 100).toFixed(0)}% · loyalty ${((governance.governor?.loyalty || 0) * 100).toFixed(0)}%</div>
+    <div class="delegated-powers">
+      ${Object.entries(governance.delegatedPowers || {}).map(([power, enabled]) => `<label class="control-row"><span>Delegate ${power.replace(/([A-Z])/g, ' $1').toLowerCase()}</span><input type="checkbox" data-delegated-power="${power}" ${enabled ? 'checked' : ''}></label>`).join('')}
+    </div>
+    <label class="control-row">Tribute demand <span id="subject-tribute-label">${(governance.tributeRate * 100).toFixed(0)}%</span>
+      <input type="range" id="subject-tribute" min="0" max="25" value="${governance.tributeRate * 100}">
+    </label>
+    <label class="control-row">Maximum military obligation <span id="subject-levy-label">${(governance.militaryObligation * 100).toFixed(0)}%</span>
+      <input type="range" id="subject-levy" min="0" max="80" value="${governance.militaryObligation * 100}">
+    </label>
+    <label class="control-row">Local autonomy <span id="subject-autonomy-label">${(governance.autonomy * 100).toFixed(0)}%</span>
+      <input type="range" id="subject-autonomy" min="10" max="98" value="${governance.autonomy * 100}">
+    </label>
+    <div class="raid-status">Army at home: ${Math.round(region.army.personnel).toLocaleString()}<br>
+      Willing to lend now: ${(offer?.available || 0).toLocaleString()} (${offer?.reason?.replaceAll('_', ' ') || 'unavailable'})<br>
+      Local defence reserve: ${(offer?.reserveNeeded || 0).toLocaleString()} · insecurity ${((offer?.insecurity || 0) * 100).toFixed(0)}%<br>
+      Previous contingents: ${history.sent.toLocaleString()} sent, ${history.returned.toLocaleString()} returned${survival === null ? '' : ` (${(survival * 100).toFixed(0)}% survival)`}</div>
+    <div class="raid-status">Routine labour, trade and local defence remain under the local ruler. Your authority is limited to tribute, broad military obligations and passage.</div>
+  `;
+  const wirePolicy = (id, labelId, policy) => {
+    const input = document.getElementById(id);
+    input.addEventListener('input', () => {
+      const value = Number(input.value) / 100;
+      setGovernancePolicy(region, policy, value);
+      document.getElementById(labelId).textContent = `${Math.round(value * 100)}%`;
+    });
+  };
+  wirePolicy('subject-tribute', 'subject-tribute-label', 'tributeRate');
+  wirePolicy('subject-levy', 'subject-levy-label', 'militaryObligation');
+  wirePolicy('subject-autonomy', 'subject-autonomy-label', 'autonomy');
+  document.getElementById('subject-form').addEventListener('change', (event) => {
+    const result = changeGovernanceForm(region, event.target.value, polity);
+    if (result.changed) renderRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
+  });
+  document.querySelectorAll('[data-delegated-power]').forEach((input) => {
+    input.addEventListener('change', () => setDelegatedPower(region, input.dataset.delegatedPower, input.checked));
   });
 }
 
@@ -664,6 +762,12 @@ function showNextEvent(clock, eventQueue) {
   if (event.type === 'agreement_ended') {
     document.getElementById('event-title').textContent = 'Agreement ended';
     document.getElementById('event-body').textContent = `The agreement between ${event.fromName} and ${event.toName} has broken down.`;
+    wireEventContinue(clock, eventQueue);
+    return;
+  }
+  if (event.type === 'kingdom_formed') {
+    document.getElementById('event-title').textContent = 'A kingdom endures';
+    document.getElementById('event-body').textContent = `${event.polityName} is now recognised as more than temporary dominance. Tribute, military service and royal authority have endured across regions.`;
     wireEventContinue(clock, eventQueue);
     return;
   }
@@ -900,7 +1004,8 @@ function buildContactsSection(region, regions, playerRegionId, fogOfWar) {
 
 function updateRegionStats(region, seaRegionsById, fogOfWar, regions, playerRegionId) {
   const observer = regions.find((r) => r.id === playerRegionId) || region;
-  const familiarity = fogOfWar.devMode || observer.id === region.id ? 1 : knowledgeLevel(observer, region);
+  const familiarity = fogOfWar.devMode || observer.id === region.id || region.controllingActorId === playerRegionId
+    ? 1 : knowledgeLevel(observer, region);
   const knowsResources = familiarity >= KNOWLEDGE_THRESHOLDS.RESOURCES;
   const knowsEconomy = familiarity >= KNOWLEDGE_THRESHOLDS.ECONOMY;
   const knowsPopulation = familiarity >= KNOWLEDGE_THRESHOLDS.POPULATION;
@@ -989,7 +1094,7 @@ function updateRegionStats(region, seaRegionsById, fogOfWar, regions, playerRegi
     ${knowsEconomy ? `<div>Wealth: ${region.wallet.toFixed(0)} populace &middot; ${region.treasury.toFixed(0)} treasury${creditLine}</div><div>State: ${financeLine}</div><div>Trade: ${tradeLine}</div>` : '<div>Wealth: unknown</div>'}
     ${knowsDetailed ? `<div>Tools: ${toolLine}</div><div>Culture: ${culture.cultureId} &middot; identity strength ${(culture.identityStrength * 100).toFixed(0)}%</div>` : ''}
     <div>Neighbours: ${neighbourLine}</div>
-    <div>Controlled by: ${fogOfWar.devMode ? region.controllingActorId : (region.controllingActorId === region.id ? region.name : 'another ruler')}</div>
+    <div>Government: ${governanceLabel(region)}${region.governance?.relationship !== 'core' ? ` &middot; administrative control ${(region.governance.administrativeControl * 100).toFixed(0)}% &middot; reports delayed ${region.governance.reportDelayWeeks} weeks` : ''}</div>
     ${buildContactsSection(region, regions, playerRegionId, fogOfWar)}
     ${knowsResources ? `<details id="details-resources"><summary>Resources</summary>${buildResourcesSection(region, seaRegionsById)}</details>` : '<div>Resources: only broad rumours</div>'}
     ${knowsEconomy ? `<details id="details-report"><summary>Economy report (this week)</summary>${buildReportSection(region)}</details><details id="details-occupations"><summary>Working as</summary><div>${occLine}</div></details><details id="details-stockpile"><summary>Stockpile</summary><div>${stockLine}</div></details>` : '<div>Economic activity: little known</div>'}

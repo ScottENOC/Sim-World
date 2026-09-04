@@ -4,11 +4,12 @@
 // occasional, cautious evaluation of whether raiding a reachable neighbor
 // is clearly worth it. AI only considers regions it has actually met.
 import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-weather1';
-import { canRaid, launchRaid } from '../military/raiding.js?v=20260904-diplomacy1';
+import { canRaid, launchRaid } from '../military/raiding.js?v=20260904-kingdom1';
 import { directContactIds, knowledgeOf, KNOWLEDGE_THRESHOLDS } from '../core/knowledge.js?v=20260904-weather1';
 import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-weather1';
 import { horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-weather1';
-import { activeAgreementBetween, attitudeToward, canDiplomaticallyReach, powerRatio, proposeAgreement } from '../diplomacy/relations.js?v=20260904-diplomacy1';
+import { activeAgreementBetween, attitudeToward, canDiplomaticallyReach, powerRatio, proposeAgreement } from '../diplomacy/relations.js?v=20260904-kingdom1';
+import { demandVassalage } from '../politics/polities.js?v=20260904-kingdom1';
 
 // A one-percent peacetime levy is supportable while trade and taxation are
 // healthy. Threatened states still expand this through the safety multiplier;
@@ -32,17 +33,17 @@ function clamp01(v) {
   return Math.max(0, Math.min(1, v));
 }
 
-export function tickNationAi(regions, playerRegionId, activeRaids, agreements, currentTick, toolTypes, rng) {
+export function tickNationAi(regions, playerRegionId, activeRaids, agreements, polities, currentTick, toolTypes, rng) {
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   for (const region of regions) {
     if (region.controllingActorId === playerRegionId) continue;
     setMilitaryTargets(region);
-    maybeMakeAgreement(region, regionsById, playerRegionId, agreements, currentTick, toolTypes, rng);
-    maybeRaid(region, regionsById, activeRaids, currentTick, toolTypes, rng);
+    maybeMakeAgreement(region, regionsById, playerRegionId, agreements, polities, currentTick, toolTypes, rng);
+    maybeRaid(region, regionsById, activeRaids, polities, currentTick, toolTypes, rng);
   }
 }
 
-function maybeMakeAgreement(region, regionsById, playerRegionId, agreements, currentTick, toolTypes, rng) {
+function maybeMakeAgreement(region, regionsById, playerRegionId, agreements, polities, currentTick, toolTypes, rng) {
   if (rng() > DIPLOMACY_CONSIDERATION_CHANCE_PER_WEEK) return;
   const candidates = [...directContactIds(region)]
     .map((id) => regionsById.get(id))
@@ -66,6 +67,10 @@ function maybeMakeAgreement(region, regionsById, playerRegionId, agreements, cur
       !activeAgreementBetween(agreements, region.id, target.id))
     .sort((a, b) => b.ratio - a.ratio);
   if (weakTargets.length === 0) return;
+  if (weakTargets[0].ratio >= 2.2 && rng() < 0.2) {
+    demandVassalage(region, weakTargets[0].target, polities, toolTypes, currentTick, [...regionsById.values()]);
+    return;
+  }
   const type = rng() < 0.65 ? 'tribute' : 'resource_access';
   proposeAgreement(type, region, weakTargets[0].target, agreements, toolTypes, currentTick);
 }
@@ -80,7 +85,7 @@ function setMilitaryTargets(region) {
   }
 }
 
-function maybeRaid(region, regionsById, activeRaids, currentTick, toolTypes, rng) {
+function maybeRaid(region, regionsById, activeRaids, polities, currentTick, toolTypes, rng) {
   if (region.army.away > 0) return;
   if (region.army.personnel < MIN_HOME_ARMY_TO_CONSIDER_RAIDING) return;
   if (region.safetyRating < MIN_SAFETY_TO_CONSIDER_RAIDING) return;
@@ -94,7 +99,7 @@ function maybeRaid(region, regionsById, activeRaids, currentTick, toolTypes, rng
   for (const targetId of directContactIds(region)) {
     const target = regionsById.get(targetId);
     if (!target || target.id === region.id) continue;
-    const reach = canRaid(region, target);
+    const reach = canRaid(region, target, [...regionsById.values()], polities);
     if (!reach.possible) continue; // includes the knowledge/fog-of-war check
 
     const familiarity = knowledgeOf(region, target.id);
@@ -137,6 +142,7 @@ function maybeRaid(region, regionsById, activeRaids, currentTick, toolTypes, rng
   if (!best) return;
   const fraction = 0.5 + rng() * 0.3;
   const requested = Math.floor(region.army.personnel * fraction);
-  const raid = launchRaid(region, best.target, requested, best.viaSea, currentTick);
+  const raid = launchRaid(region, best.target, requested, best.viaSea, currentTick,
+    { regions: [...regionsById.values()], polities });
   if (raid) activeRaids.push(raid);
 }

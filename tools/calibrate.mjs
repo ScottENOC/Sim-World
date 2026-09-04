@@ -14,6 +14,7 @@ import { tickDemographics } from '../js/society/demographics.js';
 import { tickBanditry } from '../js/military/banditry.js';
 import { tickNationAi } from '../js/ai/nationAi.js';
 import { tickDiplomacy } from '../js/diplomacy/relations.js';
+import { initialisePolities, tickPolities } from '../js/politics/polities.js';
 import { tickRaids } from '../js/military/raiding.js';
 import { tickBreakthroughs } from '../js/technology/breakthroughs.js';
 import { initialiseKnowledge, buildFishingContactPairs, tickFishingKnowledge,
@@ -135,7 +136,7 @@ function assertFiniteWorld(regions, initialPopulation, tick) {
   }
 }
 
-function snapshot(regions, initial, year, window) {
+function snapshot(regions, initial, year, window, polities = []) {
   const specialities = classifySpecialities(regions, window);
   const windowActivity = [...window.values()];
   const regionsById = new Map(regions.map((region) => [region.id, region]));
@@ -195,6 +196,13 @@ function snapshot(regions, initial, year, window) {
       droughtRegions: regions.filter((r) => r.weather?.condition === 'drought').length,
       dryRegions: regions.filter((r) => r.weather?.condition === 'dry').length,
     },
+    politics: {
+      kingdoms: polities.filter((polity) => polity.kingdomSinceTick !== null).length,
+      subjectRegions: regions.filter((region) => region.governance?.relationship !== 'core').length,
+      writingPolities: polities.filter((polity) => polity.administration?.breakthroughs?.has('writing')).length,
+      delegatedProvinces: regions.filter((region) => region.governance?.relationship === 'delegated').length,
+      integratedProvinces: regions.filter((region) => region.governance?.relationship === 'integrated').length,
+    },
     specialities: Object.fromEntries(Object.entries(specialities).map(([key, entries]) =>
       [key, { count: entries.length, leaders: entries.slice(0, 5) }])),
   };
@@ -203,6 +211,7 @@ function snapshot(regions, initial, year, window) {
 function run(seed) {
   const rng = mulberry32(seed);
   const { regions, seas, fishingPairs } = makeWorld(rng);
+  const polities = initialisePolities(regions);
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   const initial = {
     population: total(regions, (r) => r.population),
@@ -221,8 +230,9 @@ function run(seed) {
     tickBreakthroughs(regions, tick, rng);
     tickDemographics(regions);
     tickDiplomacy(regions, agreements, toolTypes, tick);
+    tickPolities(polities, regions, tick);
     tickBanditry(regions, toolTypes, agreements);
-    tickNationAi(regions, '__calibration__', raids, agreements, tick, toolTypes, rng);
+    tickNationAi(regions, '__calibration__', raids, agreements, polities, tick, toolTypes, rng);
     const raidResult = tickRaids(raids, regionsById, tick, toolTypes, rng);
     raids = raidResult.remaining;
     pruneKnowledge(regions, tick);
@@ -245,7 +255,7 @@ function run(seed) {
       activity.raidsWon = region.raidEconomy.raidsWon - activity.winBaseline;
     }
     if (tick % (snapshotYears * 52) === 0 || tick === years * 52) {
-      timeline.push(snapshot(regions, initial, +(tick / 52).toFixed(1), window));
+      timeline.push(snapshot(regions, initial, +(tick / 52).toFixed(1), window, polities));
       window = newWindow(regions);
     }
   }

@@ -5,7 +5,8 @@ import { advancedNavyShare, navyTransportCapacity } from './army.js?v=20260904-w
 import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-weather1';
 import { horseLandSpeedMultiplier, horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-weather1';
 import { localPrice } from '../economy/prices.js?v=20260904-weather1';
-import { changeAttitude } from '../diplomacy/relations.js?v=20260904-diplomacy1';
+import { changeAttitude } from '../diplomacy/relations.js?v=20260904-kingdom1';
+import { findLandStagingRegion, recordContingentReturns } from '../politics/polities.js?v=20260904-kingdom1';
 
 const LAND_SPEED_KM_PER_WEEK = 120;
 const SEA_SPEED_KM_PER_WEEK = 200;
@@ -25,12 +26,16 @@ export function computeTravelWeeks(attacker, defender, viaSea) {
   return Math.max(1, Math.ceil(distanceKm / speed));
 }
 
-export function canRaid(attacker, defender) {
+export function canRaid(attacker, defender, regions = null, polities = null) {
   if (attacker.id === defender.id) return { possible: false };
+  const staging = regions && polities ? findLandStagingRegion(attacker, defender, regions, polities) :
+    (attacker.neighbors.includes(defender.id) ? attacker : null);
+  if (staging && (hasDirectContact(attacker, defender) || hasDirectContact(staging, defender))) {
+    return { possible: true, viaSea: false, stagingRegionId: staging.id };
+  }
   if (!hasDirectContact(attacker, defender) || !hasDirectContact(defender, attacker)) {
     return { possible: false, reason: 'no_contact' };
   }
-  if (attacker.neighbors.includes(defender.id)) return { possible: true, viaSea: false };
   const sharedSea = attacker.adjacentSeaIds.some((id) => defender.adjacentSeaIds.includes(id));
   if (sharedSea && maxSeaRaidersAvailable(attacker) > 0) return { possible: true, viaSea: true };
   return { possible: false };
@@ -38,21 +43,24 @@ export function canRaid(attacker, defender) {
 
 let nextRaidId = 1;
 
-export function launchRaid(attacker, defender, requestedPersonnel, viaSea, currentTick) {
-  const reach = canRaid(attacker, defender);
+export function launchRaid(attacker, defender, requestedPersonnel, viaSea, currentTick, options = {}) {
+  const reach = canRaid(attacker, defender, options.regions, options.polities);
   if (!reach.possible || reach.viaSea !== viaSea) return null;
-  let personnel = Math.min(requestedPersonnel, attacker.army.personnel);
-  if (viaSea) personnel = Math.min(personnel, maxSeaRaidersAvailable(attacker));
-  personnel = Math.floor(personnel);
+  let homePersonnel = Math.floor(Math.min(requestedPersonnel, attacker.army.personnel));
+  const contingents = viaSea ? [] : (options.contingents || []).filter((contingent) => contingent.personnel > 0);
+  let contingentPersonnel = contingents.reduce((sum, contingent) => sum + contingent.personnel, 0);
+  if (viaSea) homePersonnel = Math.min(homePersonnel, maxSeaRaidersAvailable(attacker));
+  const personnel = homePersonnel + contingentPersonnel;
   if (personnel <= 0) return null;
   const travelWeeks = computeTravelWeeks(attacker, defender, viaSea);
-  attacker.army.personnel -= personnel;
-  attacker.army.away = (attacker.army.away || 0) + personnel;
+  attacker.army.personnel -= homePersonnel;
+  attacker.army.away = (attacker.army.away || 0) + homePersonnel;
   if (attacker.raidEconomy) {
     attacker.raidEconomy.raidsLaunched += 1;
     attacker.raidEconomy.lastRaidTick = currentTick;
   }
-  return { id: nextRaidId++, attackerId: attacker.id, defenderId: defender.id, personnel, viaSea,
+  return { id: nextRaidId++, attackerId: attacker.id, defenderId: defender.id, personnel, homePersonnel,
+    contingents, viaSea, stagingRegionId: reach.stagingRegionId || attacker.id,
     departTick: currentTick, arriveTick: currentTick + travelWeeks, returnTick: null,
     resolved: false, completed: false, outcome: null };
 }
@@ -65,6 +73,9 @@ export function tickRaids(raids, regionsById, currentTick, toolTypes, rng) {
       const defender = regionsById.get(raid.defenderId);
       const outcome = resolveCombat(attacker, defender, raid.personnel, toolTypes, rng, raid.viaSea);
       const won = outcome.attackerRatio > 0.5;
+      if (!defender.militaryThreat) defender.militaryThreat = { lastRaidedTick: null, recentRaids: 0 };
+      defender.militaryThreat.lastRaidedTick = currentTick;
+      defender.militaryThreat.recentRaids = Math.min(10, (defender.militaryThreat.recentRaids || 0) + 1);
       // The victim remembers even an unsuccessful raid. The attacker also
       // becomes somewhat more contemptuous, particularly after a victory.
       changeAttitude(defender, attacker.id, won ? -0.45 : -0.32, 'raided', currentTick);
@@ -96,8 +107,19 @@ export function tickRaids(raids, regionsById, currentTick, toolTypes, rng) {
     }
     if (raid.resolved && !raid.completed && currentTick >= raid.returnTick) {
       const attacker = regionsById.get(raid.attackerId);
-      attacker.army.personnel += raid.outcome.attackerSurvivors;
-      attacker.army.away = Math.max(0, (attacker.army.away || 0) - raid.personnel);
+      const survivalRate = raid.personnel > 0 ? raid.outcome.attackerSurvivors / raid.personnel : 0;
+      const homeSent = raid.homePersonnel ?? raid.personnel;
+      const homeReturned = Math.min(homeSent, Math.round(homeSent * survivalRate));
+      attacker.army.personnel += homeReturned;
+      attacker.army.away = Math.max(0, (attacker.army.away || 0) - homeSent);
+      for (const contingent of raid.contingents || []) {
+        const vassal = regionsById.get(contingent.regionId);
+        if (!vassal) continue;
+        const returned = Math.min(contingent.personnel, Math.round(contingent.personnel * survivalRate));
+        vassal.army.personnel += returned;
+        vassal.army.away = Math.max(0, (vassal.army.away || 0) - contingent.personnel);
+        recordContingentReturns(vassal, contingent.personnel, returned);
+      }
       raid.completed = true;
     }
   }

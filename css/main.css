@@ -520,6 +520,13 @@ button, input, select {
 
 .agreement-row button { padding: 5px 8px; }
 
+.delegated-powers {
+  margin: 8px 0;
+  padding: 8px;
+  border: 1px solid var(--bronze-dim);
+  border-radius: 8px;
+}
+
 /* ---------- Region picker (game start) ---------- */
 .picker-card {
   display: flex;

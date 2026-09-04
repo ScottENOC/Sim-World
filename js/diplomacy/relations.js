@@ -168,6 +168,11 @@ export function tickDiplomacy(regions, agreements, toolTypes, currentTick) {
     const from = regionsById.get(agreement.fromId);
     const to = regionsById.get(agreement.toId);
     if (!from || !to) continue;
+    if ((agreement.type === 'tribute' || agreement.type === 'resource_access') &&
+      to.controllingActorId === from.id && to.governance?.relationship !== 'core') {
+      endAgreement(agreement, regionsById, currentTick);
+      continue;
+    }
 
     if (agreement.type === 'military_support') {
       const affordable = Math.floor(Math.max(0, from.treasury) / SUPPORT_UPKEEP_PER_SOLDIER);
