@@ -13,6 +13,7 @@ import { tickNationAi } from './ai/nationAi.js?v=20260904-kingdom1';
 import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260904-weather1';
 import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID } from './technology/breakthroughs.js?v=20260904-weather1';
 import { MapRenderer } from './ui/mapRenderer.js?v=20260904-weather1';
+import { AdvisorCouncil } from './ui/advisors.js?v=20260904-council1';
 import { FogOfWar } from './core/fogOfWar.js?v=20260904-weather1';
 import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260904-weather1';
 import { attitudeLabel, attitudeToward, canDiplomaticallyReach, endAgreement, proposeAgreement, tickDiplomacy } from './diplomacy/relations.js?v=20260904-kingdom1';
@@ -73,6 +74,7 @@ async function main() {
   let activeRaids = [];
   const agreements = [];
   const eventQueue = [];
+  let council;
 
   const map = new MapRenderer(canvas, regions, {
     seaRegions,
@@ -89,6 +91,23 @@ async function main() {
     },
   });
 
+  council = new AdvisorCouncil({
+    regions, polities, fogOfWar, clock,
+    getPlayerRegionId: () => playerRegionId,
+    getActiveRaids: () => activeRaids,
+    addRaid: (raid) => activeRaids.push(raid),
+    openRegion: (regionId) => {
+      const region = regionsById.get(regionId);
+      if (!region || !fogOfWar.isVisible(region)) return;
+      selectedRegion = region;
+      map.selectedId = region.id;
+      renderRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
+      updateRegionStats(region, seaRegionsById, fogOfWar, regions, playerRegionId);
+      document.getElementById('region-sheet').classList.remove('hidden');
+      map.draw();
+    },
+  });
+
   wireLayerToggle(map);
   map.setLayer(LAYERS.density);
   showLegend(map);
@@ -98,6 +117,7 @@ async function main() {
     selectedRegion = null;
     map.selectedId = null;
     map.draw();
+    council.refresh();
   });
 
   wireHud(clock);
