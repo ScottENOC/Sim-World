@@ -1,4 +1,5 @@
-import { KnowledgeLedger } from '../core/knowledge.js?v=20260904-calibration1';
+import { KnowledgeLedger } from '../core/knowledge.js?v=20260904-weather1';
+import { initialiseDeposit } from './resources/extraction.js?v=20260904-weather1';
 
 export class Region {
   constructor({ id, name, feature, centroid, areaSqKm, neighbors }) {
@@ -16,12 +17,13 @@ export class Region {
     this.wallet = 0; this.treasury = 0; this.unlockedTechIds = new Set();
     this.horseEconomy = { draft: 0, transport: 0, war: 0, breeders: 0, trainers: 0,
       births: 0, deaths: 0, capacity: 0, pastureFraction: 0 };
+    this.weather = { index: 0, yieldMultiplier: 1, seasonalMultiplier: 1, condition: 'normal' };
     this.militaryFinance = {
       weeklyTaxRevenue: 0, weeklyTradeDuties: 0, revenueEma: 0,
       payrollDue: 0, payrollPaid: 0, payRatio: 1, readiness: 1,
       arrearsWeeks: 0, procurementBudget: 0, procurementSpent: 0,
       weeklyProcurementSpent: 0, fundedPersonnelCap: Infinity, deserters: 0,
-      administrationDue: 0, administrationPaid: 0, stateCapacity: 1,
+      administrationDue: 0, administrationPaid: 0, administrationInKind: 0, stateCapacity: 1,
     };
     // Knowing iron smelting and having an iron industry are deliberately
     // separate. Readiness ramps as mines, furnaces and smiths adapt.
@@ -63,7 +65,7 @@ export class Region {
 export async function loadWorld() {
   const [geoRes, metaRes, resourcesRes] = await Promise.all([
     fetch('data/world/regions.geo.json'), fetch('data/world/regions.meta.json'),
-    fetch('data/world/resources.initial.json?v=20260904-calibration1'),
+    fetch('data/world/resources.initial.json?v=20260904-weather1'),
   ]);
   const geo = await geoRes.json(); const meta = await metaRes.json(); const resources = await resourcesRes.json();
   const metaById = new Map(meta.regions.map((r) => [r.id, r]));
@@ -78,7 +80,7 @@ export async function loadWorld() {
     region.forest = { currentStock: K * endowment.forestStartCoverage, K };
     region.deposits = {};
     for (const [key, dep] of Object.entries(endowment.deposits)) {
-      region.deposits[key] = { tiers: dep.tiers.map((tier) => ({ ...tier, remainingStock: tier.initialStock })) };
+      region.deposits[key] = initialiseDeposit(key, dep);
     }
     // Clay is deliberately common rather than another rare strategic ore.
     // The procedural stock avoids inflating the already-large static map data

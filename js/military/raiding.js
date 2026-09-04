@@ -1,10 +1,10 @@
-import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-calibration1';
-import { hasDirectContact, learnAbout } from '../core/knowledge.js?v=20260904-calibration1';
-import { centroidDistanceKm } from '../world/distance.js?v=20260904-calibration1';
-import { advancedNavyShare, navyTransportCapacity } from './army.js?v=20260904-calibration1';
-import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-calibration1';
-import { horseLandSpeedMultiplier, horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-calibration1';
-import { localPrice } from '../economy/prices.js?v=20260904-calibration1';
+import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-weather1';
+import { hasDirectContact, learnAbout } from '../core/knowledge.js?v=20260904-weather1';
+import { centroidDistanceKm } from '../world/distance.js?v=20260904-weather1';
+import { advancedNavyShare, navyTransportCapacity } from './army.js?v=20260904-weather1';
+import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-weather1';
+import { horseLandSpeedMultiplier, horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-weather1';
+import { localPrice } from '../economy/prices.js?v=20260904-weather1';
 
 const LAND_SPEED_KM_PER_WEEK = 120;
 const SEA_SPEED_KM_PER_WEEK = 200;

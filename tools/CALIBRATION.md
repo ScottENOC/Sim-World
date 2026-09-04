@@ -22,3 +22,7 @@ This separates sustained predation from an isolated opportunistic raid.
 
 Default multi-century runs are intentionally slow: they execute the same weekly
 simulation as the game. Fixed seeds make parameter changes directly comparable.
+
+The calibrated display epoch begins in 1300 BCE. Surface tin uses a calibrated
+multiple of the map's relative geological endowments to target about eighty
+years of prosperous extraction before a roughly 1220 BCE collapse.

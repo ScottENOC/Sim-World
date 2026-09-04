@@ -3,16 +3,24 @@
 // a military target that scales with how threatened it feels, and an
 // occasional, cautious evaluation of whether raiding a reachable neighbor
 // is clearly worth it. AI only considers regions it has actually met.
-import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-calibration1';
-import { canRaid, launchRaid } from '../military/raiding.js?v=20260904-calibration1';
-import { directContactIds, knowledgeOf, KNOWLEDGE_THRESHOLDS } from '../core/knowledge.js?v=20260904-calibration1';
-import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-calibration1';
-import { horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-calibration1';
+import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-weather1';
+import { canRaid, launchRaid } from '../military/raiding.js?v=20260904-weather1';
+import { directContactIds, knowledgeOf, KNOWLEDGE_THRESHOLDS } from '../core/knowledge.js?v=20260904-weather1';
+import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-weather1';
+import { horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-weather1';
 
-const BASE_ARMY_FRACTION = 0.02;
+// A one-percent peacetime levy is supportable while trade and taxation are
+// healthy. Threatened states still expand this through the safety multiplier;
+// failed states should lose armies because the collapse removed their means,
+// not because the starting establishment was fiscally impossible.
+const BASE_ARMY_FRACTION = 0.01;
 const THREAT_ARMY_MULTIPLIER = 2.0;
 const BASE_NAVY_PER_POPULATION = 50000;
-const RAID_CONSIDERATION_CHANCE_PER_WEEK = 0.05;
+// Most chiefdoms do not campaign every year. Geography, knowledge and a clear
+// military advantage still gate the attempt after this roll; roughly 0.5% per
+// week gives viable states about a one-in-four annual chance to even consider
+// a raid, while repeated winners can still become observed raiding economies.
+const RAID_CONSIDERATION_CHANCE_PER_WEEK = 0.005;
 const MIN_HOME_ARMY_TO_CONSIDER_RAIDING = 30;
 const MIN_SAFETY_TO_CONSIDER_RAIDING = 0.3;
 const MIN_ADVANTAGE_TO_RAID = 1.5;

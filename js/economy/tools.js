@@ -1,4 +1,4 @@
-import { localPrice } from './prices.js?v=20260904-calibration1';
+import { localPrice } from './prices.js?v=20260904-weather1';
 
 // Tools are physical counts, not a permanent development score. They wear
 // out slowly, creating the replacement demand that makes a metal shortage
@@ -8,10 +8,10 @@ const MAX_ADOPTION_RATE_PER_WEEK = 0.02;
 const IRON_MAX_RELATIVE_VALUE_COST = 0.65;
 const IRON_SMELTING_COST_MULTIPLIER = 2.5;
 const ANNUAL_TOOL_ATTRITION = {
-  farmer: 0.04,
-  miner: 0.05,
-  lumberjack: 0.04,
-  soldier: 0.06,
+  farmer: 0.08,
+  miner: 0.08,
+  lumberjack: 0.07,
+  soldier: 0.10,
 };
 
 export function wearOutTools(region) {

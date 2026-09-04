@@ -5,7 +5,7 @@
 // population density and farm yield are driven by the same underlying
 // "how good is this land" number rather than two independent guesses.
 
-import { seedHorseHerd } from '../economy/horses.js?v=20260904-calibration1';
+import { seedHorseHerd } from '../economy/horses.js?v=20260904-weather1';
 
 const BASE_DENSITY_PER_KM2 = 3; // rough Bronze Age agrarian average
 const STARTING_IDENTITY_STRENGTH = 0.3; // low: young, easily-assimilated cultures
@@ -36,12 +36,19 @@ export function seedCensus(regions, rng = Math.random) {
     // Several months of portable household/merchant wealth provide enough
     // liquidity for trade to specialise before the first shock. This is cash,
     // not credit: borrowing remains capped far below this in trade.js.
-    region.wallet = region.population * 0.05;
-    region.treasury = region.population * 0.002;
+    // Roughly twenty-five staple-ration equivalents per person: portable
+    // household/merchant wealth sufficient to finance a season of exchange,
+    // not the quarter-ration implied by the previous unit mismatch.
+    region.wallet = region.population * 5;
+    region.treasury = region.population * 0.02;
     // Pottery predates the starting era. Regions begin with ordinary household
     // vessels, while continued production is needed to replace breakage and
     // expand storage as populations grow.
     region.stockpile.pottery = region.population * 0.45;
+    // The simulation can open during the northern winter. Existing societies
+    // begin with an ordinary post-harvest reserve rather than being treated as
+    // though storage and last season's crop did not exist before week one.
+    region.stockpile.food = region.population * 12;
     seedHorseHerd(region, rng);
 
     region.cultureGroups = [

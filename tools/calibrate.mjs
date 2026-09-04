@@ -17,6 +17,8 @@ import { tickRaids } from '../js/military/raiding.js';
 import { tickBreakthroughs } from '../js/technology/breakthroughs.js';
 import { initialiseKnowledge, buildFishingContactPairs, tickFishingKnowledge,
   pruneKnowledge } from '../js/core/knowledge.js';
+import { initialiseDeposit } from '../js/world/resources/extraction.js';
+import { ironSmeltingChance } from '../js/technology/breakthroughs.js';
 
 const ROOT = new URL('../', import.meta.url);
 const readJson = (path) => JSON.parse(fs.readFileSync(new URL(path, ROOT), 'utf8'));
@@ -54,9 +56,8 @@ function makeWorld(rng) {
     region.landQuality = endowment.landQuality;
     const forestK = region.areaSqKm * endowment.forestFraction;
     region.forest = { currentStock: forestK * endowment.forestStartCoverage, K: forestK };
-    region.deposits = Object.fromEntries(Object.entries(endowment.deposits).map(([key, deposit]) => [key, {
-      tiers: deposit.tiers.map((tier) => ({ ...tier, remainingStock: tier.initialStock })),
-    }]));
+    region.deposits = Object.fromEntries(Object.entries(endowment.deposits)
+      .map(([key, deposit]) => [key, initialiseDeposit(key, deposit)]));
     if (!region.deposits.clay) {
       const clayStock = Math.max(50_000, Math.round(region.areaSqKm * 2_000));
       region.deposits.clay = { tiers: [{ id: 'surface', label: 'Surface clay beds',
@@ -119,9 +120,26 @@ function newWindow(regions) {
     output: { tin: 0, copper: 0, bronze: 0, food: 0, horses: 0 } }]));
 }
 
+function assertFiniteWorld(regions, initialPopulation, tick) {
+  for (const region of regions) {
+    const values = [region.population, region.banditPopulation, region.wallet, region.treasury,
+      region.stockpile.food || 0];
+    if (values.some((value) => !Number.isFinite(value) || value < 0)) {
+      throw new Error(`Invalid state in ${region.name} at tick ${tick}: ${values.join(', ')}`);
+    }
+  }
+  const population = total(regions, (region) => region.population + region.banditPopulation);
+  if (population > initialPopulation * 5) {
+    throw new Error(`Implausible population growth at tick ${tick}: ${population}`);
+  }
+}
+
 function snapshot(regions, initial, year, window) {
   const specialities = classifySpecialities(regions, window);
+  const windowActivity = [...window.values()];
+  const regionsById = new Map(regions.map((region) => [region.id, region]));
   const surfaceTin = total(regions, (r) => r.deposits.tin?.tiers[0]?.remainingStock || 0);
+  const surfaceCopper = total(regions, (r) => r.deposits.copper?.tiers[0]?.remainingStock || 0);
   const farmers = total(regions, (r) => r.occupations.farmer || 0);
   const farmerTools = total(regions, (r) => Object.values(r.equipment.farmer || {})
     .reduce((sum, quantity) => sum + quantity * 10, 0));
@@ -129,18 +147,53 @@ function snapshot(regions, initial, year, window) {
     year,
     populationPct: pct(total(regions, (r) => r.population), initial.population),
     weeklyTrade: Math.round(total(regions, (r) => r.tradeEconomy.weeklyExports || 0)),
+    smoothedWeeklyTrade: Math.round(total(regions, (r) => r.tradeEconomy.exportIncomeEma || 0)),
     weeklyFoodImports: Math.round(total(regions, (r) => r.tradeEconomy.weeklyFoodImports || 0)),
+    smoothedWeeklyFoodImports: Math.round(total(regions, (r) => r.tradeEconomy.foodImportEma || 0)),
     surfaceTinPct: pct(surfaceTin, initial.surfaceTin),
-    farmerToolCoveragePct: pct(farmerTools, farmers),
+    surfaceCopperPct: pct(surfaceCopper, initial.surfaceCopper),
+    farmerToolCoveragePct: Math.min(100, pct(farmerTools, farmers)),
     foodDependentRegions: regions.filter((r) => (r.foodImportDependence || 0) >= 0.1).length,
     distressedRegions: regions.filter((r) => r.stability < 0.5).length,
     bandits: Math.round(total(regions, (r) => r.banditPopulation)),
+    raidWindow: {
+      wins: Math.round(windowActivity.reduce((sum, activity) => sum + activity.raidsWon, 0)),
+      lootValue: Math.round(windowActivity.reduce((sum, activity) => sum + activity.loot, 0)),
+    },
+    totalWallet: Math.round(total(regions, (r) => r.wallet)),
+    totalTreasury: Math.round(total(regions, (r) => r.treasury)),
+    weeklyBronzeOutput: Math.round(total(regions, (r) => r.report.smithing?.bronze || 0)),
+    bronzeStock: Math.round(total(regions, (r) => r.stockpile.bronze || 0)),
     averageMilitaryReadinessPct: +(total(regions, (r) => r.militaryFinance.readiness) /
       regions.length * 100).toFixed(1),
+    stateFinance: {
+      revenue: +total(regions, (r) => r.militaryFinance.weeklyTaxRevenue +
+        r.militaryFinance.weeklyTradeDuties).toFixed(1),
+      administrationDue: +total(regions, (r) => r.militaryFinance.administrationDue).toFixed(1),
+      administrationInKind: +total(regions, (r) => r.militaryFinance.administrationInKind).toFixed(1),
+      payrollDue: +total(regions, (r) => r.militaryFinance.payrollDue).toFixed(1),
+      payrollPaid: +total(regions, (r) => r.militaryFinance.payrollPaid).toFixed(1),
+      statesInArrears: regions.filter((r) => r.militaryFinance.arrearsWeeks > 0).length,
+      fullyFundedStates: regions.filter((r) => r.militaryFinance.payRatio >= 0.95).length,
+      soldiersAndSailors: Math.round(total(regions, (r) => r.army.personnel + r.navy.personnel)),
+    },
     ironRegions: regions.filter((r) => r.unlockedTechIds.has('iron_smelting')).length,
+    ironDiscoveryChance: {
+      averagePerRegionPerWeek: +(total(regions, (r) => ironSmeltingChance(r,
+        regionsById, year * 52)) / regions.length).toExponential(3),
+      maximumPerRegionPerWeek: +Math.max(...regions.map((r) => ironSmeltingChance(r,
+        regionsById, year * 52))).toExponential(3),
+      maximumSmithingExperience: Math.round(Math.max(...regions.map((r) => r.experience.smithing || 0))),
+    },
     advancedBoatRegions: regions.filter((r) => r.unlockedTechIds.has('advanced_boatbuilding')).length,
     totalHorses: Math.round(total(regions, (r) => (r.stockpile.horses || 0) +
       (r.horseEconomy?.draft || 0) + (r.horseEconomy?.transport || 0) + (r.horseEconomy?.war || 0))),
+    weather: {
+      averageYieldMultiplier: +(total(regions, (r) => r.weather?.yieldMultiplier || 1) /
+        regions.length).toFixed(3),
+      droughtRegions: regions.filter((r) => r.weather?.condition === 'drought').length,
+      dryRegions: regions.filter((r) => r.weather?.condition === 'dry').length,
+    },
     specialities: Object.fromEntries(Object.entries(specialities).map(([key, entries]) =>
       [key, { count: entries.length, leaders: entries.slice(0, 5) }])),
   };
@@ -153,12 +206,13 @@ function run(seed) {
   const initial = {
     population: total(regions, (r) => r.population),
     surfaceTin: total(regions, (r) => r.deposits.tin?.tiers[0]?.initialStock || 0),
+    surfaceCopper: total(regions, (r) => r.deposits.copper?.tiers[0]?.initialStock || 0),
   };
   let raids = [];
   let window = newWindow(regions);
   const timeline = [];
   for (let tick = 1; tick <= years * 52; tick += 1) {
-    tickEconomy(regions, seas, toolTypes, rng);
+    tickEconomy(regions, seas, toolTypes, rng, tick);
     tickFishingKnowledge(fishingPairs, tick);
     tickTrade(regions, tick);
     tickStateFinance(regions);
@@ -169,6 +223,7 @@ function run(seed) {
     const raidResult = tickRaids(raids, regionsById, tick, toolTypes, rng);
     raids = raidResult.remaining;
     pruneKnowledge(regions, tick);
+    assertFiniteWorld(regions, initial.population, tick);
 
     for (const region of regions) {
       const activity = window.get(region.id);

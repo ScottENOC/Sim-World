@@ -3,7 +3,10 @@
 // procurement return treasury money to the populace. Revenue therefore rises
 // with taxable wealth and trade, then contracts when routes and markets fail.
 
-const WEEKLY_WEALTH_TAX_RATE = 0.025 / 52;
+// Wallets now represent a meaningful stock of portable household wealth.
+// Only a small fraction is collectable annually; trade duties remain the
+// state's important commercial revenue and disappear with the trade system.
+const WEEKLY_WEALTH_TAX_RATE = 0.00025 / 52;
 const EXPORT_DUTY_RATE = 0.05;
 const REVENUE_EMA_ALPHA = 1 / 52;
 const SOLDIER_UPKEEP_PER_WEEK = 0.002;
@@ -14,7 +17,12 @@ const PROCUREMENT_REVENUE_SHARE = 0.5;
 const PROCUREMENT_TREASURY_SHARE = 0.02;
 const ARREARS_STABILITY_PENALTY = 0.0015;
 const MAX_WEEKLY_DESERTION = 0.01;
-const CIVIL_ADMIN_PER_PERSON_PER_WEEK = 0.00002;
+// Most administration is local and paid partly in kind. At the previous rate
+// courts and collectors alone cost four times the entire military payroll,
+// bankrupting non-commercial regions during the prosperous period. This
+// lower portable-wealth cost remains material after trade and taxes collapse.
+const CIVIL_ADMIN_PER_PERSON_PER_WEEK = 0.000005;
+const ADMIN_IN_KIND_CREDIT_PER_FOOD = 0.000004;
 
 function clamp01(value) {
   return Math.max(0, Math.min(1, value));
@@ -38,6 +46,7 @@ function ensureMilitaryFinance(region) {
     deserters: 0,
     administrationDue: 0,
     administrationPaid: 0,
+    administrationInKind: 0,
     stateCapacity: 1,
   };
   for (const [key, value] of Object.entries(defaults)) {
@@ -70,13 +79,29 @@ export function tickStateFinance(regions) {
     // Courts, messengers, granaries and tax collectors are a continuing cost,
     // not free machinery. Paying them recirculates money to households; not
     // paying them erodes the state's ability to collect next week's taxes.
-    const administrationDue = Math.max(0, region.population) * CIVIL_ADMIN_PER_PERSON_PER_WEEK;
+    const grossAdministrationDue = Math.max(0, region.population) * CIVIL_ADMIN_PER_PERSON_PER_WEEK;
+    const foodProduced = Math.max(0, (region.report?.farming?.food || 0) +
+      (region.report?.gathering?.food || 0) + (region.report?.shoreFishing?.food || 0) +
+      (region.report?.boatFishing?.food || 0));
+    // Local officials, messengers and granary workers receive most ordinary
+    // support as food and obligations rather than coin. Failed harvests remove
+    // this credit immediately; commerce is still needed for military payroll
+    // and arms, so an in-kind administration does not immunise the state from
+    // a Bronze Age trade collapse.
+    const administrationInKind = Math.min(
+      grossAdministrationDue,
+      foodProduced * ADMIN_IN_KIND_CREDIT_PER_FOOD
+    );
+    const administrationDue = grossAdministrationDue - administrationInKind;
     const administrationPaid = Math.min(Math.max(0, region.treasury), administrationDue);
     region.treasury -= administrationPaid;
     region.wallet += administrationPaid;
-    const administrationRatio = administrationDue > 0 ? administrationPaid / administrationDue : 1;
-    finance.administrationDue = administrationDue;
+    const administrationRatio = grossAdministrationDue > 0
+      ? (administrationInKind + administrationPaid) / grossAdministrationDue
+      : 1;
+    finance.administrationDue = grossAdministrationDue;
     finance.administrationPaid = administrationPaid;
+    finance.administrationInKind = administrationInKind;
     const capacityAdjustment = administrationRatio < finance.stateCapacity ? 0.05 : 0.01;
     finance.stateCapacity += (administrationRatio - finance.stateCapacity) * capacityAdjustment;
 
@@ -136,6 +161,7 @@ export function tickStateFinance(regions) {
       procurementBudget: finance.procurementBudget,
       procurementSpent: finance.weeklyProcurementSpent,
       administrationRatio, stateCapacity: finance.stateCapacity,
+      administrationInKind,
     };
   }
 }

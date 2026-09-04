@@ -4,6 +4,28 @@
 // gets genuinely harder to work throttles fast). This never reaches into a
 // deeper tier on its own — that requires a tech unlock, handled by
 // selectActiveTier below, not by this formula getting "hard enough."
+// The static endowment file expresses relative geology. Calibration scales
+// accessible tin here so the same map data can support an approximately
+// eighty-year prosperous bronze economy before its shallow supply fails.
+export const SURFACE_TIN_STOCK_MULTIPLIER = 5.5;
+export const SURFACE_COPPER_STOCK_MULTIPLIER = 2;
+
+export function initialiseDeposit(resourceKey, deposit) {
+  return {
+    tiers: deposit.tiers.map((tier, index) => {
+      const stockMultiplier = index === 0
+        ? resourceKey === 'tin'
+          ? SURFACE_TIN_STOCK_MULTIPLIER
+          : resourceKey === 'copper'
+            ? SURFACE_COPPER_STOCK_MULTIPLIER
+            : 1
+        : 1;
+      const initialStock = tier.initialStock * stockMultiplier;
+      return { ...tier, initialStock, remainingStock: initialStock };
+    }),
+  };
+}
+
 export function extractionRate({
   initialStock,
   remainingStock,

@@ -1,8 +1,8 @@
-import { localPrice, TRADABLE_RESOURCES } from './prices.js?v=20260904-calibration1';
-import { directContactIds, knownRegionIds, recordDirectTrade, diffuseTradeNetworkKnowledge } from '../core/knowledge.js?v=20260904-calibration1';
-import { centroidDistanceKm } from '../world/distance.js?v=20260904-calibration1';
-import { advancedMaritimeShare } from '../military/army.js?v=20260904-calibration1';
-import { horseTransportMultiplier } from './horses.js?v=20260904-calibration1';
+import { localPrice, TRADABLE_RESOURCES } from './prices.js?v=20260904-weather1';
+import { directContactIds, knownRegionIds, recordDirectTrade, diffuseTradeNetworkKnowledge } from '../core/knowledge.js?v=20260904-weather1';
+import { centroidDistanceKm } from '../world/distance.js?v=20260904-weather1';
+import { advancedMaritimeShare } from '../military/army.js?v=20260904-weather1';
+import { horseTransportMultiplier } from './horses.js?v=20260904-weather1';
 
 const LAND_ADJACENT_COST = 0.02;
 const SEA_COST_PER_KM = 0.0002;
@@ -177,9 +177,14 @@ function executeTrades(region, opportunities, currentTick = null) {
     const purchasingPower = Math.max(0, opp.dest.wallet) + creditAvailable;
     const maxByBuyerFunds = opp.price > 0 ? purchasingPower / opp.price : Infinity;
     const maxByLabor = laborLeft * TRADE_UNITS_PER_TRADER * opp.reliability * (opp.transportMultiplier || 1);
-    const volume = Math.max(0, Math.min(opp.stockRemaining, maxByBuyerFunds, maxByLabor));
+    const exportBudget = Math.max(0, region._exportRemaining?.[opp.resource] || 0);
+    const actualStock = Math.max(0, region.stockpile[opp.resource] || 0);
+    const volume = Math.max(0, Math.min(
+      opp.stockRemaining, maxByBuyerFunds, maxByLabor, exportBudget, actualStock
+    ));
     if (volume <= 0.01) continue;
     region.stockpile[opp.resource] -= volume;
+    region._exportRemaining[opp.resource] -= volume;
     opp.stockRemaining -= volume;
     opp.dest.stockpile[opp.resource] = (opp.dest.stockpile[opp.resource] || 0) + volume;
     const payment = volume * opp.price;
@@ -268,6 +273,10 @@ export function tickTrade(regions, currentTick = null) {
   const laborUsedByRegion = new Map();
   for (const region of regions) {
     region._tradeLaborRemaining = region._availableForTrade || 0;
+    region._exportRemaining = Object.fromEntries(TRADABLE_RESOURCES.map((resource) => [
+      resource,
+      Math.max(0, region.stockpile[resource] || 0) * MAX_EXPORT_FRACTION_PER_TICK,
+    ]));
     laborUsedByRegion.set(region.id, 0);
   }
   // Several clearing rounds let a region spend proceeds it earned earlier in

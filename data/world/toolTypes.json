@@ -5,7 +5,7 @@
       "label": "Bronze-tipped plough",
       "productivityBonus": 1.50,
       "material": "bronze",
-      "materialCost": 2,
+      "materialCost": 0.5,
       "workersPerTool": 10,
       "requiredTechId": null
     },
@@ -14,7 +14,7 @@
       "label": "Iron-tipped plough",
       "productivityBonus": 0.80,
       "material": "iron",
-      "materialCost": 2,
+      "materialCost": 0.5,
       "workersPerTool": 10,
       "requiredTechId": "iron_smelting"
     }
@@ -25,7 +25,7 @@
       "label": "Bronze picks & chisels",
       "productivityBonus": 0.30,
       "material": "bronze",
-      "materialCost": 1.5,
+      "materialCost": 0.75,
       "workersPerTool": 3,
       "requiredTechId": null
     },
@@ -34,7 +34,7 @@
       "label": "Iron picks & chisels",
       "productivityBonus": 0.18,
       "material": "iron",
-      "materialCost": 1.5,
+      "materialCost": 0.75,
       "workersPerTool": 3,
       "requiredTechId": "iron_smelting"
     }
@@ -45,7 +45,7 @@
       "label": "Bronze axes",
       "productivityBonus": 0.30,
       "material": "bronze",
-      "materialCost": 1,
+      "materialCost": 0.5,
       "workersPerTool": 3,
       "requiredTechId": null
     },
@@ -54,7 +54,7 @@
       "label": "Iron axes",
       "productivityBonus": 0.18,
       "material": "iron",
-      "materialCost": 1,
+      "materialCost": 0.5,
       "workersPerTool": 3,
       "requiredTechId": "iron_smelting"
     }
@@ -65,7 +65,7 @@
       "label": "Bronze weapons & armor",
       "productivityBonus": 0.60,
       "material": "bronze",
-      "materialCost": 4,
+      "materialCost": 2,
       "workersPerTool": 2,
       "requiredTechId": null
     },
@@ -74,7 +74,7 @@
       "label": "Iron weapons & armor",
       "productivityBonus": 0.38,
       "material": "iron",
-      "materialCost": 4,
+      "materialCost": 2,
       "workersPerTool": 2,
       "requiredTechId": "iron_smelting"
     }

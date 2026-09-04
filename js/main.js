@@ -1,22 +1,22 @@
-import { Clock } from './core/clock.js?v=20260904-calibration1';
-import { EventBus } from './core/eventBus.js?v=20260904-calibration1';
-import { loadWorld } from './world/region.js?v=20260904-calibration1';
-import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260904-calibration1';
-import { seedCensus, densityPerKm2 } from './society/census.js?v=20260904-calibration1';
-import { tickEconomy } from './economy/labor.js?v=20260904-calibration1';
-import { tickTrade } from './economy/trade.js?v=20260904-calibration1';
-import { tickStateFinance } from './economy/stateFinance.js?v=20260904-calibration1';
-import { tickDemographics } from './society/demographics.js?v=20260904-calibration1';
-import { tickBanditry } from './military/banditry.js?v=20260904-calibration1';
-import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable } from './military/raiding.js?v=20260904-calibration1';
-import { tickNationAi } from './ai/nationAi.js?v=20260904-calibration1';
-import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260904-calibration1';
-import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID } from './technology/breakthroughs.js?v=20260904-calibration1';
-import { MapRenderer } from './ui/mapRenderer.js?v=20260904-calibration1';
-import { FogOfWar } from './core/fogOfWar.js?v=20260904-calibration1';
-import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260904-calibration1';
+import { Clock } from './core/clock.js?v=20260904-weather1';
+import { EventBus } from './core/eventBus.js?v=20260904-weather1';
+import { loadWorld } from './world/region.js?v=20260904-weather1';
+import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260904-weather1';
+import { seedCensus, densityPerKm2 } from './society/census.js?v=20260904-weather1';
+import { tickEconomy } from './economy/labor.js?v=20260904-weather1';
+import { tickTrade } from './economy/trade.js?v=20260904-weather1';
+import { tickStateFinance } from './economy/stateFinance.js?v=20260904-weather1';
+import { tickDemographics } from './society/demographics.js?v=20260904-weather1';
+import { tickBanditry } from './military/banditry.js?v=20260904-weather1';
+import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable } from './military/raiding.js?v=20260904-weather1';
+import { tickNationAi } from './ai/nationAi.js?v=20260904-weather1';
+import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260904-weather1';
+import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID } from './technology/breakthroughs.js?v=20260904-weather1';
+import { MapRenderer } from './ui/mapRenderer.js?v=20260904-weather1';
+import { FogOfWar } from './core/fogOfWar.js?v=20260904-weather1';
+import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260904-weather1';
 
-const START_YEAR = -1400; // prosperous runway before century-scale surface tin begins to fail
+const START_YEAR = -1300; // target: roughly eighty prosperous years before a c.1220 BCE collapse
 const LAYERS = {
   density: {
     valueFn: (r) => densityPerKm2(r),
@@ -52,7 +52,7 @@ async function main() {
   linkSeaAdjacency(regions, seaRegions);
   const fishingContactPairs = buildFishingContactPairs(regions, seaRegions);
   initialiseKnowledge(regions);
-  const toolTypes = await (await fetch('data/world/toolTypes.json?v=20260904-calibration1')).json();
+  const toolTypes = await (await fetch('data/world/toolTypes.json?v=20260904-weather1')).json();
 
   console.log(
     `Loaded ${regions.length} regions:`,
@@ -108,7 +108,7 @@ async function main() {
   });
 
   clock.onTick(() => {
-    tickEconomy(regions, seaRegions, toolTypes);
+    tickEconomy(regions, seaRegions, toolTypes, Math.random, clock.tickIndex);
     pruneKnowledge(regions, clock.tickIndex);
     tickFishingKnowledge(fishingContactPairs, clock.tickIndex);
     tickTrade(regions, clock.tickIndex);
@@ -732,6 +732,10 @@ function buildReportSection(region) {
       lines.push(`<div>Food storage: ${Math.round(data.potteryCoverage * 100)}% pottery coverage &middot; ${data.weeks.toFixed(1)} weeks capacity &middot; ${(data.spoilage * 100).toFixed(1)}% weekly spoilage</div>`);
       continue;
     }
+    if (key === 'weather') {
+      lines.push(`<div>Growing conditions: ${data.condition} &middot; season ${(data.seasonalMultiplier * 100).toFixed(0)}% &middot; weather ${(data.weatherMultiplier * 100).toFixed(0)}% &middot; combined farming potential ${(data.seasonalMultiplier * data.weatherMultiplier * 100).toFixed(0)}%</div>`);
+      continue;
+    }
     if (key === 'maintenance') {
       const losses = [];
       if (data.boatLosses > 0.01) losses.push(`${data.boatLosses.toFixed(2)} boats worn out`);
@@ -762,7 +766,7 @@ function buildReportSection(region) {
     if (!data || data.workers === 0) continue;
 
     const outputs = Object.entries(data)
-      .filter(([k]) => k !== 'workers' && k !== 'seaName' && k !== 'advancedShare' && k !== 'ironReadiness')
+      .filter(([k]) => k !== 'workers' && k !== 'seaName' && k !== 'advancedShare' && k !== 'ironReadiness' && k !== 'seasonalMultiplier' && k !== 'weatherMultiplier')
       .filter(([, v]) => typeof v === 'number' && v > 0.05)
       .map(([k, v]) => `${v.toFixed(k === 'bronze' || k === 'iron' ? 1 : 0)} ${resourceLabel(k)}`)
       .join(', ');

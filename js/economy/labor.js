@@ -1,10 +1,11 @@
-import { extractionRate, selectActiveTier } from '../world/resources/extraction.js?v=20260904-calibration1';
-import { regrow, neighborSpreadBonus } from '../world/resources/renewables.js?v=20260904-calibration1';
-import { toolEfficiencyMultiplier, desiredToolInvestment, investInTools, wearOutTools, materialUnitCost } from './tools.js?v=20260904-calibration1';
-import { adjustArmySize, adjustNavyCrew } from '../military/army.js?v=20260904-calibration1';
-import { spendMilitaryProcurement } from './stateFinance.js?v=20260904-calibration1';
-import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260904-calibration1';
-import { tickHorseEconomy, draughtFarmMultiplier } from './horses.js?v=20260904-calibration1';
+import { extractionRate, selectActiveTier } from '../world/resources/extraction.js?v=20260904-weather1';
+import { regrow, neighborSpreadBonus } from '../world/resources/renewables.js?v=20260904-weather1';
+import { toolEfficiencyMultiplier, desiredToolInvestment, investInTools, wearOutTools, materialUnitCost } from './tools.js?v=20260904-weather1';
+import { adjustArmySize, adjustNavyCrew } from '../military/army.js?v=20260904-weather1';
+import { spendMilitaryProcurement } from './stateFinance.js?v=20260904-weather1';
+import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260904-weather1';
+import { tickHorseEconomy, draughtFarmMultiplier } from './horses.js?v=20260904-weather1';
+import { tickWeather } from '../world/weather.js?v=20260904-weather1';
 
 // --- Tunable constants -----------------------------------------------------
 // All placeholders, calibrated so a "typical" region can just about feed
@@ -14,13 +15,14 @@ import { tickHorseEconomy, draughtFarmMultiplier } from './horses.js?v=20260904-
 // the population noise vs. land-quality noise below are independent random
 // draws — that's the point (see the Bronze Age collapse conversation).
 export const FOOD_PER_PERSON_PER_WEEK = 1; // 1 "ration" per person per tick, arbitrary unit
-const FOOD_YIELD_PER_KM2 = 5.8;     // bronze plough teams lift this substantially during the prosperous phase
+const FOOD_YIELD_PER_KM2 = 4.0;     // full bronze equipment raises the effective ceiling back toward 5.8
 const FARM_LABOR_SATURATION_PER_KM2 = 1.5; // people/km² before diminishing returns bite hard
 const MAX_FARMER_FRACTION = 0.9; // always leave some working-age labor for gathering/other pursuits
 const MIN_FOOD_STORAGE_WEEKS = 2;
 const MAX_FOOD_STORAGE_WEEKS = 20;
 const MAX_FOOD_WEEKLY_SPOILAGE = 0.04;
 const MIN_FOOD_WEEKLY_SPOILAGE = 0.008;
+const SEASONAL_STORAGE_MARGIN = 1.15;
 const POTTERY_PER_PERSON_FOR_FULL_STORAGE = 0.6;
 const POTTERY_ANNUAL_BREAKAGE = 0.10;
 const POTTERY_PER_POTTER = 2;
@@ -62,7 +64,10 @@ const MINE_SALE_BUFFER = { copper: 2000, tin: 1000, ironOre: 3000, clay: 1000 };
 // investment the way an earlier, too-large value did.
 const BASELINE_BRONZE_DEMAND = 0.5;
 const IRON_PER_SMITH = 1.2;
-const BRONZE_RESERVE_PER_PERSON = 0.005;
+// Keep only a working reserve. A ten-times larger target let the bronze
+// economy bank several generations of replacement metal, so exhausted tin
+// mines had no economic consequence until long after the intended crisis.
+const BRONZE_RESERVE_PER_PERSON = 0.0005;
 const BRONZE_RESERVE_BUILD_WEEKS = 26;
 
 // Specialisation begins cautiously and only deepens after the market has
@@ -221,7 +226,13 @@ function plannedFoodProduction(region, foodNeeded) {
   // sustainable scale is then set by what industrial exports can actually
   // pay for. Requiring imports to equal the final dependency would trap the
   // system at zero because a self-feeding region only ever buys a buffer.
-  const deliveryConfidence = clamp01(importCoverage / 0.001);
+  // A successful export route also proves that carriers can bring food back.
+  // Requiring an already-self-feeding industrial region to import food before
+  // it is willing to specialise creates a circular zero-import equilibrium.
+  const deliveryConfidence = clamp01(Math.max(
+    importCoverage / 0.001,
+    economy.routeReliabilityEma || 0
+  ));
   const affordableDependence = Math.min(
     MAX_IMPORTED_FOOD_DEPENDENCE,
     industrialIncomeCoverage * 0.75 * deliveryConfidence
@@ -230,7 +241,7 @@ function plannedFoodProduction(region, foodNeeded) {
   const targetDependence = previousDependence > 0.005
     ? Math.min(MAX_IMPORTED_FOOD_DEPENDENCE, industrialIncomeCoverage * 0.75)
     : affordableDependence;
-  const adjustmentWeeks = targetDependence > previousDependence ? 10 * 52 : 60 * 52;
+  const adjustmentWeeks = targetDependence > previousDependence ? 40 * 52 : 60 * 52;
   region.foodImportDependence = previousDependence +
     (targetDependence - previousDependence) / adjustmentWeeks;
 
@@ -280,9 +291,10 @@ function allocateWithCaps(totalRequested, items, priorityFn) {
   return { allocation, used };
 }
 
-export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random) {
+export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, currentTick = null) {
   const regionsById = new Map(regions.map((r) => [r.id, r]));
   const seaRegionsById = new Map(seaRegions.map((s) => [s.id, s]));
+  tickWeather(regions, currentTick, rng);
 
   // Workshops see last week's unmet finished-bronze demand in neighbouring
   // markets. This is the order signal that makes them produce for export,
@@ -334,19 +346,33 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   const laborPool = Math.max(0, workingAge - region.army.personnel - region.navy.personnel - horseReport.workers);
 
   const noise = foodYieldNoise(region, rng);
+  const seasonalMultiplier = region.weather?.seasonalMultiplier ?? 1;
+  const weatherMultiplier = region.weather?.yieldMultiplier ?? 1;
+  const farmerToolMultiplier = toolEfficiencyMultiplier(
+    region, 'farmer', toolTypes.farmer, region.unlockedTechIds
+  );
+  // Equipment changes achievable yield as well as labour efficiency. Full
+  // bronze coverage lifts 4.0 base yield to roughly the former 5.8 ceiling;
+  // weaker iron recovers less, while tool-less farms cannot compensate merely
+  // by assigning every available adult to the same finite acreage.
+  const toolYieldMultiplier = 0.7 + 0.3 * farmerToolMultiplier;
   const maxFoodOutput = region.areaSqKm * region.landQuality * FOOD_YIELD_PER_KM2 * noise *
-    (1 - horseReport.pastureFraction);
+    (1 - horseReport.pastureFraction) * seasonalMultiplier * weatherMultiplier * toolYieldMultiplier;
   const kLabor = region.areaSqKm * FARM_LABOR_SATURATION_PER_KM2;
   const humanFoodNeeded = totalPop * FOOD_PER_PERSON_PER_WEEK;
   const foodNeeded = humanFoodNeeded + horseReport.fodderNeeded;
   const foodPlan = plannedFoodProduction(region, foodNeeded);
-  const foodProductionTarget = foodPlan.target;
+  // Expected seasonality is planned for: harvest-time production builds the
+  // stores consumed during winter. Weather is not included in the target, so
+  // drought causes a genuine shortfall while unusually good weather creates
+  // a buffer rather than prompting farmers to stop early.
+  const foodProductionTarget = foodPlan.target * seasonalMultiplier * SEASONAL_STORAGE_MARGIN;
 
   // Tool bonus is lagged one tick (last tick's headcount/equipment) so this
   // doesn't need to solve "how many farmers" and "how equipped are they"
   // simultaneously — see tools.js. Skill (learningByDoing.js) stacks on
   // top: well-practiced AND well-equipped beats either alone.
-  const farmerEfficiency = toolEfficiencyMultiplier(region, 'farmer', toolTypes.farmer, region.unlockedTechIds)
+  const farmerEfficiency = farmerToolMultiplier
     * skillMultiplier(region, 'farming')
     * draughtFarmMultiplier(region, region.occupations?.farmer || workingAge * 0.5);
   const farmersNeededRaw = farmersNeededFor(foodProductionTarget, maxFoodOutput, kLabor) / farmerEfficiency;
@@ -357,7 +383,10 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   const farmers = Math.min(laborPool * MAX_FARMER_FRACTION, farmersNeededRaw);
   const foodFromFarming = foodOutput(farmers * farmerEfficiency, maxFoodOutput, kLabor);
   accumulateExperience(region, 'farming', farmers);
-  report.farming = { workers: Math.round(farmers), food: foodFromFarming };
+  report.farming = { workers: Math.round(farmers), food: foodFromFarming,
+    seasonalMultiplier, weatherMultiplier };
+  report.weather = { condition: region.weather?.condition || 'normal',
+    index: region.weather?.index || 0, seasonalMultiplier, weatherMultiplier };
 
   // --- Gathering: fills whatever farming didn't cover. Effective when
   // there aren't many people competing for the same wild resources, barely
@@ -593,7 +622,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   const commercialBronzeDemand = Math.max(
     0,
     (bronzeReserveTarget - (region.stockpile.bronze || 0)) / BRONZE_RESERVE_BUILD_WEEKS
-  ) + (region.tradeEconomy?.bronzeExportEma || 0);
+  );
   const desiredBronzeOutput = isBronzeWorkshop
     ? wantedByMaterial.bronze + BASELINE_BRONZE_DEMAND + region.militaryBronzeDemand +
       commercialBronzeDemand + (region._externalBronzeDemand || 0)

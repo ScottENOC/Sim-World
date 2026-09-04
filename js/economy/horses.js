@@ -1,4 +1,4 @@
-import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260904-calibration1';
+import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260904-weather1';
 
 const HORSES_PER_SQ_KM_AT_CAPACITY = 0.12;
 const STARTING_CAPACITY_FRACTION = 0.28;
@@ -11,6 +11,7 @@ const MAX_HORSE_WORKFORCE_FRACTION = 0.005;
 const FARMERS_PER_DRAUGHT_HORSE = 20;
 const TRADERS_PER_TRANSPORT_HORSE = 2;
 const WAR_HORSES_PER_SOLDIER = 0.05;
+const WEEKLY_ROLE_RELEASE_RATE = 0.08;
 export const HORSE_FODDER_PER_WEEK = 0.25;
 
 function clamp01(value) {
@@ -71,6 +72,15 @@ function trainForRole(region, role, wanted, availableTraining) {
   return trained;
 }
 
+function releaseSurplusRole(region, role, wanted) {
+  const horses = ensureHorseEconomy(region);
+  const surplus = Math.max(0, horses[role] - wanted);
+  const released = surplus * WEEKLY_ROLE_RELEASE_RATE;
+  horses[role] -= released;
+  region.stockpile.horses += released;
+  return released;
+}
+
 export function tickHorseEconomy(region, workingAge) {
   const horses = ensureHorseEconomy(region);
   horses.capacity = horseCapacity(region);
@@ -91,6 +101,9 @@ export function tickHorseEconomy(region, workingAge) {
   const draftWanted = (region.occupations?.farmer || 0) / FARMERS_PER_DRAUGHT_HORSE;
   const transportWanted = (region.occupations?.trader || 0) / TRADERS_PER_TRANSPORT_HORSE;
   const warWanted = Math.max(0, region.army?.personnel || 0) * WAR_HORSES_PER_SOLDIER;
+  const released = releaseSurplusRole(region, 'draft', draftWanted) +
+    releaseSurplusRole(region, 'transport', transportWanted) +
+    releaseSurplusRole(region, 'war', warWanted);
   const totalTrainingWanted = Math.max(0, draftWanted - horses.draft) +
     Math.max(0, transportWanted - horses.transport) + Math.max(0, warWanted - horses.war);
   horses.trainers = Math.min(laborAfterBreeding,
@@ -118,6 +131,7 @@ export function tickHorseEconomy(region, workingAge) {
     fodderNeeded: totalHorses(region) * HORSE_FODDER_PER_WEEK,
     unmetDemand: Math.max(0, draftWanted + transportWanted + warWanted -
       horses.draft - horses.transport - horses.war - region.stockpile.horses),
+    released,
     herdBefore,
   };
 }

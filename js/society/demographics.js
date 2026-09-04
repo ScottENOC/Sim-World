@@ -4,8 +4,8 @@
 // actually benefit from that before anyone starves, emigrates, or turns
 // to banditry over a shortfall that no longer exists.
 
-import { FOOD_PER_PERSON_PER_WEEK } from '../economy/labor.js?v=20260904-calibration1';
-import { chooseEmigrationDestinations } from './migration.js?v=20260904-calibration1';
+import { FOOD_PER_PERSON_PER_WEEK } from '../economy/labor.js?v=20260904-weather1';
+import { chooseEmigrationDestinations } from './migration.js?v=20260904-weather1';
 
 const CHILD_BAND_YEARS = 14;
 const WORKING_BAND_YEARS = 45; // 15-59; elderly is open-ended above that
@@ -89,7 +89,7 @@ function applyBaselineDemographics(region) {
 function applyFamineResponse(region, regionsById) {
   const foodNeeded = region._foodNeeded || 0;
   const shortfall = Math.max(0, -(region.stockpile.food || 0));
-  const deficitRatio = foodNeeded > 0 ? shortfall / foodNeeded : 0;
+  const deficitRatio = foodNeeded > 0 ? Math.min(1, shortfall / foodNeeded) : 0;
 
   region.stability = clamp01(
     region.stability - deficitRatio * STARVATION_STABILITY_PENALTY +
@@ -99,7 +99,15 @@ function applyFamineResponse(region, regionsById) {
 
   if (shortfall <= 0.5) return; // negligible, not worth splitting anyone up over
 
-  const distressed = shortfall / FOOD_PER_PERSON_PER_WEEK; // people whose need genuinely wasn't met
+  // Horse fodder competes with people for food in labor.js, but it cannot
+  // manufacture human refugees or bandits. Never split more people among the
+  // famine outcomes than physically exist in the local civilian and military
+  // population.
+  const humansPresent = Math.max(0, region.population + region.army.personnel + region.navy.personnel);
+  const distressed = Math.min(
+    humansPresent,
+    shortfall / FOOD_PER_PERSON_PER_WEEK
+  );
 
   const deaths = distressed * FAMINE_DEATH_SHARE;
   const emigrants = distressed * FAMINE_EMIGRATE_SHARE;
