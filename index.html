@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Worldsim</title>
-<link rel="stylesheet" href="css/main.css?v=20260904-council1">
+<link rel="stylesheet" href="css/main.css?v=20260904-save1">
 </head>
 <body>
   <div id="app">
@@ -56,6 +56,14 @@
         <button id="btn-close-menu" class="menu-close" aria-label="Close menu">&times;</button>
         <h2>Menu</h2>
         <div class="menu-section">
+          <h3>Game</h3>
+          <div class="save-actions">
+            <button id="btn-save-game">Save game</button>
+            <button id="btn-load-game" disabled>Load game</button>
+          </div>
+          <div id="save-status" class="save-status" role="status" aria-live="polite">No saved game on this device.</div>
+        </div>
+        <div class="menu-section">
           <h3>Development</h3>
           <label class="menu-toggle-row">
             <span>
@@ -71,6 +79,7 @@
       <div class="modal-card picker-card">
         <h2 id="picker-title">Choose your region</h2>
         <p id="picker-help">Choose where in the world you want to begin.</p>
+        <button id="btn-load-start" class="picker-load hidden">Continue saved game</button>
         <div id="picker-list"></div>
       </div>
     </div>
@@ -83,6 +92,6 @@
     </div>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
-  <script type="module" src="js/main.js?v=20260904-council1"></script>
+  <script type="module" src="js/main.js?v=20260904-save1"></script>
 </body>
 </html>

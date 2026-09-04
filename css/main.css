@@ -430,6 +430,7 @@ button, input, select {
 .menu-section {
   border-top: 1px solid var(--bronze-dim);
   padding-top: 14px;
+  margin-top: 14px;
 }
 
 .menu-section h3 {
@@ -500,6 +501,18 @@ button, input, select {
   transform: translateX(20px);
   background: var(--bronze);
 }
+
+.save-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.save-actions button {
+  padding: 11px 10px;
+  border: 1px solid var(--bronze-dim);
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--parchment);
+  font-weight: 600;
+}
+.save-actions button:disabled { opacity: 0.35; }
+.save-status { min-height: 32px; margin-top: 8px; color: var(--parchment-dim); font-size: 12px; line-height: 1.4; }
 
 /* ---------- Event modal (auto-pause) ---------- */
 .modal {
@@ -592,6 +605,19 @@ button, input, select {
 #picker-help {
   margin: 0 0 10px;
 }
+
+.picker-load {
+  flex: 0 0 auto;
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 12px;
+  border: 1px solid var(--bronze);
+  border-radius: 9px;
+  background: var(--bronze);
+  color: var(--ink);
+  font-weight: 700;
+}
+.picker-load.hidden { display: none; }
 
 #picker-list {
   display: flex;

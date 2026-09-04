@@ -8,7 +8,7 @@ import { tickTrade } from './economy/trade.js?v=20260904-diplomacy1';
 import { tickStateFinance } from './economy/stateFinance.js?v=20260904-weather1';
 import { tickDemographics } from './society/demographics.js?v=20260904-weather1';
 import { tickBanditry } from './military/banditry.js?v=20260904-kingdom1';
-import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable } from './military/raiding.js?v=20260904-kingdom1';
+import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable, syncNextRaidId } from './military/raiding.js?v=20260904-save1';
 import { tickNationAi } from './ai/nationAi.js?v=20260904-kingdom1';
 import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260904-weather1';
 import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID } from './technology/breakthroughs.js?v=20260904-weather1';
@@ -16,8 +16,9 @@ import { MapRenderer } from './ui/mapRenderer.js?v=20260904-weather1';
 import { AdvisorCouncil } from './ui/advisors.js?v=20260904-council1';
 import { FogOfWar } from './core/fogOfWar.js?v=20260904-weather1';
 import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260904-weather1';
-import { attitudeLabel, attitudeToward, canDiplomaticallyReach, endAgreement, proposeAgreement, tickDiplomacy } from './diplomacy/relations.js?v=20260904-kingdom1';
+import { attitudeLabel, attitudeToward, canDiplomaticallyReach, endAgreement, proposeAgreement, syncNextAgreementId, tickDiplomacy } from './diplomacy/relations.js?v=20260904-save1';
 import { availableVassalLevies, changeGovernanceForm, demandVassalage, governanceFormAvailability, governanceLabel, initialisePolities, musterVassalLevies, setDelegatedPower, setGovernancePolicy, sovereignPolity, tickPolities } from './politics/polities.js?v=20260904-kingdom1';
+import { createGameSnapshot, readSave, restoreGameSnapshot, saveSummary, writeSave } from './core/saveGame.js?v=20260904-save1';
 
 const START_YEAR = -1300; // target: roughly eighty prosperous years before a c.1220 BCE collapse
 const LAYERS = {
@@ -121,9 +122,42 @@ async function main() {
   });
 
   wireHud(clock);
+  const loadSavedGame = () => {
+    const snapshot = readSave();
+    if (!snapshot) throw new Error('No saved game was found.');
+    const restored = restoreGameSnapshot(snapshot, { regions, seaRegions, polities, agreements, activeRaids, clock, fogOfWar });
+    playerRegionId = restored.playerRegionId;
+    syncNextRaidId(activeRaids);
+    syncNextAgreementId(agreements);
+    eventQueue.length = 0;
+    document.getElementById('event-modal').classList.add('hidden');
+    document.getElementById('picker-modal').classList.add('hidden');
+    selectedRegion = regionsById.get(playerRegionId) || null;
+    map.selectedId = selectedRegion?.id || null;
+    map.refreshLayer();
+    council.close();
+    if (selectedRegion) {
+      renderRegionControls(selectedRegion, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
+      updateRegionStats(selectedRegion, seaRegionsById, fogOfWar, regions, playerRegionId);
+      document.getElementById('region-sheet').classList.remove('hidden');
+    }
+    document.getElementById('hud-date').textContent = clock.formatDate(START_YEAR);
+    clock.start();
+    map.draw();
+    return restored;
+  };
+
   wireMenu({
     fogOfWar,
     map,
+    clock,
+    regions,
+    seaRegions,
+    polities,
+    agreements,
+    getActiveRaids: () => activeRaids,
+    getPlayerRegionId: () => playerRegionId,
+    loadGame: loadSavedGame,
     getSelectedRegion: () => selectedRegion,
     clearSelection: () => {
       selectedRegion = null;
@@ -180,6 +214,18 @@ async function main() {
   });
 
   document.getElementById('hud-date').textContent = clock.formatDate(START_YEAR);
+
+  const startLoadButton = document.getElementById('btn-load-start');
+  if (saveSummary() && !saveSummary().invalid) {
+    startLoadButton.classList.remove('hidden');
+    startLoadButton.addEventListener('click', () => {
+      try { loadSavedGame(); }
+      catch (error) {
+        startLoadButton.textContent = `Could not load: ${error.message}`;
+        startLoadButton.disabled = true;
+      }
+    });
+  }
 
   showRegionPicker(regions, (chosen) => {
     playerRegionId = chosen.id;
@@ -432,16 +478,30 @@ function wireHud(clock) {
   syncSpeedControls();
 }
 
-function wireMenu({ fogOfWar, map, getSelectedRegion, clearSelection }) {
+function wireMenu({ fogOfWar, map, clock, regions, seaRegions, polities, agreements, getActiveRaids, getPlayerRegionId, loadGame, getSelectedRegion, clearSelection }) {
   const menuModal = document.getElementById('menu-modal');
   const menuButton = document.getElementById('btn-menu');
   const closeButton = document.getElementById('btn-close-menu');
   const toggle = document.getElementById('toggle-dev-mode');
+  const saveButton = document.getElementById('btn-save-game');
+  const loadButton = document.getElementById('btn-load-game');
+  const saveStatus = document.getElementById('save-status');
+
+  const refreshSaveStatus = (message = null) => {
+    const summary = saveSummary();
+    loadButton.disabled = !summary || summary.invalid;
+    if (message) saveStatus.textContent = message;
+    else if (summary?.invalid) saveStatus.textContent = 'The saved game on this device is damaged.';
+    else if (summary) saveStatus.textContent = `Saved ${new Date(summary.savedAt).toLocaleString()} · week ${summary.tickIndex.toLocaleString()}.`;
+    else saveStatus.textContent = 'No saved game on this device.';
+  };
 
   const closeMenu = () => menuModal.classList.add('hidden');
 
   menuButton.addEventListener('click', () => {
     toggle.checked = fogOfWar.devMode;
+    saveButton.disabled = !getPlayerRegionId();
+    refreshSaveStatus();
     menuModal.classList.remove('hidden');
   });
 
@@ -467,6 +527,28 @@ function wireMenu({ fogOfWar, map, getSelectedRegion, clearSelection }) {
       if (info) updateLegendFromInfo(info);
     }
   });
+
+  saveButton.addEventListener('click', () => {
+    try {
+      const snapshot = createGameSnapshot({ regions, seaRegions, polities, agreements, activeRaids: getActiveRaids(), clock, playerRegionId: getPlayerRegionId(), fogOfWar });
+      writeSave(snapshot);
+      refreshSaveStatus(`Game saved · ${clock.formatDate(START_YEAR)}.`);
+    } catch (error) {
+      saveStatus.textContent = `Could not save: ${error.message}`;
+    }
+  });
+
+  loadButton.addEventListener('click', () => {
+    if (!window.confirm('Load the saved game? Unsaved progress will be lost.')) return;
+    try {
+      loadGame();
+      closeMenu();
+    } catch (error) {
+      saveStatus.textContent = `Could not load: ${error.message}`;
+    }
+  });
+
+  refreshSaveStatus();
 }
 
 function updateLegendFromInfo(info) {

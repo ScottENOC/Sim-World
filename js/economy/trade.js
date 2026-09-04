@@ -3,7 +3,7 @@ import { directContactIds, knownRegionIds, recordDirectTrade, diffuseTradeNetwor
 import { centroidDistanceKm } from '../world/distance.js?v=20260904-weather1';
 import { advancedMaritimeShare } from '../military/army.js?v=20260904-weather1';
 import { horseTransportMultiplier } from './horses.js?v=20260904-weather1';
-import { recordDiplomaticTrade, tradeRelationMultiplier } from '../diplomacy/relations.js?v=20260904-diplomacy1';
+import { recordDiplomaticTrade, tradeRelationMultiplier } from '../diplomacy/relations.js?v=20260904-save1';
 
 const LAND_ADJACENT_COST = 0.02;
 const SEA_COST_PER_KM = 0.0002;

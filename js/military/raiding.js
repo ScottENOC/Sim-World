@@ -5,7 +5,7 @@ import { advancedNavyShare, navyTransportCapacity } from './army.js?v=20260904-w
 import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-weather1';
 import { horseLandSpeedMultiplier, horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-weather1';
 import { localPrice } from '../economy/prices.js?v=20260904-weather1';
-import { changeAttitude } from '../diplomacy/relations.js?v=20260904-kingdom1';
+import { changeAttitude } from '../diplomacy/relations.js?v=20260904-save1';
 import { findLandStagingRegion, recordContingentReturns } from '../politics/polities.js?v=20260904-kingdom1';
 
 const LAND_SPEED_KM_PER_WEEK = 120;
@@ -42,6 +42,9 @@ export function canRaid(attacker, defender, regions = null, polities = null) {
 }
 
 let nextRaidId = 1;
+export function syncNextRaidId(raids = []) {
+  nextRaidId = Math.max(1, ...raids.map((raid) => (Number(raid.id) || 0) + 1));
+}
 
 export function launchRaid(attacker, defender, requestedPersonnel, viaSea, currentTick, options = {}) {
   const reach = canRaid(attacker, defender, options.regions, options.polities);

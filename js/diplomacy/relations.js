@@ -9,6 +9,9 @@ const RESOURCE_ACCESS_RATE = 0.0025;
 const SUPPORT_UPKEEP_PER_SOLDIER = 0.015;
 
 let nextAgreementId = 1;
+export function syncNextAgreementId(agreements = []) {
+  nextAgreementId = Math.max(1, ...agreements.map((agreement) => (Number(agreement.id) || 0) + 1));
+}
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));

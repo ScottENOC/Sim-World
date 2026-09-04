@@ -1,6 +1,6 @@
 import { centroidDistanceKm } from '../world/distance.js?v=20260904-kingdom1';
 import { effectivePower } from '../military/army.js?v=20260904-kingdom1';
-import { attitudeToward, changeAttitude } from '../diplomacy/relations.js?v=20260904-kingdom1';
+import { attitudeToward, changeAttitude } from '../diplomacy/relations.js?v=20260904-save1';
 import { learnAbout } from '../core/knowledge.js?v=20260904-kingdom1';
 
 const EXPERIENCE_SCALE = {
