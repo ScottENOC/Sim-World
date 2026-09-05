@@ -303,6 +303,40 @@ function allocateWithCaps(totalRequested, items, priorityFn) {
   return { allocation, used };
 }
 
+// Occupations are careers, not a weekly spot market for labour. The economic
+// model still calculates a target workforce each week, but actual headcount
+// moves toward that target gradually. Small advantages sit inside a deadband,
+// so an experienced smith does not become a farmer because farming is 0.1%
+// more attractive this week. Entry/exit rates are deliberately faster for
+// general food work and slower for specialised crafts.
+const OCCUPATION_MOBILITY = {
+  farmer:        { enter: 0.06, exit: 0.035, deadband: 0.025 },
+  gatherer:      { enter: 0.10, exit: 0.10,  deadband: 0.02 },
+  shoreFisher:   { enter: 0.05, exit: 0.04,  deadband: 0.04 },
+  boatFisher:    { enter: 0.035, exit: 0.025, deadband: 0.05 },
+  lumberjack:    { enter: 0.035, exit: 0.025, deadband: 0.05 },
+  textileWorker: { enter: 0.02, exit: 0.015, deadband: 0.07 },
+  smith:         { enter: 0.012, exit: 0.008, deadband: 0.08 },
+  potter:        { enter: 0.018, exit: 0.012, deadband: 0.07 },
+};
+
+function persistentWorkforce(region, occupation, target, available, { crisis = false, impossible = false } = {}) {
+  const safeTarget = Math.max(0, Math.min(Number(target) || 0, Math.max(0, Number(available) || 0)));
+  const previous = Math.max(0, Number(region.occupations?.[occupation]) || 0);
+  const establishedEconomy = Object.values(region.occupations || {}).some((value) => (Number(value) || 0) > 0);
+  if (!establishedEconomy) return safeTarget;
+  const policy = OCCUPATION_MOBILITY[occupation] || { enter: 0.04, exit: 0.03, deadband: 0.04 };
+  const gap = safeTarget - previous;
+  const relativeGap = Math.abs(gap) / Math.max(1, previous);
+  if (!crisis && !impossible && relativeGap <= policy.deadband) return Math.min(Math.max(0, available), previous);
+  let rate = gap >= 0 ? policy.enter : policy.exit;
+  if (crisis) rate = Math.min(0.35, rate * 4);
+  if (impossible && gap < 0) rate = Math.max(rate, 0.08);
+  const maxChange = Math.max(1, previous * rate, Math.abs(gap) * rate);
+  const next = previous + Math.sign(gap) * Math.min(Math.abs(gap), maxChange);
+  return Math.max(0, Math.min(Math.max(0, available), next));
+}
+
 export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, currentTick = null) {
   const regionsById = new Map(regions.map((r) => [r.id, r]));
   const seaRegionsById = new Map(seaRegions.map((s) => [s.id, s]));
@@ -416,7 +450,10 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   // else — otherwise a genuine crisis (farmersNeeded >= laborPool) claims
   // 100% of the workforce for farming and leaves nothing for the fallback
   // that's supposed to catch exactly that case.
-  const farmers = Math.min(laborPool * MAX_FARMER_FRACTION, farmersNeededRaw);
+  const farmerTarget = Math.min(laborPool * MAX_FARMER_FRACTION, farmersNeededRaw);
+  const foodCrisis = (region.stockpile.food || 0) < humanFoodNeeded * 0.5;
+  const farmers = persistentWorkforce(region, 'farmer', farmerTarget, laborPool * MAX_FARMER_FRACTION,
+    { crisis: foodCrisis && farmerTarget > (region.occupations?.farmer || 0) });
   const foodFromFarming = foodOutput(farmers * farmerEfficiency, maxFoodOutput, kLabor);
   accumulateExperience(region, 'farming', farmers);
   report.farming = { workers: Math.round(farmers), food: foodFromFarming,
@@ -436,7 +473,9 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   const remainingFoodNeeded = Math.max(0, foodProductionTarget - foodFromFarming);
   const laborAfterFarming = Math.max(0, laborPool - farmers);
   const gatherersNeeded = gatherYieldPerWorker > 0 ? remainingFoodNeeded / gatherYieldPerWorker : 0;
-  const gatherers = Math.min(laborAfterFarming * MAX_GATHERER_FRACTION, gatherersNeeded);
+  const gathererTarget = Math.min(laborAfterFarming * MAX_GATHERER_FRACTION, gatherersNeeded);
+  const gatherers = persistentWorkforce(region, 'gatherer', gathererTarget, laborAfterFarming * MAX_GATHERER_FRACTION,
+    { crisis: foodCrisis && gathererTarget > (region.occupations?.gatherer || 0) });
   const foodFromGathering = gatherers * gatherYieldPerWorker;
   accumulateExperience(region, 'gathering', gatherers);
   report.gathering = { workers: Math.round(gatherers), food: foodFromGathering };
@@ -463,7 +502,9 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
       const shoreCapacity = Math.round(shoreCapacityTotal / Math.max(1, sea.adjacentLand.length));
       const shoreYieldPerWorker = SHORE_FISH_YIELD_PER_WORKER_BASE * stockFraction * fishingSkill;
       const shoreFishersWanted = shoreYieldPerWorker > 0 ? remainingAfterGather / shoreYieldPerWorker : 0;
-      shoreFishers = Math.min(shoreCapacity, laborAfterGathering, shoreFishersWanted);
+      const shoreFisherTarget = Math.min(shoreCapacity, laborAfterGathering, shoreFishersWanted);
+      shoreFishers = persistentWorkforce(region, 'shoreFisher', shoreFisherTarget,
+        Math.min(shoreCapacity, laborAfterGathering), { crisis: foodCrisis && remainingAfterGather > 0 });
       const foodFromShore = shoreFishers * shoreYieldPerWorker;
 
       // Boat fishing: capped by how many fishing boats this region owns
@@ -489,7 +530,10 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
         usableAdvancedFishing * 2;
       const boatFishCapacity = Math.min(effectiveFishingBoats * FISHERS_PER_FISHING_BOAT, boatCapacityShare);
       const boatFishersWanted = boatYieldPerWorker > 0 ? stillNeeded / boatYieldPerWorker : 0;
-      boatFishers = Math.min(boatFishCapacity, Math.max(0, laborAfterGathering - shoreFishers), boatFishersWanted);
+      const boatFisherAvailable = Math.min(boatFishCapacity, Math.max(0, laborAfterGathering - shoreFishers));
+      const boatFisherTarget = Math.min(boatFisherAvailable, boatFishersWanted);
+      boatFishers = persistentWorkforce(region, 'boatFisher', boatFisherTarget, boatFisherAvailable,
+        { crisis: foodCrisis && stillNeeded > 0, impossible: boatFishCapacity <= 0 });
       const foodFromBoat = boatFishers * boatYieldPerWorker;
 
       const totalWanted = foodFromShore + foodFromBoat;
@@ -539,7 +583,10 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   const woodReserveTarget = region.population * WOOD_RESERVE_PER_PERSON;
   const woodWanted = Math.max(0, woodReserveTarget - (region.stockpile.wood || 0)) / WOOD_RESERVE_BUILD_WEEKS;
   const lumberjacksWanted = WOOD_PER_LUMBERJACK > 0 ? woodWanted / WOOD_PER_LUMBERJACK : 0;
-  const lumberjacks = Math.min(lumberCapacity, surplus, lumberjacksWanted);
+  const lumberjackAvailable = Math.min(lumberCapacity, surplus);
+  const lumberjackTarget = Math.min(lumberjackAvailable, lumberjacksWanted);
+  const lumberjacks = persistentWorkforce(region, 'lumberjack', lumberjackTarget, lumberjackAvailable,
+    { impossible: lumberCapacity <= 0 });
   let remainingSurplus = surplus - lumberjacks;
 
   // Pitch and textiles are ordinary crafts before they become strategic boat
@@ -565,8 +612,10 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   // Fibre, wool and hides are abstracted into a land-linked capacity for now;
   // textiles still require labour but cannot scale without a rural base.
   const textileLaborCapacity = Math.max(1, region.areaSqKm * region.landQuality * 0.01);
-  const textileWorkers = Math.min(Math.max(0, craftLaborCap - pitchWorkers), textileLaborCapacity,
+  const textileAvailable = Math.min(Math.max(0, craftLaborCap - pitchWorkers), textileLaborCapacity);
+  const textileTargetWorkers = Math.min(textileAvailable,
     textilesWanted / (TEXTILES_PER_WORKER * skillMultiplier(region, 'textiles')));
+  const textileWorkers = persistentWorkforce(region, 'textileWorker', textileTargetWorkers, textileAvailable);
   const textilesMade = textileWorkers * TEXTILES_PER_WORKER * skillMultiplier(region, 'textiles');
   region.stockpile.textiles = (region.stockpile.textiles || 0) + textilesMade;
   accumulateExperience(region, 'textiles', textileWorkers);
@@ -696,16 +745,20 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
 
   // Reserve labor for smiths against that demand, up front — this is what
   // stops smith count from depending on a boolean "is there stock" check.
-  const desiredSmithsLabor = Math.min(
-    // A new iron industry needs miners and charcoal/ore carriers as well as
-    // smiths. Never let anticipated forge demand reserve the entire surplus
-    // before the mine has had a chance to supply it.
-    remainingSurplus * 0.6,
+  const smithLaborAvailable = remainingSurplus * 0.6;
+  const smithLaborTarget = Math.min(
+    smithLaborAvailable,
     (bronzePerSmith > 0 ? desiredBronzeOutput / bronzePerSmith : 0) +
       (ironPerSmith > 0 ? desiredIronOutput / ironPerSmith : 0)
   );
+  const smithInputsImpossible = desiredBronzeOutput <= 0 && desiredIronOutput <= 0;
+  const desiredSmithsLabor = persistentWorkforce(region, 'smith', smithLaborTarget, smithLaborAvailable,
+    { impossible: smithInputsImpossible });
   const desiredPotteryLabor = desiredPotteryOutput / (POTTERY_PER_POTTER * skillMultiplier(region, 'pottery'));
-  const potteryLaborReserve = Math.min(remainingSurplus * 0.2, desiredPotteryLabor);
+  const potteryAvailable = remainingSurplus * 0.2;
+  const potteryLaborReserve = persistentWorkforce(region, 'potter',
+    Math.min(potteryAvailable, desiredPotteryLabor), potteryAvailable,
+    { impossible: !activeTiers.clay && (region.stockpile.clay || 0) <= 0 });
   const minerBudget = Math.max(0, remainingSurplus - desiredSmithsLabor - potteryLaborReserve);
 
   // --- Mining, co-optimized with smith demand: mine enough copper/tin to
