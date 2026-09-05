@@ -15,17 +15,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Execute stored patch block
+      - name: Apply patch
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          lines=Path('.github/workflows/ore-clothing-patch.yml').read_text().splitlines()
-          start=next(i for i,l in enumerate(lines) if l.strip() == 'run: |') + 1
-          block=[]
-          for line in lines[start:]:
-              if line.startswith('          '): block.append(line[10:])
-              elif not line.strip(): block.append('')
-              else: break
-          Path('/tmp/apply-patch.sh').write_text('\n'.join(block)+'\n')
-          PY
-          bash /tmp/apply-patch.sh
+          python3 tools/apply-ore-clothing-patch.py
+          find js -name '*.js' -print0 | xargs -0 -n1 node --check
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/economy/laborCore.js
+          git commit -m "Add copper and tin ore smelting and clothing"
+          git push
