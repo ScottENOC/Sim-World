@@ -1,0 +1,87 @@
+name: Apply occupation inertia
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-occupation-inertia.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Patch labour allocator
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'js/economy/laborCore.js';
+          let s = fs.readFileSync(path, 'utf8');
+          function replaceOnce(needle, replacement, label) {
+            const first = s.indexOf(needle);
+            if (first < 0) throw new Error(`Missing patch target: ${label}`);
+            if (s.indexOf(needle, first + 1) >= 0) throw new Error(`Ambiguous patch target: ${label}`);
+            s = s.slice(0, first) + replacement + s.slice(first + needle.length);
+          }
+
+          replaceOnce(
+`  return { allocation, used };\n}\n\nexport function tickEconomy`,
+`  return { allocation, used };\n}\n\n// Occupations are careers, not a weekly spot market for labour. The economic\n// model still calculates a target workforce each week, but actual headcount\n// moves toward that target gradually. Small advantages sit inside a deadband,\n// so an experienced smith does not become a farmer because farming is 0.1%\n// more attractive this week. Entry/exit rates are deliberately faster for\n// general food work and slower for specialised crafts.\nconst OCCUPATION_MOBILITY = {\n  farmer:        { enter: 0.06, exit: 0.035, deadband: 0.025 },\n  gatherer:      { enter: 0.10, exit: 0.10,  deadband: 0.02 },\n  shoreFisher:   { enter: 0.05, exit: 0.04,  deadband: 0.04 },\n  boatFisher:    { enter: 0.035,exit: 0.025, deadband: 0.05 },\n  lumberjack:    { enter: 0.035,exit: 0.025, deadband: 0.05 },\n  textileWorker: { enter: 0.02, exit: 0.015, deadband: 0.07 },\n  smith:         { enter: 0.012,exit: 0.008, deadband: 0.08 },\n  potter:        { enter: 0.018,exit: 0.012, deadband: 0.07 },\n};\n\nfunction persistentWorkforce(region, occupation, target, available, { crisis = false, impossible = false } = {}) {\n  const safeTarget = Math.max(0, Math.min(Number(target) || 0, Math.max(0, Number(available) || 0)));\n  const previous = Math.max(0, Number(region.occupations?.[occupation]) || 0);\n  const establishedEconomy = Object.values(region.occupations || {}).some((value) => (Number(value) || 0) > 0);\n  if (!establishedEconomy) return safeTarget;\n\n  const policy = OCCUPATION_MOBILITY[occupation] || { enter: 0.04, exit: 0.03, deadband: 0.04 };\n  const gap = safeTarget - previous;\n  const relativeGap = Math.abs(gap) / Math.max(1, previous);\n  if (!crisis && !impossible && relativeGap <= policy.deadband) {\n    return Math.min(Math.max(0, available), previous);\n  }\n\n  let rate = gap >= 0 ? policy.enter : policy.exit;\n  if (crisis) rate = Math.min(0.35, rate * 4);\n  if (impossible && gap < 0) rate = Math.max(rate, 0.08);\n  const maxChange = Math.max(1, previous * rate, Math.abs(gap) * rate);\n  const next = previous + Math.sign(gap) * Math.min(Math.abs(gap), maxChange);\n  return Math.max(0, Math.min(Math.max(0, available), next));\n}\n\nexport function tickEconomy`,
+'occupation helper');
+
+          replaceOnce(
+`  const farmers = Math.min(laborPool * MAX_FARMER_FRACTION, farmersNeededRaw);`,
+`  const farmerTarget = Math.min(laborPool * MAX_FARMER_FRACTION, farmersNeededRaw);\n  const foodCrisis = (region.stockpile.food || 0) < humanFoodNeeded * 0.5;\n  const farmers = persistentWorkforce(region, 'farmer', farmerTarget, laborPool * MAX_FARMER_FRACTION,\n    { crisis: foodCrisis && farmerTarget > (region.occupations?.farmer || 0) });`,
+'farmers');
+
+          replaceOnce(
+`  const gatherers = Math.min(laborAfterFarming * MAX_GATHERER_FRACTION, gatherersNeeded);`,
+`  const gathererTarget = Math.min(laborAfterFarming * MAX_GATHERER_FRACTION, gatherersNeeded);\n  const gatherers = persistentWorkforce(region, 'gatherer', gathererTarget, laborAfterFarming * MAX_GATHERER_FRACTION,\n    { crisis: foodCrisis && gathererTarget > (region.occupations?.gatherer || 0) });`,
+'gatherers');
+
+          replaceOnce(
+`      shoreFishers = Math.min(shoreCapacity, laborAfterGathering, shoreFishersWanted);`,
+`      const shoreFisherTarget = Math.min(shoreCapacity, laborAfterGathering, shoreFishersWanted);\n      shoreFishers = persistentWorkforce(region, 'shoreFisher', shoreFisherTarget,\n        Math.min(shoreCapacity, laborAfterGathering), { crisis: foodCrisis && remainingAfterGather > 0 });`,
+'shore fishers');
+
+          replaceOnce(
+`      boatFishers = Math.min(boatFishCapacity, Math.max(0, laborAfterGathering - shoreFishers), boatFishersWanted);`,
+`      const boatFisherAvailable = Math.min(boatFishCapacity, Math.max(0, laborAfterGathering - shoreFishers));\n      const boatFisherTarget = Math.min(boatFisherAvailable, boatFishersWanted);\n      boatFishers = persistentWorkforce(region, 'boatFisher', boatFisherTarget, boatFisherAvailable,\n        { crisis: foodCrisis && stillNeeded > 0, impossible: boatFishCapacity <= 0 });`,
+'boat fishers');
+
+          replaceOnce(
+`  const lumberjacks = Math.min(lumberCapacity, surplus, lumberjacksWanted);`,
+`  const lumberjackAvailable = Math.min(lumberCapacity, surplus);\n  const lumberjackTarget = Math.min(lumberjackAvailable, lumberjacksWanted);\n  const lumberjacks = persistentWorkforce(region, 'lumberjack', lumberjackTarget, lumberjackAvailable,\n    { impossible: lumberCapacity <= 0 });`,
+'lumberjacks');
+
+          replaceOnce(
+`  const textileWorkers = Math.min(Math.max(0, craftLaborCap - pitchWorkers), textileLaborCapacity,\n    textilesWanted / (TEXTILES_PER_WORKER * skillMultiplier(region, 'textiles')));`,
+`  const textileAvailable = Math.min(Math.max(0, craftLaborCap - pitchWorkers), textileLaborCapacity);\n  const textileTargetWorkers = Math.min(textileAvailable,\n    textilesWanted / (TEXTILES_PER_WORKER * skillMultiplier(region, 'textiles')));\n  const textileWorkers = persistentWorkforce(region, 'textileWorker', textileTargetWorkers, textileAvailable);`,
+'textiles');
+
+          replaceOnce(
+`  const desiredSmithsLabor = Math.min(\n    // A new iron industry needs miners and charcoal/ore carriers as well as\n    // smiths. Never let anticipated forge demand reserve the entire surplus\n    // before the mine has had a chance to supply it.\n    remainingSurplus * 0.6,\n    (bronzePerSmith > 0 ? desiredBronzeOutput / bronzePerSmith : 0) +\n      (ironPerSmith > 0 ? desiredIronOutput / ironPerSmith : 0)\n  );\n  const desiredPotteryLabor = desiredPotteryOutput / (POTTERY_PER_POTTER * skillMultiplier(region, 'pottery'));\n  const potteryLaborReserve = Math.min(remainingSurplus * 0.2, desiredPotteryLabor);`,
+`  const smithLaborAvailable = remainingSurplus * 0.6;\n  const smithLaborTarget = Math.min(\n    smithLaborAvailable,\n    (bronzePerSmith > 0 ? desiredBronzeOutput / bronzePerSmith : 0) +\n      (ironPerSmith > 0 ? desiredIronOutput / ironPerSmith : 0)\n  );\n  const smithInputsImpossible = desiredBronzeOutput <= 0 && desiredIronOutput <= 0;\n  const desiredSmithsLabor = persistentWorkforce(region, 'smith', smithLaborTarget, smithLaborAvailable,\n    { impossible: smithInputsImpossible });\n  const desiredPotteryLabor = desiredPotteryOutput / (POTTERY_PER_POTTER * skillMultiplier(region, 'pottery'));\n  const potteryAvailable = remainingSurplus * 0.2;\n  const potteryLaborReserve = persistentWorkforce(region, 'potter',\n    Math.min(potteryAvailable, desiredPotteryLabor), potteryAvailable,\n    { impossible: !activeTiers.clay && (region.stockpile.clay || 0) <= 0 });`,
+'smith and pottery reservation');
+
+          fs.writeFileSync(path, s);
+          NODE
+          node --check js/economy/laborCore.js
+          git diff --check
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/economy/laborCore.js
+          git commit -m 'Make occupations persistent and slow career switching'
+          git push origin HEAD:main
