@@ -4,12 +4,28 @@ on:
     paths:
       - '.github/workflows/trigger-ore-clothing-patch.yml'
 permissions:
-  actions: write
+  contents: write
 jobs:
   trigger:
     runs-on: ubuntu-latest
     steps:
-      - name: Dispatch patch workflow
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run ore-clothing-patch.yml --repo ${{ github.repository }} --ref main
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Execute stored patch block
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          lines=Path('.github/workflows/ore-clothing-patch.yml').read_text().splitlines()
+          start=next(i for i,l in enumerate(lines) if l.strip() == 'run: |') + 1
+          block=[]
+          for line in lines[start:]:
+              if line.startswith('          '): block.append(line[10:])
+              elif not line.strip(): block.append('')
+              else: break
+          Path('/tmp/apply-patch.sh').write_text('\n'.join(block)+'\n')
+          PY
+          bash /tmp/apply-patch.sh
