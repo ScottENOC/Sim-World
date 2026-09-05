@@ -318,7 +318,7 @@ function issueDirective(world, religion, type, targetFamilyId, currentTick) {
   return directive;
 }
 
-function updateLeaders(world, currentTick) {
+function updateLeaders(world, currentTick, weekScale = 1) {
   const issued = [];
   for (const religion of world.religions) {
     if (!religion.leader) continue;
@@ -330,11 +330,11 @@ function updateLeaders(world, currentTick) {
     else if (grievances[0]) issued.push(issueDirective(world, religion, 'peace', grievances[0][0].split('|')[1], currentTick));
     religion.lastDirectiveTick = currentTick;
   }
-  for (const key of Object.keys(world.grievances)) world.grievances[key] *= 0.999;
+  for (const key of Object.keys(world.grievances)) world.grievances[key] *= Math.pow(0.999, weekScale);
   return issued;
 }
 
-function applyReligionPolitics(region, world, currentTick) {
+function applyReligionPolitics(region, world, currentTick, weekScale = 1) {
   const state = ensureRegionReligion(region, world);
   const officialShare = state.stateReligionId ? state.shares[state.stateReligionId] || 0 : 0;
   const minority = state.stateReligionId ? 1 - officialShare : 0;
@@ -348,8 +348,9 @@ function applyReligionPolitics(region, world, currentTick) {
     if ((directive.type === 'holy_war' && !obeyed) || (directive.type === 'peace' && obeyed)) directivePenalty = 0.0003 * officialShare;
   }
   const targetUnrest = clamp(minority * (1 - state.tolerance) * 0.45 + directivePenalty * 100);
-  state.unrest += (targetUnrest - state.unrest) * 0.02;
-  region.stability = clamp((region.stability ?? 1) - state.unrest * 0.00015);
+  const unrestAdjustment = 1 - Math.pow(1 - 0.02, weekScale);
+  state.unrest += (targetUnrest - state.unrest) * unrestAdjustment;
+  region.stability = clamp((region.stability ?? 1) - state.unrest * 0.00015 * weekScale);
 }
 
 export function influenceReligiousLeader(region, world, religionId, type, targetFamilyId, spend, currentTick, rng = Math.random) {
@@ -379,21 +380,22 @@ export function religiousWarModifier(region, target, world, currentTick) {
   return directive.type === 'holy_war' ? 1.8 : 0.25;
 }
 
-export function chooseAiReligion(region, world, currentTick, rng = Math.random) {
+export function chooseAiReligion(region, world, currentTick, rng = Math.random, weekScale = 1) {
+  const chance = (weekly) => 1 - Math.pow(1 - weekly, Math.max(0.01, weekScale));
   const state = ensureRegionReligion(region, world);
   const dominant = dominantReligion(region, world);
   if (!dominant) return;
   const share = state.shares[dominant.id] || 0;
-  if (!state.stateReligionId && share >= 0.62 && rng() < 0.0008) state.stateReligionId = dominant.id;
-  if (state.stateReligionId && (state.shares[state.stateReligionId] || 0) < 0.18 && rng() < 0.01) {
+  if (!state.stateReligionId && share >= 0.62 && rng() < chance(0.0008)) state.stateReligionId = dominant.id;
+  if (state.stateReligionId && (state.shares[state.stateReligionId] || 0) < 0.18 && rng() < chance(0.01)) {
     state.stateReligionId = share >= 0.45 ? dominant.id : null;
   }
-  if (state.unrest > 0.16) state.tolerance = clamp(state.tolerance + 0.002);
-  else if (state.stateReligionId && share > 0.8) state.tolerance = clamp(state.tolerance - 0.0002);
-  if (!dominant.adminCentreRegionId && dominant.holyCityRegionId === region.id && rng() < 0.001) {
+  if (state.unrest > 0.16) state.tolerance = clamp(state.tolerance + 0.002 * weekScale);
+  else if (state.stateReligionId && share > 0.8) state.tolerance = clamp(state.tolerance - 0.0002 * weekScale);
+  if (!dominant.adminCentreRegionId && dominant.holyCityRegionId === region.id && rng() < chance(0.001)) {
     establishReligiousCentre(region, world, dominant.id);
   }
-  if (state.stateReligionId && share > 0.7 && region.population > 8000 && rng() < 0.000002) {
+  if (state.stateReligionId && share > 0.7 && region.population > 8000 && rng() < chance(0.000002)) {
     forkReligion(region, world, currentTick);
   }
 }
@@ -418,7 +420,7 @@ export function tickReligion(regions, world, currentTick, raids = [], campaigns 
   const cache = buildReligionTickCache(regions, world);
   spreadThroughTrade(regions, world, currentTick, cache, weekScale);
   observeConflicts(regions, world, raids, campaigns, currentTick, cache);
-  const issued = updateLeaders(world, currentTick);
+  const issued = updateLeaders(world, currentTick, weekScale);
   const events = [];
   for (const directive of issued) for (const region of regions) {
     if (region.religion.stateReligionId === directive.religionId) {
@@ -430,7 +432,7 @@ export function tickReligion(regions, world, currentTick, raids = [], campaigns 
   }
   for (const region of regions) {
     stateSponsorship(region, world, weekScale);
-    applyReligionPolitics(region, world, currentTick);
+    applyReligionPolitics(region, world, currentTick, weekScale);
     const dominant = dominantReligion(region, world);
     if (dominant && region.population >= 5000 && rng() < variantChance) {
       const variant = createVariant(world, dominant, region, currentTick, null, SPREAD_LOCAL);

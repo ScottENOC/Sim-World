@@ -41,7 +41,9 @@ function clamp01(v) {
   return Math.max(0, Math.min(1, v));
 }
 
-export function tickNationAi(regions, playerRegionId, activeRaids, activeCampaigns, agreements, polities, religiousWorld, currentTick, toolTypes, rng) {
+export function tickNationAi(regions, playerRegionId, activeRaids, activeCampaigns, agreements, polities, religiousWorld, currentTick, toolTypes, rng, elapsedDays = 7) {
+  const weekScale = Math.max(0.01, elapsedDays / 7);
+  const chance = (weekly) => 1 - Math.pow(1 - weekly, weekScale);
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   manageCampaigns(activeCampaigns, regionsById, playerRegionId, rng);
   for (const region of regions) {
@@ -50,16 +52,22 @@ export function tickNationAi(regions, playerRegionId, activeRaids, activeCampaig
     setMilitaryTargets(region);
     chooseAiConstruction(region, currentTick, rng);
     chooseAiSiegeTargets(region);
-    chooseAiReligion(region, religiousWorld, currentTick, rng);
+    chooseAiReligion(region, religiousWorld, currentTick, rng, weekScale);
     maybeAdjustTradeEmbargo(region, regionsById, currentTick);
-    maybeMakeAgreement(region, regionsById, playerRegionId, agreements, polities, currentTick, toolTypes, rng);
-    maybeCampaign(region, regionsById, activeCampaigns, polities, religiousWorld, currentTick, toolTypes, rng);
-    maybeRaid(region, regionsById, activeRaids, polities, religiousWorld, currentTick, toolTypes, rng);
+    maybeMakeAgreement(region, regionsById, playerRegionId, agreements, polities, currentTick, toolTypes, rng, chance(DIPLOMACY_CONSIDERATION_CHANCE_PER_WEEK));
+    maybeCampaign(region, regionsById, activeCampaigns, polities, religiousWorld, currentTick, toolTypes, rng, chance(CAMPAIGN_CONSIDERATION_CHANCE_PER_WEEK));
+    maybeRaid(region, regionsById, activeRaids, polities, religiousWorld, currentTick, toolTypes, rng, chance(RAID_CONSIDERATION_CHANCE_PER_WEEK));
   }
 }
 
 function maybeAdjustTradeEmbargo(region, regionsById, currentTick) {
-  if (!Number.isFinite(currentTick) || currentTick % EMBARGO_REVIEW_INTERVAL !== stableAiHash(region.id) % EMBARGO_REVIEW_INTERVAL) return;
+  if (!Number.isFinite(currentTick)) return;
+  const offset = stableAiHash(region.id) % EMBARGO_REVIEW_INTERVAL;
+  const bucket = Math.floor((currentTick - offset) / EMBARGO_REVIEW_INTERVAL);
+  if (region._lastEmbargoReviewBucket === bucket || (region._lastEmbargoReviewBucket === undefined && currentTick < offset)) {
+    region._lastEmbargoReviewBucket = bucket; return;
+  }
+  region._lastEmbargoReviewBucket = bucket;
   const existing = activeTradeRestrictions(region);
   const known = [...directContactIds(region)].map((id) => regionsById.get(id)).filter(Boolean);
   for (const target of known) {
@@ -97,9 +105,9 @@ function manageCampaigns(campaigns, regionsById, playerRegionId, rng) {
   }
 }
 
-function maybeCampaign(region, regionsById, activeCampaigns, polities, religiousWorld, currentTick, toolTypes, rng) {
+function maybeCampaign(region, regionsById, activeCampaigns, polities, religiousWorld, currentTick, toolTypes, rng, considerationChance = CAMPAIGN_CONSIDERATION_CHANCE_PER_WEEK) {
   if (region.army.away > 0 || region.army.personnel < 100) return;
-  if (rng() > CAMPAIGN_CONSIDERATION_CHANCE_PER_WEEK) return;
+  if (rng() > considerationChance) return;
   const candidates = [...directContactIds(region)].map((id) => regionsById.get(id)).filter(Boolean);
   let best = null;
   for (const target of candidates) {
@@ -126,8 +134,8 @@ function maybeCampaign(region, regionsById, activeCampaigns, polities, religious
   if (campaign) activeCampaigns.push(campaign);
 }
 
-function maybeMakeAgreement(region, regionsById, playerRegionId, agreements, polities, currentTick, toolTypes, rng) {
-  if (rng() > DIPLOMACY_CONSIDERATION_CHANCE_PER_WEEK) return;
+function maybeMakeAgreement(region, regionsById, playerRegionId, agreements, polities, currentTick, toolTypes, rng, considerationChance = DIPLOMACY_CONSIDERATION_CHANCE_PER_WEEK) {
+  if (rng() > considerationChance) return;
   const candidates = [...directContactIds(region)]
     .map((id) => regionsById.get(id))
     .filter((target) => target && target.id !== playerRegionId && canDiplomaticallyReach(region, target));
@@ -168,11 +176,11 @@ function setMilitaryTargets(region) {
   }
 }
 
-function maybeRaid(region, regionsById, activeRaids, polities, religiousWorld, currentTick, toolTypes, rng) {
+function maybeRaid(region, regionsById, activeRaids, polities, religiousWorld, currentTick, toolTypes, rng, considerationChance = RAID_CONSIDERATION_CHANCE_PER_WEEK) {
   if (region.army.away > 0) return;
   if (region.army.personnel < MIN_HOME_ARMY_TO_CONSIDER_RAIDING) return;
   if (region.safetyRating < MIN_SAFETY_TO_CONSIDER_RAIDING) return;
-  if (rng() > RAID_CONSIDERATION_CHANCE_PER_WEEK) return;
+  if (rng() > considerationChance) return;
 
   const ownEquip = toolEfficiencyMultiplier(region, 'soldier', toolTypes.soldier, region.unlockedTechIds);
   const ownPower = region.army.personnel * ownEquip * militaryReadiness(region) * horseMilitaryMultiplier(region);

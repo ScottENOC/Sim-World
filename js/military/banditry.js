@@ -49,7 +49,9 @@ function bestDispersalTarget(region, regionsById) {
   return best?.region || null;
 }
 
-export function tickBanditry(regions, toolTypes, agreements = []) {
+export function tickBanditry(regions, toolTypes, agreements = [], elapsedDays = 7) {
+  const weekScale = Math.max(0.01, elapsedDays / 7);
+  const fractionOverPeriod = (weeklyFraction) => 1 - Math.pow(1 - clamp01(weeklyFraction), weekScale);
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   const movements = [];
   for (const region of regions) {
@@ -71,7 +73,8 @@ export function tickBanditry(regions, toolTypes, agreements = []) {
     // number from last pass somewhere to go.
     const suppressionRate = power > 0 ? power / (power + banditPop + 1) : 0;
     const punishmentSuppression = policy.raiderTreatment === 'punish' ? 1.25 : 1;
-    const suppressed = Math.min(banditPop, banditPop * suppressionRate * SUPPRESSION_REFERENCE * punishmentSuppression);
+    const weeklySuppression = clamp01(suppressionRate * SUPPRESSION_REFERENCE * punishmentSuppression);
+    const suppressed = Math.min(banditPop, banditPop * fractionOverPeriod(weeklySuppression));
     region.banditPopulation = Math.max(0, banditPop - suppressed);
     const baseCaptured = suppressed * CAPTURED_REINTEGRATION_SHARE * (0.25 + 0.75 * region.stability);
     const capturedReturn = policy.raiderTreatment === 'reintegrate' ? baseCaptured * 1.7
@@ -84,7 +87,7 @@ export function tickBanditry(regions, toolTypes, agreements = []) {
     // deaths, both scaled down by how safe the region currently is (a
     // strong army suppresses the *impact*, not just the eventual headcount).
     const severity = banditPressure * (1 - region.safetyRating);
-    const raidLossFraction = RAID_INTENSITY * severity / posture.settlementProtection;
+    const raidLossFraction = fractionOverPeriod(RAID_INTENSITY * severity / posture.settlementProtection);
     let foodLooted = 0;
     if (raidLossFraction > 0) {
       for (const key of Object.keys(region.stockpile)) {
@@ -107,7 +110,7 @@ export function tickBanditry(regions, toolTypes, agreements = []) {
       activeBandits * FOOD_PER_PERSON_PER_WEEK * BANDIT_STORE_WEEKS,
       Math.max(0, region.banditFoodStores || 0) + foodLooted
     );
-    const foodNeed = activeBandits * FOOD_PER_PERSON_PER_WEEK;
+    const foodNeed = activeBandits * FOOD_PER_PERSON_PER_WEEK * weekScale;
     const foodEaten = Math.min(foodNeed, region.banditFoodStores);
     region.banditFoodStores -= foodEaten;
     const livelihoodShortfall = foodNeed > 0 ? 1 - foodEaten / foodNeed : 0;
@@ -116,22 +119,22 @@ export function tickBanditry(regions, toolTypes, agreements = []) {
     const landRoom = clamp01(1 - density / 6);
     const civilianOpportunity = clamp01(region.stability * 0.65 + landRoom * 0.35);
     const reintegrated = Math.min(region.banditPopulation,
-      region.banditPopulation * BANDIT_REINTEGRATION_RATE * civilianOpportunity * (0.25 + livelihoodShortfall));
+      region.banditPopulation * fractionOverPeriod(BANDIT_REINTEGRATION_RATE * civilianOpportunity * (0.25 + livelihoodShortfall)));
     region.banditPopulation -= reintegrated;
     addWorkingAgePopulation(region, reintegrated);
 
     const target = livelihoodShortfall > 0.1 ? bestDispersalTarget(region, regionsById) : null;
     const dispersing = target
-      ? Math.min(region.banditPopulation, region.banditPopulation * BANDIT_DISPERSAL_RATE * livelihoodShortfall)
+      ? Math.min(region.banditPopulation, region.banditPopulation * fractionOverPeriod(BANDIT_DISPERSAL_RATE * livelihoodShortfall))
       : 0;
     region.banditPopulation -= dispersing;
     if (dispersing > 0) movements.push({ from: region, to: target, count: dispersing });
 
     const starved = Math.min(region.banditPopulation,
-      region.banditPopulation * BANDIT_STARVATION_RATE * livelihoodShortfall);
+      region.banditPopulation * fractionOverPeriod(BANDIT_STARVATION_RATE * livelihoodShortfall));
     region.banditPopulation -= starved;
 
-    const banditDeathRate = BANDIT_DEATH_INTENSITY * severity / posture.settlementProtection;
+    const banditDeathRate = fractionOverPeriod(BANDIT_DEATH_INTENSITY * severity / posture.settlementProtection);
     if (banditDeathRate > 0) {
       removeFromBands(region, region.population * banditDeathRate);
       syncPopulation(region);

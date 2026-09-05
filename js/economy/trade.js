@@ -68,7 +68,17 @@ function stableHash(value) {
 
 function staggeredDue(region, currentTick, interval) {
   if (!Number.isFinite(currentTick)) return true;
-  return currentTick % interval === stableHash(region.id) % interval;
+  // A monthly scheduler jumps over several calendar weeks at once. Remember
+  // which stagger bucket was last serviced instead of requiring an exact
+  // modulo hit that may never occur.
+  if (!region._tradeCadenceBuckets || typeof region._tradeCadenceBuckets !== 'object') region._tradeCadenceBuckets = {};
+  const offset = stableHash(region.id) % interval;
+  const bucket = Math.floor((currentTick - offset) / interval);
+  const key = String(interval);
+  const previous = region._tradeCadenceBuckets[key];
+  region._tradeCadenceBuckets[key] = bucket;
+  if (previous === undefined) return currentTick >= offset;
+  return bucket > previous;
 }
 
 function sharesSea(regionA, regionB) {

@@ -259,9 +259,9 @@ function run(seed) {
     tickDemographics(regions, religiousWorld, time.elapsedDays);
     tickDiplomacy(regions, agreements, toolTypes, calendarWeek);
     tickPolities(polities, regions, calendarWeek);
-    tickBanditry(regions, toolTypes, agreements);
+    tickBanditry(regions, toolTypes, agreements, time.elapsedDays);
     tickNationAi(regions, '__calibration__', raids, campaigns, agreements, polities,
-      religiousWorld, calendarWeek, toolTypes, rng);
+      religiousWorld, calendarWeek, toolTypes, rng, time.elapsedDays);
     const raidResult = tickRaids(raids, regionsById, calendarWeek, toolTypes, rng);
     raids = raidResult.remaining;
     pruneKnowledge(regions, calendarWeek);

@@ -212,9 +212,9 @@ async function main() {
     tickDemographics(regions, religiousWorld, time.elapsedDays);
     const diplomacyEvents = tickDiplomacy(regions, agreements, toolTypes, calendarWeek);
     const polityEvents = tickPolities(polities, regions, calendarWeek);
-    tickBanditry(regions, toolTypes, agreements);
+    tickBanditry(regions, toolTypes, agreements, time.elapsedDays);
     tickNationAi(regions, playerRegionId, activeRaids, activeCampaigns, agreements, polities,
-      religiousWorld, calendarWeek, toolTypes, Math.random);
+      religiousWorld, calendarWeek, toolTypes, Math.random, time.elapsedDays);
 
     const { remaining, events } = tickRaids(activeRaids, regionsById, calendarWeek, toolTypes, Math.random);
     activeRaids = remaining;
