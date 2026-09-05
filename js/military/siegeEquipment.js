@@ -54,6 +54,8 @@ function nextWantedType(region) {
 export function prepareSiegeWorkforce(regions) {
   for (const region of regions) {
     const state = ensureSiegeEquipment(region);
+    let buildsRemaining = maxBuilds;
+    while (buildsRemaining-- > 0) {
     const type = nextWantedType(region);
     if (!type) { state.workersReserved = 0; continue; }
     const available = Math.max(0, (region.demographics?.workingAge || 0) -
@@ -76,7 +78,8 @@ function chooseMetal(region, type) {
   return ironValue <= bronzeValue * 0.65 ? 'iron' : 'bronze';
 }
 
-export function tickSiegeEquipment(regions) {
+export function tickSiegeEquipment(regions, elapsedDays = 7) {
+  const maxBuilds = Math.max(1, Math.floor(elapsedDays / 7));
   for (const region of regions) {
     const state = ensureSiegeEquipment(region);
     const type = nextWantedType(region);
@@ -106,6 +109,7 @@ export function tickSiegeEquipment(regions) {
     state.inventory[type.id][metal] += 1;
     state.experience += requiredWorkers;
     state.lastWeek = { built: type.id, metal, cost };
+    }
   }
 }
 

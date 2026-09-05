@@ -1,5 +1,6 @@
 import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260904-weather1';
 import { ensureMilitaryPolicy } from '../military/policies.js?v=20260904-policy1';
+import { elapsedWeeks } from '../core/simTime.js?v=20260905-time1';
 
 const HORSES_PER_SQ_KM_AT_CAPACITY = 0.12;
 const STARTING_CAPACITY_FRACTION = 0.28;
@@ -82,17 +83,20 @@ function releaseSurplusRole(region, role, wanted) {
   return released;
 }
 
-export function tickHorseEconomy(region, workingAge) {
+export function tickHorseEconomy(region, workingAge, elapsedDays = 7) {
+  const weekScale = Math.max(0.01, elapsedWeeks(elapsedDays));
   const horses = ensureHorseEconomy(region);
   horses.capacity = horseCapacity(region);
   const herdBefore = totalHorses(region);
-  const mortality = weeklyRate(ANNUAL_BASE_MORTALITY) +
-    (1 - clamp01(region.stability ?? 1)) * CRISIS_WEEKLY_MORTALITY;
+  const baselineMortality = 1 - Math.pow(1 - weeklyRate(ANNUAL_BASE_MORTALITY), weekScale);
+  const crisisWeekly = (1 - clamp01(region.stability ?? 1)) * CRISIS_WEEKLY_MORTALITY;
+  const crisisMortality = 1 - Math.pow(1 - crisisWeekly, weekScale);
+  const mortality = 1 - (1 - baselineMortality) * (1 - crisisMortality);
   horses.deaths = applyLosses(region, Math.min(0.2, mortality));
 
   const herd = totalHorses(region);
   const husbandrySkill = skillMultiplier(region, 'horseHusbandry');
-  horses.births = herd * weeklyRate(ANNUAL_BIRTH_RATE) *
+  horses.births = herd * (1 - Math.pow(1 - weeklyRate(ANNUAL_BIRTH_RATE), weekScale)) *
     Math.max(0, 1 - herd / horses.capacity) * husbandrySkill;
   region.stockpile.horses += horses.births;
 
@@ -106,14 +110,20 @@ export function tickHorseEconomy(region, workingAge) {
   const draftWanted = (region.occupations?.farmer || 0) / FARMERS_PER_DRAUGHT_HORSE * civilScale;
   const transportWanted = (region.occupations?.trader || 0) / TRADERS_PER_TRANSPORT_HORSE * transportScale;
   const warWanted = Math.max(0, region.army?.personnel || 0) * WAR_HORSES_PER_SOLDIER * warScale;
-  const released = releaseSurplusRole(region, 'draft', draftWanted) +
-    releaseSurplusRole(region, 'transport', transportWanted) +
-    releaseSurplusRole(region, 'war', warWanted);
+  const oldReleaseRate = WEEKLY_ROLE_RELEASE_RATE;
+  const effectiveReleaseRate = 1 - Math.pow(1 - oldReleaseRate, weekScale);
+  const releaseRole = (role, wanted) => {
+    const surplus = Math.max(0, horses[role] - wanted);
+    const released = surplus * effectiveReleaseRate; horses[role] -= released; region.stockpile.horses += released; return released;
+  };
+  const released = releaseRole('draft', draftWanted) +
+    releaseRole('transport', transportWanted) +
+    releaseRole('war', warWanted);
   const totalTrainingWanted = Math.max(0, draftWanted - horses.draft) +
     Math.max(0, transportWanted - horses.transport) + Math.max(0, warWanted - horses.war);
   horses.trainers = Math.min(laborAfterBreeding,
-    totalTrainingWanted / (TRAINING_PER_WORKER_PER_WEEK * husbandrySkill));
-  let training = horses.trainers * TRAINING_PER_WORKER_PER_WEEK * husbandrySkill;
+    totalTrainingWanted / (TRAINING_PER_WORKER_PER_WEEK * weekScale * husbandrySkill));
+  let training = horses.trainers * TRAINING_PER_WORKER_PER_WEEK * weekScale * husbandrySkill;
   const priorities = horsePriority >= 0.5
     ? [['war', warWanted], ['draft', draftWanted], ['transport', transportWanted]]
     : [['draft', draftWanted], ['transport', transportWanted], ['war', warWanted]];
@@ -134,7 +144,7 @@ export function tickHorseEconomy(region, workingAge) {
     war: horses.war,
     capacity: horses.capacity,
     pastureFraction: horses.pastureFraction,
-    fodderNeeded: totalHorses(region) * HORSE_FODDER_PER_WEEK,
+    fodderNeeded: totalHorses(region) * HORSE_FODDER_PER_WEEK * weekScale,
     unmetDemand: Math.max(0, draftWanted + transportWanted + warWanted -
       horses.draft - horses.transport - horses.war - region.stockpile.horses),
     released,

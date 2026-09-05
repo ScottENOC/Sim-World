@@ -198,11 +198,11 @@ async function main() {
     pruneKnowledge(regions, clock.tickIndex);
     tickFishingKnowledge(fishingContactPairs, clock.tickIndex);
     tickTrade(regions, clock.tickIndex, time);
-    tickStateFinance(regions);
-    tickInfrastructureMaintenance(regions);
-    const constructionEvents = tickConstruction(regions, clock.tickIndex);
-    tickSiegeEquipment(regions);
-    const breakthroughEvents = tickBreakthroughs(regions, clock.tickIndex, Math.random);
+    tickStateFinance(regions, time.elapsedDays);
+    tickInfrastructureMaintenance(regions, time.elapsedDays);
+    const constructionEvents = tickConstruction(regions, clock.tickIndex, time.elapsedDays);
+    tickSiegeEquipment(regions, time.elapsedDays);
+    const breakthroughEvents = tickBreakthroughs(regions, clock.tickIndex, Math.random, time.elapsedDays);
     const religionEvents = tickReligion(regions, religiousWorld, clock.tickIndex, activeRaids, activeCampaigns, Math.random);
     tickDemographics(regions, religiousWorld, time.elapsedDays);
     const diplomacyEvents = tickDiplomacy(regions, agreements, toolTypes, clock.tickIndex);

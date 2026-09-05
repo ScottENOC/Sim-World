@@ -57,7 +57,9 @@ function ensureMilitaryFinance(region) {
   return region.militaryFinance;
 }
 
-export function tickStateFinance(regions) {
+export function tickStateFinance(regions, elapsedDays = 7) {
+  const weekScale = Math.max(0.01, elapsedDays / 7);
+  const revenueAlpha = 1 - Math.pow(1 - REVENUE_EMA_ALPHA, weekScale);
   for (const region of regions) {
     const finance = ensureMilitaryFinance(region);
     const administrativeBonus = Math.min(0.28,
@@ -68,7 +70,7 @@ export function tickStateFinance(regions) {
     ) * clamp01(finance.stateCapacity + administrativeBonus);
     const wealthTax = Math.min(
       Math.max(0, region.wallet || 0),
-      Math.max(0, region.wallet || 0) * WEEKLY_WEALTH_TAX_RATE * collectionEffectiveness
+      Math.max(0, region.wallet || 0) * WEEKLY_WEALTH_TAX_RATE * weekScale * collectionEffectiveness
     );
     const tradeDuties = Math.min(
       Math.max(0, (region.tradeEconomy?.weeklyExports || 0) * EXPORT_DUTY_RATE *
@@ -80,12 +82,13 @@ export function tickStateFinance(regions) {
     region.treasury += revenue;
     finance.weeklyTaxRevenue = wealthTax;
     finance.weeklyTradeDuties = tradeDuties;
-    finance.revenueEma += (revenue - finance.revenueEma) * REVENUE_EMA_ALPHA;
+    const weeklyEquivalentRevenue = revenue / weekScale;
+    finance.revenueEma += (weeklyEquivalentRevenue - finance.revenueEma) * revenueAlpha;
 
     // Courts, messengers, granaries and tax collectors are a continuing cost,
     // not free machinery. Paying them recirculates money to households; not
     // paying them erodes the state's ability to collect next week's taxes.
-    const grossAdministrationDue = Math.max(0, region.population) * CIVIL_ADMIN_PER_PERSON_PER_WEEK;
+    const grossAdministrationDue = Math.max(0, region.population) * CIVIL_ADMIN_PER_PERSON_PER_WEEK * weekScale;
     const foodProduced = Math.max(0, (region.report?.farming?.food || 0) +
       (region.report?.gathering?.food || 0) + (region.report?.shoreFishing?.food || 0) +
       (region.report?.boatFishing?.food || 0));
@@ -111,9 +114,9 @@ export function tickStateFinance(regions) {
     const capacityAdjustment = administrationRatio < finance.stateCapacity ? 0.05 : 0.01;
     finance.stateCapacity += (administrationRatio - finance.stateCapacity) * capacityAdjustment;
 
-    const payrollDue = Math.max(0, region.army.personnel || 0) * SOLDIER_UPKEEP_PER_WEEK +
+    const payrollDue = (Math.max(0, region.army.personnel || 0) * SOLDIER_UPKEEP_PER_WEEK +
       Math.max(0, region.navy.personnel || 0) * SAILOR_UPKEEP_PER_WEEK +
-      Math.max(0, region.horseEconomy?.war || 0) * WAR_HORSE_UPKEEP_PER_WEEK;
+      Math.max(0, region.horseEconomy?.war || 0) * WAR_HORSE_UPKEEP_PER_WEEK) * weekScale;
     const payrollPaid = Math.min(Math.max(0, region.treasury || 0), payrollDue);
     region.treasury -= payrollPaid;
     region.wallet += payrollPaid;
@@ -123,17 +126,18 @@ export function tickStateFinance(regions) {
     finance.payRatio = payRatio;
 
     if (payRatio < 0.95) {
-      finance.arrearsWeeks += 1;
-      region.stability = Math.max(0, region.stability - ARREARS_STABILITY_PENALTY * (1 - payRatio));
+      finance.arrearsWeeks += weekScale;
+      region.stability = Math.max(0, region.stability - ARREARS_STABILITY_PENALTY * weekScale * (1 - payRatio));
     } else {
-      finance.arrearsWeeks = Math.max(0, finance.arrearsWeeks - 1);
+      finance.arrearsWeeks = Math.max(0, finance.arrearsWeeks - weekScale);
     }
-    const readinessAdjustment = payRatio < finance.readiness ? 0.08 : 0.02;
+    const readinessWeekly = payRatio < finance.readiness ? 0.08 : 0.02;
+    const readinessAdjustment = 1 - Math.pow(1 - readinessWeekly, weekScale);
     finance.readiness += (payRatio - finance.readiness) * readinessAdjustment;
 
     let deserters = 0;
     if (finance.arrearsWeeks >= 4 && payRatio < 0.75) {
-      const desertionRate = MAX_WEEKLY_DESERTION * (1 - payRatio);
+      const desertionRate = (1 - Math.pow(1 - MAX_WEEKLY_DESERTION, weekScale)) * (1 - payRatio);
       const armyDeserters = region.army.personnel * desertionRate;
       const navyDeserters = region.navy.personnel * desertionRate;
       region.army.personnel = Math.max(0, region.army.personnel - armyDeserters);
@@ -156,7 +160,7 @@ export function tickStateFinance(regions) {
     const unreservedTreasury = Math.max(0, region.treasury - nextPayroll * PAYROLL_RESERVE_WEEKS);
     finance.procurementBudget = Math.min(
       unreservedTreasury,
-      operatingRevenue * PROCUREMENT_REVENUE_SHARE + region.treasury * PROCUREMENT_TREASURY_SHARE
+      operatingRevenue * weekScale * PROCUREMENT_REVENUE_SHARE + region.treasury * PROCUREMENT_TREASURY_SHARE
     );
     finance.weeklyProcurementSpent = finance.procurementSpent;
     finance.procurementSpent = 0;

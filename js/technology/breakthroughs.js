@@ -157,20 +157,22 @@ function advanceIronIndustry(region) {
   region.ironWorkingReadiness = Math.min(1, readiness + weeklyRate * (1 - readiness));
 }
 
-export function tickBreakthroughs(regions, currentTick, rng = Math.random) {
+export function tickBreakthroughs(regions, currentTick, rng = Math.random, elapsedDays = 7) {
+  const weekScale = Math.max(0.01, elapsedDays / 7);
+  const chance = (p) => 1 - Math.pow(1 - Math.max(0, Math.min(1, p)), weekScale);
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   const events = [];
 
   // Calculate all chances from the start-of-tick state. A discovery therefore
   // begins influencing partners next week instead of cascading through an
   // entire trade network in one loop iteration.
-  const ironDiscoveries = regions.filter((region) => rng() < ironSmeltingChance(region, regionsById, currentTick));
-  const boatDiscoveries = regions.filter((region) => rng() < advancedBoatbuildingChance(region, regionsById, currentTick));
-  const hillFortDiscoveries = regions.filter((region) => rng() < hillFortChance(region, regionsById));
-  const catapultDiscoveries = regions.filter((region) => rng() < catapultChance(region, regionsById, currentTick));
-  const waterDiscoveries = regions.filter((region) => rng() < waterManagementChance(region, regionsById));
-  const shaftDiscoveries = regions.filter((region) => rng() < shaftMiningChance(region, regionsById));
-  const drainageDiscoveries = regions.filter((region) => rng() < mineDrainageChance(region, regionsById));
+  const ironDiscoveries = regions.filter((region) => rng() < chance(ironSmeltingChance(region, regionsById, currentTick)));
+  const boatDiscoveries = regions.filter((region) => rng() < chance(advancedBoatbuildingChance(region, regionsById, currentTick)));
+  const hillFortDiscoveries = regions.filter((region) => rng() < chance(hillFortChance(region, regionsById)));
+  const catapultDiscoveries = regions.filter((region) => rng() < chance(catapultChance(region, regionsById, currentTick)));
+  const waterDiscoveries = regions.filter((region) => rng() < chance(waterManagementChance(region, regionsById)));
+  const shaftDiscoveries = regions.filter((region) => rng() < chance(shaftMiningChance(region, regionsById)));
+  const drainageDiscoveries = regions.filter((region) => rng() < chance(mineDrainageChance(region, regionsById)));
   for (const region of ironDiscoveries) {
     region.unlockedTechIds.add(IRON_SMELTING_TECH_ID);
     region.ironWorkingReadiness = Math.max(0.02, region.ironWorkingReadiness || 0);
@@ -207,9 +209,14 @@ export function tickBreakthroughs(regions, currentTick, rng = Math.random) {
     events.push({ type, regionId: region.id, regionName: region.name, tick: currentTick });
   }
   for (const region of regions) {
-    advanceIronIndustry(region);
+    for (let i = 0; i < Math.max(1, Math.floor(weekScale)); i++) advanceIronIndustry(region);
+    const readinessRemainder = weekScale - Math.floor(weekScale);
+    if (readinessRemainder > 0 && region.unlockedTechIds.has(IRON_SMELTING_TECH_ID)) {
+      const before = region.ironWorkingReadiness; advanceIronIndustry(region);
+      region.ironWorkingReadiness = before + (region.ironWorkingReadiness - before) * readinessRemainder;
+    }
     // Travelling craftspeople cease to be a permanent lottery ticket.
-    region.ironWorkingExposure = Math.max(0, (region.ironWorkingExposure || 0) * 0.99);
+    region.ironWorkingExposure = Math.max(0, (region.ironWorkingExposure || 0) * Math.pow(0.99, weekScale));
   }
   return events;
 }

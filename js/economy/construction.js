@@ -228,7 +228,8 @@ function completeProject(region, project, type, currentTick) {
   return { type: 'construction_completed', regionId: region.id, regionName: region.name, project, constructionType: type };
 }
 
-export function tickConstruction(regions, currentTick) {
+export function tickConstruction(regions, currentTick, elapsedDays = 7) {
+  const weekScale = Math.max(0.01, elapsedDays / 7);
   const events = [];
   for (const region of regions) {
     const state = ensureConstruction(region);
@@ -239,7 +240,8 @@ export function tickConstruction(regions, currentTick) {
     const requiredMaterials = project.materialsRequired || type.materials;
     const remainingWork = Math.max(0, requiredWork - project.workDone);
     const workers = Math.min(state.workersReserved || 0, remainingWork);
-    const desiredFraction = workers / requiredWork;
+    const desiredWork = workers * weekScale;
+    const desiredFraction = desiredWork / requiredWork;
     let affordableFraction = desiredFraction;
     const fullWageCost = requiredWork * type.wagePerWorkerWeek;
     const fullSupplyCost = Object.entries(requiredMaterials).reduce((sum, [resource, total]) =>
@@ -250,9 +252,9 @@ export function tickConstruction(regions, currentTick) {
       affordableFraction = Math.min(affordableFraction, Math.max(0, region.stockpile?.[resource] || 0) / total);
     }
     const work = Math.min(remainingWork, requiredWork * Math.max(0, affordableFraction));
-    const actualWorkers = Math.min(workers, work);
+    const actualWorkers = Math.min(workers, work / weekScale);
     const fraction = work / requiredWork;
-    const wages = actualWorkers * type.wagePerWorkerWeek;
+    const wages = actualWorkers * type.wagePerWorkerWeek * weekScale;
     let supplies = 0;
     for (const [resource, total] of Object.entries(requiredMaterials)) {
       const used = Math.min(region.stockpile[resource] || 0, total * fraction);
@@ -331,7 +333,8 @@ export function startRepair(region, assetId, requestedWorkers, currentTick) {
   return project;
 }
 
-export function tickInfrastructureMaintenance(regions) {
+export function tickInfrastructureMaintenance(regions, elapsedDays = 7) {
+  const weekScale = Math.max(0.01, elapsedDays / 7);
   for (const region of regions) {
     const state = ensureConstruction(region);
     let workers = state.maintenanceWorkersReserved || 0;
@@ -341,9 +344,9 @@ export function tickInfrastructureMaintenance(regions) {
       const rate = type.maintenanceRate || 0.02;
       const workerNeed = type.workRequired * rate / 52 / 20;
       const workerRatio = Math.min(1, workers / Math.max(0.001, workerNeed));
-      const materialNeeds = Object.fromEntries(Object.entries(type.materials).map(([key, amount]) => [key, amount * rate / 52]));
+      const materialNeeds = Object.fromEntries(Object.entries(type.materials).map(([key, amount]) => [key, amount * rate / 52 * weekScale]));
       let materialRatio = 1;
-      let cost = workerNeed * type.wagePerWorkerWeek;
+      let cost = workerNeed * type.wagePerWorkerWeek * weekScale;
       for (const [resource, amount] of Object.entries(materialNeeds)) {
         materialRatio = Math.min(materialRatio, (region.stockpile?.[resource] || 0) / Math.max(0.001, amount));
         cost += amount * localPrice(region, resource);
@@ -353,7 +356,7 @@ export function tickInfrastructureMaintenance(regions) {
       workers = Math.max(0, workers - workerNeed * ratio);
       for (const [resource, amount] of Object.entries(materialNeeds)) region.stockpile[resource] = Math.max(0, (region.stockpile[resource] || 0) - amount * ratio);
       const paid = cost * ratio; region.treasury = Math.max(0, region.treasury - paid); region.wallet = Math.max(0, (region.wallet || 0) + paid);
-      asset.condition = clamp(asset.condition + ratio * 0.00015 - (1 - ratio) * 0.002, 0, 1);
+      asset.condition = clamp(asset.condition + ratio * 0.00015 * weekScale - (1 - ratio) * 0.002 * weekScale, 0, 1);
       asset.maintenanceRatio = ratio;
     }
   }

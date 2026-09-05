@@ -158,11 +158,11 @@ function weeklyAttrition(annualRate) {
   return 1 - Math.pow(1 - annualRate, 1 / 52);
 }
 
-function wearBoatFleet(total, advanced) {
+function wearBoatFleet(total, advanced, weekScale = 1) {
   const safeAdvanced = Math.min(Math.max(0, advanced || 0), Math.max(0, total || 0));
   const basic = Math.max(0, total - safeAdvanced);
-  const basicLost = basic * weeklyAttrition(BASIC_BOAT_ANNUAL_WEAR);
-  const advancedLost = safeAdvanced * weeklyAttrition(ADVANCED_BOAT_ANNUAL_WEAR);
+  const basicLost = basic * (1 - Math.pow(1 - weeklyAttrition(BASIC_BOAT_ANNUAL_WEAR), weekScale));
+  const advancedLost = safeAdvanced * (1 - Math.pow(1 - weeklyAttrition(ADVANCED_BOAT_ANNUAL_WEAR), weekScale));
   return { total: Math.max(0, total - basicLost - advancedLost), advanced: Math.max(0, safeAdvanced - advancedLost),
     lost: basicLost + advancedLost };
 }
@@ -346,8 +346,10 @@ function persistentWorkforce(region, occupation, target, available, { crisis = f
   const relativeGap = Math.abs(gap) / Math.max(1, previous);
   if (!crisis && !impossible && relativeGap <= policy.deadband) return Math.min(Math.max(0, available), previous);
   let rate = gap >= 0 ? policy.enter : policy.exit;
+  const weekScale = Math.max(0.01, Number(region._elapsedWeeks) || 1);
   if (crisis) rate = Math.min(0.35, rate * 4);
   if (impossible && gap < 0) rate = Math.max(rate, 0.08);
+  rate = 1 - Math.pow(1 - Math.min(0.95, rate), weekScale);
   const maxChange = Math.max(1, previous * rate, Math.abs(gap) * rate);
   const next = previous + Math.sign(gap) * Math.min(Math.abs(gap), maxChange);
   return Math.max(0, Math.min(Math.max(0, available), next));
@@ -362,7 +364,8 @@ const MANUFACTURED_ORDER_KEYS = [
 export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, currentTick = null, elapsedDays = 7) {
   const regionsById = new Map(regions.map((r) => [r.id, r]));
   const seaRegionsById = new Map(seaRegions.map((s) => [s.id, s]));
-  tickWeather(regions, currentTick, rng);
+  const currentDay = Number.isFinite(currentTick) ? currentTick * elapsedDays : null;
+  tickWeather(regions, currentDay, rng, elapsedDays);
 
   // Workshops see last week's unmet finished-bronze demand in neighbouring
   // markets. This is the order signal that makes them produce for export,
@@ -380,17 +383,19 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
   }
 
   for (const region of regions) {
+    region._elapsedWeeks = Math.max(0.01, elapsedWeeks(elapsedDays));
     allocateAndProduce(region, seaRegionsById, toolTypes, rng, elapsedDays);
   }
   // Forest spread reads neighbours' post-harvest state, so it runs as a
   // second pass once every region's extraction this tick is resolved.
   for (const region of regions) {
-    applyForestRegrowth(region, regionsById);
+    applyForestRegrowth(region, regionsById, elapsedDays);
   }
   // Same idea for fish: every region sharing a sea has already taken this
   // week's catch by the time regrowth runs.
   for (const sea of seaRegions) {
-    sea.fish.currentStock = regrow({ currentStock: sea.fish.currentStock, K: sea.fish.K, rate: FISH_REGROWTH_RATE });
+    const fishRate = 1 - Math.pow(1 - FISH_REGROWTH_RATE, Math.max(0.01, elapsedWeeks(elapsedDays)));
+    sea.fish.currentStock = regrow({ currentStock: sea.fish.currentStock, K: sea.fish.K, rate: fishRate });
   }
 }
 
@@ -398,15 +403,15 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng, elapsedDays 
   const weekScale = Math.max(0.01, elapsedWeeks(elapsedDays));
   const report = {}; // this tick's production, by activity — see region.report, read by the UI
   report.toolWear = { tools: wearOutTools(region) };
-  const navyWear = wearBoatFleet(region.navy.boats, region.navy.advancedBoats);
+  const navyWear = wearBoatFleet(region.navy.boats, region.navy.advancedBoats, weekScale);
   region.navy.boats = navyWear.total;
   region.navy.advancedBoats = navyWear.advanced;
-  const fishingWear = wearBoatFleet(region.fishingBoats, region.advancedFishingBoats);
+  const fishingWear = wearBoatFleet(region.fishingBoats, region.advancedFishingBoats, weekScale);
   region.fishingBoats = fishingWear.total;
   region.advancedFishingBoats = fishingWear.advanced;
-  const potteryBroken = (region.stockpile.pottery || 0) * weeklyAttrition(POTTERY_ANNUAL_BREAKAGE);
+  const potteryBroken = (region.stockpile.pottery || 0) * (1 - Math.pow(1 - weeklyAttrition(POTTERY_ANNUAL_BREAKAGE), weekScale));
   region.stockpile.pottery = Math.max(0, (region.stockpile.pottery || 0) - potteryBroken);
-  const clothesWornOut = (region.stockpile.clothes || 0) * weeklyAttrition(CLOTHING_ANNUAL_WEAR);
+  const clothesWornOut = (region.stockpile.clothes || 0) * (1 - Math.pow(1 - weeklyAttrition(CLOTHING_ANNUAL_WEAR), weekScale));
   region.stockpile.clothes = Math.max(0, (region.stockpile.clothes || 0) - clothesWornOut);
   report.maintenance = { boatLosses: navyWear.lost + fishingWear.lost, potteryBroken, clothesWornOut };
 
@@ -415,7 +420,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng, elapsedDays 
   const emergencyMilitia = Math.max(0, region.emergencyMilitiaPersonnel || 0);
   const civilianWorkingAge = Math.max(0, workingAge - emergencyMilitia);
   const resourceAccess = conflictResourceAccess(region);
-  const horseReport = tickHorseEconomy(region, civilianWorkingAge);
+  const horseReport = tickHorseEconomy(region, civilianWorkingAge, elapsedDays);
   report.horses = horseReport;
 
   // Military recruitment happens first and is sticky — personnel stay
@@ -1141,11 +1146,14 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng, elapsedDays 
   region.report = report;
 }
 
-function applyForestRegrowth(region, regionsById) {
+function applyForestRegrowth(region, regionsById, elapsedDays = 7) {
+  const weekScale = Math.max(0.01, elapsedWeeks(elapsedDays));
   const neighborStocks = region.neighbors.map((id) => regionsById.get(id).forest.currentStock);
   const neighborKs = region.neighbors.map((id) => regionsById.get(id).forest.K);
-  const bonus = neighborSpreadBonus({ neighborStocks, neighborKs, spreadRate: FOREST_SPREAD_RATE });
+  const spreadRate = 1 - Math.pow(1 - FOREST_SPREAD_RATE, weekScale);
+  const bonus = neighborSpreadBonus({ neighborStocks, neighborKs, spreadRate });
 
-  const grown = regrow({ currentStock: region.forest.currentStock, K: region.forest.K, rate: WOOD_REGROWTH_RATE });
+  const growthRate = 1 - Math.pow(1 - WOOD_REGROWTH_RATE, weekScale);
+  const grown = regrow({ currentStock: region.forest.currentStock, K: region.forest.K, rate: growthRate });
   region.forest.currentStock = Math.min(region.forest.K, grown + bonus * region.forest.K);
 }

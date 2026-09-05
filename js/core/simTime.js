@@ -28,8 +28,17 @@ export function resolutionForWorld(capabilities = new Set()) {
   return TIME_RESOLUTIONS.month;
 }
 
-export function elapsedWeeks(elapsedDays) {
-  return Math.max(0, Number(elapsedDays) || 0) / DAYS_PER_WEEK;
+export function elapsedWeeks(days) {
+  return days / DAYS_PER_WEEK;
+}
+
+export function compoundFraction(weeklyFraction, elapsedDays) {
+  const weeks = Math.max(0, elapsedWeeks(elapsedDays));
+  return 1 - Math.pow(1 - Math.max(0, Math.min(1, weeklyFraction)), weeks);
+}
+
+export function chanceOverDays(weeklyChance, elapsedDays) {
+  return compoundFraction(weeklyChance, elapsedDays);
 }
 
 export function elapsedYears(elapsedDays) {

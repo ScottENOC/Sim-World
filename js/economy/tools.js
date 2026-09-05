@@ -15,10 +15,11 @@ const ANNUAL_TOOL_ATTRITION = {
 };
 
 export function wearOutTools(region) {
+  const weekScale = Math.max(0.01, Number(region._elapsedWeeks) || 1);
   let lost = 0;
   for (const [occupation, equipment] of Object.entries(region.equipment || {})) {
     const annualRate = ANNUAL_TOOL_ATTRITION[occupation] ?? 0.04;
-    const weeklyRate = 1 - Math.pow(1 - annualRate, 1 / 52);
+    const weeklyRate = 1 - Math.pow(1 - annualRate, weekScale / 52);
     for (const [toolId, count] of Object.entries(equipment || {})) {
       const wornOut = Math.max(0, count) * weeklyRate;
       equipment[toolId] = Math.max(0, count - wornOut);
@@ -95,7 +96,9 @@ export function desiredToolInvestment(region, occupation, headcount, toolDefs, u
   const totalEquipped = definitions.reduce((sum, definition) => sum +
     (region.equipment[occupation]?.[definition.id] || 0) * workersPerTool(definition), 0);
   const unequipped = Math.max(0, headcount - totalEquipped);
-  const adoptionCap = Math.max(1, Math.round(headcount * MAX_ADOPTION_RATE_PER_WEEK));
+  const weekScale = Math.max(0.01, Number(region._elapsedWeeks) || 1);
+  const adoptionFraction = 1 - Math.pow(1 - MAX_ADOPTION_RATE_PER_WEEK, weekScale);
+  const adoptionCap = Math.max(1, Math.round(headcount * adoptionFraction));
   const workersToEquip = Math.min(unequipped, adoptionCap);
   const newToolsWanted = Math.ceil(workersToEquip / workersPerTool(choice.definition));
 
@@ -103,7 +106,8 @@ export function desiredToolInvestment(region, occupation, headcount, toolDefs, u
   // chased each week so one reported shortage cannot instantly redirect a whole
   // smithing economy.
   const externalOrders = Math.max(0, region._externalManufacturedDemand?.[choice.definition.id] || 0);
-  const exportToolsWanted = Math.ceil(externalOrders * EXPORT_ORDER_SHARE_PER_WEEK);
+  const exportOrderShare = 1 - Math.pow(1 - EXPORT_ORDER_SHARE_PER_WEEK, weekScale);
+  const exportToolsWanted = Math.ceil(externalOrders * exportOrderShare);
   const inventory = Math.max(0, region.stockpile?.[choice.definition.id] || 0);
   const manufactureWanted = Math.max(0, newToolsWanted + exportToolsWanted - inventory);
   const materialCost = definitionMaterialCost(choice.definition);
