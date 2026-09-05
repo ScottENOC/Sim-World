@@ -21,6 +21,21 @@ const MAX_OPPORTUNITIES_PER_REGION = 64;
 const BASIC_SEA_RANGE_KM = 600;
 const ADVANCED_SEA_RANGE_KM = 1800;
 
+// Merchants are habitual. Most weeks they reconsider only places where they
+// already have successful routes, plus unusually salient new information.
+const BROAD_SEARCH_INTERVAL = 26;
+const HUB_CHECK_INTERVAL = 4;
+const IMITATION_INTERVAL = 8;
+const FRESH_REPORT_WEEKS = 8;
+const MAX_ROUTE_HABITS = 16;
+const MAX_MAJOR_HUBS = 6;
+const HUB_MIN_ACTIVE_PARTNERS = 4;
+const ROUTE_HABIT_DECAY = 0.85;
+const CRISIS_SEARCH_PRESSURE = 3;
+const TRADE_RELEVANT_REPORT_TOPICS = new Set([
+  'food', 'mining', 'metallurgy', 'trade', 'economy', 'resources',
+]);
+
 function sharesSea(regionA, regionB) {
   return regionA.adjacentSeaIds.some((id) => regionB.adjacentSeaIds.includes(id));
 }
@@ -54,16 +69,34 @@ function clamp01(value) {
   return Math.max(0, Math.min(1, value));
 }
 
+function stableHash(value) {
+  let hash = 2166136261;
+  for (const char of String(value)) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function staggeredDue(region, currentTick, interval) {
+  if (!Number.isFinite(currentTick)) return true;
+  return currentTick % interval === stableHash(region.id) % interval;
+}
+
 function ensureTradeEconomy(region) {
   if (!region.tradeEconomy) region.tradeEconomy = {};
   const defaults = {
     debt: 0, creditLimit: 0, arrearsWeeks: 0,
     exportIncomeEma: 0, nonFoodExportIncomeEma: 0, importSpendEma: 0,
     foodImportEma: 0, bronzeExportEma: 0, routeReliabilityEma: 0,
-    weeklyExports: 0, weeklyImports: 0,
+    weeklyExports: 0, weeklyImports: 0, searchPressure: 0,
   };
   for (const [key, value] of Object.entries(defaults)) {
     if (!Number.isFinite(region.tradeEconomy[key])) region.tradeEconomy[key] = value;
+  }
+  if (!region.tradeEconomy.routeHabits || typeof region.tradeEconomy.routeHabits !== 'object' ||
+      Array.isArray(region.tradeEconomy.routeHabits)) {
+    region.tradeEconomy.routeHabits = {};
   }
   return region.tradeEconomy;
 }
@@ -126,6 +159,9 @@ function finishTradeWeek(region) {
     ? economy.weeklyRouteReliability / economy.weeklyTradeCount
     : 0;
   economy.routeReliabilityEma = ema(economy.routeReliabilityEma, reliability);
+  economy.searchPressure = economy.weeklyTradeCount > 0
+    ? Math.max(0, economy.searchPressure - 1)
+    : Math.min(12, economy.searchPressure + 1);
 }
 
 export function routeCost(regionA, regionB) {
@@ -175,10 +211,24 @@ function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByR
     }
   }
   opportunities.sort((a, b) => b.gap - a.gap);
-  // Once a region has dozens of profitable routes, evaluating hundreds of
-  // inferior alternatives in all three settlement rounds adds cost without
-  // changing what its limited traders can actually carry.
   return opportunities.slice(0, MAX_OPPORTUNITIES_PER_REGION);
+}
+
+function recordRouteHabit(region, opportunity, payment, currentTick) {
+  const economy = ensureTradeEconomy(region);
+  const key = `${opportunity.dest.id}|${opportunity.resource}`;
+  const old = economy.routeHabits[key];
+  economy.routeHabits[key] = {
+    destId: opportunity.dest.id,
+    resource: opportunity.resource,
+    score: (old?.score || 0) * ROUTE_HABIT_DECAY + payment,
+    lastSuccessTick: Number.isFinite(currentTick) ? currentTick : (old?.lastSuccessTick ?? null),
+  };
+  const habits = Object.entries(economy.routeHabits);
+  if (habits.length > MAX_ROUTE_HABITS) {
+    habits.sort((a, b) => (b[1].score || 0) - (a[1].score || 0));
+    economy.routeHabits = Object.fromEntries(habits.slice(0, MAX_ROUTE_HABITS));
+  }
 }
 
 function executeTrades(region, opportunities, currentTick = null) {
@@ -229,6 +279,7 @@ function executeTrades(region, opportunities, currentTick = null) {
       region.recentTradePartners.set(opp.dest.id, currentTick);
       opp.dest.recentTradePartners.set(region.id, currentTick);
     }
+    recordRouteHabit(region, opp, payment, currentTick);
     recordDirectTrade(region, opp.dest, volume, currentTick);
     recordDiplomaticTrade(region, opp.dest, payment, currentTick);
     const laborForThis = volume / (TRADE_UNITS_PER_TRADER * (opp.transportMultiplier || 1));
@@ -259,6 +310,111 @@ function nearbyMarketIds(region, regionsById, limit = 32) {
   return result;
 }
 
+function habitDestinationIds(region) {
+  return Object.values(ensureTradeEconomy(region).routeHabits)
+    .sort((a, b) => (b.score || 0) - (a.score || 0))
+    .map((habit) => habit.destId);
+}
+
+function freshTradeLeadIds(region, currentTick) {
+  if (!Number.isFinite(currentTick) || !Array.isArray(region.knowledge?.observations)) return [];
+  const result = [];
+  const seen = new Set();
+  for (let i = region.knowledge.observations.length - 1; i >= 0; i -= 1) {
+    const report = region.knowledge.observations[i];
+    if (!TRADE_RELEVANT_REPORT_TOPICS.has(report.topic)) continue;
+    const receivedAt = Number.isFinite(report.receivedAt) ? report.receivedAt : report.observedAt;
+    if (!Number.isFinite(receivedAt) || currentTick - receivedAt > FRESH_REPORT_WEEKS) continue;
+    if (report.subjectId && report.subjectId !== region.id && !seen.has(report.subjectId)) {
+      seen.add(report.subjectId);
+      result.push(report.subjectId);
+      if (result.length >= 8) break;
+    }
+  }
+  return result;
+}
+
+function activePartnerCount(region, currentTick) {
+  if (!(region.recentTradePartners instanceof Map)) return 0;
+  if (!Number.isFinite(currentTick)) return region.recentTradePartners.size;
+  let count = 0;
+  for (const lastTick of region.recentTradePartners.values()) {
+    if (!Number.isFinite(lastTick) || currentTick - lastTick <= 52) count += 1;
+  }
+  return count;
+}
+
+function majorTradeHubIds(regions, currentTick) {
+  return regions
+    .map((region) => {
+      const economy = ensureTradeEconomy(region);
+      const partners = activePartnerCount(region, currentTick);
+      const throughput = economy.exportIncomeEma + economy.importSpendEma;
+      return { id: region.id, partners, score: partners * 4 + Math.log1p(Math.max(0, throughput)) };
+    })
+    .filter((entry) => entry.partners >= HUB_MIN_ACTIVE_PARTNERS)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, MAX_MAJOR_HUBS)
+    .map((entry) => entry.id);
+}
+
+function imitatedDestinationIds(region, regionsById) {
+  const result = [];
+  const seen = new Set();
+  for (const contactId of directContactIds(region)) {
+    const contact = regionsById.get(contactId);
+    if (!contact) continue;
+    const habits = Object.values(ensureTradeEconomy(contact).routeHabits)
+      .sort((a, b) => (b.score || 0) - (a.score || 0));
+    for (const habit of habits.slice(0, 2)) {
+      if (habit.destId !== region.id && !seen.has(habit.destId)) {
+        seen.add(habit.destId);
+        result.push(habit.destId);
+      }
+    }
+    if (result.length >= 8) break;
+  }
+  return result;
+}
+
+function candidateMarketIds(region, regionsById, knownIds, hubIds, currentTick) {
+  const economy = ensureTradeEconomy(region);
+  const candidateIds = new Set(habitDestinationIds(region));
+
+  // Fresh information is actionable. A new report about shortages, mining,
+  // resources or trade is enough to make merchants take another look.
+  for (const id of freshTradeLeadIds(region, currentTick)) candidateIds.add(id);
+
+  const noHabitsYet = Object.keys(economy.routeHabits).length === 0;
+  const crisis = economy.searchPressure >= CRISIS_SEARCH_PRESSURE;
+  const broadSearch = noHabitsYet || crisis || staggeredDue(region, currentTick, BROAD_SEARCH_INTERVAL);
+
+  if (broadSearch) {
+    // Expensive rational search is now rare and staggered across regions.
+    for (const id of knownIds) candidateIds.add(id);
+    for (const id of nearbyMarketIds(region, regionsById)) {
+      if (knownIds.has(id)) candidateIds.add(id);
+    }
+  } else {
+    // Established merchants keep an eye on direct contacts without searching
+    // the whole known world every week.
+    for (const id of directContactIds(region)) candidateIds.add(id);
+  }
+
+  if (staggeredDue(region, currentTick, HUB_CHECK_INTERVAL)) {
+    for (const id of hubIds) {
+      if (knownIds.has(id)) candidateIds.add(id);
+    }
+  }
+  if (staggeredDue(region, currentTick, IMITATION_INTERVAL)) {
+    for (const id of imitatedDestinationIds(region, regionsById)) {
+      if (knownIds.has(id)) candidateIds.add(id);
+    }
+  }
+  candidateIds.delete(region.id);
+  return candidateIds;
+}
+
 export function tickTrade(regions, currentTick = null) {
   for (const region of regions) {
     region.tradeLinks = new Map();
@@ -266,20 +422,16 @@ export function tickTrade(regions, currentTick = null) {
   }
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   const knownIdsByRegion = new Map(regions.map((region) => [region.id, knownRegionIds(region)]));
+  const hubIds = majorTradeHubIds(regions, currentTick);
+
   // Local scarcity prices are invariant throughout opportunity discovery.
   // Calculate each region/resource once rather than once per candidate pair.
   const pricesByRegion = new Map(regions.map((region) => [region.id,
     Object.fromEntries(TRADABLE_RESOURCES.map((resource) => [resource, localPrice(region, resource)]))
   ]));
   const opportunitiesByRegion = new Map(regions.map((region) => {
-    // A merchant chain may connect mutually-known markets beyond a literal
-    // border. A cached breadth-first neighbourhood bounds this to 32 without
-    // sorting or scanning the whole map every week.
     const knownIds = knownIdsByRegion.get(region.id);
-    const candidateIds = new Set([
-      ...directContactIds(region),
-      ...nearbyMarketIds(region, regionsById).filter((id) => knownIds.has(id)),
-    ]);
+    const candidateIds = candidateMarketIds(region, regionsById, knownIds, hubIds, currentTick);
     const candidates = [...candidateIds]
       .map((id) => regionsById.get(id))
       .filter(Boolean);
