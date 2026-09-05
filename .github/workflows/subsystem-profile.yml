@@ -70,7 +70,7 @@ jobs:
             git checkout --force "$ref"
             instrument
             node tools/calibrate.mjs --years 2 --seeds 1 --snapshot-years 1 --output "/tmp/${label}.json" >/dev/null
-            node -e "const r=require('/tmp/${label}.json'); console.log('${label.toUpperCase()}_TOTAL_SECONDS='+r.elapsedSeconds); console.log('${label.toUpperCase()}_TIMINGS='+JSON.stringify(r.subsystemTimingsMs)); const s=r.runs[0].timeline.at(-1); console.log('${label.toUpperCase()}_TRADE='+s.weeklyTrade); console.log('${label.toUpperCase()}_FOOD_IMPORTS='+s.weeklyFoodImports)"
+            LABEL="$label" node -e "const r=require('/tmp/'+process.env.LABEL+'.json'); const p=process.env.LABEL.toUpperCase(); const s=r.runs[0].timeline.at(-1); console.log(p+'_TOTAL_SECONDS='+r.elapsedSeconds); console.log(p+'_TIMINGS='+JSON.stringify(r.subsystemTimingsMs)); console.log(p+'_TRADE='+s.weeklyTrade); console.log(p+'_FOOD_IMPORTS='+s.weeklyFoodImports)"
           }
 
           run_ref baseline "$BASE_SHA"
