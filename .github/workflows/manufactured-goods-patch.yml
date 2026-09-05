@@ -1,0 +1,96 @@
+name: Manufactured goods patch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/manufactured-goods-patch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Patch manufactured goods flow
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              s = p.read_text()
+              if old not in s:
+                  raise SystemExit(f'target not found in {path}: {old[:80]!r}')
+              p.write_text(s.replace(old, new, 1))
+
+          # Trade: strategic goods are present in the catalogue but default to
+          # no exports until the policy system explicitly permits them.
+          replace_once('js/economy/trade.js',
+              "import { localPrice, TRADABLE_RESOURCES } from './prices.js?v=20260904-weather1';",
+              "import { localPrice, TRADABLE_RESOURCES } from './prices.js?v=20260905-goods1';\nimport { defaultExportAllowed } from './tradeGoods.js?v=20260905-goods1';")
+          replace_once('js/economy/trade.js',
+              "  const stockedResources = TRADABLE_RESOURCES.filter((resource) => (region.stockpile[resource] || 0) > 0.01);",
+              "  const stockedResources = TRADABLE_RESOURCES.filter((resource) =>\n    defaultExportAllowed(resource) && (region.stockpile[resource] || 0) > 0.01);\n")
+
+          # Merchant boats are commissioned assets, separate from new hull stock.
+          replace_once('js/economy/trade.js',
+              "    merchantPopulation: NaN, merchantConfidence: 0,\n    nextVentureId: 1,",
+              "    merchantPopulation: NaN, merchantConfidence: 0,\n    merchantBoats: NaN, advancedMerchantBoats: NaN,\n    nextVentureId: 1,")
+          replace_once('js/economy/trade.js',
+              "  if (!Number.isFinite(region.tradeEconomy.merchantPopulation)) {\n    const previous = Math.max(0, Number(region.occupations?.trader) || 0);\n    const available = Math.max(0, Number(region._availableForTrade ?? region.occupations?.general) || 0);\n    const seed = Math.max(1, Math.round((region.population || 0) * INITIAL_MERCHANT_SHARE));\n    region.tradeEconomy.merchantPopulation = Math.min(available || seed, previous || seed);\n  }\n  return region.tradeEconomy;",
+              "  if (!Number.isFinite(region.tradeEconomy.merchantPopulation)) {\n    const previous = Math.max(0, Number(region.occupations?.trader) || 0);\n    const available = Math.max(0, Number(region._availableForTrade ?? region.occupations?.general) || 0);\n    const seed = Math.max(1, Math.round((region.population || 0) * INITIAL_MERCHANT_SHARE));\n    region.tradeEconomy.merchantPopulation = Math.min(available || seed, previous || seed);\n  }\n  if (!Number.isFinite(region.tradeEconomy.merchantBoats)) {\n    region.tradeEconomy.merchantBoats = Math.max(1, Math.ceil(region.tradeEconomy.merchantPopulation / 4));\n  }\n  if (!Number.isFinite(region.tradeEconomy.advancedMerchantBoats)) region.tradeEconomy.advancedMerchantBoats = 0;\n  return region.tradeEconomy;")
+          replace_once('js/economy/trade.js',
+              "function beginTradeWeek(region) {\n  const economy = ensureTradeEconomy(region);",
+              "function commissionMerchantBoats(region) {\n  const economy = ensureTradeEconomy(region);\n  const target = Math.max(1, Math.ceil(economy.merchantPopulation / 4));\n  let gap = Math.max(0, target - economy.merchantBoats);\n  if (gap <= 0) return;\n  const canUseAdvanced = operationalInfrastructure(region, 'harbour');\n  if (canUseAdvanced) {\n    const advanced = Math.min(gap, Math.max(0, region.stockpile?.advanced_boat || 0));\n    if (advanced > 0) {\n      region.stockpile.advanced_boat -= advanced;\n      economy.merchantBoats += advanced;\n      economy.advancedMerchantBoats += advanced;\n      gap -= advanced;\n    }\n  }\n  const basic = Math.min(gap, Math.max(0, region.stockpile?.basic_boat || 0));\n  if (basic > 0) {\n    region.stockpile.basic_boat -= basic;\n    economy.merchantBoats += basic;\n  }\n}\n\nfunction beginTradeWeek(region) {\n  const economy = ensureTradeEconomy(region);\n  commissionMerchantBoats(region);")
+          replace_once('js/economy/trade.js',
+              "  const canDockAdvanced = operationalInfrastructure(regionA, 'harbour') && operationalInfrastructure(regionB, 'harbour');\n  const advancedShare = canDockAdvanced ? Math.max(advancedMaritimeShare(regionA), advancedMaritimeShare(regionB)) : 0;",
+              "  const canDockAdvanced = operationalInfrastructure(regionA, 'harbour') && operationalInfrastructure(regionB, 'harbour');\n  const merchantFleet = regionA.tradeEconomy;\n  const merchantShare = merchantFleet?.merchantBoats > 0\n    ? Math.min(1, Math.max(0, merchantFleet.advancedMerchantBoats || 0) / merchantFleet.merchantBoats)\n    : 0;\n  const legacyShare = Math.max(advancedMaritimeShare(regionA), advancedMaritimeShare(regionB));\n  const advancedShare = canDockAdvanced ? Math.max(merchantShare, legacyShare) : 0;")
+
+          # Economy: propagate neighbouring manufactured demand as an export-order signal.
+          replace_once('js/economy/laborCore.js',
+              "export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, currentTick = null) {\n  const regionsById = new Map(regions.map((r) => [r.id, r]));",
+              "const MANUFACTURED_ORDER_KEYS = [\n  'bronze_plough', 'iron_plough', 'bronze_picks', 'iron_picks',\n  'bronze_axes', 'iron_axes', 'bronze_weapons', 'iron_weapons',\n  'basic_boat', 'advanced_boat'\n];\n\nexport function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, currentTick = null) {\n  const regionsById = new Map(regions.map((r) => [r.id, r]));")
+          replace_once('js/economy/laborCore.js',
+              "  for (const region of regions) {\n    region._externalBronzeDemand = region.neighbors.reduce((sum, id) =>\n      sum + (regionsById.get(id)?.marketDemand?.bronze || 0), 0\n    ) * 0.25;\n  }",
+              "  for (const region of regions) {\n    region._externalBronzeDemand = region.neighbors.reduce((sum, id) =>\n      sum + (regionsById.get(id)?.marketDemand?.bronze || 0), 0\n    ) * 0.25;\n    region._externalManufacturedDemand = {};\n    for (const key of MANUFACTURED_ORDER_KEYS) {\n      region._externalManufacturedDemand[key] = region.neighbors.reduce((sum, id) =>\n        sum + (regionsById.get(id)?.marketDemand?.[key] || 0), 0\n      );\n    }\n  }")
+
+          # Imported civilian boats are commissioned before deciding what the
+          # local shipyard still needs to build.
+          replace_once('js/economy/laborCore.js',
+              "  let boatMakers = 0;\n  if (region.isCoastal) {\n    const navyGap = Math.max(0, region.targetNavySize - region.navy.boats);",
+              "  let boatMakers = 0;\n  if (region.isCoastal) {\n    let importedFishingGap = Math.max(0, region.targetFishingBoats - region.fishingBoats);\n    if (importedFishingGap > 0 && operationalInfrastructure(region, 'harbour')) {\n      const advancedImported = Math.min(importedFishingGap, Math.max(0, region.stockpile.advanced_boat || 0));\n      if (advancedImported > 0) {\n        region.stockpile.advanced_boat -= advancedImported;\n        region.fishingBoats += advancedImported;\n        region.advancedFishingBoats = (region.advancedFishingBoats || 0) + advancedImported;\n        importedFishingGap -= advancedImported;\n      }\n    }\n    const basicImported = Math.min(importedFishingGap, Math.max(0, region.stockpile.basic_boat || 0));\n    if (basicImported > 0) {\n      region.stockpile.basic_boat -= basicImported;\n      region.fishingBoats += basicImported;\n    }\n\n    const navyGap = Math.max(0, region.targetNavySize - region.navy.boats);")
+
+          # Build a bounded number of NEW hulls for demonstrated neighbouring demand.
+          replace_once('js/economy/laborCore.js',
+              "    boatMakers = navyMakersUsed + fishMakersUsed;\n    accumulateExperience(region, 'boatbuilding', boatMakers);\n    report.boatmaking = { workers: Math.round(boatMakers), navyBoats: navyBuild.built,\n      advancedNavyBoats: navyBuild.advanced, fishingBoats: fishBuild.built,\n      advancedFishingBoats: fishBuild.advanced };\n  }\n  remainingSurplus -= boatMakers;",
+              "    boatMakers = navyMakersUsed + fishMakersUsed;\n\n    const externalBoatOrders = Math.max(0,\n      (region._externalManufacturedDemand?.basic_boat || 0) +\n      (region._externalManufacturedDemand?.advanced_boat || 0));\n    const marketBoatTarget = Math.min(2, externalBoatOrders * 0.2);\n    const marketMakersAvailable = Math.max(0, remainingSurplus - boatMakers);\n    const marketBuild = buildFleetBoats(region, marketBoatTarget, marketMakersAvailable);\n    const marketBasic = Math.max(0, marketBuild.built - marketBuild.advanced);\n    if (marketBasic > 0) region.stockpile.basic_boat = (region.stockpile.basic_boat || 0) + marketBasic;\n    if (marketBuild.advanced > 0) region.stockpile.advanced_boat = (region.stockpile.advanced_boat || 0) + marketBuild.advanced;\n    boatMakers += marketBuild.makers;\n\n    accumulateExperience(region, 'boatbuilding', boatMakers);\n    report.boatmaking = { workers: Math.round(boatMakers), navyBoats: navyBuild.built,\n      advancedNavyBoats: navyBuild.advanced, fishingBoats: fishBuild.built,\n      advancedFishingBoats: fishBuild.advanced, newBoatsForMarket: marketBuild.built };\n  }\n  remainingSurplus -= boatMakers;")
+
+          # Publish finished-tool and civilian-boat demand to the market.
+          replace_once('js/economy/laborCore.js',
+              "  const wantedByMaterial = { bronze: 0, iron: 0 };\n  for (const [, want] of toolWants) {\n    if (want.material) wantedByMaterial[want.material] += want.materialWanted;\n  }",
+              "  const wantedByMaterial = { bronze: 0, iron: 0 };\n  const finishedToolDemand = {};\n  for (const [, want] of toolWants) {\n    if (want.material) wantedByMaterial[want.material] += want.materialWanted;\n    if (want.tier && want.newToolsWanted > 0) {\n      finishedToolDemand[want.tier.id] = (finishedToolDemand[want.tier.id] || 0) + want.newToolsWanted;\n    }\n  }")
+          replace_once('js/economy/laborCore.js',
+              "  region.marketDemand = {\n    food: plannedFoodImportDemand,",
+              "  const merchantFleet = region.tradeEconomy || {};\n  const merchantBoatTarget = Math.max(1, Math.ceil((merchantFleet.merchantPopulation || 0) / 4));\n  const merchantBoatGap = Math.max(0, merchantBoatTarget - (merchantFleet.merchantBoats || 0));\n  const fishingBoatGap = Math.max(0, region.targetFishingBoats - region.fishingBoats);\n  const boatDemand = merchantBoatGap + fishingBoatGap;\n\n  region.marketDemand = {\n    ...finishedToolDemand,\n    basic_boat: boatDemand,\n    advanced_boat: operationalInfrastructure(region, 'harbour') ? boatDemand * 0.5 : 0,\n    food: plannedFoodImportDemand,")
+
+          # Ensure every currently defined tool id is a stockpile key when first used.
+          # No migration is needed: absent numeric keys naturally behave as zero.
+          PY
+          node --check js/economy/trade.js
+          node --check js/economy/laborCore.js
+          node --check js/economy/tools.js
+          node --check js/economy/prices.js
+          node --check js/economy/tradeGoods.js
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/economy/trade.js js/economy/laborCore.js
+          git commit -m "Trade new tools and civilian boats as inventory"
+          git push origin HEAD:main
