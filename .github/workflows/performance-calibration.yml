@@ -1,0 +1,61 @@
+name: Performance calibration
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  calibrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check
+        run: find js -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: One-year calibration
+        shell: bash
+        run: |
+          start=$(date +%s%N)
+          node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --output calibration-1y.json
+          end=$(date +%s%N)
+          elapsed_ms=$(( (end - start) / 1000000 ))
+          echo "ONE_YEAR_MS=$elapsed_ms"
+          echo "ONE_YEAR_MS_PER_WEEK=$(awk -v ms="$elapsed_ms" 'BEGIN { printf "%.2f", ms / 52 }')"
+          node -e "const r=require('./calibration-1y.json'); console.log('ONE_YEAR_RUNNER_SECONDS='+r.elapsedSeconds)"
+      - name: Two-year calibration
+        shell: bash
+        run: |
+          start=$(date +%s%N)
+          node tools/calibrate.mjs --years 2 --seeds 1 --snapshot-years 1 --output calibration-2y.json
+          end=$(date +%s%N)
+          elapsed_ms=$(( (end - start) / 1000000 ))
+          echo "TWO_YEAR_MS=$elapsed_ms"
+          echo "TWO_YEAR_MS_PER_WEEK=$(awk -v ms="$elapsed_ms" 'BEGIN { printf "%.2f", ms / 104 }')"
+          node -e "const r=require('./calibration-2y.json'); console.log('TWO_YEAR_RUNNER_SECONDS='+r.elapsedSeconds)"
+      - name: Religion share summary
+        run: |
+          node --input-type=module <<'NODE'
+          import { createReligiousWorld, initialiseReligions, tickReligion } from './js/society/religion.js';
+          const regions = Array.from({length: 120}, (_, i) => ({
+            id: `r${i}`, name: `Region ${i}`, population: 10000, treasury: 100,
+            stability: 1, cultureGroups: [{population: 10000}], recentTradePartners: [],
+            stockpile: {stone: 1000, wood: 1000, pottery: 1000}
+          }));
+          for (let i = 0; i < regions.length - 1; i++) {
+            regions[i].recentTradePartners.push([regions[i + 1].id, 52]);
+            regions[i + 1].recentTradePartners.push([regions[i].id, 52]);
+          }
+          const world = initialiseReligions(regions, createReligiousWorld());
+          for (let tick = 1; tick <= 52; tick++) tickReligion(regions, world, tick, [], [], () => 1);
+          const counts = regions.map(r => Object.keys(r.religion.shares).length);
+          const total = counts.reduce((a,b)=>a+b,0);
+          console.log(`RELIGION_SHARE_RECORDS=${total}`);
+          console.log(`RELIGIONS_PER_REGION_AVG=${(total / counts.length).toFixed(2)}`);
+          console.log(`RELIGIONS_PER_REGION_MAX=${Math.max(...counts)}`);
+          const leaked = regions.some((r, i) => Object.keys(r.religion.shares).some(id => id !== `religion_${i + 1}`));
+          console.log(`FOLK_TRADE_LEAK=${leaked}`);
+          NODE
