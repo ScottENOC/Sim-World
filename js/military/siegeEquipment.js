@@ -58,7 +58,8 @@ export function prepareSiegeWorkforce(regions) {
     const available = Math.max(0, (region.demographics?.workingAge || 0) -
       (region.army?.personnel || 0) - (region.navy?.personnel || 0) -
       (region.emergencyMilitiaPersonnel || 0) - (region.construction?.workersReserved || 0));
-    state.workersReserved = Math.min(type.workers, Math.floor(available));
+    const afterMaintenance = Math.max(0, available - (region.construction?.maintenanceWorkersReserved || 0));
+    state.workersReserved = Math.min(type.workers, Math.floor(afterMaintenance));
   }
 }
 

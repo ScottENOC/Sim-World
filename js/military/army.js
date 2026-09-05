@@ -2,6 +2,7 @@ import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-weather
 import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-weather1';
 import { horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-weather1';
 import { armyCohesionMultiplier, mobilisedArmyTarget } from './policies.js?v=20260904-policy1';
+import { operationalInfrastructure } from '../economy/construction.js?v=20260905-infra1';
 
 // Recruitment/demobilization ramps toward the player's target rather than
 // snapping instantly — mobilizing an army takes real time, and disbanding
@@ -17,17 +18,24 @@ export function basicNavyBoats(region) {
 }
 
 export function navyTransportCapacity(region) {
-  return basicNavyBoats(region) * 10 + Math.max(0, region.navy?.advancedBoats || 0) * 18;
+  return basicNavyBoats(region) * 10 + usableAdvancedNavyBoats(region) * 18;
+}
+
+export function usableAdvancedNavyBoats(region) {
+  return operationalInfrastructure(region, 'harbour') ? Math.max(0, region.navy?.advancedBoats || 0) : 0;
+}
+
+export function usableAdvancedFishingBoats(region) {
+  return operationalInfrastructure(region, 'harbour') ? Math.max(0, region.advancedFishingBoats || 0) : 0;
 }
 
 export function advancedNavyShare(region) {
   const total = Math.max(0, region.navy?.boats || 0);
-  return total > 0 ? Math.max(0, region.navy?.advancedBoats || 0) / total : 0;
+  return total > 0 ? usableAdvancedNavyBoats(region) / total : 0;
 }
 
 export function advancedMaritimeShare(region) {
-  const advanced = Math.max(0, region.navy?.advancedBoats || 0) +
-    Math.max(0, region.advancedFishingBoats || 0);
+  const advanced = usableAdvancedNavyBoats(region) + usableAdvancedFishingBoats(region);
   const total = Math.max(0, region.navy?.boats || 0) + Math.max(0, region.fishingBoats || 0);
   return total > 0 ? Math.min(1, advanced / total) : 0;
 }
@@ -62,7 +70,7 @@ export function adjustArmySize(region, availableLabor) {
 // the player sets a target *fleet size* in boats; crew follows from that.
 export function adjustNavyCrew(region, availableLabor) {
   const desiredCrew = basicNavyBoats(region) * CREW_PER_BOAT +
-    Math.max(0, region.navy.advancedBoats || 0) * CREW_PER_ADVANCED_BOAT;
+    usableAdvancedNavyBoats(region) * CREW_PER_ADVANCED_BOAT;
   const fiscalCap = Math.max(0, (region.militaryFinance?.fundedPersonnelCap ?? Infinity) -
     (region.army.personnel || 0));
   const targetCrew = Math.min(desiredCrew, fiscalCap);

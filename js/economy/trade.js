@@ -1,7 +1,8 @@
 import { localPrice, TRADABLE_RESOURCES } from './prices.js?v=20260904-weather1';
 import { directContactIds, knownRegionIds, recordDirectTrade, diffuseTradeNetworkKnowledge } from '../core/knowledge.js?v=20260904-weather1';
 import { centroidDistanceKm } from '../world/distance.js?v=20260904-weather1';
-import { advancedMaritimeShare } from '../military/army.js?v=20260904-weather1';
+import { advancedMaritimeShare } from '../military/army.js?v=20260905-infra1';
+import { operationalInfrastructure } from './construction.js?v=20260905-infra1';
 import { horseTransportMultiplier } from './horses.js?v=20260904-weather1';
 import { recordDiplomaticTrade, tradeRelationMultiplier } from '../diplomacy/relations.js?v=20260904-save1';
 import { navalMissionProfile, postureProfile } from '../military/policies.js?v=20260904-policy1';
@@ -25,7 +26,8 @@ function sharesSea(regionA, regionB) {
 }
 
 function seaTransportProfile(regionA, regionB) {
-  const advancedShare = Math.max(advancedMaritimeShare(regionA), advancedMaritimeShare(regionB));
+  const canDockAdvanced = operationalInfrastructure(regionA, 'harbour') && operationalInfrastructure(regionB, 'harbour');
+  const advancedShare = canDockAdvanced ? Math.max(advancedMaritimeShare(regionA), advancedMaritimeShare(regionB)) : 0;
   return {
     advancedShare,
     rangeKm: BASIC_SEA_RANGE_KM + (ADVANCED_SEA_RANGE_KM - BASIC_SEA_RANGE_KM) * advancedShare,

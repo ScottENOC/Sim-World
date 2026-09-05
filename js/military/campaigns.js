@@ -3,11 +3,11 @@ import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-weather
 import { centroidDistanceKm } from '../world/distance.js?v=20260904-weather1';
 import { hasDirectContact } from '../core/knowledge.js?v=20260904-weather1';
 import { horseLandSpeedMultiplier, horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-policy1';
-import { advancedNavyShare, navyTransportCapacity } from './army.js?v=20260904-policy1';
+import { advancedNavyShare, navyTransportCapacity } from './army.js?v=20260905-infra1';
 import { armyCohesionMultiplier, navalMissionProfile, postureProfile } from './policies.js?v=20260904-policy1';
 import { establishVassalage, findLandStagingRegion } from '../politics/polities.js?v=20260904-war1';
 import { removeFromBands, syncPopulation } from '../society/demographics.js?v=20260904-weather1';
-import { hillFortDefenceMultiplier } from '../economy/construction.js?v=20260904-build1';
+import { hillFortDefenceMultiplier } from '../economy/construction.js?v=20260905-infra1';
 import { returnSiegeTrain, survivingFortBenefit, takeSiegeTrain } from './siegeEquipment.js?v=20260905-siege1';
 
 export const CAMPAIGN_OBJECTIVES = Object.freeze({

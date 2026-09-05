@@ -1,13 +1,14 @@
 import { extractionRate, selectActiveTier } from '../world/resources/extraction.js?v=20260904-weather1';
 import { regrow, neighborSpreadBonus } from '../world/resources/renewables.js?v=20260904-weather1';
 import { toolEfficiencyMultiplier, desiredToolInvestment, investInTools, wearOutTools, materialUnitCost } from './tools.js?v=20260904-weather1';
-import { adjustArmySize, adjustNavyCrew } from '../military/army.js?v=20260904-policy1';
+import { adjustArmySize, adjustNavyCrew, usableAdvancedFishingBoats } from '../military/army.js?v=20260905-infra1';
 import { spendMilitaryProcurement } from './stateFinance.js?v=20260904-weather1';
 import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260904-weather1';
 import { tickHorseEconomy, draughtFarmMultiplier } from './horses.js?v=20260904-policy1';
 import { tickWeather } from '../world/weather.js?v=20260904-weather1';
 import { navalMissionProfile } from '../military/policies.js?v=20260904-policy1';
-import { conflictResourceAccess } from '../military/campaigns.js?v=20260904-war1';
+import { conflictResourceAccess } from '../military/campaigns.js?v=20260905-infra1';
+import { effectiveInfrastructureCount, operationalInfrastructure } from './construction.js?v=20260905-infra1';
 
 // --- Tunable constants -----------------------------------------------------
 // All placeholders, calibrated so a "typical" region can just about feed
@@ -157,7 +158,7 @@ function wearBoatFleet(total, advanced) {
 export function potteryStorageProfile(region) {
   const coverage = clamp01((region.stockpile.pottery || 0) /
     Math.max(1, region.population * POTTERY_PER_PERSON_FOR_FULL_STORAGE));
-  const granaries = Math.max(0, region.infrastructure?.publicGranaries || 0);
+  const granaries = effectiveInfrastructureCount(region, 'public_granary');
   // A granary still needs jars, bins and competent handling. Its permanent
   // fabric provides some protection by itself, while widespread pottery lets
   // the public store achieve its full capacity and spoilage benefit.
@@ -183,12 +184,13 @@ function consumeAdvancedBoatMetal(region, boatsBuilt) {
   return { bronzeUsed, ironUsed };
 }
 
-function buildFleetBoats(region, gap, makersAvailable) {
+export function buildFleetBoats(region, gap, makersAvailable) {
   if (gap <= 0 || makersAvailable <= 0) return { built: 0, advanced: 0, makers: 0 };
   let built = 0;
   let advanced = 0;
   let makers = 0;
-  if (region.unlockedTechIds.has('advanced_boatbuilding')) {
+  if (region.unlockedTechIds.has('advanced_boatbuilding') && operationalInfrastructure(region, 'harbour') &&
+      operationalInfrastructure(region, 'shipyard')) {
     const advancedRate = BOATMAKER_BUILD_RATE * ADVANCED_BOAT_BUILD_RATE_MULTIPLIER;
     const metalAvailable = (region.stockpile.bronze || 0) + (region.stockpile.iron || 0);
     const possible = Math.min(
@@ -355,18 +357,23 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   // committed tick to tick (ramping toward the player's target) rather
   // than being freely reallocated like every other occupation below.
   const requestedBuilders = Math.max(0, region.construction?.workersReserved || 0);
+  const maintenanceWorkers = Math.max(0, region.construction?.maintenanceWorkersReserved || 0);
   const requestedSiegeWorkers = Math.max(0, region.siegeEquipment?.workersReserved || 0);
-  adjustArmySize(region, Math.max(0, civilianWorkingAge - region.army.personnel - region.navy.personnel - horseReport.workers - requestedBuilders - requestedSiegeWorkers));
-  adjustNavyCrew(region, Math.max(0, civilianWorkingAge - region.army.personnel - region.navy.personnel - horseReport.workers - requestedBuilders - requestedSiegeWorkers));
+  adjustArmySize(region, Math.max(0, civilianWorkingAge - region.army.personnel - region.navy.personnel - horseReport.workers - requestedBuilders - maintenanceWorkers - requestedSiegeWorkers));
+  adjustNavyCrew(region, Math.max(0, civilianWorkingAge - region.army.personnel - region.navy.personnel - horseReport.workers - requestedBuilders - maintenanceWorkers - requestedSiegeWorkers));
   const constructionWorkers = Math.min(requestedBuilders,
     Math.max(0, civilianWorkingAge - region.army.personnel - region.navy.personnel - horseReport.workers));
   if (region.construction) region.construction.workersReserved = constructionWorkers;
-  const siegeWorkers = Math.min(requestedSiegeWorkers,
+  const actualMaintenanceWorkers = Math.min(maintenanceWorkers,
     Math.max(0, civilianWorkingAge - region.army.personnel - region.navy.personnel - horseReport.workers - constructionWorkers));
+  if (region.construction) region.construction.maintenanceWorkersReserved = actualMaintenanceWorkers;
+  const siegeWorkers = Math.min(requestedSiegeWorkers,
+    Math.max(0, civilianWorkingAge - region.army.personnel - region.navy.personnel - horseReport.workers - constructionWorkers - actualMaintenanceWorkers));
   if (region.siegeEquipment) region.siegeEquipment.workersReserved = siegeWorkers;
-  const laborPool = Math.max(0, civilianWorkingAge - region.army.personnel - region.navy.personnel - horseReport.workers - constructionWorkers - siegeWorkers);
+  const laborPool = Math.max(0, civilianWorkingAge - region.army.personnel - region.navy.personnel - horseReport.workers - constructionWorkers - actualMaintenanceWorkers - siegeWorkers);
   report.construction = { workers: Math.round(constructionWorkers) };
   report.siegeEquipment = { workers: Math.round(siegeWorkers) };
+  report.infrastructureMaintenance = { workers: Math.round(actualMaintenanceWorkers) };
 
   const noise = foodYieldNoise(region, rng);
   const seasonalMultiplier = region.weather?.seasonalMultiplier ?? 1;
@@ -460,8 +467,9 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
       // to nothing (which is exactly what happened before this cap existed:
       // a population-scale fleet fished both seas to 0% in under 50 years).
       const stillNeeded = Math.max(0, remainingAfterGather - foodFromShore);
+      const usableAdvancedFishing = usableAdvancedFishingBoats(region);
       const advancedShare = region.fishingBoats > 0
-        ? Math.min(1, (region.advancedFishingBoats || 0) / region.fishingBoats)
+        ? Math.min(1, usableAdvancedFishing / region.fishingBoats)
         : 0;
       const navalMission = navalMissionProfile(region);
       const fisheryPatrolCoverage = clamp01((region.navy?.personnel || 0) /
@@ -472,7 +480,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
       const boatCapacityTotal = Math.round(sea.fish.K / BOAT_FISH_CAPACITY_DIVISOR);
       const boatCapacityShare = Math.round(boatCapacityTotal / Math.max(1, sea.adjacentLand.length));
       const effectiveFishingBoats = Math.max(0, region.fishingBoats - (region.advancedFishingBoats || 0)) +
-        Math.max(0, region.advancedFishingBoats || 0) * 2;
+        usableAdvancedFishing * 2;
       const boatFishCapacity = Math.min(effectiveFishingBoats * FISHERS_PER_FISHING_BOAT, boatCapacityShare);
       const boatFishersWanted = boatYieldPerWorker > 0 ? stillNeeded / boatYieldPerWorker : 0;
       boatFishers = Math.min(boatFishCapacity, Math.max(0, laborAfterGathering - shoreFishers), boatFishersWanted);
@@ -884,6 +892,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
     horseTrainer: Math.round(horseReport.trainers),
     builder: Math.round(constructionWorkers),
     siegeEngineer: Math.round(siegeWorkers),
+    maintenanceWorker: Math.round(actualMaintenanceWorkers),
     trader: 0, // set by trade.js
     // "general" = unspecialized subsistence labor, not literally unemployed —
     // gathering, herding, household production. It's now the genuine

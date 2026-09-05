@@ -1,5 +1,5 @@
 import { localPrice } from '../economy/prices.js?v=20260904-weather1';
-import { routeCost } from '../economy/trade.js?v=20260904-weather1';
+import { routeCost } from '../economy/trade.js?v=20260905-infra1';
 import { knownRegionIds } from '../core/knowledge.js?v=20260904-weather1';
 
 const DENSITY_REFERENCE = 6; // people/km² — same "crowded" threshold gathering uses

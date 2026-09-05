@@ -1,12 +1,12 @@
 import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-weather1';
 import { hasDirectContact, learnAbout } from '../core/knowledge.js?v=20260904-weather1';
 import { centroidDistanceKm } from '../world/distance.js?v=20260904-weather1';
-import { advancedNavyShare, navyTransportCapacity } from './army.js?v=20260904-policy1';
+import { advancedNavyShare, navyTransportCapacity } from './army.js?v=20260905-infra1';
 import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-weather1';
 import { horseLandSpeedMultiplier, horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-weather1';
 import { localPrice } from '../economy/prices.js?v=20260904-weather1';
 import { changeAttitude } from '../diplomacy/relations.js?v=20260904-save1';
-import { hillFortDefenceMultiplier } from '../economy/construction.js?v=20260904-build1';
+import { hillFortDefenceMultiplier } from '../economy/construction.js?v=20260905-infra1';
 import { findLandStagingRegion, recordContingentReturns } from '../politics/polities.js?v=20260904-kingdom1';
 import { armyCohesionMultiplier, navalMissionProfile, postureProfile } from './policies.js?v=20260904-policy1';
 

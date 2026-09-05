@@ -1,26 +1,26 @@
 import { Clock } from './core/clock.js?v=20260904-weather1';
 import { EventBus } from './core/eventBus.js?v=20260904-weather1';
-import { loadWorld } from './world/region.js?v=20260905-granary1';
+import { loadWorld } from './world/region.js?v=20260905-infra1';
 import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260904-weather1';
 import { seedCensus, densityPerKm2 } from './society/census.js?v=20260904-weather1';
-import { tickEconomy } from './economy/labor.js?v=20260905-granary1';
-import { tickTrade } from './economy/trade.js?v=20260904-policy1';
+import { tickEconomy } from './economy/labor.js?v=20260905-infra1';
+import { tickTrade } from './economy/trade.js?v=20260905-infra1';
 import { tickStateFinance } from './economy/stateFinance.js?v=20260904-weather1';
 import { tickDemographics } from './society/demographics.js?v=20260904-weather1';
 import { tickBanditry } from './military/banditry.js?v=20260904-policy1';
-import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable, syncNextRaidId } from './military/raiding.js?v=20260904-build1';
-import { tickNationAi } from './ai/nationAi.js?v=20260905-granary1';
+import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable, syncNextRaidId } from './military/raiding.js?v=20260905-infra1';
+import { tickNationAi } from './ai/nationAi.js?v=20260905-infra1';
 import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260904-weather1';
 import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID, CATAPULT_TECH_ID } from './technology/breakthroughs.js?v=20260905-siege1';
 import { MapRenderer } from './ui/mapRenderer.js?v=20260904-war1';
-import { AdvisorCouncil } from './ui/advisors.js?v=20260905-granary1';
+import { AdvisorCouncil } from './ui/advisors.js?v=20260905-infra1';
 import { FogOfWar } from './core/fogOfWar.js?v=20260904-weather1';
 import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260904-weather1';
 import { attitudeLabel, attitudeToward, canDiplomaticallyReach, endAgreement, proposeAgreement, syncNextAgreementId, tickDiplomacy } from './diplomacy/relations.js?v=20260904-save1';
 import { availableVassalLevies, changeGovernanceForm, demandVassalage, governanceFormAvailability, governanceLabel, initialisePolities, musterVassalLevies, setDelegatedPower, setGovernancePolicy, sovereignPolity, tickPolities } from './politics/polities.js?v=20260904-war1';
 import { createGameSnapshot, readSave, restoreGameSnapshot, saveSummary, writeSave } from './core/saveGame.js?v=20260904-war1';
-import { syncNextCampaignId, tickCampaigns } from './military/campaigns.js?v=20260905-siege1';
-import { prepareConstructionLabor, syncNextProjectId, tickConstruction } from './economy/construction.js?v=20260905-granary1';
+import { syncNextCampaignId, tickCampaigns } from './military/campaigns.js?v=20260905-infra1';
+import { prepareConstructionLabor, syncNextProjectId, tickConstruction, tickInfrastructureMaintenance } from './economy/construction.js?v=20260905-infra1';
 import { prepareSiegeWorkforce, tickSiegeEquipment } from './military/siegeEquipment.js?v=20260905-siege1';
 
 const START_YEAR = -1300; // target: roughly eighty prosperous years before a c.1220 BCE collapse
@@ -196,6 +196,7 @@ async function main() {
     tickFishingKnowledge(fishingContactPairs, clock.tickIndex);
     tickTrade(regions, clock.tickIndex);
     tickStateFinance(regions);
+    tickInfrastructureMaintenance(regions);
     const constructionEvents = tickConstruction(regions, clock.tickIndex);
     tickSiegeEquipment(regions);
     const breakthroughEvents = tickBreakthroughs(regions, clock.tickIndex, Math.random);

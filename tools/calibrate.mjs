@@ -22,7 +22,7 @@ import { initialiseKnowledge, buildFishingContactPairs, tickFishingKnowledge,
   pruneKnowledge } from '../js/core/knowledge.js';
 import { initialiseDeposit } from '../js/world/resources/extraction.js';
 import { ironSmeltingChance } from '../js/technology/breakthroughs.js';
-import { prepareConstructionLabor, tickConstruction } from '../js/economy/construction.js';
+import { prepareConstructionLabor, tickConstruction, tickInfrastructureMaintenance } from '../js/economy/construction.js';
 import { prepareSiegeWorkforce, tickSiegeEquipment } from '../js/military/siegeEquipment.js';
 
 const ROOT = new URL('../', import.meta.url);
@@ -234,6 +234,7 @@ function run(seed) {
     tickFishingKnowledge(fishingPairs, tick);
     tickTrade(regions, tick);
     tickStateFinance(regions);
+    tickInfrastructureMaintenance(regions);
     tickConstruction(regions, tick);
     tickSiegeEquipment(regions);
     tickBreakthroughs(regions, tick, rng);

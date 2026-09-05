@@ -17,7 +17,8 @@ export class Region {
     this.landQuality = null; this.forest = null; this.deposits = null; this.stockpile = {};
     this.occupations = {}; this.report = {}; this.equipment = {}; this.militaryBronzeDemand = 0;
     this.wallet = 0; this.treasury = 0; this.unlockedTechIds = new Set();
-    this.construction = { projects: [], completed: {}, workersReserved: 0, lastWeek: null };
+    this.construction = { projects: [], completed: {}, assets: [], workersReserved: 0,
+      maintenanceWorkersReserved: 0, lastWeek: null };
     this.infrastructure = { hillForts: 0, publicGranaries: 0 };
     this.siegeEquipment = { targets: { ram: 0, catapult: 0 },
       inventory: { ram: { bronze: 0, iron: 0 }, catapult: { bronze: 0, iron: 0 } },
