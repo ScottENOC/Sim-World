@@ -257,8 +257,8 @@ function run(seed) {
     tickBreakthroughs(regions, calendarWeek, rng, time.elapsedDays);
     tickReligion(regions, religiousWorld, calendarWeek, raids, campaigns, rng, time.elapsedDays);
     tickDemographics(regions, religiousWorld, time.elapsedDays);
-    tickDiplomacy(regions, agreements, toolTypes, calendarWeek);
-    tickPolities(polities, regions, calendarWeek);
+    tickDiplomacy(regions, agreements, toolTypes, calendarWeek, time.elapsedDays);
+    tickPolities(polities, regions, calendarWeek, time.elapsedDays);
     tickBanditry(regions, toolTypes, agreements, time.elapsedDays);
     tickNationAi(regions, '__calibration__', raids, campaigns, agreements, polities,
       religiousWorld, calendarWeek, toolTypes, rng, time.elapsedDays);

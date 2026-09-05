@@ -210,8 +210,8 @@ async function main() {
     const breakthroughEvents = tickBreakthroughs(regions, calendarWeek, Math.random, time.elapsedDays);
     const religionEvents = tickReligion(regions, religiousWorld, calendarWeek, activeRaids, activeCampaigns, Math.random, time.elapsedDays);
     tickDemographics(regions, religiousWorld, time.elapsedDays);
-    const diplomacyEvents = tickDiplomacy(regions, agreements, toolTypes, calendarWeek);
-    const polityEvents = tickPolities(polities, regions, calendarWeek);
+    const diplomacyEvents = tickDiplomacy(regions, agreements, toolTypes, calendarWeek, time.elapsedDays);
+    const polityEvents = tickPolities(polities, regions, calendarWeek, time.elapsedDays);
     tickBanditry(regions, toolTypes, agreements, time.elapsedDays);
     tickNationAi(regions, playerRegionId, activeRaids, activeCampaigns, agreements, polities,
       religiousWorld, calendarWeek, toolTypes, Math.random, time.elapsedDays);

@@ -281,7 +281,9 @@ function transferTribute(subject, capital, amount) {
   return delivered;
 }
 
-export function tickPolities(polities, regions, currentTick) {
+export function tickPolities(polities, regions, currentTick, elapsedDays = 7) {
+  const weekScale = Math.max(0.01, elapsedDays / 7);
+  const controlAdjustment = 1 - Math.pow(1 - CONTROL_ADJUSTMENT_RATE, weekScale);
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   const events = [];
   for (const polity of polities) {
@@ -296,7 +298,7 @@ export function tickPolities(polities, regions, currentTick) {
     for (const subject of subjects) {
       const governance = subject.governance;
       const desiredControl = desiredAdministrativeControl(subject, capital, admin, subjects.length);
-      governance.administrativeControl += (desiredControl - governance.administrativeControl) * CONTROL_ADJUSTMENT_RATE;
+      governance.administrativeControl += (desiredControl - governance.administrativeControl) * controlAdjustment;
       const writing = admin.breakthroughs.has('writing');
       governance.reportDelayWeeks = Math.max(1, Math.round((centroidDistanceKm(capital, subject) || 100) /
         (35 + admin.communications * 100) * (writing ? 0.65 : 1)));
@@ -317,7 +319,7 @@ export function tickPolities(polities, regions, currentTick) {
         governance.administrativeControl * 0.2 - (governance.governor?.competence || 0) * 0.08 +
         (1 - (governance.governor?.loyalty || 0.5)) * 0.08, 0.08, 0.85);
       const nominal = subject.population * BASE_TRIBUTE_PER_PERSON * governance.tributeRate * 10;
-      const demand = nominal * (0.25 + governance.administrativeControl * 0.75);
+      const demand = nominal * weekScale * (0.25 + governance.administrativeControl * 0.75);
       const collectionFactor = governance.delegatedPowers?.collectTaxes
         ? 0.75 + (governance.governor?.competence || 0) * 0.25
         : 0.4 + governance.administrativeControl * 0.6;
@@ -328,18 +330,20 @@ export function tickPolities(polities, regions, currentTick) {
       polity.report.administrativeCapacity += governance.administrativeControl;
       subject.diplomacyReport.received = subject.diplomacyReport.received || 0;
       capital.diplomacyReport.received = (capital.diplomacyReport.received || 0) + delivered;
-      const protectionBenefit = (subject.safetyRating ?? 1) > 0.85 ? governance.administrativeControl * 0.00035 : 0;
-      const extractionResentment = governance.tributeRate * 0.0015 +
-        Math.max(0, 0.55 - governance.autonomy) * 0.0005;
+      const protectionBenefit = (subject.safetyRating ?? 1) > 0.85 ? governance.administrativeControl * 0.00035 * weekScale : 0;
+      const extractionResentment = (governance.tributeRate * 0.0015 +
+        Math.max(0, 0.55 - governance.autonomy) * 0.0005) * weekScale;
       changeAttitude(subject, capital.id, protectionBenefit - extractionResentment,
         protectionBenefit >= extractionResentment ? 'protected_subject' : 'royal_extraction', currentTick);
       if (governance.governor) {
         const attitudeLoyalty = clamp((attitudeToward(subject, capital.id) + 1) / 2);
-        governance.governor.loyalty = clamp(governance.governor.loyalty * 0.998 +
-          attitudeLoyalty * 0.001 + admin.legitimacy * 0.001);
+        const loyaltyRetention = Math.pow(0.998, weekScale);
+        const loyaltyBlend = 1 - loyaltyRetention;
+        const targetLoyalty = clamp((attitudeLoyalty + admin.legitimacy) / 2);
+        governance.governor.loyalty = clamp(governance.governor.loyalty * loyaltyRetention + targetLoyalty * loyaltyBlend);
       }
       if (governance.delegatedPowers?.judgeDisputes) {
-        subject.stability = clamp(subject.stability + ((governance.governor?.competence || 0.5) - 0.45) * 0.0002);
+        subject.stability = clamp(subject.stability + ((governance.governor?.competence || 0.5) - 0.45) * 0.0002 * weekScale);
       }
     }
 
@@ -357,8 +361,8 @@ export function tickPolities(polities, regions, currentTick) {
     if (!region.militaryThreat) region.militaryThreat = { lastRaidedTick: null, recentRaids: 0 };
     const weeks = region.militaryThreat.lastRaidedTick === null ? Infinity : currentTick - region.militaryThreat.lastRaidedTick;
     region.militaryThreat.recentRaids = weeks > THREAT_MEMORY_WEEKS
-      ? region.militaryThreat.recentRaids * 0.96
-      : region.militaryThreat.recentRaids * 0.985;
+      ? region.militaryThreat.recentRaids * Math.pow(0.96, weekScale)
+      : region.militaryThreat.recentRaids * Math.pow(0.985, weekScale);
   }
   return events;
 }

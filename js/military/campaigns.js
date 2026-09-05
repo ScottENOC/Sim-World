@@ -241,24 +241,35 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
 
 export function tickCampaigns(campaigns, regionsById, polities, currentTick, toolTypes, rng = Math.random) {
   const events = [];
+  const regionList = [...regionsById.values()];
   for (const campaign of campaigns) {
     if (campaign.completed) continue;
     const attacker = regionsById.get(campaign.attackerId);
     const defender = regionsById.get(campaign.defenderId);
     if (!attacker || !defender) { campaign.completed = true; continue; }
+    if (!Number.isFinite(campaign.lastProcessedTick)) campaign.lastProcessedTick = campaign.departTick;
+
     if (campaign.phase === 'travelling' && campaign.withdrawRequested) {
       campaign.phase = 'returning'; campaign.stage = 'withdrawing'; campaign.outcome = 'withdrawn';
-      campaign.returnTick = currentTick + Math.max(1, currentTick - campaign.departTick);
+      const elapsedOutbound = Math.max(1, Math.min(currentTick, campaign.arriveTick) - campaign.departTick);
+      campaign.returnTick = currentTick + elapsedOutbound;
       events.push({ type: 'campaign_decided', campaign, attackerName: attacker.name, defenderName: defender.name });
     }
     if (campaign.phase === 'travelling' && currentTick >= campaign.arriveTick) {
       campaign.phase = 'engaged'; campaign.stage = 'skirmishing';
+      campaign.lastProcessedTick = Math.max(campaign.lastProcessedTick, campaign.arriveTick - 1);
       events.push({ type: 'campaign_arrived', campaign, attackerName: attacker.name, defenderName: defender.name });
     }
-    if (campaign.phase === 'engaged') {
-      resolveCampaignWeek(campaign, attacker, defender, polities, [...regionsById.values()], currentTick, toolTypes, rng);
+    // A monthly scheduler may span four or five combat weeks. Resolve each
+    // historical week in order, but only for campaigns that are actually
+    // active; the rest of the world still receives one monthly update.
+    while (campaign.phase === 'engaged' && campaign.lastProcessedTick < currentTick) {
+      const combatWeek = campaign.lastProcessedTick + 1;
+      resolveCampaignWeek(campaign, attacker, defender, polities, regionList, combatWeek, toolTypes, rng);
+      campaign.lastProcessedTick = combatWeek;
       if (campaign.phase === 'returning') {
         events.push({ type: 'campaign_decided', campaign, attackerName: attacker.name, defenderName: defender.name });
+        break;
       }
     }
     if (campaign.phase === 'returning' && currentTick >= campaign.returnTick) {

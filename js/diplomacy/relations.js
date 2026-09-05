@@ -155,13 +155,15 @@ function transferFunds(payer, receiver, amount) {
   return fromTreasury + fromWallet;
 }
 
-export function tickDiplomacy(regions, agreements, toolTypes, currentTick) {
+export function tickDiplomacy(regions, agreements, toolTypes, currentTick, elapsedDays = 7) {
+  const weekScale = Math.max(0.01, elapsedDays / 7);
+  const attitudeRetention = Math.pow(1 - ATTITUDE_DECAY_PER_WEEK, weekScale);
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   for (const region of regions) {
     ensureDiplomacy(region);
     region.diplomacyReport = { paid: 0, received: 0, woodTaken: 0, support: 0 };
     for (const relation of region.relations.values()) {
-      relation.attitude *= (1 - ATTITUDE_DECAY_PER_WEEK);
+      relation.attitude *= attitudeRetention;
     }
   }
 
@@ -178,24 +180,25 @@ export function tickDiplomacy(regions, agreements, toolTypes, currentTick) {
     }
 
     if (agreement.type === 'military_support') {
-      const affordable = Math.floor(Math.max(0, from.treasury) / SUPPORT_UPKEEP_PER_SOLDIER);
+      const supportCostPerSoldier = SUPPORT_UPKEEP_PER_SOLDIER * weekScale;
+      const affordable = Math.floor(Math.max(0, from.treasury) / Math.max(0.000001, supportCostPerSoldier));
       if (affordable < agreement.personnel * 0.5 || attitudeToward(from, to.id) < -0.7) {
         endAgreement(agreement, regionsById, currentTick);
         events.push({ type: 'agreement_ended', agreement, fromName: from.name, toName: to.name });
         continue;
       }
-      const upkeep = Math.min(from.treasury, agreement.personnel * SUPPORT_UPKEEP_PER_SOLDIER);
+      const upkeep = Math.min(from.treasury, agreement.personnel * supportCostPerSoldier);
       from.treasury -= upkeep;
       to.diplomacyReport.support += agreement.personnel;
-      changeAttitude(to, from.id, 0.002, 'continued_support', currentTick);
+      changeAttitude(to, from.id, 0.002 * weekScale, 'continued_support', currentTick);
     }
 
     if (agreement.type === 'tribute') {
-      const demand = Math.max(0.5, to.population * TRIBUTE_RATE);
+      const demand = Math.max(0.5 * weekScale, to.population * TRIBUTE_RATE * weekScale);
       const paid = transferFunds(to, from, demand);
       to.diplomacyReport.paid += paid;
       from.diplomacyReport.received += paid;
-      changeAttitude(to, from.id, -0.0015, 'tribute', currentTick);
+      changeAttitude(to, from.id, -0.0015 * weekScale, 'tribute', currentTick);
       if (paid < demand * 0.25 || powerRatio(from, to, toolTypes) < 1.15) {
         endAgreement(agreement, regionsById, currentTick);
         events.push({ type: 'agreement_ended', agreement, fromName: from.name, toName: to.name });
@@ -204,11 +207,11 @@ export function tickDiplomacy(regions, agreements, toolTypes, currentTick) {
 
     if (agreement.type === 'resource_access') {
       const available = Math.max(0, to.stockpile.wood || 0);
-      const taken = Math.min(available, Math.max(1, to.population * RESOURCE_ACCESS_RATE));
+      const taken = Math.min(available, Math.max(1 * weekScale, to.population * RESOURCE_ACCESS_RATE * weekScale));
       to.stockpile.wood = available - taken;
       from.stockpile.wood = (from.stockpile.wood || 0) + taken;
       to.diplomacyReport.woodTaken += taken;
-      changeAttitude(to, from.id, -0.001, 'resource_access', currentTick);
+      changeAttitude(to, from.id, -0.001 * weekScale, 'resource_access', currentTick);
       if (powerRatio(from, to, toolTypes) < 1.05) {
         endAgreement(agreement, regionsById, currentTick);
         events.push({ type: 'agreement_ended', agreement, fromName: from.name, toName: to.name });

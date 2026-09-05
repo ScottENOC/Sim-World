@@ -109,7 +109,10 @@ export function tickRaids(raids, regionsById, currentTick, toolTypes, rng) {
       outcome.defenderLearnedOrigin = true;
       raid.outcome = outcome;
       raid.resolved = true;
-      raid.returnTick = currentTick + computeTravelWeeks(attacker, defender, raid.viaSea);
+      // Return travel starts at the actual arrival/combat week, not the next
+      // monthly scheduler wake-up. This lets short raids complete inside one
+      // monthly world step.
+      raid.returnTick = raid.arriveTick + computeTravelWeeks(attacker, defender, raid.viaSea);
       events.push({ type: 'raid_resolved', raid, attackerName: attacker.name, defenderName: defender.name, outcome });
     }
     if (raid.resolved && !raid.completed && currentTick >= raid.returnTick) {
