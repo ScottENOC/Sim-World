@@ -1,11 +1,11 @@
 {
-  "version": 1,
+  "version": 2,
   "purpose": "Source inventory for the first eastern Mediterranean / Near East map expansion.",
   "defaultSource": {
     "provider": "geoBoundaries",
     "product": "gbOpen",
     "level": "ADM1",
-    "apiTemplate": "https://www.geoboundaries.org/api/current/gbOpen/{iso}/ADM1/"
+    "apiTemplate": "https://www.geoboundaries.org/api/current/gbOpen/{iso}/{level}/"
   },
   "naturalEarth": {
     "provider": "Natural Earth",
@@ -16,29 +16,29 @@
     "github": "https://github.com/nvkelso/natural-earth-vector"
   },
   "countries": [
-    {"iso":"ITA","name":"Italy","tier":"core","preferred":"natural-earth","notes":"geoBoundaries ADM1 currently exposes only 5 macro-units; use Natural Earth admin-1 as the main geometry source."},
-    {"iso":"GRC","name":"Greece","tier":"core","preferred":"best-available","notes":"Retain high detail around Attica, Boeotia, Peloponnese, Macedonia, Crete and major Aegean islands."},
-    {"iso":"TUR","name":"Turkey / Anatolia","tier":"core","preferred":"geoboundaries","notes":"81 modern provinces are raw pieces only; merge into historical/game-geographic Anatolian regions."},
-    {"iso":"CYP","name":"Cyprus","tier":"core","preferred":"geoboundaries","notes":"Major copper source; likely merge six districts into 2-4 game regions."},
-    {"iso":"SYR","name":"Syria","tier":"core","preferred":"geoboundaries","notes":"Useful basis for Ugarit coast, Orontes/northern Syria and inland regions."},
-    {"iso":"LBN","name":"Lebanon","tier":"core","preferred":"geoboundaries","notes":"Small modern units; merge into a few coastal/hinterland game regions."},
-    {"iso":"ISR","name":"Israel","tier":"core","preferred":"geoboundaries","notes":"Use geometry as ingredients for Canaan/Philistia/Galilee regions, not modern political gameplay boundaries."},
-    {"iso":"PSE","name":"Palestine","tier":"core","preferred":"geoboundaries","notes":"Combine with neighbouring source geometry for historically meaningful southern Levant regions."},
-    {"iso":"JOR","name":"Jordan","tier":"core","preferred":"geoboundaries","notes":"Merge governorates into a small number of Transjordan/desert-edge regions."},
-    {"iso":"EGY","name":"Egypt","tier":"core","preferred":"geoboundaries","notes":"Keep Nile Delta and valley detailed; merge large desert governorates aggressively."},
-    {"iso":"IRQ","name":"Iraq / Mesopotamia","tier":"core","preferred":"geoboundaries","notes":"Build Upper Mesopotamia, Assyria and Babylonian south from governorate polygons."},
-    {"iso":"IRN","name":"Iran","tier":"core-fringe","preferred":"geoboundaries","notes":"Only western/southwestern provinces needed initially for Elam/Zagros/eastern Mesopotamian fringe."},
-    {"iso":"LBY","name":"Libya","tier":"core-fringe","preferred":"geoboundaries","notes":"Prioritise Mediterranean coast; very large Saharan regions."},
-    {"iso":"TUN","name":"Tunisia","tier":"core-fringe","preferred":"geoboundaries","notes":"Useful central Mediterranean/North African continuation."},
-    {"iso":"DZA","name":"Algeria","tier":"optional","preferred":"geoboundaries","notes":"Mostly coastal belt for this phase; deep Sahara low resolution."},
-    {"iso":"ALB","name":"Albania","tier":"balkans","preferred":"geoboundaries","notes":"Southern Balkan land corridor into Greece."},
-    {"iso":"MKD","name":"North Macedonia","tier":"balkans","preferred":"geoboundaries","notes":"Southern Balkan interior corridor."},
-    {"iso":"BGR","name":"Bulgaria","tier":"balkans","preferred":"geoboundaries","notes":"Thrace and Balkan corridor; merge modern provinces substantially."},
-    {"iso":"SRB","name":"Serbia","tier":"balkans","preferred":"geoboundaries","notes":"Danube/Balkan interior connection."},
-    {"iso":"MNE","name":"Montenegro","tier":"balkans","preferred":"geoboundaries","notes":"Adriatic/Balkan connector; likely one or two game regions."},
-    {"iso":"BIH","name":"Bosnia and Herzegovina","tier":"balkans","preferred":"geoboundaries","notes":"Low-to-medium resolution Balkan interior."},
-    {"iso":"HRV","name":"Croatia","tier":"balkans","preferred":"geoboundaries","notes":"Adriatic coast and northern Balkan link toward Italy."},
-    {"iso":"ARM","name":"Armenia","tier":"optional-eastern-fringe","preferred":"geoboundaries","notes":"Useful later for eastern Anatolia/Caucasus metal and migration routes."},
-    {"iso":"GEO","name":"Georgia","tier":"optional-eastern-fringe","preferred":"geoboundaries","notes":"Useful later for Caucasus fringe and Black Sea links."}
+    {"iso":"ITA","name":"Italy","tier":"core","preferred":"natural-earth","level":"ADM1","notes":"geoBoundaries ADM1 currently exposes only 5 macro-units; use Natural Earth admin-1 as the main geometry source."},
+    {"iso":"GRC","name":"Greece","tier":"core","preferred":"geoboundaries","level":"ADM2","notes":"ADM2 gives 14 useful raw units; retain high detail around Attica, central Greece, Peloponnese, Macedonia, Crete and Aegean islands."},
+    {"iso":"TUR","name":"Turkey / Anatolia","tier":"core","preferred":"geoboundaries","level":"ADM1","notes":"81 modern provinces are raw pieces only; merge into historical/game-geographic Anatolian regions."},
+    {"iso":"CYP","name":"Cyprus","tier":"core","preferred":"geoboundaries","level":"ADM1","notes":"Major copper source; likely merge six districts into 2-4 game regions."},
+    {"iso":"SYR","name":"Syria","tier":"core","preferred":"geoboundaries","level":"ADM1","notes":"Useful basis for Ugarit coast, Orontes/northern Syria and inland regions."},
+    {"iso":"LBN","name":"Lebanon","tier":"core","preferred":"geoboundaries","level":"ADM1","notes":"Small modern units; merge into a few coastal/hinterland game regions."},
+    {"iso":"ISR","name":"Israel","tier":"core","preferred":"geoboundaries","level":"ADM2","notes":"ADM2 gives 15 subdistricts. Use geometry as ingredients for Canaan/Philistia/Galilee regions, not modern political gameplay boundaries."},
+    {"iso":"PSE","name":"Palestine","tier":"core","preferred":"geoboundaries","level":"ADM2","notes":"ADM2 gives 16 governorates. Combine with neighbouring source geometry for historically meaningful southern Levant regions."},
+    {"iso":"JOR","name":"Jordan","tier":"core","preferred":"geoboundaries","level":"ADM1","notes":"Merge governorates into a small number of Transjordan/desert-edge regions."},
+    {"iso":"EGY","name":"Egypt","tier":"core","preferred":"geoboundaries","level":"ADM1","notes":"Keep Nile Delta and valley detailed; merge large desert governorates aggressively."},
+    {"iso":"IRQ","name":"Iraq / Mesopotamia","tier":"core","preferred":"geoboundaries","level":"ADM1","notes":"Build Upper Mesopotamia, Assyria and Babylonian south from governorate polygons."},
+    {"iso":"IRN","name":"Iran","tier":"core-fringe","preferred":"geoboundaries","level":"ADM1","notes":"Only western/southwestern provinces needed initially for Elam/Zagros/eastern Mesopotamian fringe. Current source reports 33 units but downloaded 32 with duplicated Mazandaran; validate before integration."},
+    {"iso":"LBY","name":"Libya","tier":"core-fringe","preferred":"geoboundaries","level":"ADM1","notes":"Prioritise Mediterranean coast; very large Saharan regions."},
+    {"iso":"TUN","name":"Tunisia","tier":"core-fringe","preferred":"geoboundaries","level":"ADM1","notes":"Useful central Mediterranean/North African continuation."},
+    {"iso":"DZA","name":"Algeria","tier":"optional","preferred":"geoboundaries","level":"ADM1","notes":"Mostly coastal belt for this phase; deep Sahara low resolution."},
+    {"iso":"ALB","name":"Albania","tier":"balkans","preferred":"geoboundaries","level":"ADM1","notes":"Southern Balkan land corridor into Greece."},
+    {"iso":"MKD","name":"North Macedonia","tier":"balkans","preferred":"geoboundaries","level":"ADM1","notes":"Southern Balkan interior corridor."},
+    {"iso":"BGR","name":"Bulgaria","tier":"balkans","preferred":"geoboundaries","level":"ADM1","notes":"Thrace and Balkan corridor; merge modern provinces substantially."},
+    {"iso":"SRB","name":"Serbia","tier":"balkans","preferred":"geoboundaries","level":"ADM1","notes":"Danube/Balkan interior connection."},
+    {"iso":"MNE","name":"Montenegro","tier":"balkans","preferred":"geoboundaries","level":"ADM1","notes":"Adriatic/Balkan connector; likely one or two game regions."},
+    {"iso":"BIH","name":"Bosnia and Herzegovina","tier":"balkans","preferred":"geoboundaries","level":"ADM2","notes":"ADM1 is only the three modern constitutional entities; ADM2 provides 12 more useful raw pieces."},
+    {"iso":"HRV","name":"Croatia","tier":"balkans","preferred":"geoboundaries","level":"ADM1","notes":"Adriatic coast and northern Balkan link toward Italy."},
+    {"iso":"ARM","name":"Armenia","tier":"optional-eastern-fringe","preferred":"geoboundaries","level":"ADM1","notes":"Useful later for eastern Anatolia/Caucasus metal and migration routes."},
+    {"iso":"GEO","name":"Georgia","tier":"optional-eastern-fringe","preferred":"geoboundaries","level":"ADM1","notes":"Useful later for Caucasus fringe and Black Sea links."}
   ]
 }
