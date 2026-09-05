@@ -10,19 +10,34 @@ import { navalMissionProfile, postureProfile } from '../military/policies.js?v=2
 const LAND_ADJACENT_COST = 0.02;
 const SEA_COST_PER_KM = 0.0002;
 const MAX_EXPORT_FRACTION_PER_TICK = 0.15;
-const TRADE_UNITS_PER_TRADER = 25;
 const MIN_PROFIT_THRESHOLD = 0.01;
 const TRADE_HISTORY_ALPHA = 1 / 52;
 const CREDIT_WEEKS_OF_EXPORT_INCOME = 2;
 const CREDIT_PER_CAPITA_CAP = 0.002;
 const CREDIT_REPAYMENT_SHARE_OF_EXPORTS = 0.25;
 const ARREARS_STABILITY_LOSS = 0.001;
-const MAX_OPPORTUNITIES_PER_REGION = 64;
+const MAX_OPPORTUNITIES_PER_REGION = 48;
 const BASIC_SEA_RANGE_KM = 600;
 const ADVANCED_SEA_RANGE_KM = 1800;
 
-// Merchants are habitual. Most weeks they reconsider only places where they
-// already have successful routes, plus unusually salient new information.
+// Merchant ventures are persistent journeys rather than instantaneous weekly
+// reallocations of generic labour. A small established merchant population is
+// away for most of a long-distance trip and only makes a new decision after
+// returning home.
+const INITIAL_MERCHANT_SHARE = 0.0005;
+const MAX_MERCHANT_SHARE = 0.02;
+const MERCHANT_RECRUITMENT_RATE = 0.04;
+const MERCHANT_RETIREMENT_RATE = 0.06;
+const MAX_NEW_VENTURES_PER_WEEK = 3;
+const LAND_KM_PER_WEEK = 90;
+const SEA_KM_PER_WEEK = 220;
+const LAND_UNITS_PER_MERCHANT = 8;
+const SEA_UNITS_PER_MERCHANT = 18;
+const MAX_LAND_HOPS = 14;
+const MARKET_TURNAROUND_WEEKS = 1;
+
+// Merchants are habitual. Most returned merchants reconsider only places where
+// they already have successful routes, plus unusually salient new information.
 const BROAD_SEARCH_INTERVAL = 26;
 const HUB_CHECK_INTERVAL = 4;
 const IMITATION_INTERVAL = 8;
@@ -36,37 +51,8 @@ const TRADE_RELEVANT_REPORT_TOPICS = new Set([
   'food', 'mining', 'metallurgy', 'trade', 'economy', 'resources',
 ]);
 
-function sharesSea(regionA, regionB) {
-  return regionA.adjacentSeaIds.some((id) => regionB.adjacentSeaIds.includes(id));
-}
-
-function seaTransportProfile(regionA, regionB) {
-  const canDockAdvanced = operationalInfrastructure(regionA, 'harbour') && operationalInfrastructure(regionB, 'harbour');
-  const advancedShare = canDockAdvanced ? Math.max(advancedMaritimeShare(regionA), advancedMaritimeShare(regionB)) : 0;
-  return {
-    advancedShare,
-    rangeKm: BASIC_SEA_RANGE_KM + (ADVANCED_SEA_RANGE_KM - BASIC_SEA_RANGE_KM) * advancedShare,
-    capacityMultiplier: 1 + advancedShare * 1.5,
-    costMultiplier: 1 - advancedShare * 0.45,
-  };
-}
-
-function routeGeometry(regionA, regionB) {
-  if (!(regionA._routeGeometryCache instanceof Map)) regionA._routeGeometryCache = new Map();
-  let geometry = regionA._routeGeometryCache.get(regionB.id);
-  if (!geometry) {
-    geometry = {
-      adjacent: regionA.neighbors.includes(regionB.id),
-      sharedSea: sharesSea(regionA, regionB),
-      distanceKm: centroidDistanceKm(regionA, regionB) ?? 500,
-    };
-    regionA._routeGeometryCache.set(regionB.id, geometry);
-  }
-  return geometry;
-}
-
 function clamp01(value) {
-  return Math.max(0, Math.min(1, value));
+  return Math.max(0, Math.min(1, Number(value) || 0));
 }
 
 function stableHash(value) {
@@ -83,6 +69,103 @@ function staggeredDue(region, currentTick, interval) {
   return currentTick % interval === stableHash(region.id) % interval;
 }
 
+function sharesSea(regionA, regionB) {
+  return (regionA.adjacentSeaIds || []).some((id) => (regionB.adjacentSeaIds || []).includes(id));
+}
+
+function seaTransportProfile(regionA, regionB) {
+  const canDockAdvanced = operationalInfrastructure(regionA, 'harbour') && operationalInfrastructure(regionB, 'harbour');
+  const advancedShare = canDockAdvanced ? Math.max(advancedMaritimeShare(regionA), advancedMaritimeShare(regionB)) : 0;
+  return {
+    advancedShare,
+    rangeKm: BASIC_SEA_RANGE_KM + (ADVANCED_SEA_RANGE_KM - BASIC_SEA_RANGE_KM) * advancedShare,
+    capacityMultiplier: 1 + advancedShare * 1.5,
+    costMultiplier: 1 - advancedShare * 0.45,
+    speedMultiplier: 1 + advancedShare * 0.9,
+  };
+}
+
+function routeGeometry(regionA, regionB) {
+  if (!(regionA._routeGeometryCache instanceof Map)) regionA._routeGeometryCache = new Map();
+  let geometry = regionA._routeGeometryCache.get(regionB.id);
+  if (!geometry) {
+    geometry = {
+      adjacent: (regionA.neighbors || []).includes(regionB.id),
+      sharedSea: sharesSea(regionA, regionB),
+      distanceKm: centroidDistanceKm(regionA, regionB) ?? 500,
+    };
+    regionA._routeGeometryCache.set(regionB.id, geometry);
+  }
+  return geometry;
+}
+
+function landPathIds(origin, dest, regionsById) {
+  if (!(origin._tradeLandPathCache instanceof Map)) origin._tradeLandPathCache = new Map();
+  if (origin._tradeLandPathCache.has(dest.id)) return origin._tradeLandPathCache.get(dest.id);
+  if (origin.id === dest.id) return [origin.id];
+  const queue = [[origin.id]];
+  const visited = new Set([origin.id]);
+  let result = null;
+  while (queue.length && !result) {
+    const path = queue.shift();
+    if (path.length > MAX_LAND_HOPS + 1) continue;
+    const here = regionsById.get(path[path.length - 1]);
+    if (!here) continue;
+    for (const nextId of here.neighbors || []) {
+      if (visited.has(nextId)) continue;
+      const next = regionsById.get(nextId);
+      if (!next) continue;
+      const nextPath = [...path, nextId];
+      if (nextId === dest.id) {
+        result = nextPath;
+        break;
+      }
+      visited.add(nextId);
+      queue.push(nextPath);
+    }
+  }
+  origin._tradeLandPathCache.set(dest.id, result);
+  return result;
+}
+
+function landTransportProfile(origin, dest, regionsById) {
+  const pathIds = landPathIds(origin, dest, regionsById);
+  if (!pathIds) return null;
+  let roadTotal = 0;
+  let canalTotal = 0;
+  for (const id of pathIds) {
+    const region = regionsById.get(id);
+    if (!region) continue;
+    roadTotal += overlandInfrastructureMultiplier(region);
+    canalTotal += Math.min(0.18, effectiveInfrastructureCount(region, 'canal') * 0.06);
+  }
+  const count = Math.max(1, pathIds.length);
+  const throughInfrastructure = roadTotal / count;
+  const canalAssist = canalTotal / count;
+  const horses = horseTransportMultiplier(origin);
+  return {
+    pathIds,
+    speedMultiplier: Math.sqrt(Math.max(1, throughInfrastructure) * Math.max(1, horses)) + canalAssist,
+    capacityMultiplier: Math.max(1, horses) * Math.sqrt(Math.max(1, throughInfrastructure)),
+  };
+}
+
+function routeSecurity(region) {
+  const posture = postureProfile(region);
+  const naval = navalMissionProfile(region);
+  const patrolCoverage = clamp01((region.navy?.personnel || 0) /
+    Math.max(1, (region.population || 0) * 0.005));
+  const publicSecurity = Math.min(0.16, effectiveInfrastructureCount(region, 'watchtowers') * 0.1 +
+    effectiveInfrastructureCount(region, 'market_customs') * 0.06);
+  return clamp01((region.safetyRating ?? 1) * posture.tradeSecurity + publicSecurity +
+    patrolCoverage * Math.max(0, naval.trade - 1) * 0.35);
+}
+
+function routeReliability(regionA, regionB) {
+  const security = Math.min(routeSecurity(regionA), routeSecurity(regionB));
+  return clamp01(Math.pow(clamp01((security - 0.2) / 0.8), 2) * tradeRelationMultiplier(regionA, regionB));
+}
+
 function ensureTradeEconomy(region) {
   if (!region.tradeEconomy) region.tradeEconomy = {};
   const defaults = {
@@ -90,32 +173,23 @@ function ensureTradeEconomy(region) {
     exportIncomeEma: 0, nonFoodExportIncomeEma: 0, importSpendEma: 0,
     foodImportEma: 0, bronzeExportEma: 0, routeReliabilityEma: 0,
     weeklyExports: 0, weeklyImports: 0, searchPressure: 0,
+    merchantPopulation: NaN, merchantConfidence: 0,
+    nextVentureId: 1,
   };
   for (const [key, value] of Object.entries(defaults)) {
     if (!Number.isFinite(region.tradeEconomy[key])) region.tradeEconomy[key] = value;
   }
   if (!region.tradeEconomy.routeHabits || typeof region.tradeEconomy.routeHabits !== 'object' ||
-      Array.isArray(region.tradeEconomy.routeHabits)) {
-    region.tradeEconomy.routeHabits = {};
+      Array.isArray(region.tradeEconomy.routeHabits)) region.tradeEconomy.routeHabits = {};
+  if (!Array.isArray(region.tradeEconomy.ventures)) region.tradeEconomy.ventures = [];
+
+  if (!Number.isFinite(region.tradeEconomy.merchantPopulation)) {
+    const previous = Math.max(0, Number(region.occupations?.trader) || 0);
+    const available = Math.max(0, Number(region._availableForTrade ?? region.occupations?.general) || 0);
+    const seed = Math.max(1, Math.round((region.population || 0) * INITIAL_MERCHANT_SHARE));
+    region.tradeEconomy.merchantPopulation = Math.min(available || seed, previous || seed);
   }
   return region.tradeEconomy;
-}
-
-function routeReliability(regionA, regionB) {
-  const routeSecurity = (region) => {
-    const posture = postureProfile(region);
-    const naval = navalMissionProfile(region);
-    const patrolCoverage = clamp01((region.navy?.personnel || 0) /
-      Math.max(1, (region.population || 0) * 0.005));
-    const publicSecurity = Math.min(0.16, effectiveInfrastructureCount(region, 'watchtowers') * 0.1 +
-      effectiveInfrastructureCount(region, 'market_customs') * 0.06);
-    return clamp01((region.safetyRating ?? 1) * posture.tradeSecurity + publicSecurity +
-      patrolCoverage * Math.max(0, naval.trade - 1) * 0.35);
-  };
-  const security = Math.min(routeSecurity(regionA), routeSecurity(regionB));
-  // Below 20% security ordinary commerce is effectively impossible. The
-  // squared curve makes worsening banditry bite route capacity early.
-  return clamp01(Math.pow(clamp01((security - 0.2) / 0.8), 2) * tradeRelationMultiplier(regionA, regionB));
 }
 
 function beginTradeWeek(region) {
@@ -127,18 +201,16 @@ function beginTradeWeek(region) {
   economy.weeklyNonFoodExportIncome = 0;
   economy.weeklyRouteReliability = 0;
   economy.weeklyTradeCount = 0;
+  economy.weeklyReturns = 0;
+  economy.weeklySuccessfulReturns = 0;
   economy.weeklyExportsByResource = {};
   economy.creditLimit = Math.max(0, Math.min(
     economy.exportIncomeEma * CREDIT_WEEKS_OF_EXPORT_INCOME,
-    region.population * CREDIT_PER_CAPITA_CAP
+    (region.population || 0) * CREDIT_PER_CAPITA_CAP
   ));
-
-  // Cash earned since last week services old obligations first. The share is
-  // intentionally material, because Bronze Age credit is scarce and short.
-  const repayment = Math.min(economy.debt, region.wallet * 0.1);
-  region.wallet -= repayment;
+  const repayment = Math.min(economy.debt, Math.max(0, region.wallet || 0) * 0.1);
+  region.wallet = Math.max(0, (region.wallet || 0) - repayment);
   economy.debt -= repayment;
-
   if (economy.debt > economy.creditLimit + 0.01) {
     economy.arrearsWeeks += 1;
     region.stability = Math.max(0, region.stability - ARREARS_STABILITY_LOSS);
@@ -156,12 +228,13 @@ function finishTradeWeek(region) {
   economy.foodImportEma = ema(economy.foodImportEma, economy.weeklyFoodImports);
   economy.bronzeExportEma = ema(economy.bronzeExportEma, economy.weeklyBronzeExports);
   const reliability = economy.weeklyTradeCount > 0
-    ? economy.weeklyRouteReliability / economy.weeklyTradeCount
-    : 0;
+    ? economy.weeklyRouteReliability / economy.weeklyTradeCount : 0;
   economy.routeReliabilityEma = ema(economy.routeReliabilityEma, reliability);
-  economy.searchPressure = economy.weeklyTradeCount > 0
-    ? Math.max(0, economy.searchPressure - 1)
-    : Math.min(12, economy.searchPressure + 1);
+  if (economy.weeklyReturns > 0) {
+    economy.searchPressure = economy.weeklySuccessfulReturns > 0
+      ? Math.max(0, economy.searchPressure - 1)
+      : Math.min(12, economy.searchPressure + 1);
+  }
 }
 
 export function routeCost(regionA, regionB) {
@@ -172,57 +245,84 @@ export function routeCost(regionA, regionB) {
   if (geometry.sharedSea) {
     return SEA_COST_PER_KM * geometry.distanceKm * seaTransportProfile(regionA, regionB).costMultiplier;
   }
-  // Non-adjacent inland markets represent a chain of short overland legs,
-  // not a magically available ocean route.
   return (LAND_ADJACENT_COST * 2 + SEA_COST_PER_KM * geometry.distanceKm * 0.25) / landTransport;
 }
 
-function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByRegion) {
+function ventureRouteProfile(origin, dest, regionsById) {
+  const geometry = routeGeometry(origin, dest);
+  const seaRoute = geometry.sharedSea && !geometry.adjacent;
+  if (seaRoute) {
+    const sea = seaTransportProfile(origin, dest);
+    if (geometry.distanceKm > sea.rangeKm) return null;
+    const oneWayWeeks = Math.max(1, Math.ceil(geometry.distanceKm / (SEA_KM_PER_WEEK * sea.speedMultiplier)));
+    return {
+      mode: 'sea',
+      oneWayWeeks,
+      roundTripWeeks: oneWayWeeks * 2 + MARKET_TURNAROUND_WEEKS,
+      capacityPerMerchant: SEA_UNITS_PER_MERCHANT * sea.capacityMultiplier,
+      transportMultiplier: sea.capacityMultiplier,
+      reliability: routeReliability(origin, dest),
+    };
+  }
+  const land = landTransportProfile(origin, dest, regionsById);
+  if (!land) return null;
+  const oneWayWeeks = Math.max(1, Math.ceil(geometry.distanceKm / (LAND_KM_PER_WEEK * land.speedMultiplier)));
+  return {
+    mode: 'land',
+    oneWayWeeks,
+    roundTripWeeks: oneWayWeeks * 2 + MARKET_TURNAROUND_WEEKS,
+    capacityPerMerchant: LAND_UNITS_PER_MERCHANT * land.capacityMultiplier,
+    transportMultiplier: land.capacityMultiplier,
+    reliability: routeReliability(origin, dest),
+    pathIds: land.pathIds,
+  };
+}
+
+function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByRegion, regionsById) {
   const opportunities = [];
   const pricesHere = pricesByRegion.get(region.id);
   const stockedResources = TRADABLE_RESOURCES.filter((resource) => (region.stockpile[resource] || 0) > 0.01);
+  const habits = ensureTradeEconomy(region).routeHabits;
   for (const dest of candidateRegions) {
     if (dest.id === region.id) continue;
     if (!knownIdsByRegion.get(dest.id)?.has(region.id)) continue;
-    const geometry = routeGeometry(region, dest);
-    const seaRoute = geometry.sharedSea && !geometry.adjacent;
-    const distanceKm = seaRoute ? geometry.distanceKm : 0;
-    const transport = seaRoute ? seaTransportProfile(region, dest) : {
-      capacityMultiplier: Math.max(horseTransportMultiplier(region), horseTransportMultiplier(dest)),
-      rangeKm: Infinity,
-    };
-    if (seaRoute && distanceKm > transport.rangeKm) continue;
-    const reliability = routeReliability(region, dest);
-    if (reliability <= 0.001) continue;
-    const cost = routeCost(region, dest) + (1 - reliability) * 0.1;
+    const route = ventureRouteProfile(region, dest, regionsById);
+    if (!route || route.reliability <= 0.001) continue;
+    const cost = routeCost(region, dest) + (1 - route.reliability) * 0.1;
     const pricesThere = pricesByRegion.get(dest.id);
     for (const resource of stockedResources) {
       const priceHere = pricesHere[resource];
       const priceThere = pricesThere[resource];
       const gap = priceThere - priceHere - cost;
       if (gap <= MIN_PROFIT_THRESHOLD) continue;
-      const stockAvailable = (region.stockpile[resource] || 0) * MAX_EXPORT_FRACTION_PER_TICK;
+      const stockAvailable = Math.max(0, (region.stockpile[resource] || 0) * MAX_EXPORT_FRACTION_PER_TICK);
       if (stockAvailable <= 0) continue;
-      const price = (priceHere + priceThere) / 2;
-      opportunities.push({ resource, dest, gap, stockAvailable, stockRemaining: stockAvailable, price, reliability,
-        transportMultiplier: transport.capacityMultiplier * (1 + Math.min(0.35,
-          effectiveInfrastructureCount(region, 'market_customs') * 0.2 +
-          effectiveInfrastructureCount(region, 'canal') * 0.15)) });
+      const habit = habits[`${dest.id}|${resource}`];
+      const habitBoost = habit ? 1 + Math.min(0.35, Math.log1p(Math.max(0, habit.score || 0)) * 0.03) : 1;
+      const score = (gap * habitBoost) / Math.max(1, route.roundTripWeeks);
+      opportunities.push({
+        resource, dest, gap, score, stockAvailable,
+        expectedPrice: (priceHere + priceThere) / 2,
+        originPrice: priceHere,
+        route,
+      });
     }
   }
-  opportunities.sort((a, b) => b.gap - a.gap);
+  opportunities.sort((a, b) => b.score - a.score);
   return opportunities.slice(0, MAX_OPPORTUNITIES_PER_REGION);
 }
 
-function recordRouteHabit(region, opportunity, payment, currentTick) {
+function recordRouteHabit(region, venture, payment, currentTick, profitable) {
   const economy = ensureTradeEconomy(region);
-  const key = `${opportunity.dest.id}|${opportunity.resource}`;
+  const key = `${venture.destId}|${venture.resource}`;
   const old = economy.routeHabits[key];
+  const oldScore = old?.score || 0;
   economy.routeHabits[key] = {
-    destId: opportunity.dest.id,
-    resource: opportunity.resource,
-    score: (old?.score || 0) * ROUTE_HABIT_DECAY + payment,
-    lastSuccessTick: Number.isFinite(currentTick) ? currentTick : (old?.lastSuccessTick ?? null),
+    destId: venture.destId,
+    resource: venture.resource,
+    score: Math.max(0, oldScore * ROUTE_HABIT_DECAY + (profitable ? payment : -Math.max(1, oldScore * 0.15))),
+    lastSuccessTick: profitable && Number.isFinite(currentTick) ? currentTick : (old?.lastSuccessTick ?? null),
+    lastAttemptTick: Number.isFinite(currentTick) ? currentTick : (old?.lastAttemptTick ?? null),
   };
   const habits = Object.entries(economy.routeHabits);
   if (habits.length > MAX_ROUTE_HABITS) {
@@ -231,63 +331,167 @@ function recordRouteHabit(region, opportunity, payment, currentTick) {
   }
 }
 
-function executeTrades(region, opportunities, currentTick = null) {
-  let laborLeft = region._tradeLaborRemaining || 0;
-  let laborUsed = 0;
-  for (const opp of opportunities) {
-    if (laborLeft <= 0.01) break;
-    const buyerEconomy = ensureTradeEconomy(opp.dest);
-    const creditAvailable = Math.max(0, buyerEconomy.creditLimit - buyerEconomy.debt);
-    const purchasingPower = Math.max(0, opp.dest.wallet) + creditAvailable;
-    const maxByBuyerFunds = opp.price > 0 ? purchasingPower / opp.price : Infinity;
-    const maxByLabor = laborLeft * TRADE_UNITS_PER_TRADER * opp.reliability * (opp.transportMultiplier || 1);
-    const exportBudget = Math.max(0, region._exportRemaining?.[opp.resource] || 0);
-    const actualStock = Math.max(0, region.stockpile[opp.resource] || 0);
-    const volume = Math.max(0, Math.min(
-      opp.stockRemaining, maxByBuyerFunds, maxByLabor, exportBudget, actualStock
-    ));
-    if (volume <= 0.01) continue;
-    region.stockpile[opp.resource] -= volume;
-    region._exportRemaining[opp.resource] -= volume;
-    opp.stockRemaining -= volume;
-    opp.dest.stockpile[opp.resource] = (opp.dest.stockpile[opp.resource] || 0) + volume;
-    const payment = volume * opp.price;
-    const cashPaid = Math.min(opp.dest.wallet, payment);
-    const borrowed = payment - cashPaid;
-    opp.dest.wallet -= cashPaid;
-    buyerEconomy.debt += borrowed;
+function activeMerchants(region) {
+  return ensureTradeEconomy(region).ventures.reduce((sum, venture) => sum + Math.max(0, venture.merchants || 0), 0);
+}
 
-    const sellerEconomy = ensureTradeEconomy(region);
-    const debtRepaid = Math.min(sellerEconomy.debt, payment * CREDIT_REPAYMENT_SHARE_OF_EXPORTS);
-    sellerEconomy.debt -= debtRepaid;
-    region.wallet += payment - debtRepaid;
+function reconcileMerchantOccupation(region) {
+  const economy = ensureTradeEconomy(region);
+  const maxMerchants = Math.max(1, Math.floor((region.demographics?.workingAge || region.population || 0) * MAX_MERCHANT_SHARE));
+  economy.merchantPopulation = Math.max(activeMerchants(region), Math.min(maxMerchants, Math.round(economy.merchantPopulation)));
+  if (!region.occupations) region.occupations = {};
+  const previousTrader = Math.max(0, Number(region.occupations.trader) || 0);
+  const additional = Math.max(0, economy.merchantPopulation - previousTrader);
+  region.occupations.trader = economy.merchantPopulation;
+  region.occupations.general = Math.max(0, (region.occupations.general || 0) - additional);
+}
 
-    sellerEconomy.weeklyExports += payment;
-    sellerEconomy.weeklyExportsByResource[opp.resource] =
-      (sellerEconomy.weeklyExportsByResource[opp.resource] || 0) + payment;
-    buyerEconomy.weeklyImports += payment;
-    if (opp.resource !== 'food') sellerEconomy.weeklyNonFoodExportIncome += payment;
-    if (opp.resource === 'food') buyerEconomy.weeklyFoodImports += volume;
-    if (opp.resource === 'bronze') sellerEconomy.weeklyBronzeExports += volume;
-    sellerEconomy.weeklyRouteReliability += opp.reliability;
-    buyerEconomy.weeklyRouteReliability += opp.reliability;
-    sellerEconomy.weeklyTradeCount += 1;
-    buyerEconomy.weeklyTradeCount += 1;
-    if (!(region.recentTradePartners instanceof Map)) region.recentTradePartners = new Map();
-    if (!(opp.dest.recentTradePartners instanceof Map)) opp.dest.recentTradePartners = new Map();
-    if (currentTick !== null) {
-      region.recentTradePartners.set(opp.dest.id, currentTick);
-      opp.dest.recentTradePartners.set(region.id, currentTick);
-    }
-    recordRouteHabit(region, opp, payment, currentTick);
-    recordDirectTrade(region, opp.dest, volume, currentTick);
-    recordDiplomaticTrade(region, opp.dest, payment, currentTick);
-    const laborForThis = volume / (TRADE_UNITS_PER_TRADER * (opp.transportMultiplier || 1));
-    laborLeft -= laborForThis;
-    laborUsed += laborForThis;
+function adjustMerchantCareerPopulation(region) {
+  const economy = ensureTradeEconomy(region);
+  const active = activeMerchants(region);
+  const idle = Math.max(0, economy.merchantPopulation - active);
+  const maxMerchants = Math.max(1, Math.floor((region.demographics?.workingAge || region.population || 0) * MAX_MERCHANT_SHARE));
+  if (economy.merchantConfidence > 0.25 && economy.weeklySuccessfulReturns > 0 && economy.merchantPopulation < maxMerchants) {
+    const recruits = Math.max(1, Math.ceil(economy.merchantPopulation * MERCHANT_RECRUITMENT_RATE));
+    const availableGeneral = Math.max(0, region.occupations?.general || 0);
+    const actual = Math.min(recruits, availableGeneral, maxMerchants - economy.merchantPopulation);
+    economy.merchantPopulation += actual;
+    if (region.occupations) region.occupations.general = Math.max(0, region.occupations.general - actual);
+  } else if (economy.merchantConfidence < -0.25 && idle > 0) {
+    const retirements = Math.min(idle, Math.max(1, Math.ceil(economy.merchantPopulation * MERCHANT_RETIREMENT_RATE)));
+    economy.merchantPopulation = Math.max(active, economy.merchantPopulation - retirements);
+    if (region.occupations) region.occupations.general = (region.occupations.general || 0) + retirements;
   }
-  region._tradeLaborRemaining = laborLeft;
-  return laborUsed;
+  if (region.occupations) region.occupations.trader = Math.round(economy.merchantPopulation);
+}
+
+function settleReturnedVenture(origin, dest, venture, currentTick) {
+  const economy = ensureTradeEconomy(origin);
+  const payment = Math.max(0, venture.payment || 0);
+  const returnedCargo = Math.max(0, venture.unsoldCargo || 0);
+  origin.stockpile[venture.resource] = (origin.stockpile[venture.resource] || 0) + returnedCargo;
+  const debtRepaid = Math.min(economy.debt, payment * CREDIT_REPAYMENT_SHARE_OF_EXPORTS);
+  economy.debt -= debtRepaid;
+  origin.wallet = (origin.wallet || 0) + payment - debtRepaid;
+
+  const costBasis = (venture.cargo || 0) * (venture.originPrice || 0) + (venture.cargo || 0) * (venture.routeCost || 0);
+  const profit = payment - costBasis;
+  const profitable = profit > Math.max(0.01, costBasis * 0.02);
+  economy.weeklyReturns += 1;
+  if (profitable) economy.weeklySuccessfulReturns += 1;
+  economy.merchantConfidence = Math.max(-1, Math.min(1,
+    economy.merchantConfidence * 0.8 + (profitable ? 0.25 : -0.2)));
+
+  if (dest && venture.soldVolume > 0) {
+    economy.weeklyExports += payment;
+    economy.weeklyExportsByResource[venture.resource] =
+      (economy.weeklyExportsByResource[venture.resource] || 0) + payment;
+    if (venture.resource !== 'food') economy.weeklyNonFoodExportIncome += payment;
+    if (venture.resource === 'bronze') economy.weeklyBronzeExports += venture.soldVolume;
+    economy.weeklyRouteReliability += venture.reliability || 0;
+    economy.weeklyTradeCount += 1;
+    if (!(origin.recentTradePartners instanceof Map)) origin.recentTradePartners = new Map();
+    if (!(dest.recentTradePartners instanceof Map)) dest.recentTradePartners = new Map();
+    origin.recentTradePartners.set(dest.id, currentTick);
+    dest.recentTradePartners.set(origin.id, currentTick);
+    recordRouteHabit(origin, venture, payment, currentTick, profitable);
+    recordDirectTrade(origin, dest, venture.soldVolume, currentTick);
+    recordDiplomaticTrade(origin, dest, payment, currentTick);
+  } else {
+    recordRouteHabit(origin, venture, 0, currentTick, false);
+  }
+}
+
+function processVentures(regions, regionsById, currentTick) {
+  if (!Number.isFinite(currentTick)) return;
+  for (const origin of regions) {
+    const economy = ensureTradeEconomy(origin);
+    const remaining = [];
+    for (const venture of economy.ventures) {
+      const dest = regionsById.get(venture.destId);
+      if (!dest) {
+        origin.stockpile[venture.resource] = (origin.stockpile[venture.resource] || 0) + (venture.cargo || 0);
+        continue;
+      }
+      if (!venture.arrived && currentTick >= venture.arrivalTick) {
+        const buyerEconomy = ensureTradeEconomy(dest);
+        const destinationPrice = localPrice(dest, venture.resource);
+        const price = Math.max(0.001, destinationPrice);
+        const creditAvailable = Math.max(0, buyerEconomy.creditLimit - buyerEconomy.debt);
+        const purchasingPower = Math.max(0, dest.wallet || 0) + creditAvailable;
+        const saleable = Math.min(venture.cargo || 0, purchasingPower / price);
+        const sold = Math.max(0, saleable);
+        const payment = sold * price;
+        const cashPaid = Math.min(Math.max(0, dest.wallet || 0), payment);
+        dest.wallet = Math.max(0, (dest.wallet || 0) - cashPaid);
+        buyerEconomy.debt += payment - cashPaid;
+        dest.stockpile[venture.resource] = (dest.stockpile[venture.resource] || 0) + sold;
+        buyerEconomy.weeklyImports += payment;
+        if (venture.resource === 'food') buyerEconomy.weeklyFoodImports += sold;
+        buyerEconomy.weeklyRouteReliability += venture.reliability || 0;
+        buyerEconomy.weeklyTradeCount += sold > 0 ? 1 : 0;
+        venture.payment = payment;
+        venture.soldVolume = sold;
+        venture.unsoldCargo = Math.max(0, (venture.cargo || 0) - sold);
+        venture.arrived = true;
+      }
+      if (currentTick >= venture.returnTick) {
+        settleReturnedVenture(origin, dest, venture, currentTick);
+      } else {
+        remaining.push(venture);
+      }
+    }
+    economy.ventures = remaining;
+  }
+}
+
+function launchVentures(region, opportunities, currentTick) {
+  const economy = ensureTradeEconomy(region);
+  let idle = Math.max(0, economy.merchantPopulation - activeMerchants(region));
+  if (idle < 1) return 0;
+  let launched = 0;
+  const exportRemaining = Object.fromEntries(TRADABLE_RESOURCES.map((resource) => [
+    resource, Math.max(0, region.stockpile[resource] || 0) * MAX_EXPORT_FRACTION_PER_TICK,
+  ]));
+  for (const opp of opportunities) {
+    if (idle < 1 || launched >= MAX_NEW_VENTURES_PER_WEEK) break;
+    const capacityPerMerchant = Math.max(0.1, opp.route.capacityPerMerchant * opp.route.reliability);
+    const availableCargo = Math.min(
+      Math.max(0, region.stockpile[opp.resource] || 0),
+      Math.max(0, exportRemaining[opp.resource] || 0),
+      opp.stockAvailable
+    );
+    if (availableCargo <= 0.01) continue;
+    const merchantsNeeded = Math.max(1, Math.ceil(availableCargo / capacityPerMerchant));
+    const merchants = Math.min(idle, merchantsNeeded);
+    const cargo = Math.min(availableCargo, merchants * capacityPerMerchant);
+    if (cargo <= 0.01) continue;
+    region.stockpile[opp.resource] -= cargo;
+    exportRemaining[opp.resource] -= cargo;
+    economy.ventures.push({
+      id: `${region.id}:venture:${economy.nextVentureId++}`,
+      destId: opp.dest.id,
+      resource: opp.resource,
+      cargo,
+      merchants,
+      originPrice: opp.originPrice,
+      expectedPrice: opp.expectedPrice,
+      routeCost: routeCost(region, opp.dest),
+      reliability: opp.route.reliability,
+      transportMode: opp.route.mode,
+      pathIds: opp.route.pathIds || null,
+      departureTick: currentTick,
+      arrivalTick: currentTick + opp.route.oneWayWeeks,
+      returnTick: currentTick + opp.route.roundTripWeeks,
+      arrived: false,
+      payment: 0,
+      soldVolume: 0,
+      unsoldCargo: 0,
+    });
+    idle -= merchants;
+    launched += 1;
+  }
+  return launched;
 }
 
 function nearbyMarketIds(region, regionsById, limit = 32) {
@@ -302,9 +506,7 @@ function nearbyMarketIds(region, regionsById, limit = 32) {
     const candidate = regionsById.get(id);
     if (!candidate) continue;
     result.push(id);
-    for (const nextId of candidate.neighbors || []) {
-      if (!visited.has(nextId)) queue.push(nextId);
-    }
+    for (const nextId of candidate.neighbors || []) if (!visited.has(nextId)) queue.push(nextId);
   }
   region._nearbyMarketIds = result;
   return result;
@@ -380,36 +582,21 @@ function imitatedDestinationIds(region, regionsById) {
 function candidateMarketIds(region, regionsById, knownIds, hubIds, currentTick) {
   const economy = ensureTradeEconomy(region);
   const candidateIds = new Set(habitDestinationIds(region));
-
-  // Fresh information is actionable. A new report about shortages, mining,
-  // resources or trade is enough to make merchants take another look.
   for (const id of freshTradeLeadIds(region, currentTick)) candidateIds.add(id);
-
   const noHabitsYet = Object.keys(economy.routeHabits).length === 0;
   const crisis = economy.searchPressure >= CRISIS_SEARCH_PRESSURE;
   const broadSearch = noHabitsYet || crisis || staggeredDue(region, currentTick, BROAD_SEARCH_INTERVAL);
-
   if (broadSearch) {
-    // Expensive rational search is now rare and staggered across regions.
     for (const id of knownIds) candidateIds.add(id);
-    for (const id of nearbyMarketIds(region, regionsById)) {
-      if (knownIds.has(id)) candidateIds.add(id);
-    }
+    for (const id of nearbyMarketIds(region, regionsById)) if (knownIds.has(id)) candidateIds.add(id);
   } else {
-    // Established merchants keep an eye on direct contacts without searching
-    // the whole known world every week.
     for (const id of directContactIds(region)) candidateIds.add(id);
   }
-
   if (staggeredDue(region, currentTick, HUB_CHECK_INTERVAL)) {
-    for (const id of hubIds) {
-      if (knownIds.has(id)) candidateIds.add(id);
-    }
+    for (const id of hubIds) if (knownIds.has(id)) candidateIds.add(id);
   }
   if (staggeredDue(region, currentTick, IMITATION_INTERVAL)) {
-    for (const id of imitatedDestinationIds(region, regionsById)) {
-      if (knownIds.has(id)) candidateIds.add(id);
-    }
+    for (const id of imitatedDestinationIds(region, regionsById)) if (knownIds.has(id)) candidateIds.add(id);
   }
   candidateIds.delete(region.id);
   return candidateIds;
@@ -421,45 +608,30 @@ export function tickTrade(regions, currentTick = null) {
     beginTradeWeek(region);
   }
   const regionsById = new Map(regions.map((region) => [region.id, region]));
+  processVentures(regions, regionsById, currentTick);
+  for (const region of regions) reconcileMerchantOccupation(region);
+
   const knownIdsByRegion = new Map(regions.map((region) => [region.id, knownRegionIds(region)]));
   const hubIds = majorTradeHubIds(regions, currentTick);
-
-  // Local scarcity prices are invariant throughout opportunity discovery.
-  // Calculate each region/resource once rather than once per candidate pair.
   const pricesByRegion = new Map(regions.map((region) => [region.id,
     Object.fromEntries(TRADABLE_RESOURCES.map((resource) => [resource, localPrice(region, resource)]))
   ]));
-  const opportunitiesByRegion = new Map(regions.map((region) => {
+
+  for (const region of regions) {
+    const economy = ensureTradeEconomy(region);
+    const idle = Math.max(0, economy.merchantPopulation - activeMerchants(region));
+    if (idle < 1) continue;
     const knownIds = knownIdsByRegion.get(region.id);
     const candidateIds = candidateMarketIds(region, regionsById, knownIds, hubIds, currentTick);
-    const candidates = [...candidateIds]
-      .map((id) => regionsById.get(id))
-      .filter(Boolean);
-    return [region.id, findOpportunities(region, candidates, knownIdsByRegion, pricesByRegion)];
-  }));
-  const laborUsedByRegion = new Map();
+    const candidates = [...candidateIds].map((id) => regionsById.get(id)).filter(Boolean);
+    if (!candidates.length) continue;
+    const opportunities = findOpportunities(region, candidates, knownIdsByRegion, pricesByRegion, regionsById);
+    launchVentures(region, opportunities, currentTick);
+  }
+
   for (const region of regions) {
-    region._tradeLaborRemaining = region._availableForTrade || 0;
-    region._exportRemaining = Object.fromEntries(TRADABLE_RESOURCES.map((resource) => [
-      resource,
-      Math.max(0, region.stockpile[resource] || 0) * MAX_EXPORT_FRACTION_PER_TICK,
-    ]));
-    laborUsedByRegion.set(region.id, 0);
+    adjustMerchantCareerPopulation(region);
+    finishTradeWeek(region);
   }
-  // Several clearing rounds let a region spend proceeds it earned earlier in
-  // the same week. That is settlement, not long-term credit, and avoids the
-  // outcome depending on array order while keeping the actual credit limit tiny.
-  for (let round = 0; round < 3; round++) {
-    for (const region of regions) {
-      const used = executeTrades(region, opportunitiesByRegion.get(region.id), currentTick);
-      laborUsedByRegion.set(region.id, laborUsedByRegion.get(region.id) + used);
-    }
-  }
-  for (const region of regions) {
-    const tradersUsed = laborUsedByRegion.get(region.id) || 0;
-    region.occupations.trader = Math.round(tradersUsed);
-    region.occupations.general = Math.max(0, region.occupations.general - Math.round(tradersUsed));
-  }
-  for (const region of regions) finishTradeWeek(region);
   diffuseTradeNetworkKnowledge(regions, currentTick);
 }
