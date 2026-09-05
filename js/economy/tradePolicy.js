@@ -30,9 +30,6 @@ function ruleMatches(rule, direction, resource, counterpartActorId) {
 }
 
 export function tradePolicyDecision(region, direction, resource, counterpart) {
-  // Almost every region has the Bronze Age defaults almost all the time. Keep
-  // that hot path allocation-free; explicit policy objects are created only
-  // when a ruler actually changes something.
   const existing = region.tradePolicy;
   if (!existing) return {
     allowed: direction === 'export' ? defaultExportAllowed(resource) : true,
@@ -43,7 +40,7 @@ export function tradePolicyDecision(region, direction, resource, counterpart) {
   let allowed = direction === 'export'
     ? policy.defaultExportAllowed && defaultExportAllowed(resource)
     : policy.defaultImportAllowed;
-  let tariffRate = 0; // Reserved for later-period tariff policy.
+  let tariffRate = 0;
   let matchedRule = null;
   for (const rule of policy.rules) {
     if (!ruleMatches(rule, direction, resource, counterpartActorId)) continue;
@@ -163,5 +160,5 @@ export function removeTradeRestriction(region, ruleId, regions = [], currentTick
 }
 
 export function activeTradeRestrictions(region) {
-  return ensureTradePolicy(region).rules.filter((rule) => rule.allowed === false);
+  return (region.tradePolicy?.rules || []).filter((rule) => rule.allowed === false);
 }
