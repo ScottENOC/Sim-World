@@ -1,0 +1,29 @@
+name: Add system timing
+on:
+  push:
+    paths:
+      - '.github/workflows/add-system-timing.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Patch and test
+        run: |
+          python3 tools/add-system-timing.py
+          node --check tools/calibrate.mjs
+          node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 1 --system-timing true --output /tmp/timing-test.json
+          node -e "const r=require('/tmp/timing-test.json'); if(!r.runs[0].systemTimingMsPerTick) process.exit(1); console.log(r.runs[0].systemTimingMsPerTick)"
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add tools/calibrate.mjs
+          git commit -m "Add subsystem timing to monthly calibration"
+          git push
