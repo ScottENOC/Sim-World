@@ -3,6 +3,9 @@ on:
   push:
     paths:
       - '.github/workflows/build-map-source-inventory.yml'
+      - 'tools/map-source-manifest.json'
+      - 'tools/fetch-map-source-inventory.py'
+  workflow_dispatch:
 permissions:
   contents: write
 jobs:
@@ -20,8 +23,12 @@ jobs:
           python tools/fetch-map-source-inventory.py
           python -m json.tool tools/map-source-inventory.json >/dev/null
           git diff --check
+          if git diff --quiet -- tools/map-source-inventory.json; then
+            echo "Inventory unchanged"
+            exit 0
+          fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add tools/map-source-inventory.json
-          git commit -m "Inventory eastern Mediterranean map sources"
+          git commit -m "Refresh eastern Mediterranean map source inventory"
           git push
