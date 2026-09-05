@@ -1,0 +1,44 @@
+name: Food specialisation patch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/food-specialisation-patch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Patch deliberate food demand
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('js/economy/laborCore.js')
+          s = p.read_text()
+          old = """  region.marketDemand = {\n    bronze: isBronzeWorkshop ? 0 : wantedByMaterial.bronze,"""
+          new = """  // Food imports are an intentional input to a specialised economy, not\n  // merely an emergency response. Once non-food exports have demonstrated\n  // that they can pay for food, publish that planned import requirement as\n  // market demand. Food-surplus regions can then see a profitable destination\n  // even while this region still has food in storage and is not starving.\n  // A modest storage-rebuild component also makes merchants refill buffers\n  // after a weak harvest instead of waiting for stocks to go negative.\n  const foodStorage = potteryStorageProfile(region);\n  const desiredFoodBuffer = humanFoodNeeded * Math.min(8, foodStorage.weeks * 0.5);\n  const foodBufferGap = Math.max(0, desiredFoodBuffer - Math.max(0, region.stockpile.food || 0));\n  const plannedFoodImportDemand = humanFoodNeeded * foodPlan.importDependence + foodBufferGap / 26;\n\n  region.marketDemand = {\n    food: plannedFoodImportDemand,\n    bronze: isBronzeWorkshop ? 0 : wantedByMaterial.bronze,"""
+          if old not in s:
+              raise SystemExit('marketDemand target not found')
+          s = s.replace(old, new, 1)
+          old2 = """  report.foodPlan = {\n    target: foodProductionTarget,\n    importDependence: foodPlan.importDependence,\n    exportSurplus: foodPlan.exportSurplus,\n  };"""
+          new2 = """  report.foodPlan = {\n    target: foodProductionTarget,\n    importDependence: foodPlan.importDependence,\n    exportSurplus: foodPlan.exportSurplus,\n    plannedImportDemand: humanFoodNeeded * foodPlan.importDependence,\n  };"""
+          if old2 not in s:
+              raise SystemExit('foodPlan report target not found')
+          s = s.replace(old2, new2, 1)
+          p.write_text(s)
+          PY
+          node --check js/economy/laborCore.js
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/economy/laborCore.js
+          git commit -m "Make food imports an intentional specialisation demand"
+          git push origin HEAD:main
