@@ -1,5 +1,6 @@
 import { localPrice, TRADABLE_RESOURCES } from './prices.js?v=20260905-goods1';
-import { defaultExportAllowed } from './tradeGoods.js?v=20260905-goods1';
+import { cargoKgPerUnit } from './tradeGoods.js?v=20260905-goods2';
+import { tradeAllowed } from './tradePolicy.js?v=20260905-policy1';
 import { directContactIds, knownRegionIds, recordDirectTrade, diffuseTradeNetworkKnowledge } from '../core/knowledge.js?v=20260904-weather1';
 import { centroidDistanceKm } from '../world/distance.js?v=20260904-weather1';
 import { advancedMaritimeShare } from '../military/army.js?v=20260905-infra1';
@@ -32,8 +33,8 @@ const MERCHANT_RETIREMENT_RATE = 0.06;
 const MAX_NEW_VENTURES_PER_WEEK = 3;
 const LAND_KM_PER_WEEK = 90;
 const SEA_KM_PER_WEEK = 220;
-const LAND_UNITS_PER_MERCHANT = 8;
-const SEA_UNITS_PER_MERCHANT = 18;
+const LAND_KG_PER_MERCHANT = 80;
+const SEA_KG_PER_MERCHANT = 250;
 const MAX_LAND_HOPS = 14;
 const MARKET_TURNAROUND_WEEKS = 1;
 
@@ -293,7 +294,7 @@ function ventureRouteProfile(origin, dest, regionsById) {
       mode: 'sea',
       oneWayWeeks,
       roundTripWeeks: oneWayWeeks * 2 + MARKET_TURNAROUND_WEEKS,
-      capacityPerMerchant: SEA_UNITS_PER_MERCHANT * sea.capacityMultiplier,
+      capacityKgPerMerchant: SEA_KG_PER_MERCHANT * sea.capacityMultiplier,
       transportMultiplier: sea.capacityMultiplier,
       reliability: routeReliability(origin, dest),
     };
@@ -305,7 +306,7 @@ function ventureRouteProfile(origin, dest, regionsById) {
     mode: 'land',
     oneWayWeeks,
     roundTripWeeks: oneWayWeeks * 2 + MARKET_TURNAROUND_WEEKS,
-    capacityPerMerchant: LAND_UNITS_PER_MERCHANT * land.capacityMultiplier,
+    capacityKgPerMerchant: LAND_KG_PER_MERCHANT * land.capacityMultiplier,
     transportMultiplier: land.capacityMultiplier,
     reliability: routeReliability(origin, dest),
     pathIds: land.pathIds,
@@ -316,7 +317,7 @@ function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByR
   const opportunities = [];
   const pricesHere = pricesByRegion.get(region.id);
   const stockedResources = TRADABLE_RESOURCES.filter((resource) =>
-    defaultExportAllowed(resource) && (region.stockpile[resource] || 0) > 0.01);
+    (region.stockpile[resource] || 0) > 0.01);
 
   const habits = ensureTradeEconomy(region).routeHabits;
   for (const dest of candidateRegions) {
@@ -327,6 +328,7 @@ function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByR
     const cost = routeCost(region, dest) + (1 - route.reliability) * 0.1;
     const pricesThere = pricesByRegion.get(dest.id);
     for (const resource of stockedResources) {
+      if (!tradeAllowed(region, dest, resource)) continue;
       const priceHere = pricesHere[resource];
       const priceThere = pricesThere[resource];
       const gap = priceThere - priceHere - cost;
@@ -450,6 +452,14 @@ function processVentures(regions, regionsById, currentTick) {
         continue;
       }
       if (!venture.arrived && currentTick >= venture.arrivalTick) {
+        if (!tradeAllowed(origin, dest, venture.resource)) {
+          venture.payment = 0;
+          venture.soldVolume = 0;
+          venture.unsoldCargo = Math.max(0, venture.cargo || 0);
+          venture.arrived = true;
+          remaining.push(venture);
+          continue;
+        }
         const buyerEconomy = ensureTradeEconomy(dest);
         const destinationPrice = localPrice(dest, venture.resource);
         const price = Math.max(0.001, destinationPrice);
@@ -491,7 +501,7 @@ function launchVentures(region, opportunities, currentTick) {
   ]));
   for (const opp of opportunities) {
     if (idle < 1 || launched >= MAX_NEW_VENTURES_PER_WEEK) break;
-    const capacityPerMerchant = Math.max(0.1, opp.route.capacityPerMerchant * opp.route.reliability);
+    const capacityPerMerchant = Math.max(0.01, (opp.route.capacityKgPerMerchant / cargoKgPerUnit(opp.resource)) * opp.route.reliability);
     const availableCargo = Math.min(
       Math.max(0, region.stockpile[opp.resource] || 0),
       Math.max(0, exportRemaining[opp.resource] || 0),

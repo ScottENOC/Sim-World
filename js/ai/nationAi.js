@@ -15,6 +15,7 @@ import { canCampaign, launchCampaign, massMobiliseDefender, requestCampaignWithd
 import { chooseAiConstruction } from '../economy/construction.js?v=20260905-projects1';
 import { chooseAiSiegeTargets } from '../military/siegeEquipment.js?v=20260905-projects1';
 import { chooseAiReligion, religiousWarModifier } from '../society/religion.js?v=20260905-religion1';
+import { activeTradeRestrictions, setTradeRestriction, tradeActorId } from '../economy/tradePolicy.js?v=20260905-policy1';
 
 // A one-percent peacetime levy is supportable while trade and taxation are
 // healthy. Threatened states still expand this through the safety multiplier;
@@ -34,6 +35,7 @@ const MIN_ADVANTAGE_TO_RAID = 1.5;
 const DEFENDER_HOME_ADVANTAGE = 1.3;
 const DIPLOMACY_CONSIDERATION_CHANCE_PER_WEEK = 0.0015;
 const CAMPAIGN_CONSIDERATION_CHANCE_PER_WEEK = 0.0007;
+const EMBARGO_REVIEW_INTERVAL = 26;
 
 function clamp01(v) {
   return Math.max(0, Math.min(1, v));
@@ -49,10 +51,33 @@ export function tickNationAi(regions, playerRegionId, activeRaids, activeCampaig
     chooseAiConstruction(region, currentTick, rng);
     chooseAiSiegeTargets(region);
     chooseAiReligion(region, religiousWorld, currentTick, rng);
+    maybeAdjustTradeEmbargo(region, regionsById, currentTick);
     maybeMakeAgreement(region, regionsById, playerRegionId, agreements, polities, currentTick, toolTypes, rng);
     maybeCampaign(region, regionsById, activeCampaigns, polities, religiousWorld, currentTick, toolTypes, rng);
     maybeRaid(region, regionsById, activeRaids, polities, religiousWorld, currentTick, toolTypes, rng);
   }
+}
+
+function maybeAdjustTradeEmbargo(region, regionsById, currentTick) {
+  if (!Number.isFinite(currentTick) || currentTick % EMBARGO_REVIEW_INTERVAL !== stableAiHash(region.id) % EMBARGO_REVIEW_INTERVAL) return;
+  const existing = activeTradeRestrictions(region);
+  const known = [...directContactIds(region)].map((id) => regionsById.get(id)).filter(Boolean);
+  for (const target of known) {
+    const actor = tradeActorId(target);
+    const hostility = attitudeToward(region, target.id);
+    const keyRule = existing.find((rule) => rule.direction === 'trade' && rule.goods === null && rule.counterparties?.includes(actor));
+    if (hostility <= -0.72 && !keyRule) {
+      setTradeRestriction(region, { direction: 'trade', goods: null, counterparties: [actor], allowed: false }, [...regionsById.values()], currentTick);
+    } else if (hostility >= -0.35 && keyRule) {
+      setTradeRestriction(region, { direction: 'trade', goods: null, counterparties: [actor], allowed: true }, [...regionsById.values()], currentTick);
+    }
+  }
+}
+
+function stableAiHash(value) {
+  let hash = 2166136261;
+  for (const char of String(value)) { hash ^= char.charCodeAt(0); hash = Math.imul(hash, 16777619); }
+  return hash >>> 0;
 }
 
 function manageCampaigns(campaigns, regionsById, playerRegionId, rng) {
