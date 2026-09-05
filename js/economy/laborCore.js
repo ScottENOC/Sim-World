@@ -1,6 +1,6 @@
 import { extractionRate, selectActiveTier } from '../world/resources/extraction.js?v=20260904-weather1';
 import { regrow, neighborSpreadBonus } from '../world/resources/renewables.js?v=20260904-weather1';
-import { toolEfficiencyMultiplier, desiredToolInvestment, investInTools, wearOutTools, materialUnitCost } from './tools.js?v=20260904-weather1';
+import { toolEfficiencyMultiplier, desiredToolInvestment, investInTools, wearOutTools, materialUnitCost } from './tools.js?v=20260905-goods1';
 import { adjustArmySize, adjustNavyCrew, usableAdvancedFishingBoats } from '../military/army.js?v=20260905-infra1';
 import { spendMilitaryProcurement } from './stateFinance.js?v=20260904-weather1';
 import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260904-weather1';
