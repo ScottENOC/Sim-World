@@ -569,6 +569,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
     target: foodProductionTarget,
     importDependence: foodPlan.importDependence,
     exportSurplus: foodPlan.exportSurplus,
+    plannedImportDemand: humanFoodNeeded * foodPlan.importDependence,
   };
   report.conflict = { pressure: region.conflictPressure || 0, resourceAccess, emergencyMilitia };
 
@@ -727,7 +728,20 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   const potteryTarget = region.population * POTTERY_PER_PERSON_FOR_FULL_STORAGE;
   const desiredPotteryOutput = potteryBroken +
     Math.max(0, potteryTarget - (region.stockpile.pottery || 0)) / 52;
+  // Food imports are an intentional input to a specialised economy, not
+  // merely an emergency response. Once non-food exports have demonstrated
+  // that they can pay for food, publish that planned import requirement as
+  // market demand. Food-surplus regions can then see a profitable destination
+  // even while this region still has food in storage and is not starving.
+  // A modest storage-rebuild component also makes merchants refill buffers
+  // after a weak harvest instead of waiting for stocks to go negative.
+  const foodStorage = potteryStorageProfile(region);
+  const desiredFoodBuffer = humanFoodNeeded * Math.min(8, foodStorage.weeks * 0.5);
+  const foodBufferGap = Math.max(0, desiredFoodBuffer - Math.max(0, region.stockpile.food || 0));
+  const plannedFoodImportDemand = humanFoodNeeded * foodPlan.importDependence + foodBufferGap / 26;
+
   region.marketDemand = {
+    food: plannedFoodImportDemand,
     bronze: isBronzeWorkshop ? 0 : wantedByMaterial.bronze,
     copper: isBronzeWorkshop ? Math.max(0, desiredBronzeOutput * 2 - (region.stockpile.copper || 0)) : 0,
     tin: isBronzeWorkshop ? Math.max(0, desiredBronzeOutput - (region.stockpile.tin || 0)) : 0,
