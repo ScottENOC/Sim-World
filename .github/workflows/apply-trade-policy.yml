@@ -1,0 +1,68 @@
+name: Apply trade policy integration
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/apply-trade-policy.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch trade and AI
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          def replace_once(path, old, new):
+              p=Path(path); s=p.read_text()
+              if old not in s: raise SystemExit(f'target not found in {path}: {old[:80]!r}')
+              p.write_text(s.replace(old,new,1))
+
+          replace_once('js/economy/trade.js',
+          "import { defaultExportAllowed } from './tradeGoods.js?v=20260905-goods1';",
+          "import { cargoKgPerUnit } from './tradeGoods.js?v=20260905-goods2';\nimport { tradeAllowed } from './tradePolicy.js?v=20260905-policy1';")
+          replace_once('js/economy/trade.js', 'const LAND_UNITS_PER_MERCHANT = 8;\nconst SEA_UNITS_PER_MERCHANT = 18;',
+          'const LAND_KG_PER_MERCHANT = 80;\nconst SEA_KG_PER_MERCHANT = 250;')
+          replace_once('js/economy/trade.js', 'capacityPerMerchant: SEA_UNITS_PER_MERCHANT * sea.capacityMultiplier,',
+          'capacityKgPerMerchant: SEA_KG_PER_MERCHANT * sea.capacityMultiplier,')
+          replace_once('js/economy/trade.js', 'capacityPerMerchant: LAND_UNITS_PER_MERCHANT * land.capacityMultiplier,',
+          'capacityKgPerMerchant: LAND_KG_PER_MERCHANT * land.capacityMultiplier,')
+          replace_once('js/economy/trade.js',
+          "  const stockedResources = TRADABLE_RESOURCES.filter((resource) =>\n    defaultExportAllowed(resource) && (region.stockpile[resource] || 0) > 0.01);",
+          "  const stockedResources = TRADABLE_RESOURCES.filter((resource) =>\n    (region.stockpile[resource] || 0) > 0.01);")
+          replace_once('js/economy/trade.js',
+          '    if (dest.id === region.id) continue;\n    if (!knownIdsByRegion.get(dest.id)?.has(region.id)) continue;',
+          '    if (dest.id === region.id) continue;\n    if (!knownIdsByRegion.get(dest.id)?.has(region.id)) continue;')
+          replace_once('js/economy/trade.js',
+          '    for (const resource of stockedResources) {\n      const priceHere = pricesHere[resource];',
+          "    for (const resource of stockedResources) {\n      if (!tradeAllowed(region, dest, resource)) continue;\n      const priceHere = pricesHere[resource];")
+          replace_once('js/economy/trade.js',
+          '      if (!venture.arrived && currentTick >= venture.arrivalTick) {\n        const buyerEconomy = ensureTradeEconomy(dest);',
+          "      if (!venture.arrived && currentTick >= venture.arrivalTick) {\n        if (!tradeAllowed(origin, dest, venture.resource)) {\n          venture.payment = 0;\n          venture.soldVolume = 0;\n          venture.unsoldCargo = Math.max(0, venture.cargo || 0);\n          venture.arrived = true;\n          remaining.push(venture);\n          continue;\n        }\n        const buyerEconomy = ensureTradeEconomy(dest);")
+          replace_once('js/economy/trade.js',
+          '    const capacityPerMerchant = Math.max(0.1, opp.route.capacityPerMerchant * opp.route.reliability);',
+          '    const capacityPerMerchant = Math.max(0.01, (opp.route.capacityKgPerMerchant / cargoKgPerUnit(opp.resource)) * opp.route.reliability);')
+
+          replace_once('js/ai/nationAi.js',
+          "import { chooseAiReligion, religiousWarModifier } from '../society/religion.js?v=20260905-religion1';",
+          "import { chooseAiReligion, religiousWarModifier } from '../society/religion.js?v=20260905-religion1';\nimport { activeTradeRestrictions, setTradeRestriction, tradeActorId } from '../economy/tradePolicy.js?v=20260905-policy1';")
+          replace_once('js/ai/nationAi.js', 'const CAMPAIGN_CONSIDERATION_CHANCE_PER_WEEK = 0.0007;',
+          'const CAMPAIGN_CONSIDERATION_CHANCE_PER_WEEK = 0.0007;\nconst EMBARGO_REVIEW_INTERVAL = 26;')
+          replace_once('js/ai/nationAi.js',
+          '    chooseAiReligion(region, religiousWorld, currentTick, rng);\n    maybeMakeAgreement',
+          '    chooseAiReligion(region, religiousWorld, currentTick, rng);\n    maybeAdjustTradeEmbargo(region, regionsById, currentTick);\n    maybeMakeAgreement')
+          marker='\nfunction manageCampaigns(campaigns, regionsById, playerRegionId, rng) {'
+          addition='''\nfunction maybeAdjustTradeEmbargo(region, regionsById, currentTick) {\n  if (!Number.isFinite(currentTick) || currentTick % EMBARGO_REVIEW_INTERVAL !== stableAiHash(region.id) % EMBARGO_REVIEW_INTERVAL) return;\n  const existing = activeTradeRestrictions(region);\n  const known = [...directContactIds(region)].map((id) => regionsById.get(id)).filter(Boolean);\n  for (const target of known) {\n    const actor = tradeActorId(target);\n    const hostility = attitudeToward(region, target.id);\n    const keyRule = existing.find((rule) => rule.direction === 'trade' && rule.goods === null && rule.counterparties?.includes(actor));\n    if (hostility <= -0.72 && !keyRule) {\n      setTradeRestriction(region, { direction: 'trade', goods: null, counterparties: [actor], allowed: false }, [...regionsById.values()], currentTick);\n    } else if (hostility >= -0.35 && keyRule) {\n      setTradeRestriction(region, { direction: 'trade', goods: null, counterparties: [actor], allowed: true }, [...regionsById.values()], currentTick);\n    }\n  }\n}\n\nfunction stableAiHash(value) {\n  let hash = 2166136261;\n  for (const char of String(value)) { hash ^= char.charCodeAt(0); hash = Math.imul(hash, 16777619); }\n  return hash >>> 0;\n}\n'''
+          replace_once('js/ai/nationAi.js', marker, addition+marker)
+          PY
+          node --check js/economy/trade.js
+          node --check js/economy/tradePolicy.js
+          node --check js/ai/nationAi.js
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/economy/trade.js js/ai/nationAi.js
+          git commit -m 'Enforce embargoes and mass-aware merchant capacity'
+          git push origin HEAD:main
