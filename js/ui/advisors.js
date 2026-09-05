@@ -8,6 +8,8 @@ import { availableConstructionTypes, cancelConstruction, CONSTRUCTION_TYPES, con
 import { CATAPULT_TECH_ID, ensureSiegeEquipment, setSiegeTarget, siegeCount, siegeTrainCount } from '../military/siegeEquipment.js?v=20260905-projects1';
 import { dominantReligion, establishReligiousCentre, forkReligion, influenceReligiousLeader,
   religionById, setReligiousTolerance, setStateReligion } from '../society/religion.js?v=20260905-religion1';
+import { TRADE_GOODS } from '../economy/tradeGoods.js?v=20260905-goods2';
+import { activeTradeRestrictions, removeTradeRestriction, setTradeRestriction, tradeActorId } from '../economy/tradePolicy.js?v=20260905-policy1';
 
 const ADVISORS = [
   { id: 'marshal', icon: '\u2694', name: 'Marshal', brief: 'Forces & raids' },
@@ -229,9 +231,28 @@ export class AdvisorCouncil {
     const finance = player.militaryFinance || {};
     const trade = player.tradeEconomy || {};
     const revenue = (finance.weeklyTaxRevenue || 0) + (finance.weeklyTradeDuties || 0);
+    const restrictions = activeTradeRestrictions(player);
+    const contacts = this.regions.filter((region) => region.id !== player.id && this.fogOfWar.isVisible(region));
+    const actors = [...new Map(contacts.map((region) => [tradeActorId(region), region])).values()];
+    const goods = Object.entries(TRADE_GOODS);
+    const ruleLabel = (rule) => {
+      const direction = rule.direction === 'trade' ? 'All trade' : rule.direction === 'import' ? 'Imports' : 'Exports';
+      const goodText = rule.goods?.length ? rule.goods.map((id) => TRADE_GOODS[id]?.label || id).join(', ') : 'all goods';
+      const partnerText = rule.counterparties?.length ? rule.counterparties.map((id) => actors.find((r) => tradeActorId(r) === id)?.name || id).join(', ') : 'all countries';
+      return `${direction}: ${goodText} · ${partnerText}`;
+    };
     return `<p class="advisor-voice">“Coin is stored labour, Majesty. I count where it comes from, and which promises are consuming it.”</p>
       ${section('Treasury', row('Treasury', number(player.treasury)) + row('Household wealth', number(player.wallet)) + row('Revenue this week', revenue.toFixed(1)) + row('Military payroll paid', percent(finance.payRatio ?? 1), (finance.payRatio ?? 1) < .9 ? 'warning' : '') + row('Administration capacity', percent(finance.stateCapacity ?? 1)))}
-      ${section('Trade', row('Exports this week', number(trade.weeklyExports)) + row('Imports this week', number(trade.weeklyImports)) + row('Trade debt', `${number(trade.debt)} / ${number(trade.creditLimit)}`) + row('Known partners', number(player.tradePartnerIds?.size)))}`;
+      ${section('Trade', row('Exports this week', number(trade.weeklyExports)) + row('Imports this week', number(trade.weeklyImports)) + row('Trade debt', `${number(trade.debt)} / ${number(trade.creditLimit)}`) + row('Known partners', number(player.tradePartnerIds?.size)))}
+      ${section('Trade restrictions', `
+        <p class="advisor-note">Imports are open by default. Civilian exports are open by default; military goods are closed by default. Embargoes can cover imports, exports or both. The diplomatic reaction depends on how much the restriction is expected to hurt the other realm.</p>
+        <label class="advisor-field"><span>Direction</span><select id="trade-rule-direction"><option value="trade">All trade</option><option value="export">Exports only</option><option value="import">Imports only</option></select></label>
+        <label class="advisor-field"><span>Goods</span><select id="trade-rule-good"><option value="*">All goods</option>${goods.map(([id, good]) => `<option value="${id}">${good.label}${good.strategic ? ' · military' : ''}</option>`).join('')}</select></label>
+        <label class="advisor-field"><span>Country</span><select id="trade-rule-country"><option value="*">All countries</option>${actors.map((region) => `<option value="${tradeActorId(region)}">${region.name}</option>`).join('')}</select></label>
+        <button id="add-trade-embargo" class="advisor-order danger">Prohibit trade</button>
+        ${restrictions.length ? `<div class="advisor-list">${restrictions.map((rule) => `<button data-remove-trade-rule="${rule.id}"><span>${ruleLabel(rule)}</span><small>Lift restriction</small></button>`).join('')}</div>` : '<p class="advisor-note">No additional embargoes are in force.</p>'}
+        <p class="advisor-note">For a list of goods or countries, add several specific rules. The underlying policy supports grouped lists as well; this phone-first control avoids awkward multi-select gestures.</p>`)}
+      ${section('Later institutions', '<p class="advisor-note">The same policy engine already carries a tariff-rate field, but tariffs are not active in Bronze Age play. A later state can use this layer for customs duties without replacing the embargo system.</p>')}`;
   }
 
   renderSteward(player) {
@@ -339,6 +360,20 @@ export class AdvisorCouncil {
     document.querySelector('[data-open-construction]')?.addEventListener('click', () => {
       this.activeAdvisor = 'steward'; this.render();
     });
+    document.getElementById('add-trade-embargo')?.addEventListener('click', () => {
+      const direction = document.getElementById('trade-rule-direction')?.value || 'trade';
+      const good = document.getElementById('trade-rule-good')?.value || '*';
+      const country = document.getElementById('trade-rule-country')?.value || '*';
+      setTradeRestriction(player, {
+        direction, goods: good === '*' ? null : [good],
+        counterparties: country === '*' ? null : [country], allowed: false,
+      }, this.regions, this.clock.tickIndex);
+      this.render(false);
+    });
+    document.querySelectorAll('[data-remove-trade-rule]').forEach((button) => button.addEventListener('click', () => {
+      removeTradeRestriction(player, button.dataset.removeTradeRule, this.regions, this.clock.tickIndex);
+      this.render(false);
+    }));
     const activeWorkers = document.getElementById('construction-workers');
     activeWorkers?.addEventListener('input', () => {
       setConstructionWorkers(player, activeWorkers.dataset.projectId, activeWorkers.value);
