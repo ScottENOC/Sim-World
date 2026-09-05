@@ -8,7 +8,7 @@ import { tickHorseEconomy, draughtFarmMultiplier } from './horses.js?v=20260904-
 import { tickWeather } from '../world/weather.js?v=20260904-weather1';
 import { navalMissionProfile } from '../military/policies.js?v=20260904-policy1';
 import { conflictResourceAccess } from '../military/campaigns.js?v=20260905-infra1';
-import { effectiveInfrastructureCount, operationalInfrastructure } from './construction.js?v=20260905-infra1';
+import { effectiveInfrastructureCount, operationalInfrastructure } from './construction.js?v=20260905-projects1';
 
 // --- Tunable constants -----------------------------------------------------
 // All placeholders, calibrated so a "typical" region can just about feed
@@ -386,8 +386,14 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   // weaker iron recovers less, while tool-less farms cannot compensate merely
   // by assigning every available adult to the same finite acreage.
   const toolYieldMultiplier = 0.7 + 0.3 * farmerToolMultiplier;
+  const irrigation = effectiveInfrastructureCount(region, 'irrigation');
+  const canal = effectiveInfrastructureCount(region, 'canal');
+  const waterYieldMultiplier = 1 + Math.min(0.32, irrigation * 0.2 + canal * 0.12);
+  const droughtProtection = 1 + Math.max(0, 1 - weatherMultiplier) * Math.min(0.55,
+    effectiveInfrastructureCount(region, 'wells_cisterns') * 0.18 + irrigation * 0.25 + canal * 0.12);
   const maxFoodOutput = region.areaSqKm * region.landQuality * FOOD_YIELD_PER_KM2 * noise *
-    (1 - horseReport.pastureFraction) * seasonalMultiplier * weatherMultiplier * toolYieldMultiplier * resourceAccess;
+    (1 - horseReport.pastureFraction) * seasonalMultiplier * weatherMultiplier * droughtProtection *
+    toolYieldMultiplier * resourceAccess * waterYieldMultiplier;
   const kLabor = region.areaSqKm * FARM_LABOR_SATURATION_PER_KM2;
   const humanFoodNeeded = totalPop * FOOD_PER_PERSON_PER_WEEK;
   const foodNeeded = humanFoodNeeded + horseReport.fodderNeeded;
@@ -610,9 +616,12 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   // Work out which depth tier is accessible before tool demand is chosen.
   // This lets the tool market distinguish "expensive bronze" from bronze
   // which genuinely cannot be produced from any accessible copper/tin.
+  const miningTech = new Set(region.unlockedTechIds);
+  if (!operationalInfrastructure(region, 'deep_mine')) miningTech.delete('shaft_mining');
+  if (!operationalInfrastructure(region, 'mine_drainage')) miningTech.delete('mine_drainage');
   const activeTiers = {};
   for (const [key, deposit] of Object.entries(region.deposits)) {
-    activeTiers[key] = selectActiveTier(deposit.tiers, region.unlockedTechIds);
+    activeTiers[key] = selectActiveTier(deposit.tiers, miningTech);
   }
   // Iron is ubiquitous but not commercially useful before the breakthrough.
   // Leaving it in the ground prevents every region quietly accumulating a
@@ -768,7 +777,8 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
       initialStock: tier.initialStock,
       remainingStock: tier.remainingStock,
       workers: minerAllocation[key],
-      baseYieldPerWorker: oreYieldPerMiner * resourceAccess * (key === 'ironOre' ? ironReadiness : 1),
+      baseYieldPerWorker: oreYieldPerMiner * resourceAccess * (key === 'ironOre' ? ironReadiness : 1) *
+        (key === 'stone' ? 1 + Math.min(0.35, effectiveInfrastructureCount(region, 'state_quarry') * 0.35) : 1),
       difficulty: tier.difficulty,
     });
     tier.remainingStock -= gathered;

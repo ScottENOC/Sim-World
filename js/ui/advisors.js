@@ -1,11 +1,11 @@
-import { canRaid, launchRaid, maxSeaRaidersAvailable } from '../military/raiding.js?v=20260905-infra1';
+import { canRaid, launchRaid, maxSeaRaidersAvailable } from '../military/raiding.js?v=20260905-projects1';
 import { attitudeLabel, attitudeToward } from '../diplomacy/relations.js?v=20260904-save1';
 import { governanceLabel } from '../politics/polities.js?v=20260904-kingdom1';
 import { ensureMilitaryPolicy, mobilisedArmyTarget, setMilitaryPolicy } from '../military/policies.js?v=20260904-policy1';
-import { CAMPAIGN_OBJECTIVES, canCampaign, launchCampaign, massMobiliseDefender, requestCampaignWithdrawal } from '../military/campaigns.js?v=20260905-infra1';
+import { CAMPAIGN_OBJECTIVES, canCampaign, launchCampaign, massMobiliseDefender, requestCampaignWithdrawal } from '../military/campaigns.js?v=20260905-projects1';
 import { availableConstructionTypes, cancelConstruction, CONSTRUCTION_TYPES, constructionEstimate,
-  ensureConstruction, setConstructionWorkers, startConstruction, startRepair } from '../economy/construction.js?v=20260905-infra1';
-import { CATAPULT_TECH_ID, ensureSiegeEquipment, setSiegeTarget, siegeCount, siegeTrainCount } from '../military/siegeEquipment.js?v=20260905-siege1';
+  ensureConstruction, setConstructionWorkers, startConstruction, startRepair } from '../economy/construction.js?v=20260905-projects1';
+import { CATAPULT_TECH_ID, ensureSiegeEquipment, setSiegeTarget, siegeCount, siegeTrainCount } from '../military/siegeEquipment.js?v=20260905-projects1';
 
 const ADVISORS = [
   { id: 'marshal', icon: '\u2694', name: 'Marshal', brief: 'Forces & raids' },
@@ -317,7 +317,7 @@ export class AdvisorCouncil {
         const estimate = constructionEstimate(player, type.id, newWorkers.value);
         document.getElementById('new-builder-count-label').textContent = number(estimate.workers);
         const materials = Object.entries(estimate.materials).map(([resource, amount]) => `${number(amount)} ${resource}`).join(' · ');
-        document.getElementById('construction-estimate').textContent = `${estimate.weeks} weeks · ${materials} · about ${estimate.totalCost.toFixed(1)} coin at current prices (${estimate.wages.toFixed(1)} wages, ${estimate.supplies.toFixed(1)} supplies). Doubling labour halves time only between ${type.minWorkers} and ${type.maxWorkers} builders.`;
+        document.getElementById('construction-estimate').textContent = `${type.description} ${estimate.weeks} weeks · ${materials} · about ${estimate.totalCost.toFixed(1)} coin at current prices (${estimate.wages.toFixed(1)} wages, ${estimate.supplies.toFixed(1)} supplies). Doubling labour halves time only between ${type.minWorkers} and ${type.maxWorkers} builders.`;
       };
       newType.addEventListener('change', assess); newWorkers.addEventListener('input', assess); assess();
       startProject.addEventListener('click', () => {

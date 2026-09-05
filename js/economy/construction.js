@@ -3,6 +3,83 @@ import { localPrice } from './prices.js?v=20260904-weather1';
 export const HILL_FORT_TECH_ID = 'hill_forts';
 
 export const CONSTRUCTION_TYPES = Object.freeze({
+  road_network: {
+    id: 'road_network', name: 'Road and bridge network', requiredTechId: null, unique: true,
+    description: 'Maintained routes, causeways, bridges and waystations linking the region.',
+    workRequired: 9000, defaultWorkers: 120, minWorkers: 35, maxWorkers: 500,
+    materials: { stone: 500, wood: 500 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.035,
+  },
+  wells_cisterns: {
+    id: 'wells_cisterns', name: 'Wells and cisterns', requiredTechId: null, unique: true,
+    description: 'Protected wells and lined public cisterns for dry seasons and sieges.',
+    workRequired: 3200, defaultWorkers: 50, minWorkers: 15, maxWorkers: 200,
+    materials: { stone: 350, wood: 100, pottery: 80 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.018,
+  },
+  irrigation: {
+    id: 'irrigation', name: 'Irrigation and drainage', requiredTechId: 'water_management', unique: true,
+    description: 'Channels, ditches, embankments and drains stabilising agricultural water supply.',
+    workRequired: 8500, defaultWorkers: 120, minWorkers: 40, maxWorkers: 500,
+    materials: { stone: 350, wood: 450, pottery: 100 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.05,
+  },
+  watchtowers: {
+    id: 'watchtowers', name: 'Watchtower network', requiredTechId: 'hill_forts', unique: true,
+    description: 'Border towers, signal fires and patrol posts providing early warning.',
+    workRequired: 4200, defaultWorkers: 60, minWorkers: 20, maxWorkers: 250,
+    materials: { stone: 250, wood: 400 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.03,
+  },
+  settlement_walls: {
+    id: 'settlement_walls', name: 'Fortified settlement walls', requiredTechId: 'hill_forts', unique: true,
+    minPopulation: 5000,
+    description: 'Walls and gates protecting the principal settlement, inhabitants and stores.',
+    workRequired: 14000, defaultWorkers: 180, minWorkers: 60, maxWorkers: 700,
+    materials: { stone: 1400, wood: 500 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.018,
+  },
+  state_quarry: {
+    id: 'state_quarry', name: 'State quarry', requiredTechId: null, unique: true, requiresDeposit: 'stone',
+    description: 'Organised faces, ramps and hauling teams increasing dependable stone supply.',
+    workRequired: 5000, defaultWorkers: 75, minWorkers: 25, maxWorkers: 300,
+    materials: { wood: 500, bronze: 12 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.025,
+  },
+  deep_mine: {
+    id: 'deep_mine', name: 'Deep mine works', requiredTechId: 'shaft_mining', unique: true,
+    description: 'Shafts, shoring and haulage opening deposits beneath exhausted surface workings.',
+    workRequired: 8000, defaultWorkers: 100, minWorkers: 30, maxWorkers: 400,
+    materials: { wood: 900, stone: 250, bronze: 20 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.045,
+  },
+  mine_drainage: {
+    id: 'mine_drainage', name: 'Mine drainage works', requiredTechId: 'mine_drainage', unique: true,
+    requiresInfrastructure: 'deep_mine',
+    description: 'Drains, sumps and lifting machinery allowing miners to work below the water table.',
+    workRequired: 7000, defaultWorkers: 90, minWorkers: 30, maxWorkers: 350,
+    materials: { wood: 700, stone: 400, bronze: 25 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.055,
+  },
+  royal_arsenal: {
+    id: 'royal_arsenal', name: 'Royal arsenal', requiredTechId: null, unique: true,
+    description: 'Secure workshops and stores coordinating arms and siege-engine production.',
+    workRequired: 6000, defaultWorkers: 80, minWorkers: 25, maxWorkers: 350,
+    materials: { stone: 300, wood: 600, bronze: 30 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.025,
+  },
+  market_customs: {
+    id: 'market_customs', name: 'Market and customs house', requiredTechId: null, unique: true,
+    minPopulation: 3000,
+    description: 'A supervised market, standard storehouses and officials assessing traded goods.',
+    workRequired: 4500, defaultWorkers: 65, minWorkers: 20, maxWorkers: 250,
+    materials: { stone: 250, wood: 450, pottery: 100 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.025,
+  },
+  administrative_centre: {
+    id: 'administrative_centre', name: 'Palace and administrative centre', requiredTechId: null, unique: true,
+    minPopulation: 5000,
+    description: 'Audience halls, records rooms, stores and offices supporting durable government.',
+    workRequired: 10000, defaultWorkers: 140, minWorkers: 45, maxWorkers: 550,
+    materials: { stone: 900, wood: 700, pottery: 150, bronze: 20 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.025,
+  },
+  canal: {
+    id: 'canal', name: 'Canal', requiredTechId: 'water_management', unique: true,
+    requiresInfrastructure: 'irrigation', minPopulation: 10000,
+    description: 'A major managed waterway carrying irrigation water and bulk goods.',
+    workRequired: 22000, defaultWorkers: 250, minWorkers: 80, maxWorkers: 1000,
+    materials: { stone: 1600, wood: 1000, pottery: 200 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.06,
+  },
   public_granary: {
     id: 'public_granary', name: 'Public granary', requiredTechId: null,
     description: 'A guarded communal storehouse using raised floors, sealed rooms and pottery vessels.',
@@ -62,6 +139,8 @@ export function availableConstructionTypes(region) {
     (!type.requiredTechId || region.unlockedTechIds.has(type.requiredTechId)) &&
     (!type.coastal || region.isCoastal) &&
     (!type.requiresInfrastructure || operationalInfrastructure(region, type.requiresInfrastructure)) &&
+    (!type.requiresDeposit || Boolean(region.deposits?.[type.requiresDeposit])) &&
+    (!type.minPopulation || (region.population || 0) >= type.minPopulation) &&
     (!type.unique || !state.assets.some((asset) => asset.typeId === type.id)) &&
     !state.projects.some((project) => project.typeId === type.id && project.status === 'active'));
 }
@@ -70,7 +149,9 @@ export function startConstruction(region, typeId, requestedWorkers, currentTick)
   const type = CONSTRUCTION_TYPES[typeId];
   if (!type || (type.requiredTechId && !region.unlockedTechIds.has(type.requiredTechId)) ||
       (type.coastal && !region.isCoastal) ||
-      (type.requiresInfrastructure && !operationalInfrastructure(region, type.requiresInfrastructure))) return null;
+      (type.requiresInfrastructure && !operationalInfrastructure(region, type.requiresInfrastructure)) ||
+      (type.requiresDeposit && !region.deposits?.[type.requiresDeposit]) ||
+      (type.minPopulation && (region.population || 0) < type.minPopulation)) return null;
   const state = ensureConstruction(region);
   if (type.unique && state.assets.some((asset) => asset.typeId === type.id)) return null;
   if (state.projects.some((project) => project.typeId === typeId && project.status === 'active')) return null;
@@ -196,6 +277,22 @@ export function hillFortDefenceMultiplier(region) {
   return 1 + Math.min(0.45, forts * 0.22);
 }
 
+// Centralised, condition-scaled bonuses keep every subsystem consistent: a
+// half-ruined road, wall or canal cannot provide its full paper benefit.
+export function infrastructureBonus(region, typeId, fullBonus) {
+  return Math.min(fullBonus, effectiveInfrastructureCount(region, typeId) * fullBonus);
+}
+
+export function settlementDefenceMultiplier(region) {
+  return 1 + infrastructureBonus(region, 'watchtowers', 0.12) +
+    infrastructureBonus(region, 'settlement_walls', 0.38);
+}
+
+export function overlandInfrastructureMultiplier(region) {
+  return 1 + infrastructureBonus(region, 'road_network', 0.3) +
+    infrastructureBonus(region, 'canal', 0.12);
+}
+
 function availableWorkers(region) {
   return Math.max(0, (region.demographics?.workingAge || 0) - (region.army?.personnel || 0) -
     (region.navy?.personnel || 0) - (region.emergencyMilitiaPersonnel || 0));
@@ -286,6 +383,25 @@ export function chooseAiConstruction(region, currentTick, rng = Math.random) {
   if (granaries < 3 && potteryCoverage >= 0.15 && granaryReady && rng() < 0.002) {
     const workers = Math.min(100, Math.max(15, Math.round((region.demographics?.workingAge || 0) * 0.01)));
     return startConstruction(region, 'public_granary', workers, currentTick);
+  }
+  const available = new Set(availableConstructionTypes(region).map((type) => type.id));
+  if (rng() < 0.004 && (region.treasury || 0) >= 5) {
+    const candidates = [
+      ['wells_cisterns', (region.weather?.yieldMultiplier || 1) < 0.9 ? 8 : 3],
+      ['irrigation', (region.report?.foodPlan?.shortfall || 0) > 0 ? 9 : 4],
+      ['road_network', (region.tradeEconomy?.weeklyExports || 0) > 20 ? 7 : 2],
+      ['market_customs', (region.tradeEconomy?.weeklyExports || 0) > 30 ? 8 : 2],
+      ['state_quarry', (region.stockpile?.stone || 0) < 800 ? 6 : 2],
+      ['deep_mine', 4], ['mine_drainage', 3],
+      ['watchtowers', (region.safetyRating || 1) < 0.75 ? 9 : 2],
+      ['settlement_walls', (region.conflictPressure || 0) > 0 ? 10 : 3],
+      ['royal_arsenal', (region.army?.personnel || 0) > 250 ? 6 : 2],
+      ['administrative_centre', (region.population || 0) > 12000 ? 6 : 2],
+      ['canal', (region.population || 0) > 20000 ? 5 : 1],
+    ].filter(([id]) => available.has(id)).sort((a, b) => b[1] - a[1]);
+    const chosen = candidates.find(([id]) => Object.entries(CONSTRUCTION_TYPES[id].materials)
+      .every(([resource, amount]) => (region.stockpile?.[resource] || 0) >= amount * 0.5));
+    if (chosen) return startConstruction(region, chosen[0], CONSTRUCTION_TYPES[chosen[0]].defaultWorkers, currentTick);
   }
   if (!region.unlockedTechIds.has(HILL_FORT_TECH_ID) || rng() > 0.003) return null;
   const threatened = (region.safetyRating || 0) < 0.72 || (region.conflictPressure || 0) > 0;

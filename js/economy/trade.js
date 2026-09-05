@@ -2,7 +2,7 @@ import { localPrice, TRADABLE_RESOURCES } from './prices.js?v=20260904-weather1'
 import { directContactIds, knownRegionIds, recordDirectTrade, diffuseTradeNetworkKnowledge } from '../core/knowledge.js?v=20260904-weather1';
 import { centroidDistanceKm } from '../world/distance.js?v=20260904-weather1';
 import { advancedMaritimeShare } from '../military/army.js?v=20260905-infra1';
-import { operationalInfrastructure } from './construction.js?v=20260905-infra1';
+import { effectiveInfrastructureCount, operationalInfrastructure, overlandInfrastructureMultiplier } from './construction.js?v=20260905-projects1';
 import { horseTransportMultiplier } from './horses.js?v=20260904-weather1';
 import { recordDiplomaticTrade, tradeRelationMultiplier } from '../diplomacy/relations.js?v=20260904-save1';
 import { navalMissionProfile, postureProfile } from '../military/policies.js?v=20260904-policy1';
@@ -74,7 +74,9 @@ function routeReliability(regionA, regionB) {
     const naval = navalMissionProfile(region);
     const patrolCoverage = clamp01((region.navy?.personnel || 0) /
       Math.max(1, (region.population || 0) * 0.005));
-    return clamp01((region.safetyRating ?? 1) * posture.tradeSecurity +
+    const publicSecurity = Math.min(0.16, effectiveInfrastructureCount(region, 'watchtowers') * 0.1 +
+      effectiveInfrastructureCount(region, 'market_customs') * 0.06);
+    return clamp01((region.safetyRating ?? 1) * posture.tradeSecurity + publicSecurity +
       patrolCoverage * Math.max(0, naval.trade - 1) * 0.35);
   };
   const security = Math.min(routeSecurity(regionA), routeSecurity(regionB));
@@ -128,7 +130,8 @@ function finishTradeWeek(region) {
 
 export function routeCost(regionA, regionB) {
   const geometry = routeGeometry(regionA, regionB);
-  const landTransport = Math.max(horseTransportMultiplier(regionA), horseTransportMultiplier(regionB));
+  const landTransport = Math.max(horseTransportMultiplier(regionA) * overlandInfrastructureMultiplier(regionA),
+    horseTransportMultiplier(regionB) * overlandInfrastructureMultiplier(regionB));
   if (geometry.adjacent) return LAND_ADJACENT_COST / landTransport;
   if (geometry.sharedSea) {
     return SEA_COST_PER_KM * geometry.distanceKm * seaTransportProfile(regionA, regionB).costMultiplier;
@@ -166,7 +169,9 @@ function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByR
       if (stockAvailable <= 0) continue;
       const price = (priceHere + priceThere) / 2;
       opportunities.push({ resource, dest, gap, stockAvailable, stockRemaining: stockAvailable, price, reliability,
-        transportMultiplier: transport.capacityMultiplier });
+        transportMultiplier: transport.capacityMultiplier * (1 + Math.min(0.35,
+          effectiveInfrastructureCount(region, 'market_customs') * 0.2 +
+          effectiveInfrastructureCount(region, 'canal') * 0.15)) });
     }
   }
   opportunities.sort((a, b) => b.gap - a.gap);

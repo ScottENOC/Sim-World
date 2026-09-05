@@ -4,6 +4,7 @@ import { FOOD_PER_PERSON_PER_WEEK } from '../economy/labor.js?v=20260904-weather
 import { directContactIds } from '../core/knowledge.js?v=20260904-weather1';
 import { protectionPowerFor } from '../diplomacy/relations.js?v=20260904-save1';
 import { ensureMilitaryPolicy, postureProfile } from './policies.js?v=20260904-policy1';
+import { effectiveInfrastructureCount } from '../economy/construction.js?v=20260905-projects1';
 
 // Even with zero army, a bandit group doesn't last forever — disorganized,
 // exposed, some natural die-off. Suppression on top of that scales with
@@ -55,7 +56,8 @@ export function tickBanditry(regions, toolTypes, agreements = []) {
     const policy = ensureMilitaryPolicy(region);
     const posture = postureProfile(region);
     const alliedProtection = protectionPowerFor(region.id, agreements);
-    const power = (effectivePower(region, toolTypes) + alliedProtection) * posture.localPower;
+    const watchtowerPower = (region.population || 0) * 0.0025 * effectiveInfrastructureCount(region, 'watchtowers');
+    const power = (effectivePower(region, toolTypes) + alliedProtection + watchtowerPower) * posture.localPower;
     const banditPop = region.banditPopulation;
     const totalLocal = region.population + banditPop;
     const banditPressure = totalLocal > 0 ? banditPop / totalLocal : 0;

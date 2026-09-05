@@ -7,7 +7,7 @@ import { advancedNavyShare, navyTransportCapacity } from './army.js?v=20260905-i
 import { armyCohesionMultiplier, navalMissionProfile, postureProfile } from './policies.js?v=20260904-policy1';
 import { establishVassalage, findLandStagingRegion } from '../politics/polities.js?v=20260904-war1';
 import { removeFromBands, syncPopulation } from '../society/demographics.js?v=20260904-weather1';
-import { hillFortDefenceMultiplier } from '../economy/construction.js?v=20260905-infra1';
+import { effectiveInfrastructureCount, hillFortDefenceMultiplier, overlandInfrastructureMultiplier, settlementDefenceMultiplier } from '../economy/construction.js?v=20260905-projects1';
 import { returnSiegeTrain, survivingFortBenefit, takeSiegeTrain } from './siegeEquipment.js?v=20260905-siege1';
 
 export const CAMPAIGN_OBJECTIVES = Object.freeze({
@@ -32,7 +32,7 @@ export function campaignTravelWeeks(attacker, defender, viaSea) {
   const distance = centroidDistanceKm(attacker, defender) ?? 500;
   const speed = viaSea
     ? SEA_SPEED_KM_PER_WEEK * (1 + advancedNavyShare(attacker) * 0.5)
-    : LAND_SPEED_KM_PER_WEEK * horseLandSpeedMultiplier(attacker);
+    : LAND_SPEED_KM_PER_WEEK * horseLandSpeedMultiplier(attacker) * overlandInfrastructureMultiplier(attacker);
   return Math.max(1, Math.ceil(distance / speed));
 }
 
@@ -109,8 +109,9 @@ export function conflictResourceAccess(region) {
 
 function combatPower(region, personnel, toolTypes, role, supply = 1, morale = 1, siegeTrain = null) {
   const equipment = toolEfficiencyMultiplier(region, 'soldier', toolTypes.soldier, region.unlockedTechIds);
-  const fortCount = Math.max(0, region.infrastructure?.hillForts || 0);
-  const fullFortMultiplier = hillFortDefenceMultiplier(region);
+  const fortCount = effectiveInfrastructureCount(region, 'hill_fort') +
+    effectiveInfrastructureCount(region, 'settlement_walls') * 1.5;
+  const fullFortMultiplier = hillFortDefenceMultiplier(region) * settlementDefenceMultiplier(region);
   const fortMultiplier = role === 'defender'
     ? 1 + (fullFortMultiplier - 1) * survivingFortBenefit(siegeTrain, fortCount) : 1;
   const homeAdvantage = role === 'defender'
@@ -165,8 +166,11 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   const foodSupplied = Math.min(foodNeeded, Math.max(0, attacker.stockpile?.food || 0));
   attacker.stockpile.food = Math.max(0, (attacker.stockpile.food || 0) - foodSupplied);
   const supplySuccess = foodNeeded > 0 ? foodSupplied / foodNeeded : 1;
+  const defenderWater = Math.min(0.012, effectiveInfrastructureCount(defender, 'wells_cisterns') * 0.007 +
+    effectiveInfrastructureCount(defender, 'canal') * 0.005);
   const supplyDrain = 0.018 + campaign.travelWeeks * 0.0025 + (defender.isCoastal ? (1 - control) * 0.035 : 0);
   campaign.supply = clamp(campaign.supply + supplySuccess * 0.035 - supplyDrain - campaign.pressure * 0.008);
+  campaign.defenderMorale = clamp(campaign.defenderMorale + defenderWater);
 
   const attackerPower = combatPower(attacker, campaign.personnel, toolTypes, 'attacker', campaign.supply, campaign.attackerMorale);
   const defenderArmyPower = combatPower(defender, defender.army.personnel, toolTypes, 'defender', 1, campaign.defenderMorale, campaign.siegeEquipment);

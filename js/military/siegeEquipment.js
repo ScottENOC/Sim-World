@@ -1,5 +1,6 @@
 import { localPrice } from '../economy/prices.js?v=20260904-weather1';
 import { spendMilitaryProcurement } from '../economy/stateFinance.js?v=20260904-weather1';
+import { effectiveInfrastructureCount } from '../economy/construction.js?v=20260905-projects1';
 
 export const CATAPULT_TECH_ID = 'torsion_catapults';
 
@@ -59,7 +60,8 @@ export function prepareSiegeWorkforce(regions) {
       (region.army?.personnel || 0) - (region.navy?.personnel || 0) -
       (region.emergencyMilitiaPersonnel || 0) - (region.construction?.workersReserved || 0));
     const afterMaintenance = Math.max(0, available - (region.construction?.maintenanceWorkersReserved || 0));
-    state.workersReserved = Math.min(type.workers, Math.floor(afterMaintenance));
+    const arsenalSpeed = 1 + Math.min(0.5, effectiveInfrastructureCount(region, 'royal_arsenal') * 0.5);
+    state.workersReserved = Math.min(Math.ceil(type.workers / arsenalSpeed), Math.floor(afterMaintenance));
   }
 }
 
@@ -79,7 +81,9 @@ export function tickSiegeEquipment(regions) {
     const state = ensureSiegeEquipment(region);
     const type = nextWantedType(region);
     state.lastWeek = null;
-    if (!type || state.workersReserved < type.workers) continue;
+    const requiredWorkers = type ? Math.ceil(type.workers /
+      (1 + Math.min(0.5, effectiveInfrastructureCount(region, 'royal_arsenal') * 0.5))) : 0;
+    if (!type || state.workersReserved < requiredWorkers) continue;
     const metal = chooseMetal(region, type);
     if (!metal || (region.stockpile?.wood || 0) < type.woodCost) {
       state.lastWeek = { stalledReason: !metal ? 'Suitable metal is unavailable' : 'Wood is unavailable' };
@@ -100,7 +104,7 @@ export function tickSiegeEquipment(regions) {
     region.stockpile.wood -= type.woodCost;
     region.stockpile[metal] -= type.metalCost;
     state.inventory[type.id][metal] += 1;
-    state.experience += type.workers;
+    state.experience += requiredWorkers;
     state.lastWeek = { built: type.id, metal, cost };
   }
 }

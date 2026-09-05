@@ -1,3 +1,5 @@
+import { effectiveInfrastructureCount } from './construction.js?v=20260905-projects1';
+
 // State finance connects the commercial collapse to military failure. Taxes
 // are transfers from populace wealth, not newly-created money; wages and
 // procurement return treasury money to the populace. Revenue therefore rises
@@ -58,15 +60,19 @@ function ensureMilitaryFinance(region) {
 export function tickStateFinance(regions) {
   for (const region of regions) {
     const finance = ensureMilitaryFinance(region);
+    const administrativeBonus = Math.min(0.28,
+      effectiveInfrastructureCount(region, 'administrative_centre') * 0.18 +
+      effectiveInfrastructureCount(region, 'market_customs') * 0.1);
     const collectionEffectiveness = clamp01(
       0.2 + 0.5 * (region.stability ?? 1) + 0.3 * (region.safetyRating ?? 1)
-    ) * clamp01(finance.stateCapacity);
+    ) * clamp01(finance.stateCapacity + administrativeBonus);
     const wealthTax = Math.min(
       Math.max(0, region.wallet || 0),
       Math.max(0, region.wallet || 0) * WEEKLY_WEALTH_TAX_RATE * collectionEffectiveness
     );
     const tradeDuties = Math.min(
-      Math.max(0, (region.tradeEconomy?.weeklyExports || 0) * EXPORT_DUTY_RATE * collectionEffectiveness),
+      Math.max(0, (region.tradeEconomy?.weeklyExports || 0) * EXPORT_DUTY_RATE *
+        (1 + Math.min(0.4, effectiveInfrastructureCount(region, 'market_customs') * 0.4)) * collectionEffectiveness),
       Math.max(0, (region.wallet || 0) - wealthTax)
     );
     const revenue = wealthTax + tradeDuties;

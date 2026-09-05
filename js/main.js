@@ -3,25 +3,25 @@ import { EventBus } from './core/eventBus.js?v=20260904-weather1';
 import { loadWorld } from './world/region.js?v=20260905-infra1';
 import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260904-weather1';
 import { seedCensus, densityPerKm2 } from './society/census.js?v=20260904-weather1';
-import { tickEconomy } from './economy/labor.js?v=20260905-infra1';
-import { tickTrade } from './economy/trade.js?v=20260905-infra1';
-import { tickStateFinance } from './economy/stateFinance.js?v=20260904-weather1';
+import { tickEconomy } from './economy/labor.js?v=20260905-projects1';
+import { tickTrade } from './economy/trade.js?v=20260905-projects1';
+import { tickStateFinance } from './economy/stateFinance.js?v=20260905-projects1';
 import { tickDemographics } from './society/demographics.js?v=20260904-weather1';
-import { tickBanditry } from './military/banditry.js?v=20260904-policy1';
-import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable, syncNextRaidId } from './military/raiding.js?v=20260905-infra1';
-import { tickNationAi } from './ai/nationAi.js?v=20260905-infra1';
+import { tickBanditry } from './military/banditry.js?v=20260905-projects1';
+import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable, syncNextRaidId } from './military/raiding.js?v=20260905-projects1';
+import { tickNationAi } from './ai/nationAi.js?v=20260905-projects1';
 import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260904-weather1';
-import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID, CATAPULT_TECH_ID } from './technology/breakthroughs.js?v=20260905-siege1';
+import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID, CATAPULT_TECH_ID } from './technology/breakthroughs.js?v=20260905-projects1';
 import { MapRenderer } from './ui/mapRenderer.js?v=20260904-war1';
-import { AdvisorCouncil } from './ui/advisors.js?v=20260905-infra1';
+import { AdvisorCouncil } from './ui/advisors.js?v=20260905-projects1';
 import { FogOfWar } from './core/fogOfWar.js?v=20260904-weather1';
 import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260904-weather1';
 import { attitudeLabel, attitudeToward, canDiplomaticallyReach, endAgreement, proposeAgreement, syncNextAgreementId, tickDiplomacy } from './diplomacy/relations.js?v=20260904-save1';
 import { availableVassalLevies, changeGovernanceForm, demandVassalage, governanceFormAvailability, governanceLabel, initialisePolities, musterVassalLevies, setDelegatedPower, setGovernancePolicy, sovereignPolity, tickPolities } from './politics/polities.js?v=20260904-war1';
 import { createGameSnapshot, readSave, restoreGameSnapshot, saveSummary, writeSave } from './core/saveGame.js?v=20260904-war1';
-import { syncNextCampaignId, tickCampaigns } from './military/campaigns.js?v=20260905-infra1';
-import { prepareConstructionLabor, syncNextProjectId, tickConstruction, tickInfrastructureMaintenance } from './economy/construction.js?v=20260905-infra1';
-import { prepareSiegeWorkforce, tickSiegeEquipment } from './military/siegeEquipment.js?v=20260905-siege1';
+import { syncNextCampaignId, tickCampaigns } from './military/campaigns.js?v=20260905-projects1';
+import { prepareConstructionLabor, syncNextProjectId, tickConstruction, tickInfrastructureMaintenance } from './economy/construction.js?v=20260905-projects1';
+import { prepareSiegeWorkforce, tickSiegeEquipment } from './military/siegeEquipment.js?v=20260905-projects1';
 
 const START_YEAR = -1300; // target: roughly eighty prosperous years before a c.1220 BCE collapse
 const LAYERS = {
@@ -993,6 +993,17 @@ function showNextEvent(clock, eventQueue) {
       Engineers in ${event.regionName} have learnt to store tremendous force in twisted cords and release it through a throwing arm.<br><br>
       Catapults can now be ordered through the Marshal. They are costly, but reduce fortification advantages much more effectively than battering rams.
     `;
+    wireEventContinue(clock, eventQueue);
+    return;
+  }
+  if (['water_management_breakthrough', 'shaft_mining_breakthrough', 'mine_drainage_breakthrough'].includes(event.type)) {
+    const details = {
+      water_management_breakthrough: ['Water management', 'Builders can now commission irrigation works and, in a large irrigated settlement, a canal.'],
+      shaft_mining_breakthrough: ['Shaft mining', 'Deep mine works can now be commissioned before miners exploit buried ore.'],
+      mine_drainage_breakthrough: ['Mine drainage', 'Drainage works can now extend an operational deep mine beneath the water table.'],
+    }[event.type];
+    document.getElementById('event-title').textContent = `Breakthrough: ${details[0]}`;
+    document.getElementById('event-body').textContent = `${details[1]} Knowledge alone is not infrastructure: materials, labour, maintenance and treasury support are still required.`;
     wireEventContinue(clock, eventQueue);
     return;
   }

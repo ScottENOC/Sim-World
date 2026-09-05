@@ -2,6 +2,9 @@ export const IRON_SMELTING_TECH_ID = 'iron_smelting';
 export const ADVANCED_BOATBUILDING_TECH_ID = 'advanced_boatbuilding';
 export const HILL_FORT_TECH_ID = 'hill_forts';
 export const CATAPULT_TECH_ID = 'torsion_catapults';
+export const WATER_MANAGEMENT_TECH_ID = 'water_management';
+export const SHAFT_MINING_TECH_ID = 'shaft_mining';
+export const MINE_DRAINAGE_TECH_ID = 'mine_drainage';
 
 // With hundreds of independent regions, even a tiny per-region chance can
 // produce an early world-first. These values make accumulated craft knowledge
@@ -24,6 +27,36 @@ const HILL_FORT_DIFFUSION_CHANCE = 0.004;
 const CATAPULT_EARLIEST_TICK = 35_000;
 const MAX_CATAPULT_INNOVATION_CHANCE = 0.00005;
 const CATAPULT_DIFFUSION_CHANCE = 0.001;
+const CIVIL_ENGINEERING_DIFFUSION_CHANCE = 0.0015;
+
+function neighbourDiffusion(region, regionsById, techId, chance = CIVIL_ENGINEERING_DIFFUSION_CHANCE) {
+  const knowledgeable = (region.neighbors || []).filter((id) =>
+    regionsById.get(id)?.unlockedTechIds.has(techId)).length;
+  return 1 - Math.pow(1 - chance, knowledgeable);
+}
+
+export function waterManagementChance(region, regionsById) {
+  if (region.unlockedTechIds.has(WATER_MANAGEMENT_TECH_ID)) return 0;
+  const farmers = Math.max(0, region.report?.farming?.workers || 0);
+  const need = Math.max(0, 1 - (region.weather?.yieldMultiplier ?? 1));
+  const independent = Math.min(0.00004, farmers / 5_000_000) * (0.35 + need * 2);
+  return 1 - (1 - independent) * (1 - neighbourDiffusion(region, regionsById, WATER_MANAGEMENT_TECH_ID));
+}
+
+export function shaftMiningChance(region, regionsById) {
+  if (region.unlockedTechIds.has(SHAFT_MINING_TECH_ID)) return 0;
+  const experience = Math.max(0, region.experience?.mining || 0);
+  const hasOre = Object.keys(region.deposits || {}).some((key) => key !== 'clay' && key !== 'stone');
+  const independent = hasOre ? (1 - Math.exp(-experience / 100_000)) * 0.000035 : 0;
+  return 1 - (1 - independent) * (1 - neighbourDiffusion(region, regionsById, SHAFT_MINING_TECH_ID));
+}
+
+export function mineDrainageChance(region, regionsById) {
+  if (region.unlockedTechIds.has(MINE_DRAINAGE_TECH_ID) || !region.unlockedTechIds.has(SHAFT_MINING_TECH_ID)) return 0;
+  const experience = Math.max(0, region.experience?.mining || 0);
+  const independent = (1 - Math.exp(-experience / 250_000)) * 0.000018;
+  return 1 - (1 - independent) * (1 - neighbourDiffusion(region, regionsById, MINE_DRAINAGE_TECH_ID, 0.0008));
+}
 
 export function hillFortChance(region, regionsById) {
   if (region.unlockedTechIds.has(HILL_FORT_TECH_ID)) return 0;
@@ -135,6 +168,9 @@ export function tickBreakthroughs(regions, currentTick, rng = Math.random) {
   const boatDiscoveries = regions.filter((region) => rng() < advancedBoatbuildingChance(region, regionsById, currentTick));
   const hillFortDiscoveries = regions.filter((region) => rng() < hillFortChance(region, regionsById));
   const catapultDiscoveries = regions.filter((region) => rng() < catapultChance(region, regionsById, currentTick));
+  const waterDiscoveries = regions.filter((region) => rng() < waterManagementChance(region, regionsById));
+  const shaftDiscoveries = regions.filter((region) => rng() < shaftMiningChance(region, regionsById));
+  const drainageDiscoveries = regions.filter((region) => rng() < mineDrainageChance(region, regionsById));
   for (const region of ironDiscoveries) {
     region.unlockedTechIds.add(IRON_SMELTING_TECH_ID);
     region.ironWorkingReadiness = Math.max(0.02, region.ironWorkingReadiness || 0);
@@ -161,6 +197,14 @@ export function tickBreakthroughs(regions, currentTick, rng = Math.random) {
   for (const region of catapultDiscoveries) {
     region.unlockedTechIds.add(CATAPULT_TECH_ID);
     events.push({ type: 'catapult_breakthrough', regionId: region.id, regionName: region.name, tick: currentTick });
+  }
+  for (const [discoveries, techId, type] of [
+    [waterDiscoveries, WATER_MANAGEMENT_TECH_ID, 'water_management_breakthrough'],
+    [shaftDiscoveries, SHAFT_MINING_TECH_ID, 'shaft_mining_breakthrough'],
+    [drainageDiscoveries, MINE_DRAINAGE_TECH_ID, 'mine_drainage_breakthrough'],
+  ]) for (const region of discoveries) {
+    region.unlockedTechIds.add(techId);
+    events.push({ type, regionId: region.id, regionName: region.name, tick: currentTick });
   }
   for (const region of regions) {
     advanceIronIndustry(region);
