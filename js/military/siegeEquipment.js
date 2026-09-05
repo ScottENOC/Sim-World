@@ -54,8 +54,6 @@ function nextWantedType(region) {
 export function prepareSiegeWorkforce(regions) {
   for (const region of regions) {
     const state = ensureSiegeEquipment(region);
-    let buildsRemaining = maxBuilds;
-    while (buildsRemaining-- > 0) {
     const type = nextWantedType(region);
     if (!type) { state.workersReserved = 0; continue; }
     const available = Math.max(0, (region.demographics?.workingAge || 0) -
@@ -82,33 +80,34 @@ export function tickSiegeEquipment(regions, elapsedDays = 7) {
   const maxBuilds = Math.max(1, Math.floor(elapsedDays / 7));
   for (const region of regions) {
     const state = ensureSiegeEquipment(region);
-    const type = nextWantedType(region);
     state.lastWeek = null;
-    const requiredWorkers = type ? Math.ceil(type.workers /
-      (1 + Math.min(0.5, effectiveInfrastructureCount(region, 'royal_arsenal') * 0.5))) : 0;
-    if (!type || state.workersReserved < requiredWorkers) continue;
-    const metal = chooseMetal(region, type);
-    if (!metal || (region.stockpile?.wood || 0) < type.woodCost) {
-      state.lastWeek = { stalledReason: !metal ? 'Suitable metal is unavailable' : 'Wood is unavailable' };
-      continue;
-    }
-    const cost = type.woodCost * localPrice(region, 'wood') +
-      type.metalCost * localPrice(region, metal);
-    if (Math.min(region.militaryFinance?.procurementBudget || 0, region.treasury || 0) + 0.001 < cost) {
-      state.lastWeek = { stalledReason: 'Military procurement funds are insufficient' };
-      continue;
-    }
-    const paid = spendMilitaryProcurement(region, cost);
-    if (paid + 0.001 < cost) {
-      state.lastWeek = { stalledReason: 'Military procurement funds are insufficient' };
-      continue;
-    }
-    region.wallet = Math.max(0, (region.wallet || 0) + paid);
-    region.stockpile.wood -= type.woodCost;
-    region.stockpile[metal] -= type.metalCost;
-    state.inventory[type.id][metal] += 1;
-    state.experience += requiredWorkers;
-    state.lastWeek = { built: type.id, metal, cost };
+    for (let build = 0; build < maxBuilds; build++) {
+      const type = nextWantedType(region);
+      const requiredWorkers = type ? Math.ceil(type.workers /
+        (1 + Math.min(0.5, effectiveInfrastructureCount(region, 'royal_arsenal') * 0.5))) : 0;
+      if (!type || state.workersReserved < requiredWorkers) break;
+      const metal = chooseMetal(region, type);
+      if (!metal || (region.stockpile?.wood || 0) < type.woodCost) {
+        state.lastWeek = { stalledReason: !metal ? 'Suitable metal is unavailable' : 'Wood is unavailable' };
+        break;
+      }
+      const cost = type.woodCost * localPrice(region, 'wood') +
+        type.metalCost * localPrice(region, metal);
+      if (Math.min(region.militaryFinance?.procurementBudget || 0, region.treasury || 0) + 0.001 < cost) {
+        state.lastWeek = { stalledReason: 'Military procurement funds are insufficient' };
+        break;
+      }
+      const paid = spendMilitaryProcurement(region, cost);
+      if (paid + 0.001 < cost) {
+        state.lastWeek = { stalledReason: 'Military procurement funds are insufficient' };
+        break;
+      }
+      region.wallet = Math.max(0, (region.wallet || 0) + paid);
+      region.stockpile.wood -= type.woodCost;
+      region.stockpile[metal] -= type.metalCost;
+      state.inventory[type.id][metal] += 1;
+      state.experience += requiredWorkers;
+      state.lastWeek = { built: type.id, metal, cost };
     }
   }
 }
@@ -144,8 +143,6 @@ export function siegeTrainCount(train) {
     sum + Object.values(byMetal || {}).reduce((n, value) => n + Math.max(0, value || 0), 0), 0);
 }
 
-// Returns the fraction of a fortification bonus that survives the siege train.
-// Bronze fittings bear shock and tension better than the game's early iron.
 export function survivingFortBenefit(train, fortCount) {
   if (fortCount <= 0) return 1;
   let reduction = 0;
