@@ -26,6 +26,14 @@ jobs:
           echo "ONE_YEAR_MS=$elapsed_ms"
           echo "ONE_YEAR_MS_PER_WEEK=$(awk -v ms="$elapsed_ms" 'BEGIN { printf "%.2f", ms / 52 }')"
           node -e "const r=require('./calibration-1y.json'); console.log('ONE_YEAR_RUNNER_SECONDS='+r.elapsedSeconds)"
+      - name: V8 hotspot profile
+        shell: bash
+        run: |
+          rm -f simworld-v8.log v8-profile.txt
+          node --prof --logfile=simworld-v8.log tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --output /tmp/profile-calibration.json >/dev/null
+          node --prof-process simworld-v8.log > v8-profile.txt
+          echo '=== V8 PROFILE TOP ==='
+          sed -n '1,180p' v8-profile.txt
       - name: Two-year calibration
         shell: bash
         run: |
