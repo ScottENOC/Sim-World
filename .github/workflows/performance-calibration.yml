@@ -25,7 +25,7 @@ jobs:
           elapsed_ms=$(( (end - start) / 1000000 ))
           echo "ONE_YEAR_MS=$elapsed_ms"
           echo "ONE_YEAR_MS_PER_WEEK=$(awk -v ms="$elapsed_ms" 'BEGIN { printf "%.2f", ms / 52 }')"
-          node -e "const r=require('./calibration-1y.json'); console.log('ONE_YEAR_RUNNER_SECONDS='+r.elapsedSeconds)"
+          node -e "const r=require('./calibration-1y.json'); const s=r.runs[0].timeline.at(-1); console.log('ONE_YEAR_RUNNER_SECONDS='+r.elapsedSeconds); console.log('ONE_YEAR_WEEKLY_TRADE='+s.weeklyTrade); console.log('ONE_YEAR_SMOOTHED_WEEKLY_TRADE='+s.smoothedWeeklyTrade); console.log('ONE_YEAR_WEEKLY_FOOD_IMPORTS='+s.weeklyFoodImports)"
       - name: V8 hotspot profile
         shell: bash
         run: |
@@ -45,7 +45,7 @@ jobs:
           elapsed_ms=$(( (end - start) / 1000000 ))
           echo "TWO_YEAR_MS=$elapsed_ms"
           echo "TWO_YEAR_MS_PER_WEEK=$(awk -v ms="$elapsed_ms" 'BEGIN { printf "%.2f", ms / 104 }')"
-          node -e "const r=require('./calibration-2y.json'); console.log('TWO_YEAR_RUNNER_SECONDS='+r.elapsedSeconds)"
+          node -e "const r=require('./calibration-2y.json'); const s=r.runs[0].timeline.at(-1); console.log('TWO_YEAR_RUNNER_SECONDS='+r.elapsedSeconds); console.log('TWO_YEAR_WEEKLY_TRADE='+s.weeklyTrade); console.log('TWO_YEAR_SMOOTHED_WEEKLY_TRADE='+s.smoothedWeeklyTrade); console.log('TWO_YEAR_WEEKLY_FOOD_IMPORTS='+s.weeklyFoodImports)"
       - name: Religion share summary
         run: |
           node --input-type=module <<'NODE'
