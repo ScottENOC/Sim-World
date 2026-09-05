@@ -315,6 +315,8 @@ const OCCUPATION_MOBILITY = {
   shoreFisher:   { enter: 0.05, exit: 0.04,  deadband: 0.04 },
   boatFisher:    { enter: 0.035, exit: 0.025, deadband: 0.05 },
   lumberjack:    { enter: 0.035, exit: 0.025, deadband: 0.05 },
+  miner:         { enter: 0.025, exit: 0.018, deadband: 0.06 },
+  boatmaker:     { enter: 0.015, exit: 0.010, deadband: 0.08 },
   textileWorker: { enter: 0.02, exit: 0.015, deadband: 0.07 },
   smith:         { enter: 0.012, exit: 0.008, deadband: 0.08 },
   potter:        { enter: 0.018, exit: 0.012, deadband: 0.07 },
@@ -839,6 +841,8 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
     minersUsed += minerAllocation[key];
     minedThisTick[key] = gathered;
   }
+  const minerCareerCount = persistentWorkforce(region, 'miner', minersUsed, minerBudget,
+    { impossible: openResources.length === 0 });
   accumulateExperience(region, 'mining', minersUsed);
   report.mining = { workers: Math.round(minersUsed), ...minedThisTick };
 
@@ -884,7 +888,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   // stream. Kiln fuel makes storage compete modestly with boats and heating
   // for wood rather than being a free population modifier.
   const potterySkill = skillMultiplier(region, 'pottery');
-  const potteryLaborAvailable = Math.max(0, remainingSurplus - minersUsed - actualSmiths);
+  const potteryLaborAvailable = Math.max(0, remainingSurplus - minerCareerCount - desiredSmithsLabor);
   const potteryByLabor = potteryLaborAvailable * POTTERY_PER_POTTER * potterySkill;
   const potteryByClay = (region.stockpile.clay || 0) / POTTERY_CLAY_COST;
   const potteryByWood = (region.stockpile.wood || 0) / POTTERY_WOOD_COST;
@@ -930,8 +934,10 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
     }
   }
 
+  const boatMakerCareerCount = persistentWorkforce(region, 'boatmaker', boatMakers,
+    Math.max(boatMakers, remainingSurplus + boatMakers));
   const leftover = Math.round(Math.max(0, surplus - lumberjacks - pitchWorkers - textileWorkers -
-    boatMakers - minersUsed - actualSmiths - potters));
+    boatMakerCareerCount - minerCareerCount - desiredSmithsLabor - potteryLaborReserve));
   // Trade gets first claim on whatever's left before it's written off as
   // general population — trade.js reads this and reduces occupations.general
   // by however much it actually uses.
@@ -943,12 +949,12 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
     shoreFisher: Math.round(shoreFishers),
     boatFisher: Math.round(boatFishers),
     lumberjack: Math.round(lumberjacks),
-    boatmaker: Math.round(boatMakers),
+    boatmaker: Math.round(boatMakerCareerCount),
     pitchMaker: Math.round(pitchWorkers),
     textileWorker: Math.round(textileWorkers),
-    potter: Math.round(potters),
-    miner: Math.round(minersUsed),
-    smith: Math.round(actualSmiths),
+    potter: Math.round(potteryLaborReserve),
+    miner: Math.round(minerCareerCount),
+    smith: Math.round(desiredSmithsLabor),
     soldier: Math.round(region.army.personnel),
     sailor: Math.round(region.navy.personnel),
     horseBreeder: Math.round(horseReport.breeders),
