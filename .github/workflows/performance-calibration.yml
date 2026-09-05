@@ -15,57 +15,51 @@ jobs:
         with:
           node-version: '22'
       - name: Syntax check
-        run: find js -name '*.js' -print0 | xargs -0 -n1 node --check
-      - name: One-year calibration
+        run: find js tools -type f \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check
+      - name: Current-world monthly benchmark
         shell: bash
         run: |
           start=$(date +%s%N)
-          node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --output calibration-1y.json
+          node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 1 --output calibration-1x.json
           end=$(date +%s%N)
           elapsed_ms=$(( (end - start) / 1000000 ))
-          echo "ONE_YEAR_MS=$elapsed_ms"
-          echo "ONE_YEAR_MS_PER_WEEK=$(awk -v ms="$elapsed_ms" 'BEGIN { printf "%.2f", ms / 52 }')"
-          node -e "const r=require('./calibration-1y.json'); const s=r.runs[0].timeline.at(-1); console.log('ONE_YEAR_RUNNER_SECONDS='+r.elapsedSeconds); console.log('ONE_YEAR_WEEKLY_TRADE='+s.weeklyTrade); console.log('ONE_YEAR_SMOOTHED_WEEKLY_TRADE='+s.smoothedWeeklyTrade); console.log('ONE_YEAR_WEEKLY_FOOD_IMPORTS='+s.weeklyFoodImports)"
-      - name: V8 hotspot profile
+          ticks=13
+          echo "CURRENT_WORLD_MS=$elapsed_ms"
+          echo "CURRENT_WORLD_MS_PER_TICK=$(awk -v ms="$elapsed_ms" -v ticks="$ticks" 'BEGIN { printf "%.2f", ms / ticks }')"
+          echo "TARGET_MS_PER_TICK=50"
+          node -e "const r=require('./calibration-1x.json'); console.log('CURRENT_WORLD_SCALE='+r.configuration.worldScale); console.log('DAYS_PER_TICK='+r.configuration.daysPerTick); console.log('RUNNER_SECONDS='+r.elapsedSeconds)"
+      - name: Ten-times-world monthly benchmark
+        shell: bash
+        run: |
+          start=$(date +%s%N)
+          node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 10 --output calibration-10x.json
+          end=$(date +%s%N)
+          elapsed_ms=$(( (end - start) / 1000000 ))
+          ticks=13
+          echo "TEN_X_WORLD_MS=$elapsed_ms"
+          echo "TEN_X_WORLD_MS_PER_TICK=$(awk -v ms="$elapsed_ms" -v ticks="$ticks" 'BEGIN { printf "%.2f", ms / ticks }')"
+          node -e "const r=require('./calibration-10x.json'); console.log('TEN_X_WORLD_SCALE='+r.configuration.worldScale); console.log('RUNNER_SECONDS='+r.elapsedSeconds)"
+      - name: Current-world V8 hotspot profile
         shell: bash
         run: |
           rm -f *simworld-v8.log isolate-*.log v8-profile.txt
-          node --prof --logfile=simworld-v8.log tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --output /tmp/profile-calibration.json >/dev/null
+          node --prof --logfile=simworld-v8.log tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 1 --output /tmp/profile-calibration.json >/dev/null
           profile_file=$(find . -maxdepth 1 -type f \( -name '*simworld-v8.log' -o -name 'isolate-*.log' \) | head -n 1)
           echo "PROFILE_FILE=$profile_file"
           node --prof-process "$profile_file" > v8-profile.txt
-          echo '=== V8 PROFILE TOP ==='
           sed -n '1,180p' v8-profile.txt
-      - name: Two-year calibration
-        shell: bash
-        run: |
-          start=$(date +%s%N)
-          node tools/calibrate.mjs --years 2 --seeds 1 --snapshot-years 1 --output calibration-2y.json
-          end=$(date +%s%N)
-          elapsed_ms=$(( (end - start) / 1000000 ))
-          echo "TWO_YEAR_MS=$elapsed_ms"
-          echo "TWO_YEAR_MS_PER_WEEK=$(awk -v ms="$elapsed_ms" 'BEGIN { printf "%.2f", ms / 104 }')"
-          node -e "const r=require('./calibration-2y.json'); const s=r.runs[0].timeline.at(-1); console.log('TWO_YEAR_RUNNER_SECONDS='+r.elapsedSeconds); console.log('TWO_YEAR_WEEKLY_TRADE='+s.weeklyTrade); console.log('TWO_YEAR_SMOOTHED_WEEKLY_TRADE='+s.smoothedWeeklyTrade); console.log('TWO_YEAR_WEEKLY_FOOD_IMPORTS='+s.weeklyFoodImports)"
-      - name: Religion share summary
+      - name: Religion regression
         run: |
           node --input-type=module <<'NODE'
           import { createReligiousWorld, initialiseReligions, tickReligion } from './js/society/religion.js';
-          const regions = Array.from({length: 120}, (_, i) => ({
-            id: `r${i}`, name: `Region ${i}`, population: 10000, treasury: 100,
-            stability: 1, cultureGroups: [{population: 10000}], recentTradePartners: [],
-            stockpile: {stone: 1000, wood: 1000, pottery: 1000}
-          }));
-          for (let i = 0; i < regions.length - 1; i++) {
-            regions[i].recentTradePartners.push([regions[i + 1].id, 52]);
-            regions[i + 1].recentTradePartners.push([regions[i].id, 52]);
-          }
-          const world = initialiseReligions(regions, createReligiousWorld());
-          for (let tick = 1; tick <= 52; tick++) tickReligion(regions, world, tick, [], [], () => 1);
-          const counts = regions.map(r => Object.keys(r.religion.shares).length);
-          const total = counts.reduce((a,b)=>a+b,0);
-          console.log(`RELIGION_SHARE_RECORDS=${total}`);
-          console.log(`RELIGIONS_PER_REGION_AVG=${(total / counts.length).toFixed(2)}`);
+          const regions = Array.from({length: 120}, (_, i) => ({ id:`r${i}`, name:`Region ${i}`, population:10000,
+            treasury:100, stability:1, cultureGroups:[{population:10000}], recentTradePartners:[],
+            stockpile:{stone:1000, wood:1000, pottery:1000} }));
+          for (let i=0;i<regions.length-1;i++) { regions[i].recentTradePartners.push([regions[i+1].id,12]); regions[i+1].recentTradePartners.push([regions[i].id,12]); }
+          const world=initialiseReligions(regions,createReligiousWorld());
+          for(let tick=1;tick<=12;tick++) tickReligion(regions,world,tick,[],[],()=>1);
+          const counts=regions.map(r=>Object.keys(r.religion.shares).length); const total=counts.reduce((a,b)=>a+b,0);
+          console.log(`RELIGION_SHARE_RECORDS=${total}`); console.log(`RELIGIONS_PER_REGION_AVG=${(total/counts.length).toFixed(2)}`);
           console.log(`RELIGIONS_PER_REGION_MAX=${Math.max(...counts)}`);
-          const leaked = regions.some((r, i) => Object.keys(r.religion.shares).some(id => id !== `religion_${i + 1}`));
-          console.log(`FOLK_TRADE_LEAK=${leaked}`);
+          console.log(`FOLK_TRADE_LEAK=${regions.some((r,i)=>Object.keys(r.religion.shares).some(id=>id!==`religion_${i+1}`))}`);
           NODE
