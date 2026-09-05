@@ -41,6 +41,10 @@ export function chanceOverDays(weeklyChance, elapsedDays) {
   return compoundFraction(weeklyChance, elapsedDays);
 }
 
+export function calendarWeekIndex(elapsedDays) {
+  return Math.floor(Math.max(0, Number(elapsedDays) || 0) / DAYS_PER_WEEK);
+}
+
 export function elapsedYears(elapsedDays) {
   return Math.max(0, Number(elapsedDays) || 0) / DAYS_PER_YEAR;
 }

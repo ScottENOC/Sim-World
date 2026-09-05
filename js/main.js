@@ -1,4 +1,5 @@
 import { Clock } from './core/clock.js?v=20260904-weather1';
+import { calendarWeekIndex } from './core/simTime.js?v=20260905-time2';
 import { EventBus } from './core/eventBus.js?v=20260904-weather1';
 import { loadWorld } from './world/region.js?v=20260905-infra1';
 import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260904-weather1';
@@ -190,28 +191,32 @@ async function main() {
   });
 
   clock.onTick((time) => {
-    const campaignResult = tickCampaigns(activeCampaigns, regionsById, polities, clock.tickIndex, toolTypes, Math.random);
+    // Legacy systems that store durations in weeks receive a calendar-week
+    // index derived from absolute simulated time. The expensive scheduler can
+    // therefore tick monthly without turning 104 historical weeks into 104 months.
+    const calendarWeek = calendarWeekIndex(time.endDay);
+    const campaignResult = tickCampaigns(activeCampaigns, regionsById, polities, calendarWeek, toolTypes, Math.random);
     activeCampaigns = campaignResult.remaining;
     prepareConstructionLabor(regions);
     prepareSiegeWorkforce(regions);
-    tickEconomy(regions, seaRegions, toolTypes, Math.random, clock.tickIndex, time.elapsedDays);
-    pruneKnowledge(regions, clock.tickIndex);
-    tickFishingKnowledge(fishingContactPairs, clock.tickIndex);
-    tickTrade(regions, clock.tickIndex, time);
+    tickEconomy(regions, seaRegions, toolTypes, Math.random, calendarWeek, time.elapsedDays, time.endDay);
+    pruneKnowledge(regions, calendarWeek);
+    tickFishingKnowledge(fishingContactPairs, calendarWeek);
+    tickTrade(regions, calendarWeek, time);
     tickStateFinance(regions, time.elapsedDays);
     tickInfrastructureMaintenance(regions, time.elapsedDays);
-    const constructionEvents = tickConstruction(regions, clock.tickIndex, time.elapsedDays);
+    const constructionEvents = tickConstruction(regions, calendarWeek, time.elapsedDays);
     tickSiegeEquipment(regions, time.elapsedDays);
-    const breakthroughEvents = tickBreakthroughs(regions, clock.tickIndex, Math.random, time.elapsedDays);
-    const religionEvents = tickReligion(regions, religiousWorld, clock.tickIndex, activeRaids, activeCampaigns, Math.random);
+    const breakthroughEvents = tickBreakthroughs(regions, calendarWeek, Math.random, time.elapsedDays);
+    const religionEvents = tickReligion(regions, religiousWorld, calendarWeek, activeRaids, activeCampaigns, Math.random, time.elapsedDays);
     tickDemographics(regions, religiousWorld, time.elapsedDays);
-    const diplomacyEvents = tickDiplomacy(regions, agreements, toolTypes, clock.tickIndex);
-    const polityEvents = tickPolities(polities, regions, clock.tickIndex);
+    const diplomacyEvents = tickDiplomacy(regions, agreements, toolTypes, calendarWeek);
+    const polityEvents = tickPolities(polities, regions, calendarWeek);
     tickBanditry(regions, toolTypes, agreements);
     tickNationAi(regions, playerRegionId, activeRaids, activeCampaigns, agreements, polities,
-      religiousWorld, clock.tickIndex, toolTypes, Math.random);
+      religiousWorld, calendarWeek, toolTypes, Math.random);
 
-    const { remaining, events } = tickRaids(activeRaids, regionsById, clock.tickIndex, toolTypes, Math.random);
+    const { remaining, events } = tickRaids(activeRaids, regionsById, calendarWeek, toolTypes, Math.random);
     activeRaids = remaining;
 
     // The player does not get a global news feed. Only raids involving their

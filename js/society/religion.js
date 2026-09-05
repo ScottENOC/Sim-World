@@ -230,7 +230,7 @@ function buildReligionTickCache(regions, world) {
   return { byId, dominantByRegion, followers };
 }
 
-function spreadThroughTrade(regions, world, currentTick, cache) {
+function spreadThroughTrade(regions, world, currentTick, cache, weekScale = 1) {
   const { byId, dominantByRegion, followers } = cache;
   const seen = new Set();
   for (const region of regions) for (const [partnerId, tick] of region.recentTradePartners || []) {
@@ -252,18 +252,18 @@ function spreadThroughTrade(regions, world, currentTick, cache) {
       const bStrength = Math.sqrt((followers[bMission.id] || 0) + 1) *
         missionStrength(bMission, partner.religion.stateReligionId === bMission.id);
       const resistance = a.familyId === bMission.familyId ? 0.7 : 1;
-      shiftShare(region, a.id, bMission.id, TRADE_CONVERSION_RATE * resistance * bStrength / (bStrength + 120), world);
+      shiftShare(region, a.id, bMission.id, TRADE_CONVERSION_RATE * weekScale * resistance * bStrength / (bStrength + 120), world);
     }
     if (aMission && aMission.id !== b.id) {
       const aStrength = Math.sqrt((followers[aMission.id] || 0) + 1) *
         missionStrength(aMission, region.religion.stateReligionId === aMission.id);
       const resistance = b.familyId === aMission.familyId ? 0.7 : 1;
-      shiftShare(partner, b.id, aMission.id, TRADE_CONVERSION_RATE * resistance * aStrength / (aStrength + 120), world);
+      shiftShare(partner, b.id, aMission.id, TRADE_CONVERSION_RATE * weekScale * resistance * aStrength / (aStrength + 120), world);
     }
   }
 }
 
-function stateSponsorship(region, world) {
+function stateSponsorship(region, world, weekScale = 1) {
   const state = ensureRegionReligion(region, world);
   const official = state.stateReligionId;
   if (!official || !state.shares[official]) return;
@@ -273,7 +273,7 @@ function stateSponsorship(region, world) {
     if (id !== official && share > rivalShare) { rivalId = id; rivalShare = share; }
   }
   if (rivalId) shiftShare(region, rivalId, official,
-    STATE_SUPPORT_RATE * (0.4 + (1 - state.tolerance)) * state.shares[official], world);
+    STATE_SUPPORT_RATE * weekScale * (0.4 + (1 - state.tolerance)) * state.shares[official], world);
 }
 
 function observeConflicts(regions, world, raids, campaigns, currentTick, cache) {
@@ -410,11 +410,13 @@ export function migrateReligion(source, destination, count, world) {
   normaliseShares(destinationState);
 }
 
-export function tickReligion(regions, world, currentTick, raids = [], campaigns = [], rng = Math.random) {
+export function tickReligion(regions, world, currentTick, raids = [], campaigns = [], rng = Math.random, elapsedDays = 7) {
+  const weekScale = Math.max(0.01, elapsedDays / 7);
+  const variantChance = 1 - Math.pow(1 - VARIANT_CHANCE_PER_WEEK, weekScale);
   ensureReligiousWorld(world);
   for (const region of regions) ensureRegionReligion(region, world);
   const cache = buildReligionTickCache(regions, world);
-  spreadThroughTrade(regions, world, currentTick, cache);
+  spreadThroughTrade(regions, world, currentTick, cache, weekScale);
   observeConflicts(regions, world, raids, campaigns, currentTick, cache);
   const issued = updateLeaders(world, currentTick);
   const events = [];
@@ -427,15 +429,17 @@ export function tickReligion(regions, world, currentTick, raids = [], campaigns 
     }
   }
   for (const region of regions) {
-    stateSponsorship(region, world);
+    stateSponsorship(region, world, weekScale);
     applyReligionPolitics(region, world, currentTick);
     const dominant = dominantReligion(region, world);
-    if (dominant && region.population >= 5000 && rng() < VARIANT_CHANCE_PER_WEEK) {
+    if (dominant && region.population >= 5000 && rng() < variantChance) {
       const variant = createVariant(world, dominant, region, currentTick, null, SPREAD_LOCAL);
       shiftShare(region, dominant.id, variant.id, 0.04, world);
       events.push({ type: 'religious_variant', regionId: region.id, regionName: region.name, religion: variant });
     }
-    if (currentTick % SHARE_PRUNE_INTERVAL === 0) pruneShares(region.religion);
+    // Monthly ticks can skip an exact modulo boundary; pruning is cheap and
+    // doing it every base tick preserves the bounded-share invariant.
+    pruneShares(region.religion);
   }
   const living = new Set(regions.flatMap((region) => Object.keys(region.religion.shares)));
   for (const religion of world.religions) religion.active = living.has(religion.id);

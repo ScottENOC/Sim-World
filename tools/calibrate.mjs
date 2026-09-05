@@ -25,6 +25,7 @@ import { ironSmeltingChance } from '../js/technology/breakthroughs.js';
 import { prepareConstructionLabor, tickConstruction, tickInfrastructureMaintenance } from '../js/economy/construction.js';
 import { prepareSiegeWorkforce, tickSiegeEquipment } from '../js/military/siegeEquipment.js';
 import { createReligiousWorld, initialiseReligions, tickReligion } from '../js/society/religion.js';
+import { calendarWeekIndex } from '../js/core/simTime.js';
 
 const ROOT = new URL('../', import.meta.url);
 const readJson = (path) => JSON.parse(fs.readFileSync(new URL(path, ROOT), 'utf8'));
@@ -242,27 +243,28 @@ function run(seed) {
     const thisTickDays = Math.min(daysPerTick, targetDays - elapsedDays);
     elapsedDays += thisTickDays;
     const time = { tickIndex: tick, startDay, endDay: elapsedDays, elapsedDays: thisTickDays, resolution: 'benchmark' };
-    campaigns = tickCampaigns(campaigns, regionsById, polities, tick, toolTypes, rng).remaining;
+    const calendarWeek = calendarWeekIndex(time.endDay);
+    campaigns = tickCampaigns(campaigns, regionsById, polities, calendarWeek, toolTypes, rng).remaining;
     prepareConstructionLabor(regions);
     prepareSiegeWorkforce(regions);
-    tickEconomy(regions, seas, toolTypes, rng, tick, time.elapsedDays);
-    tickFishingKnowledge(fishingPairs, tick);
-    tickTrade(regions, tick, time);
+    tickEconomy(regions, seas, toolTypes, rng, calendarWeek, time.elapsedDays, time.endDay);
+    tickFishingKnowledge(fishingPairs, calendarWeek);
+    tickTrade(regions, calendarWeek, time);
     tickStateFinance(regions, time.elapsedDays);
     tickInfrastructureMaintenance(regions, time.elapsedDays);
-    tickConstruction(regions, tick, time.elapsedDays);
+    tickConstruction(regions, calendarWeek, time.elapsedDays);
     tickSiegeEquipment(regions, time.elapsedDays);
-    tickBreakthroughs(regions, tick, rng, time.elapsedDays);
-    tickReligion(regions, religiousWorld, tick, raids, campaigns, rng);
+    tickBreakthroughs(regions, calendarWeek, rng, time.elapsedDays);
+    tickReligion(regions, religiousWorld, calendarWeek, raids, campaigns, rng, time.elapsedDays);
     tickDemographics(regions, religiousWorld, time.elapsedDays);
-    tickDiplomacy(regions, agreements, toolTypes, tick);
-    tickPolities(polities, regions, tick);
+    tickDiplomacy(regions, agreements, toolTypes, calendarWeek);
+    tickPolities(polities, regions, calendarWeek);
     tickBanditry(regions, toolTypes, agreements);
     tickNationAi(regions, '__calibration__', raids, campaigns, agreements, polities,
-      religiousWorld, tick, toolTypes, rng);
-    const raidResult = tickRaids(raids, regionsById, tick, toolTypes, rng);
+      religiousWorld, calendarWeek, toolTypes, rng);
+    const raidResult = tickRaids(raids, regionsById, calendarWeek, toolTypes, rng);
     raids = raidResult.remaining;
-    pruneKnowledge(regions, tick);
+    pruneKnowledge(regions, calendarWeek);
     assertFiniteWorld(regions, initial.population, tick);
 
     for (const region of regions) {

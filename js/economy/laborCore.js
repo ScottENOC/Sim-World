@@ -361,11 +361,11 @@ const MANUFACTURED_ORDER_KEYS = [
   'basic_boat', 'advanced_boat', 'clothes'
 ];
 
-export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, currentTick = null, elapsedDays = 7) {
+export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, currentTick = null, elapsedDays = 7, currentDay = null) {
   const regionsById = new Map(regions.map((r) => [r.id, r]));
   const seaRegionsById = new Map(seaRegions.map((s) => [s.id, s]));
-  const currentDay = Number.isFinite(currentTick) ? currentTick * elapsedDays : null;
-  tickWeather(regions, currentDay, rng, elapsedDays);
+  const weatherDay = Number.isFinite(currentDay) ? currentDay : (Number.isFinite(currentTick) ? currentTick * 7 : null);
+  tickWeather(regions, weatherDay, rng, elapsedDays);
 
   // Workshops see last week's unmet finished-bronze demand in neighbouring
   // markets. This is the order signal that makes them produce for export,
