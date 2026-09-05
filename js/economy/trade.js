@@ -179,7 +179,11 @@ function routeSecurity(region) {
 }
 
 function routeReliability(regionA, regionB) {
-  const security = Math.min(routeSecurity(regionA), routeSecurity(regionB));
+  const securityA = Number.isFinite(regionA._tradeSecurityThisTick)
+    ? regionA._tradeSecurityThisTick : routeSecurity(regionA);
+  const securityB = Number.isFinite(regionB._tradeSecurityThisTick)
+    ? regionB._tradeSecurityThisTick : routeSecurity(regionB);
+  const security = Math.min(securityA, securityB);
   return clamp01(Math.pow(clamp01((security - 0.2) / 0.8), 2) * tradeRelationMultiplier(regionA, regionB));
 }
 
@@ -307,11 +311,18 @@ function ventureRouteProfile(origin, dest, regionsById) {
       capacityKgPerMerchant: SEA_KG_PER_MERCHANT * sea.capacityMultiplier,
       transportMultiplier: sea.capacityMultiplier,
       reliability: routeReliability(origin, dest),
+      cost: SEA_COST_PER_KM * geometry.distanceKm * sea.costMultiplier,
     };
   }
   const land = landTransportProfile(origin, dest, regionsById);
   if (!land) return null;
   const oneWayDays = Math.max(1, geometry.distanceKm / (LAND_KM_PER_WEEK * land.speedMultiplier) * 7);
+  const directLandTransport = Math.max(
+    horseTransportMultiplier(origin) * overlandInfrastructureMultiplier(origin),
+    horseTransportMultiplier(dest) * overlandInfrastructureMultiplier(dest));
+  const cost = geometry.adjacent
+    ? LAND_ADJACENT_COST / directLandTransport
+    : (LAND_ADJACENT_COST * 2 + SEA_COST_PER_KM * geometry.distanceKm * 0.25) / directLandTransport;
   return {
     mode: 'land',
     oneWayDays,
@@ -319,6 +330,7 @@ function ventureRouteProfile(origin, dest, regionsById) {
     capacityKgPerMerchant: LAND_KG_PER_MERCHANT * land.capacityMultiplier,
     transportMultiplier: land.capacityMultiplier,
     reliability: routeReliability(origin, dest),
+    cost,
     pathIds: land.pathIds,
   };
 }
@@ -335,7 +347,7 @@ function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByR
     if (!knownIdsByRegion.get(dest.id)?.has(region.id)) continue;
     const route = ventureRouteProfile(region, dest, regionsById);
     if (!route || route.reliability <= 0.001) continue;
-    const cost = routeCost(region, dest) + (1 - route.reliability) * 0.1;
+    const cost = route.cost + (1 - route.reliability) * 0.1;
     const pricesThere = pricesByRegion.get(dest.id);
     for (const resource of stockedResources) {
       if (!tradeAllowed(region, dest, resource)) continue;
@@ -534,7 +546,7 @@ function launchVentures(region, opportunities, currentTick, time) {
       merchants,
       originPrice: opp.originPrice,
       expectedPrice: opp.expectedPrice,
-      routeCost: routeCost(region, opp.dest),
+      routeCost: opp.route.cost,
       reliability: opp.route.reliability,
       transportMode: opp.route.mode,
       pathIds: opp.route.pathIds || null,
@@ -673,6 +685,9 @@ export function tickTrade(regions, currentTick = null, time = null) {
   for (const region of regions) {
     region.tradeLinks = new Map();
     beginTradeWeek(region);
+    // Security is region-local and cannot change during this trade pass, so
+    // compute it once rather than once for every candidate route.
+    region._tradeSecurityThisTick = routeSecurity(region);
   }
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   processVentures(regions, regionsById, currentTick, time);
