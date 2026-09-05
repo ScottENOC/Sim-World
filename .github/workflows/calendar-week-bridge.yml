@@ -17,7 +17,7 @@ jobs:
         run: |
           python3 tools/calendar-week-bridge.py
           find js tools -type f \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check
-          node -e "Promise.all([import('./js/main.js').catch(()=>null),import('./js/society/religion.js'),import('./js/economy/laborCore.js')])"
+          node -e "Promise.all([import('./js/society/religion.js'),import('./js/economy/laborCore.js'),import('./js/core/simTime.js')])"
           git diff --check
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
