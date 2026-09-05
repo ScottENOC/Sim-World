@@ -154,14 +154,22 @@ function wearBoatFleet(total, advanced) {
     lost: basicLost + advancedLost };
 }
 
-function potteryStorageProfile(region) {
+export function potteryStorageProfile(region) {
   const coverage = clamp01((region.stockpile.pottery || 0) /
     Math.max(1, region.population * POTTERY_PER_PERSON_FOR_FULL_STORAGE));
+  const granaries = Math.max(0, region.infrastructure?.publicGranaries || 0);
+  // A granary still needs jars, bins and competent handling. Its permanent
+  // fabric provides some protection by itself, while widespread pottery lets
+  // the public store achieve its full capacity and spoilage benefit.
+  const granaryEffectiveness = 0.45 + coverage * 0.55;
   return {
     coverage,
-    weeks: MIN_FOOD_STORAGE_WEEKS + (MAX_FOOD_STORAGE_WEEKS - MIN_FOOD_STORAGE_WEEKS) * coverage,
-    spoilage: MAX_FOOD_WEEKLY_SPOILAGE -
-      (MAX_FOOD_WEEKLY_SPOILAGE - MIN_FOOD_WEEKLY_SPOILAGE) * coverage,
+    granaries,
+    weeks: Math.min(52, MIN_FOOD_STORAGE_WEEKS +
+      (MAX_FOOD_STORAGE_WEEKS - MIN_FOOD_STORAGE_WEEKS) * coverage + granaries * 4 * granaryEffectiveness),
+    spoilage: Math.max(0.004, (MAX_FOOD_WEEKLY_SPOILAGE -
+      (MAX_FOOD_WEEKLY_SPOILAGE - MIN_FOOD_WEEKLY_SPOILAGE) * coverage) *
+      Math.pow(0.85, granaries * granaryEffectiveness)),
   };
 }
 
@@ -896,7 +904,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
     // Vessels improve both capacity and protection from damp, pests and
     // contamination. Even full coverage buys seasons rather than immortality.
     foodBalance = Math.min(foodBalance * (1 - storage.spoilage), foodNeeded * storage.weeks);
-    report.foodStorage = { potteryCoverage: storage.coverage, weeks: storage.weeks,
+    report.foodStorage = { potteryCoverage: storage.coverage, publicGranaries: storage.granaries, weeks: storage.weeks,
       spoilage: storage.spoilage };
   }
   region.stockpile.food = foodBalance;

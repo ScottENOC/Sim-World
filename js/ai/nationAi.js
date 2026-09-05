@@ -12,7 +12,7 @@ import { activeAgreementBetween, attitudeToward, canDiplomaticallyReach, powerRa
 import { demandVassalage } from '../politics/polities.js?v=20260904-war1';
 import { chooseAiMilitaryPolicies } from '../military/policies.js?v=20260904-policy1';
 import { canCampaign, launchCampaign, massMobiliseDefender, requestCampaignWithdrawal } from '../military/campaigns.js?v=20260905-siege1';
-import { chooseAiConstruction } from '../economy/construction.js?v=20260904-build1';
+import { chooseAiConstruction } from '../economy/construction.js?v=20260905-granary1';
 import { chooseAiSiegeTargets } from '../military/siegeEquipment.js?v=20260905-siege1';
 
 // A one-percent peacetime levy is supportable while trade and taxation are

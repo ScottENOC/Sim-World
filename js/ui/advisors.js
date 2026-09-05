@@ -4,7 +4,7 @@ import { governanceLabel } from '../politics/polities.js?v=20260904-kingdom1';
 import { ensureMilitaryPolicy, mobilisedArmyTarget, setMilitaryPolicy } from '../military/policies.js?v=20260904-policy1';
 import { CAMPAIGN_OBJECTIVES, canCampaign, launchCampaign, massMobiliseDefender, requestCampaignWithdrawal } from '../military/campaigns.js?v=20260905-siege1';
 import { availableConstructionTypes, cancelConstruction, CONSTRUCTION_TYPES, constructionEstimate,
-  ensureConstruction, setConstructionWorkers, startConstruction } from '../economy/construction.js?v=20260904-build1';
+  ensureConstruction, setConstructionWorkers, startConstruction } from '../economy/construction.js?v=20260905-granary1';
 import { CATAPULT_TECH_ID, ensureSiegeEquipment, setSiegeTarget, siegeCount, siegeTrainCount } from '../military/siegeEquipment.js?v=20260905-siege1';
 
 const ADVISORS = [
@@ -244,8 +244,7 @@ export class AdvisorCouncil {
           <div class="construction-progress"><i style="width:${Math.round(progress * 100)}%"></i></div></div>
         ${row('Work completed', `${number(active.workDone)} / ${number(type.workRequired)} worker-weeks`)}
         ${row('Builders this week', number(active.workersThisWeek))}
-        ${row('Stone used', `${number(active.materialsUsed.stone)} / ${number(type.materials.stone)}`)}
-        ${row('Wood used', `${number(active.materialsUsed.wood)} / ${number(type.materials.wood)}`)}
+        ${Object.entries(type.materials).map(([resource, required]) => row(`${resource.charAt(0).toUpperCase()}${resource.slice(1)} used`, `${number(active.materialsUsed[resource])} / ${number(required)}`)).join('')}
         <label class="advisor-field advisor-slider"><span>Assigned builders <b id="builder-count-label">${number(active.targetWorkers)}</b></span><input id="construction-workers" data-project-id="${active.id}" type="range" min="${type.minWorkers}" max="${type.maxWorkers}" step="5" value="${active.targetWorkers}"></label>
         <p class="advisor-note">${active.stalledReason || `${Math.ceil((type.workRequired - active.workDone) / Math.max(1, active.targetWorkers))} weeks remaining at the ordered workforce, if coin and materials remain available.`}</p>
         <button class="advisor-order danger" data-cancel-project="${active.id}">Cancel project</button>`
@@ -255,7 +254,7 @@ export class AdvisorCouncil {
           <div id="construction-estimate" class="advisor-note"></div>
           <button id="start-construction" class="advisor-order">Commission project</button>`
         : '<p class="advisor-note">No known project is available. New forms of construction emerge through need, accumulated skill and contact with other builders.</p>')}
-      ${(player.infrastructure?.hillForts || 0) > 0 ? section('Completed works', row('Hill forts', number(player.infrastructure.hillForts))) : ''}`;
+      ${((player.infrastructure?.hillForts || 0) > 0 || (player.infrastructure?.publicGranaries || 0) > 0) ? section('Completed works', row('Hill forts', number(player.infrastructure?.hillForts)) + row('Public granaries', number(player.infrastructure?.publicGranaries))) : ''}`;
   }
 
   renderEnvoy(player) {
@@ -308,7 +307,8 @@ export class AdvisorCouncil {
         newWorkers.min = type.minWorkers; newWorkers.max = type.maxWorkers;
         const estimate = constructionEstimate(player, type.id, newWorkers.value);
         document.getElementById('new-builder-count-label').textContent = number(estimate.workers);
-        document.getElementById('construction-estimate').textContent = `${estimate.weeks} weeks · ${number(estimate.materials.stone || 0)} stone · ${number(estimate.materials.wood || 0)} wood · about ${estimate.totalCost.toFixed(1)} coin at current prices (${estimate.wages.toFixed(1)} wages, ${estimate.supplies.toFixed(1)} supplies). Doubling labour halves time only between ${type.minWorkers} and ${type.maxWorkers} builders.`;
+        const materials = Object.entries(estimate.materials).map(([resource, amount]) => `${number(amount)} ${resource}`).join(' · ');
+        document.getElementById('construction-estimate').textContent = `${estimate.weeks} weeks · ${materials} · about ${estimate.totalCost.toFixed(1)} coin at current prices (${estimate.wages.toFixed(1)} wages, ${estimate.supplies.toFixed(1)} supplies). Doubling labour halves time only between ${type.minWorkers} and ${type.maxWorkers} builders.`;
       };
       newType.addEventListener('change', assess); newWorkers.addEventListener('input', assess); assess();
       startProject.addEventListener('click', () => {

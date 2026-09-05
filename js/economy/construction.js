@@ -3,6 +3,12 @@ import { localPrice } from './prices.js?v=20260904-weather1';
 export const HILL_FORT_TECH_ID = 'hill_forts';
 
 export const CONSTRUCTION_TYPES = Object.freeze({
+  public_granary: {
+    id: 'public_granary', name: 'Public granary', requiredTechId: null,
+    description: 'A guarded communal storehouse using raised floors, sealed rooms and pottery vessels.',
+    workRequired: 2600, defaultWorkers: 50, minWorkers: 15, maxWorkers: 200,
+    materials: { stone: 250, wood: 300, pottery: 200 }, wagePerWorkerWeek: 0.002,
+  },
   hill_fort: {
     id: 'hill_fort', name: 'Hill fort', requiredTechId: HILL_FORT_TECH_ID,
     description: 'A fortified refuge and defended seat of power on commanding ground.',
@@ -37,7 +43,7 @@ export function startConstruction(region, typeId, requestedWorkers, currentTick)
   const type = CONSTRUCTION_TYPES[typeId];
   if (!type || (type.requiredTechId && !region.unlockedTechIds.has(type.requiredTechId))) return null;
   const state = ensureConstruction(region);
-  if (state.projects.some((project) => project.typeId === typeId && project.status !== 'completed')) return null;
+  if (state.projects.some((project) => project.typeId === typeId && project.status === 'active')) return null;
   const workers = Math.round(clamp(Number(requestedWorkers) || type.defaultWorkers, type.minWorkers, type.maxWorkers));
   const project = {
     id: nextProjectId++, typeId, status: 'active', startedTick: currentTick,
@@ -96,6 +102,7 @@ function completeProject(region, project, type, currentTick) {
   state.completed[type.id] = (state.completed[type.id] || 0) + 1;
   if (!region.infrastructure) region.infrastructure = {};
   if (type.id === 'hill_fort') region.infrastructure.hillForts = (region.infrastructure.hillForts || 0) + 1;
+  if (type.id === 'public_granary') region.infrastructure.publicGranaries = (region.infrastructure.publicGranaries || 0) + 1;
   return { type: 'construction_completed', regionId: region.id, regionName: region.name, project, constructionType: type };
 }
 
@@ -149,6 +156,14 @@ export function hillFortDefenceMultiplier(region) {
 export function chooseAiConstruction(region, currentTick, rng = Math.random) {
   const state = ensureConstruction(region);
   if (state.projects.some((project) => project.status === 'active')) return null;
+  const granaries = Math.max(0, region.infrastructure?.publicGranaries || 0);
+  const potteryCoverage = (region.stockpile?.pottery || 0) / Math.max(1, region.population * 0.6);
+  const granaryReady = (region.stockpile?.stone || 0) >= 125 && (region.stockpile?.wood || 0) >= 150 &&
+    (region.stockpile?.pottery || 0) >= 100 && (region.treasury || 0) >= 5;
+  if (granaries < 3 && potteryCoverage >= 0.15 && granaryReady && rng() < 0.002) {
+    const workers = Math.min(100, Math.max(15, Math.round((region.demographics?.workingAge || 0) * 0.01)));
+    return startConstruction(region, 'public_granary', workers, currentTick);
+  }
   if (!region.unlockedTechIds.has(HILL_FORT_TECH_ID) || rng() > 0.003) return null;
   const threatened = (region.safetyRating || 0) < 0.72 || (region.conflictPressure || 0) > 0;
   const materialsReady = (region.stockpile?.stone || 0) >= 300 && (region.stockpile?.wood || 0) >= 75;
