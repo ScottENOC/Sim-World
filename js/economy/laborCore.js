@@ -9,6 +9,7 @@ import { tickWeather } from '../world/weather.js?v=20260904-weather1';
 import { navalMissionProfile } from '../military/policies.js?v=20260904-policy1';
 import { conflictResourceAccess } from '../military/campaigns.js?v=20260905-infra1';
 import { effectiveInfrastructureCount, operationalInfrastructure } from './construction.js?v=20260905-projects1';
+import { elapsedWeeks } from '../core/simTime.js?v=20260905-time1';
 
 // --- Tunable constants -----------------------------------------------------
 // All placeholders, calibrated so a "typical" region can just about feed
@@ -358,7 +359,7 @@ const MANUFACTURED_ORDER_KEYS = [
   'basic_boat', 'advanced_boat', 'clothes'
 ];
 
-export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, currentTick = null) {
+export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, currentTick = null, elapsedDays = 7) {
   const regionsById = new Map(regions.map((r) => [r.id, r]));
   const seaRegionsById = new Map(seaRegions.map((s) => [s.id, s]));
   tickWeather(regions, currentTick, rng);
@@ -379,7 +380,7 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
   }
 
   for (const region of regions) {
-    allocateAndProduce(region, seaRegionsById, toolTypes, rng);
+    allocateAndProduce(region, seaRegionsById, toolTypes, rng, elapsedDays);
   }
   // Forest spread reads neighbours' post-harvest state, so it runs as a
   // second pass once every region's extraction this tick is resolved.
@@ -393,7 +394,8 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
   }
 }
 
-function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
+function allocateAndProduce(region, seaRegionsById, toolTypes, rng, elapsedDays = 7) {
+  const weekScale = Math.max(0.01, elapsedWeeks(elapsedDays));
   const report = {}; // this tick's production, by activity — see region.report, read by the UI
   report.toolWear = { tools: wearOutTools(region) };
   const navyWear = wearBoatFleet(region.navy.boats, region.navy.advancedBoats);
@@ -458,7 +460,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
     (1 - horseReport.pastureFraction) * seasonalMultiplier * weatherMultiplier * droughtProtection *
     toolYieldMultiplier * resourceAccess * waterYieldMultiplier;
   const kLabor = region.areaSqKm * FARM_LABOR_SATURATION_PER_KM2;
-  const humanFoodNeeded = totalPop * FOOD_PER_PERSON_PER_WEEK;
+  const humanFoodNeeded = totalPop * FOOD_PER_PERSON_PER_WEEK * weekScale;
   const foodNeeded = humanFoodNeeded + horseReport.fodderNeeded;
   const foodPlan = plannedFoodProduction(region, foodNeeded);
   // Expected seasonality is planned for: harvest-time production builds the
@@ -483,7 +485,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   const foodCrisis = (region.stockpile.food || 0) < humanFoodNeeded * 0.5;
   const farmers = persistentWorkforce(region, 'farmer', farmerTarget, laborPool * MAX_FARMER_FRACTION,
     { crisis: foodCrisis && farmerTarget > (region.occupations?.farmer || 0) });
-  const foodFromFarming = foodOutput(farmers * farmerEfficiency, maxFoodOutput, kLabor);
+  const foodFromFarming = foodOutput(farmers * farmerEfficiency, maxFoodOutput, kLabor) * weekScale;
   accumulateExperience(region, 'farming', farmers);
   report.farming = { workers: Math.round(farmers), food: foodFromFarming,
     seasonalMultiplier, weatherMultiplier };
@@ -496,7 +498,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   // which is why the two together (not either alone) are what let even a
   // poor-land region reach subsistence.
   const density = region.areaSqKm > 0 ? totalPop / region.areaSqKm : 0;
-  const gatherYieldPerWorker = BASE_GATHER_YIELD_PER_WORKER *
+  const gatherYieldPerWorker = BASE_GATHER_YIELD_PER_WORKER * weekScale *
     Math.max(GATHER_MIN_FACTOR, 1 - density / GATHER_DENSITY_CEILING) *
     skillMultiplier(region, 'gathering');
   const remainingFoodNeeded = Math.max(0, foodProductionTarget - foodFromFarming);
@@ -529,7 +531,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
       // border this sea — a rough fairness heuristic, not a real market.
       const shoreCapacityTotal = Math.round(sea.fish.K / SHORE_FISH_CAPACITY_DIVISOR);
       const shoreCapacity = Math.round(shoreCapacityTotal / Math.max(1, sea.adjacentLand.length));
-      const shoreYieldPerWorker = SHORE_FISH_YIELD_PER_WORKER_BASE * stockFraction * fishingSkill;
+      const shoreYieldPerWorker = SHORE_FISH_YIELD_PER_WORKER_BASE * weekScale * stockFraction * fishingSkill;
       const shoreFishersWanted = shoreYieldPerWorker > 0 ? remainingAfterGather / shoreYieldPerWorker : 0;
       const shoreFisherTarget = Math.min(shoreCapacity, laborAfterGathering, shoreFishersWanted);
       shoreFishers = persistentWorkforce(region, 'shoreFisher', shoreFisherTarget,
@@ -551,7 +553,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
       const fisheryPatrolCoverage = clamp01((region.navy?.personnel || 0) /
         Math.max(1, region.population * 0.005));
       const fisheryProtection = 1 + Math.max(0, navalMission.fishing - 1) * fisheryPatrolCoverage;
-      const boatYieldPerWorker = BOAT_FISH_YIELD_PER_WORKER_BASE * (1 + advancedShare * 0.5) *
+      const boatYieldPerWorker = BOAT_FISH_YIELD_PER_WORKER_BASE * weekScale * (1 + advancedShare * 0.5) *
         stockFraction * fishingSkill * fisheryProtection;
       const boatCapacityTotal = Math.round(sea.fish.K / BOAT_FISH_CAPACITY_DIVISOR);
       const boatCapacityShare = Math.round(boatCapacityTotal / Math.max(1, sea.adjacentLand.length));
@@ -639,7 +641,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   const craftLaborCap = remainingSurplus * 0.05;
   const pitchWorkers = Math.min(craftLaborCap, pitchWanted / PITCH_PER_WORKER,
     (region.stockpile.wood || 0) / (PITCH_PER_WORKER * WOOD_PER_PITCH));
-  const pitchMade = pitchWorkers * PITCH_PER_WORKER;
+  const pitchMade = pitchWorkers * PITCH_PER_WORKER * weekScale;
   region.stockpile.wood = (region.stockpile.wood || 0) - pitchMade * WOOD_PER_PITCH;
   region.stockpile.pitch = (region.stockpile.pitch || 0) + pitchMade;
   // Fibre, wool and hides are abstracted into a land-linked capacity for now;
@@ -649,7 +651,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   const textileTargetWorkers = Math.min(textileAvailable,
     textilesWanted / (TEXTILES_PER_WORKER * skillMultiplier(region, 'textiles')));
   const textileWorkers = persistentWorkforce(region, 'textileWorker', textileTargetWorkers, textileAvailable);
-  const textilesMade = textileWorkers * TEXTILES_PER_WORKER * skillMultiplier(region, 'textiles');
+  const textilesMade = textileWorkers * TEXTILES_PER_WORKER * weekScale * skillMultiplier(region, 'textiles');
   region.stockpile.textiles = (region.stockpile.textiles || 0) + textilesMade;
   accumulateExperience(region, 'textiles', textileWorkers);
   remainingSurplus -= pitchWorkers + textileWorkers;
@@ -658,7 +660,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   const tailorTarget = Math.min(tailorAvailable, clothingGap / CLOTHES_PER_TAILOR);
   const tailors = persistentWorkforce(region, 'tailor', tailorTarget, tailorAvailable,
     { impossible: (region.stockpile.textiles || 0) <= 0 && textilesMade <= 0 });
-  const clothesMade = Math.min(tailors * CLOTHES_PER_TAILOR,
+  const clothesMade = Math.min(tailors * CLOTHES_PER_TAILOR * weekScale,
     (region.stockpile.textiles || 0) / TEXTILES_PER_CLOTHING);
   region.stockpile.textiles = (region.stockpile.textiles || 0) - clothesMade * TEXTILES_PER_CLOTHING;
   region.stockpile.clothes = (region.stockpile.clothes || 0) + clothesMade;
@@ -692,7 +694,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
     }
 
     const navyGap = Math.max(0, region.targetNavySize - region.navy.boats);
-    const navyBoatsWanted = navyGap * BOAT_MOBILIZATION_RATE;
+    const navyBoatsWanted = navyGap * Math.min(1, BOAT_MOBILIZATION_RATE * weekScale);
     const navyMakersWanted = BOATMAKER_BUILD_RATE > 0 ? navyBoatsWanted / BOATMAKER_BUILD_RATE : 0;
     const navyMakersAvailable = Math.min(navyMakersWanted, remainingSurplus);
     const navyBuild = buildFleetBoats(region, Math.min(navyGap, navyBoatsWanted), navyMakersAvailable);
@@ -701,7 +703,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
     const navyMakersUsed = navyBuild.makers;
 
     const fishGap = Math.max(0, region.targetFishingBoats - region.fishingBoats);
-    const fishBoatsWanted = fishGap * BOAT_MOBILIZATION_RATE;
+    const fishBoatsWanted = fishGap * Math.min(1, BOAT_MOBILIZATION_RATE * weekScale);
     const fishMakersWanted = BOATMAKER_BUILD_RATE > 0 ? fishBoatsWanted / BOATMAKER_BUILD_RATE : 0;
     const fishMakersAvailable = Math.min(fishMakersWanted, Math.max(0, remainingSurplus - navyMakersUsed));
     const fishBuild = buildFleetBoats(region, Math.min(fishGap, fishBoatsWanted), fishMakersAvailable);
@@ -846,8 +848,8 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   // actual production later use the same figure — otherwise a region that's
   // gotten good at smithing would over-reserve labor for a bronze target it
   // no longer needs that many hands to hit.
-  const bronzePerSmith = BRONZE_PER_SMITH * skillMultiplier(region, 'smithing');
-  const ironPerSmith = IRON_PER_SMITH * skillMultiplier(region, 'smithing') * ironReadiness;
+  const bronzePerSmith = BRONZE_PER_SMITH * weekScale * skillMultiplier(region, 'smithing');
+  const ironPerSmith = IRON_PER_SMITH * weekScale * skillMultiplier(region, 'smithing') * ironReadiness;
 
   // Reserve labor for smiths against that demand, up front — this is what
   // stops smith count from depending on a boolean "is there stock" check.
@@ -891,7 +893,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   const ironOreNeeded = Math.max(0, ironOreTarget - (region.stockpile.ironOre || 0));
   const clayNeeded = Math.max(0, clayTarget - (region.stockpile.clay || 0));
   const miningSkill = skillMultiplier(region, 'mining');
-  const oreYieldPerMiner = ORE_YIELD_PER_MINER * miningSkill;
+  const oreYieldPerMiner = ORE_YIELD_PER_MINER * miningSkill * weekScale;
   const targetLabor = {
     copper: activeTiers.copper ? Math.min(copperNeeded / oreYieldPerMiner, activeTiers.copper.maxWorkers) : 0,
     tin: activeTiers.tin ? Math.min(tinNeeded / oreYieldPerMiner, activeTiers.tin.maxWorkers) : 0,
@@ -966,7 +968,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   const smelterTarget = Math.min(smelterAvailable, metalSmeltTarget / NONFERROUS_METAL_PER_SMELTER);
   const smelters = persistentWorkforce(region, 'smelter', smelterTarget, smelterAvailable,
     { impossible: (region.stockpile.copperOre || 0) <= 0 && (region.stockpile.tinOre || 0) <= 0 });
-  const smeltingCapacity = smelters * NONFERROUS_METAL_PER_SMELTER;
+  const smeltingCapacity = smelters * NONFERROUS_METAL_PER_SMELTER * weekScale;
   const desiredMetalTotal = Math.max(0.0001, copperMetalWanted + tinMetalWanted);
   let copperSmelted = Math.min(copperMetalWanted, maxCopperFromOre, smeltingCapacity * copperMetalWanted / desiredMetalTotal);
   let tinSmelted = Math.min(tinMetalWanted, maxTinFromOre, Math.max(0, smeltingCapacity - copperSmelted));
@@ -1027,7 +1029,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   // for wood rather than being a free population modifier.
   const potterySkill = skillMultiplier(region, 'pottery');
   const potteryLaborAvailable = Math.max(0, remainingSurplus - minerCareerCount - desiredSmithsLabor);
-  const potteryByLabor = potteryLaborAvailable * POTTERY_PER_POTTER * potterySkill;
+  const potteryByLabor = potteryLaborAvailable * POTTERY_PER_POTTER * potterySkill * weekScale;
   const potteryByClay = (region.stockpile.clay || 0) / POTTERY_CLAY_COST;
   const potteryByWood = (region.stockpile.wood || 0) / POTTERY_WOOD_COST;
   const potteryMade = Math.max(0, Math.min(desiredPotteryOutput, potteryByLabor, potteryByClay, potteryByWood));
@@ -1121,15 +1123,16 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
     const storage = potteryStorageProfile(region);
     // Vessels improve both capacity and protection from damp, pests and
     // contamination. Even full coverage buys seasons rather than immortality.
-    foodBalance = Math.min(foodBalance * (1 - storage.spoilage), foodNeeded * storage.weeks);
+    const tickSpoilage = 1 - Math.pow(1 - storage.spoilage, weekScale);
+    foodBalance = Math.min(foodBalance * (1 - tickSpoilage), (foodNeeded / weekScale) * storage.weeks);
     report.foodStorage = { potteryCoverage: storage.coverage, publicGranaries: storage.granaries, weeks: storage.weeks,
-      spoilage: storage.spoilage };
+      spoilage: tickSpoilage };
   }
   region.stockpile.food = foodBalance;
 
   const lumberjackEfficiency = toolEfficiencyMultiplier(region, 'lumberjack', toolTypes.lumberjack, region.unlockedTechIds)
     * skillMultiplier(region, 'lumberjack');
-  const woodGathered = Math.min(lumberjacks * WOOD_PER_LUMBERJACK * lumberjackEfficiency * resourceAccess, region.forest.currentStock);
+  const woodGathered = Math.min(lumberjacks * WOOD_PER_LUMBERJACK * weekScale * lumberjackEfficiency * resourceAccess, region.forest.currentStock);
   region.forest.currentStock -= woodGathered;
   region.stockpile.wood = (region.stockpile.wood || 0) + woodGathered;
   accumulateExperience(region, 'lumberjack', lumberjacks);

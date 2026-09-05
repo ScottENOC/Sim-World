@@ -42,6 +42,8 @@ const seedCount = Math.max(1, Number(option('seeds', 3)));
 const snapshotYears = Math.max(1, Number(option('snapshot-years', 5)));
 const outputPath = option('output', null);
 const baseSeed = Number(option('base-seed', 0x12345678)) >>> 0;
+const worldScale = Math.max(1, Math.floor(Number(option('scale', 1))));
+const daysPerTick = Math.max(1, Number(option('days-per-tick', 30)));
 
 function mulberry32(seed) {
   let state = seed >>> 0;
@@ -55,10 +57,13 @@ function mulberry32(seed) {
 }
 
 function makeWorld(rng) {
-  const regions = meta.map((m) => {
+  const scaledMeta = [];
+  for (let copy = 0; copy < worldScale; copy++) for (const m of meta) scaledMeta.push({ ...m, id: `${m.id}__${copy}`, neighbors: m.neighbors.map(id => `${id}__${copy}`) });
+  const regions = scaledMeta.map((m) => {
     const region = new Region({ id: m.id, name: m.name, feature: null,
       centroid: m.centroid, areaSqKm: m.areaSqKm, neighbors: m.neighbors });
-    const endowment = resources[m.id];
+    const baseId = m.id.replace(/__\d+$/, '');
+    const endowment = resources[baseId];
     region.landQuality = endowment.landQuality;
     const forestK = region.areaSqKm * endowment.forestFraction;
     region.forest = { currentStock: forestK * endowment.forestStartCoverage, K: forestK };
@@ -72,7 +77,7 @@ function makeWorld(rng) {
     }
     return region;
   });
-  const seas = seaMeta.map((m) => {
+  const seas = Array.from({length: worldScale}, (_, copy) => seaMeta.map((m) => ({...m, id: `${m.id}__${copy}`, adjacentLand: m.adjacentLand.map(id => `${id}__${copy}`)}))).flat().map((m) => {
     const sea = new SeaRegion({ id: m.id, name: m.name, feature: null,
       centroid: m.centroid, areaSqKm: m.areaSqKm, adjacentLand: m.adjacentLand });
     sea.fish = { currentStock: sea.areaSqKm * 2 * 0.7, K: sea.areaSqKm * 2 };
@@ -228,20 +233,24 @@ function run(seed) {
   const agreements = [];
   let window = newWindow(regions);
   const timeline = [];
-  for (let tick = 1; tick <= years * 52; tick += 1) {
+  const ticksPerYear = Math.ceil(365.2425 / daysPerTick);
+  let elapsedDays = 0;
+  for (let tick = 1; tick <= years * ticksPerYear; tick += 1) {
+    const startDay = elapsedDays; elapsedDays += daysPerTick;
+    const time = { tickIndex: tick, startDay, endDay: elapsedDays, elapsedDays: daysPerTick, resolution: 'benchmark' };
     campaigns = tickCampaigns(campaigns, regionsById, polities, tick, toolTypes, rng).remaining;
     prepareConstructionLabor(regions);
     prepareSiegeWorkforce(regions);
-    tickEconomy(regions, seas, toolTypes, rng, tick);
+    tickEconomy(regions, seas, toolTypes, rng, tick, daysPerTick);
     tickFishingKnowledge(fishingPairs, tick);
-    tickTrade(regions, tick);
+    tickTrade(regions, tick, time);
     tickStateFinance(regions);
     tickInfrastructureMaintenance(regions);
     tickConstruction(regions, tick);
     tickSiegeEquipment(regions);
     tickBreakthroughs(regions, tick, rng);
     tickReligion(regions, religiousWorld, tick, raids, campaigns, rng);
-    tickDemographics(regions, religiousWorld);
+    tickDemographics(regions, religiousWorld, daysPerTick);
     tickDiplomacy(regions, agreements, toolTypes, tick);
     tickPolities(polities, regions, tick);
     tickBanditry(regions, toolTypes, agreements);
@@ -285,7 +294,7 @@ for (let index = 0; index < seedCount; index += 1) {
 }
 const report = {
   generatedAt: new Date().toISOString(),
-  configuration: { years, seedCount, snapshotYears, baseSeed },
+  configuration: { years, seedCount, snapshotYears, baseSeed, worldScale, daysPerTick },
   elapsedSeconds: +((performance.now() - started) / 1000).toFixed(1),
   raidingSpecialityDefinition: 'At least two successful raids in the window; loot exceeds exports and is at least 50% of external income.',
   runs,

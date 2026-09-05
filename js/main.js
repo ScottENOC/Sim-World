@@ -189,22 +189,22 @@ async function main() {
     },
   });
 
-  clock.onTick(() => {
+  clock.onTick((time) => {
     const campaignResult = tickCampaigns(activeCampaigns, regionsById, polities, clock.tickIndex, toolTypes, Math.random);
     activeCampaigns = campaignResult.remaining;
     prepareConstructionLabor(regions);
     prepareSiegeWorkforce(regions);
-    tickEconomy(regions, seaRegions, toolTypes, Math.random, clock.tickIndex);
+    tickEconomy(regions, seaRegions, toolTypes, Math.random, clock.tickIndex, time.elapsedDays);
     pruneKnowledge(regions, clock.tickIndex);
     tickFishingKnowledge(fishingContactPairs, clock.tickIndex);
-    tickTrade(regions, clock.tickIndex);
+    tickTrade(regions, clock.tickIndex, time);
     tickStateFinance(regions);
     tickInfrastructureMaintenance(regions);
     const constructionEvents = tickConstruction(regions, clock.tickIndex);
     tickSiegeEquipment(regions);
     const breakthroughEvents = tickBreakthroughs(regions, clock.tickIndex, Math.random);
     const religionEvents = tickReligion(regions, religiousWorld, clock.tickIndex, activeRaids, activeCampaigns, Math.random);
-    tickDemographics(regions, religiousWorld);
+    tickDemographics(regions, religiousWorld, time.elapsedDays);
     const diplomacyEvents = tickDiplomacy(regions, agreements, toolTypes, clock.tickIndex);
     const polityEvents = tickPolities(polities, regions, clock.tickIndex);
     tickBanditry(regions, toolTypes, agreements);

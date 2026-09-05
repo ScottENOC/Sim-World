@@ -36,7 +36,7 @@ const SEA_KM_PER_WEEK = 220;
 const LAND_KG_PER_MERCHANT = 80;
 const SEA_KG_PER_MERCHANT = 250;
 const MAX_LAND_HOPS = 14;
-const MARKET_TURNAROUND_WEEKS = 1;
+const MARKET_TURNAROUND_DAYS = 7;
 
 // Merchants are habitual. Most returned merchants reconsider only places where
 // they already have successful routes, plus unusually salient new information.
@@ -289,11 +289,11 @@ function ventureRouteProfile(origin, dest, regionsById) {
   if (seaRoute) {
     const sea = seaTransportProfile(origin, dest);
     if (geometry.distanceKm > sea.rangeKm) return null;
-    const oneWayWeeks = Math.max(1, Math.ceil(geometry.distanceKm / (SEA_KM_PER_WEEK * sea.speedMultiplier)));
+    const oneWayDays = Math.max(1, geometry.distanceKm / (SEA_KM_PER_WEEK * sea.speedMultiplier) * 7);
     return {
       mode: 'sea',
-      oneWayWeeks,
-      roundTripWeeks: oneWayWeeks * 2 + MARKET_TURNAROUND_WEEKS,
+      oneWayDays,
+      roundTripDays: oneWayDays * 2 + MARKET_TURNAROUND_DAYS,
       capacityKgPerMerchant: SEA_KG_PER_MERCHANT * sea.capacityMultiplier,
       transportMultiplier: sea.capacityMultiplier,
       reliability: routeReliability(origin, dest),
@@ -301,11 +301,11 @@ function ventureRouteProfile(origin, dest, regionsById) {
   }
   const land = landTransportProfile(origin, dest, regionsById);
   if (!land) return null;
-  const oneWayWeeks = Math.max(1, Math.ceil(geometry.distanceKm / (LAND_KM_PER_WEEK * land.speedMultiplier)));
+  const oneWayDays = Math.max(1, geometry.distanceKm / (LAND_KM_PER_WEEK * land.speedMultiplier) * 7);
   return {
     mode: 'land',
-    oneWayWeeks,
-    roundTripWeeks: oneWayWeeks * 2 + MARKET_TURNAROUND_WEEKS,
+    oneWayDays,
+    roundTripDays: oneWayDays * 2 + MARKET_TURNAROUND_DAYS,
     capacityKgPerMerchant: LAND_KG_PER_MERCHANT * land.capacityMultiplier,
     transportMultiplier: land.capacityMultiplier,
     reliability: routeReliability(origin, dest),
@@ -337,7 +337,7 @@ function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByR
       if (stockAvailable <= 0) continue;
       const habit = habits[`${dest.id}|${resource}`];
       const habitBoost = habit ? 1 + Math.min(0.35, Math.log1p(Math.max(0, habit.score || 0)) * 0.03) : 1;
-      const score = (gap * habitBoost) / Math.max(1, route.roundTripWeeks);
+      const score = (gap * habitBoost) / Math.max(1, route.roundTripDays / 7);
       opportunities.push({
         resource, dest, gap, score, stockAvailable,
         expectedPrice: (priceHere + priceThere) / 2,
@@ -440,8 +440,9 @@ function settleReturnedVenture(origin, dest, venture, currentTick) {
   }
 }
 
-function processVentures(regions, regionsById, currentTick) {
+function processVentures(regions, regionsById, currentTick, time) {
   if (!Number.isFinite(currentTick)) return;
+  const currentDay = Number.isFinite(time?.endDay) ? time.endDay : currentTick * 7;
   for (const origin of regions) {
     const economy = ensureTradeEconomy(origin);
     const remaining = [];
@@ -451,14 +452,14 @@ function processVentures(regions, regionsById, currentTick) {
         origin.stockpile[venture.resource] = (origin.stockpile[venture.resource] || 0) + (venture.cargo || 0);
         continue;
       }
-      if (!venture.arrived && currentTick >= venture.arrivalTick) {
+      const arrivalDay = Number.isFinite(venture.arrivalDay) ? venture.arrivalDay : (venture.arrivalTick || currentTick) * 7;
+      const returnDay = Number.isFinite(venture.returnDay) ? venture.returnDay : (venture.returnTick || currentTick) * 7;
+      if (!venture.arrived && currentDay >= arrivalDay) {
         if (!tradeAllowed(origin, dest, venture.resource)) {
           venture.payment = 0;
           venture.soldVolume = 0;
           venture.unsoldCargo = Math.max(0, venture.cargo || 0);
           venture.arrived = true;
-          remaining.push(venture);
-          continue;
         }
         const buyerEconomy = ensureTradeEconomy(dest);
         const destinationPrice = localPrice(dest, venture.resource);
@@ -481,7 +482,7 @@ function processVentures(regions, regionsById, currentTick) {
         venture.unsoldCargo = Math.max(0, (venture.cargo || 0) - sold);
         venture.arrived = true;
       }
-      if (currentTick >= venture.returnTick) {
+      if (currentDay >= returnDay) {
         settleReturnedVenture(origin, dest, venture, currentTick);
       } else {
         remaining.push(venture);
@@ -491,7 +492,8 @@ function processVentures(regions, regionsById, currentTick) {
   }
 }
 
-function launchVentures(region, opportunities, currentTick) {
+function launchVentures(region, opportunities, currentTick, time) {
+  const departureDay = Number.isFinite(time?.endDay) ? time.endDay : currentTick * 7;
   const economy = ensureTradeEconomy(region);
   let idle = Math.max(0, economy.merchantPopulation - activeMerchants(region));
   if (idle < 1) return 0;
@@ -527,8 +529,9 @@ function launchVentures(region, opportunities, currentTick) {
       transportMode: opp.route.mode,
       pathIds: opp.route.pathIds || null,
       departureTick: currentTick,
-      arrivalTick: currentTick + opp.route.oneWayWeeks,
-      returnTick: currentTick + opp.route.roundTripWeeks,
+      departureDay,
+      arrivalDay: departureDay + opp.route.oneWayDays,
+      returnDay: departureDay + opp.route.roundTripDays,
       arrived: false,
       payment: 0,
       soldVolume: 0,
@@ -648,13 +651,13 @@ function candidateMarketIds(region, regionsById, knownIds, hubIds, currentTick) 
   return candidateIds;
 }
 
-export function tickTrade(regions, currentTick = null) {
+export function tickTrade(regions, currentTick = null, time = null) {
   for (const region of regions) {
     region.tradeLinks = new Map();
     beginTradeWeek(region);
   }
   const regionsById = new Map(regions.map((region) => [region.id, region]));
-  processVentures(regions, regionsById, currentTick);
+  processVentures(regions, regionsById, currentTick, time);
   for (const region of regions) reconcileMerchantOccupation(region);
 
   const knownIdsByRegion = new Map(regions.map((region) => [region.id, knownRegionIds(region)]));
@@ -672,7 +675,7 @@ export function tickTrade(regions, currentTick = null) {
     const candidates = [...candidateIds].map((id) => regionsById.get(id)).filter(Boolean);
     if (!candidates.length) continue;
     const opportunities = findOpportunities(region, candidates, knownIdsByRegion, pricesByRegion, regionsById);
-    launchVentures(region, opportunities, currentTick);
+    launchVentures(region, opportunities, currentTick, time);
   }
 
   for (const region of regions) {
