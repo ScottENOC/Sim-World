@@ -22,6 +22,7 @@ import { createGameSnapshot, readSave, restoreGameSnapshot, saveSummary, writeSa
 import { syncNextCampaignId, tickCampaigns } from './military/campaigns.js?v=20260905-projects1';
 import { prepareConstructionLabor, syncNextProjectId, tickConstruction, tickInfrastructureMaintenance } from './economy/construction.js?v=20260905-projects1';
 import { prepareSiegeWorkforce, tickSiegeEquipment } from './military/siegeEquipment.js?v=20260905-projects1';
+import { createReligiousWorld, initialiseReligions, tickReligion } from './society/religion.js?v=20260905-religion1';
 
 const START_YEAR = -1300; // target: roughly eighty prosperous years before a c.1220 BCE collapse
 const LAYERS = {
@@ -55,6 +56,7 @@ async function main() {
   const regions = await loadWorld();
   console.log(`Western Europe map loaded: ${regions.length} permanent land regions`);
   seedCensus(regions);
+  const religiousWorld = initialiseReligions(regions, createReligiousWorld());
   const polities = initialisePolities(regions);
   const seaRegions = await loadSeaWorld();
   linkSeaAdjacency(regions, seaRegions);
@@ -108,7 +110,7 @@ async function main() {
   });
 
   council = new AdvisorCouncil({
-    regions, polities, fogOfWar, clock,
+    regions, polities, religiousWorld, fogOfWar, clock,
     getPlayerRegionId: () => playerRegionId,
     getActiveRaids: () => activeRaids,
     addRaid: (raid) => activeRaids.push(raid),
@@ -143,7 +145,7 @@ async function main() {
   const loadSavedGame = () => {
     const snapshot = readSave();
     if (!snapshot) throw new Error('No saved game was found.');
-    const restored = restoreGameSnapshot(snapshot, { regions, seaRegions, polities, agreements, activeRaids, activeCampaigns, clock, fogOfWar });
+    const restored = restoreGameSnapshot(snapshot, { regions, seaRegions, polities, religiousWorld, agreements, activeRaids, activeCampaigns, clock, fogOfWar });
     playerRegionId = restored.playerRegionId;
     syncNextRaidId(activeRaids);
     syncNextAgreementId(agreements);
@@ -174,6 +176,7 @@ async function main() {
     regions,
     seaRegions,
     polities,
+    religiousWorld,
     agreements,
     getActiveRaids: () => activeRaids,
     getActiveCampaigns: () => activeCampaigns,
@@ -200,11 +203,13 @@ async function main() {
     const constructionEvents = tickConstruction(regions, clock.tickIndex);
     tickSiegeEquipment(regions);
     const breakthroughEvents = tickBreakthroughs(regions, clock.tickIndex, Math.random);
-    tickDemographics(regions);
+    const religionEvents = tickReligion(regions, religiousWorld, clock.tickIndex, activeRaids, activeCampaigns, Math.random);
+    tickDemographics(regions, religiousWorld);
     const diplomacyEvents = tickDiplomacy(regions, agreements, toolTypes, clock.tickIndex);
     const polityEvents = tickPolities(polities, regions, clock.tickIndex);
     tickBanditry(regions, toolTypes, agreements);
-    tickNationAi(regions, playerRegionId, activeRaids, activeCampaigns, agreements, polities, clock.tickIndex, toolTypes, Math.random);
+    tickNationAi(regions, playerRegionId, activeRaids, activeCampaigns, agreements, polities,
+      religiousWorld, clock.tickIndex, toolTypes, Math.random);
 
     const { remaining, events } = tickRaids(activeRaids, regionsById, clock.tickIndex, toolTypes, Math.random);
     activeRaids = remaining;
@@ -224,6 +229,7 @@ async function main() {
     const playerEvents = [
       ...breakthroughEvents.filter((event) => event.regionId === playerRegionId),
       ...constructionEvents.filter((event) => event.regionId === playerRegionId),
+      ...religionEvents.filter((event) => event.regionId === playerRegionId),
       ...playerRaidEvents,
       ...diplomacyEvents.filter((event) => event.agreement.fromId === playerRegionId || event.agreement.toId === playerRegionId),
       ...polityEvents.filter((event) => event.regionId === playerRegionId),
@@ -287,6 +293,7 @@ async function main() {
     get activeRaids() { return activeRaids; },
     get activeCampaigns() { return activeCampaigns; },
     agreements,
+    religiousWorld,
     polities,
     map,
     fogOfWar,
@@ -534,7 +541,7 @@ function wireHud(clock) {
   syncSpeedControls();
 }
 
-function wireMenu({ fogOfWar, map, clock, regions, seaRegions, polities, agreements, getActiveRaids,
+function wireMenu({ fogOfWar, map, clock, regions, seaRegions, polities, religiousWorld, agreements, getActiveRaids,
   getActiveCampaigns, getPlayerRegionId, loadGame, getSelectedRegion, clearSelection }) {
   const menuModal = document.getElementById('menu-modal');
   const menuButton = document.getElementById('btn-menu');
@@ -587,7 +594,7 @@ function wireMenu({ fogOfWar, map, clock, regions, seaRegions, polities, agreeme
 
   saveButton.addEventListener('click', () => {
     try {
-      const snapshot = createGameSnapshot({ regions, seaRegions, polities, agreements,
+      const snapshot = createGameSnapshot({ regions, seaRegions, polities, religiousWorld, agreements,
         activeRaids: getActiveRaids(), activeCampaigns: getActiveCampaigns(),
         clock, playerRegionId: getPlayerRegionId(), fogOfWar });
       writeSave(snapshot);
@@ -1044,6 +1051,18 @@ function showNextEvent(clock, eventQueue) {
 function wireEventContinue(clock, eventQueue) {
   document.getElementById('event-options').innerHTML = '<button id="btn-event-continue">Continue</button>';
   document.getElementById('event-modal').classList.remove('hidden');
+  if (event.type === 'religious_variant') {
+    document.getElementById('event-title').textContent = 'A new religious branch';
+    document.getElementById('event-body').textContent = `${event.religion.name} has emerged in ${event.regionName}, interpreting an older tradition in a new way.`;
+    wireEventContinue(clock, eventQueue);
+    return;
+  }
+  if (event.type === 'religious_directive') {
+    document.getElementById('event-title').textContent = 'A religious directive';
+    document.getElementById('event-body').textContent = `${event.leaderName || 'The religious leader'} calls for ${event.directive.type === 'holy_war' ? 'holy war against' : 'peace with'} the followers of ${event.targetFaithName || 'a rival tradition'}. Defiance may cause unrest where this is the state religion.`;
+    wireEventContinue(clock, eventQueue);
+    return;
+  }
 
   document.getElementById('btn-event-continue').addEventListener('click', () => {
     document.getElementById('event-modal').classList.add('hidden');

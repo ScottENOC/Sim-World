@@ -14,6 +14,7 @@ import { chooseAiMilitaryPolicies } from '../military/policies.js?v=20260904-pol
 import { canCampaign, launchCampaign, massMobiliseDefender, requestCampaignWithdrawal } from '../military/campaigns.js?v=20260905-projects1';
 import { chooseAiConstruction } from '../economy/construction.js?v=20260905-projects1';
 import { chooseAiSiegeTargets } from '../military/siegeEquipment.js?v=20260905-projects1';
+import { chooseAiReligion, religiousWarModifier } from '../society/religion.js?v=20260905-religion1';
 
 // A one-percent peacetime levy is supportable while trade and taxation are
 // healthy. Threatened states still expand this through the safety multiplier;
@@ -38,7 +39,7 @@ function clamp01(v) {
   return Math.max(0, Math.min(1, v));
 }
 
-export function tickNationAi(regions, playerRegionId, activeRaids, activeCampaigns, agreements, polities, currentTick, toolTypes, rng) {
+export function tickNationAi(regions, playerRegionId, activeRaids, activeCampaigns, agreements, polities, religiousWorld, currentTick, toolTypes, rng) {
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   manageCampaigns(activeCampaigns, regionsById, playerRegionId, rng);
   for (const region of regions) {
@@ -47,9 +48,10 @@ export function tickNationAi(regions, playerRegionId, activeRaids, activeCampaig
     setMilitaryTargets(region);
     chooseAiConstruction(region, currentTick, rng);
     chooseAiSiegeTargets(region);
+    chooseAiReligion(region, religiousWorld, currentTick, rng);
     maybeMakeAgreement(region, regionsById, playerRegionId, agreements, polities, currentTick, toolTypes, rng);
-    maybeCampaign(region, regionsById, activeCampaigns, polities, currentTick, toolTypes, rng);
-    maybeRaid(region, regionsById, activeRaids, polities, currentTick, toolTypes, rng);
+    maybeCampaign(region, regionsById, activeCampaigns, polities, religiousWorld, currentTick, toolTypes, rng);
+    maybeRaid(region, regionsById, activeRaids, polities, religiousWorld, currentTick, toolTypes, rng);
   }
 }
 
@@ -70,7 +72,7 @@ function manageCampaigns(campaigns, regionsById, playerRegionId, rng) {
   }
 }
 
-function maybeCampaign(region, regionsById, activeCampaigns, polities, currentTick, toolTypes, rng) {
+function maybeCampaign(region, regionsById, activeCampaigns, polities, religiousWorld, currentTick, toolTypes, rng) {
   if (region.army.away > 0 || region.army.personnel < 100) return;
   if (rng() > CAMPAIGN_CONSIDERATION_CHANCE_PER_WEEK) return;
   const candidates = [...directContactIds(region)].map((id) => regionsById.get(id)).filter(Boolean);
@@ -85,7 +87,9 @@ function maybeCampaign(region, regionsById, activeCampaigns, polities, currentTi
     const advantage = region.army.personnel / Math.max(25, estimatedDefenders * 1.8);
     if (advantage < 1.35) continue;
     const hostility = -attitudeToward(region, target.id);
-    const score = advantage + hostility + (target.wallet || 0) / Math.max(1, target.population) * 0.01;
+    const religiousPressure = religiousWarModifier(region, target, religiousWorld, currentTick);
+    if (religiousPressure < 0.5 && hostility < 0.7) continue;
+    const score = (advantage + hostility + (target.wallet || 0) / Math.max(1, target.population) * 0.01) * religiousPressure;
     if (!best || score > best.score) best = { target, score, advantage };
   }
   if (!best) return;
@@ -139,7 +143,7 @@ function setMilitaryTargets(region) {
   }
 }
 
-function maybeRaid(region, regionsById, activeRaids, polities, currentTick, toolTypes, rng) {
+function maybeRaid(region, regionsById, activeRaids, polities, religiousWorld, currentTick, toolTypes, rng) {
   if (region.army.away > 0) return;
   if (region.army.personnel < MIN_HOME_ARMY_TO_CONSIDER_RAIDING) return;
   if (region.safetyRating < MIN_SAFETY_TO_CONSIDER_RAIDING) return;
@@ -186,7 +190,9 @@ function maybeRaid(region, regionsById, activeRaids, polities, currentTick, tool
         ? target.population * 0.1
         : 1;
     const hostilityMultiplier = Math.max(0.2, 1 - attitude * 0.8);
-    const score = advantage * (knownWealth + 1) * hostilityMultiplier;
+    const religiousPressure = religiousWarModifier(region, target, religiousWorld, currentTick);
+    if (religiousPressure < 0.5 && attitude > -0.7) continue;
+    const score = advantage * (knownWealth + 1) * hostilityMultiplier * religiousPressure;
     if (score > bestScore) {
       bestScore = score;
       best = { target, viaSea: reach.viaSea };

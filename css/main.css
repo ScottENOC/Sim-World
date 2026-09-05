@@ -110,7 +110,7 @@ button, input, select {
 .council-header small { color:var(--bronze); font-variant:small-caps; letter-spacing:.08em; }
 .council-header h2 { margin:2px 0 0; font-size:18px; }
 .council-header button { width:34px; height:34px; border-radius:50%; border:1px solid var(--bronze-dim); background:transparent; color:var(--parchment); font-size:22px; }
-.advisor-tabs { display:grid; grid-template-columns:repeat(6, minmax(62px, 1fr)); gap:5px; padding:0 12px 10px; overflow-x:auto; }
+.advisor-tabs { display:grid; grid-template-columns:repeat(7, minmax(62px, 1fr)); gap:5px; padding:0 12px 10px; overflow-x:auto; }
 .advisor-tab { min-width:62px; padding:8px 4px 6px; border:1px solid var(--bronze-dim); border-radius:9px; background:var(--ink-2); color:var(--parchment-dim); }
 .advisor-tab span,.advisor-tab small { display:block; }
 .advisor-tab span { font-size:18px; line-height:1.2; }

@@ -6,6 +6,8 @@ import { CAMPAIGN_OBJECTIVES, canCampaign, launchCampaign, massMobiliseDefender,
 import { availableConstructionTypes, cancelConstruction, CONSTRUCTION_TYPES, constructionEstimate,
   ensureConstruction, setConstructionWorkers, startConstruction, startRepair } from '../economy/construction.js?v=20260905-projects1';
 import { CATAPULT_TECH_ID, ensureSiegeEquipment, setSiegeTarget, siegeCount, siegeTrainCount } from '../military/siegeEquipment.js?v=20260905-projects1';
+import { dominantReligion, establishReligiousCentre, forkReligion, influenceReligiousLeader,
+  religionById, setReligiousTolerance, setStateReligion } from '../society/religion.js?v=20260905-religion1';
 
 const ADVISORS = [
   { id: 'marshal', icon: '\u2694', name: 'Marshal', brief: 'Forces & raids' },
@@ -13,6 +15,7 @@ const ADVISORS = [
   { id: 'steward', icon: '\u2692', name: 'Steward', brief: 'People & stores' },
   { id: 'envoy', icon: '\u2691', name: 'Envoy', brief: 'Foreign relations' },
   { id: 'chancellor', icon: '\u265c', name: 'Chancellor', brief: 'Realm & rule' },
+  { id: 'priest', icon: '\u2600', name: 'High Priest', brief: 'Faith & authority' },
   { id: 'spymaster', icon: '\u25c9', name: 'Spymaster', brief: 'Knowledge' },
 ];
 
@@ -22,10 +25,11 @@ const row = (label, value, tone = '') => `<div class="advisor-report-row ${tone}
 const section = (title, body) => `<section class="advisor-section"><h3>${title}</h3>${body}</section>`;
 
 export class AdvisorCouncil {
-  constructor({ regions, polities, fogOfWar, clock, getPlayerRegionId, getActiveRaids, addRaid,
+  constructor({ regions, polities, religiousWorld, fogOfWar, clock, getPlayerRegionId, getActiveRaids, addRaid,
     getCampaigns, addCampaign, openRegion }) {
     this.regions = regions;
     this.polities = polities;
+    this.religiousWorld = religiousWorld;
     this.fogOfWar = fogOfWar;
     this.clock = clock;
     this.getPlayerRegionId = getPlayerRegionId;
@@ -96,6 +100,7 @@ export class AdvisorCouncil {
       marshal: () => this.renderMarshal(player), treasurer: () => this.renderTreasurer(player),
       steward: () => this.renderSteward(player), envoy: () => this.renderEnvoy(player),
       chancellor: () => this.renderChancellor(player), spymaster: () => this.renderSpymaster(player),
+      priest: () => this.renderPriest(player),
     };
     this.content.innerHTML = renderers[this.activeAdvisor]();
     this.wireCurrent(player);
@@ -270,6 +275,46 @@ export class AdvisorCouncil {
       <p class="advisor-note">Treaties, demands and offers are made while inspecting a foreign region. The Envoy keeps this audience focused on comparison and advice.</p>`;
   }
 
+  renderPriest(player) {
+    const state = player.religion;
+    const entries = Object.entries(state?.shares || {}).sort((a, b) => b[1] - a[1]);
+    const dominant = dominantReligion(player, this.religiousWorld);
+    const official = religionById(this.religiousWorld, state?.stateReligionId);
+    const leaderFaith = official?.leader ? official : dominant?.leader ? dominant : null;
+    const directive = leaderFaith?.leader && this.religiousWorld.directives.find((item) =>
+      item.id === leaderFaith.leader.currentDirectiveId && item.expiresTick > this.clock.tickIndex);
+    const families = [...new Map(this.religiousWorld.religions.filter((religion) => religion.active &&
+      religion.familyId !== leaderFaith?.familyId).map((religion) => [religion.familyId,
+      religionById(this.religiousWorld, religion.familyId) || religion])).values()];
+    const beliefRows = entries.map(([id, share]) => {
+      const religion = religionById(this.religiousWorld, id);
+      const parent = religion?.parentId ? religionById(this.religiousWorld, religion.parentId) : null;
+      return row(`${religion?.name || id}${parent ? ` · branch of ${parent.name}` : ''}`, percent(share),
+        id === state.stateReligionId ? 'warning' : '');
+    }).join('');
+    return `<p class="advisor-voice">“Belief crosses borders with merchants and refugees. A crown may guide it, Majesty, but cannot command every conscience.”</p>
+      ${section('Beliefs of the realm', (beliefRows || '<p class="advisor-note">No organised tradition has been recorded.</p>') +
+        row('Religious unrest', percent(state?.unrest || 0), (state?.unrest || 0) > .1 ? 'warning' : ''))}
+      ${section('Crown and faith', `
+        <label class="advisor-field"><span>State religion</span><select id="state-religion"><option value="none">No state religion</option>${entries.filter(([, share]) => share >= .05).map(([id]) => `<option value="${id}" ${id === state?.stateReligionId ? 'selected' : ''}>${religionById(this.religiousWorld, id)?.name || id}</option>`).join('')}</select></label>
+        <label class="advisor-field advisor-slider"><span>Religious tolerance <b id="religious-tolerance-label">${percent(state?.tolerance ?? .65)}</b></span><input id="religious-tolerance" type="range" min="0" max="100" value="${Math.round((state?.tolerance ?? .65) * 100)}"></label>
+        <p class="advisor-note">An official faith spreads faster. Low tolerance accelerates pressure to conform but creates more minority unrest.</p>
+        ${dominant ? `<button class="advisor-order" id="fork-religion">Sponsor a new branch (25 coin)</button>` : ''}
+        ${dominant && !dominant.adminCentreRegionId ? `<button class="advisor-order" id="religious-centre">Endow a religious centre</button><p class="advisor-note">Requires 5,000 local followers, 40 coin, 500 stone, 350 wood and 100 pottery.</p>` : ''}`)}
+      ${section('Religious authority', leaderFaith?.leader ? `
+        ${row('Religious leader', leaderFaith.leader.name)}
+        ${row('Holy city', this.regions.find((region) => region.id === leaderFaith.holyCityRegionId)?.name || 'Unknown')}
+        ${row('Administrative centre', this.regions.find((region) => region.id === leaderFaith.adminCentreRegionId)?.name || 'None')}
+        ${row('Leader opinion of us', percent(((leaderFaith.leader.opinionOfRegions[player.id] || 0) + 1) / 2))}
+        ${row('Current direction', directive ? `${directive.type === 'holy_war' ? 'Holy war against' : 'Peace with'} ${religionById(this.religiousWorld, directive.targetFamilyId)?.name || 'a rival faith'}` : 'No current direction')}
+        ${families.length ? `<label class="advisor-field"><span>Faith to address</span><select id="religious-target-family">${families.map((religion) => `<option value="${religion.familyId}">${religion.name}</option>`).join('')}</select></label>
+        <label class="advisor-field"><span>Gift and patronage</span><input id="religious-influence-spend" type="number" min="5" max="${Math.floor(player.treasury || 0)}" value="10"></label>
+        <button class="advisor-order" data-religious-influence="peace">Urge peace</button>
+        <button class="advisor-order danger" data-religious-influence="holy_war">Urge holy war</button>
+        ${state?.lastInfluenceResult ? `<p class="advisor-note">${state.lastInfluenceResult}</p>` : ''}` : ''}`
+        : '<p class="advisor-note">This tradition has no central institution or recognised leader. Its holy city can endow one once the faith is sufficiently established.</p>')}`;
+  }
+
   renderChancellor(player) {
     const polityId = player.governance?.sovereignPolityId;
     const subjects = this.regions.filter((region) => region.id !== player.id && region.governance?.sovereignPolityId === polityId);
@@ -306,6 +351,35 @@ export class AdvisorCouncil {
     });
     document.querySelectorAll('[data-repair-asset]').forEach((button) => button.addEventListener('click', () => {
       if (startRepair(player, button.dataset.repairAsset, 50, this.clock.tickIndex)) this.render(false);
+    }));
+    document.getElementById('state-religion')?.addEventListener('change', (event) => {
+      setStateReligion(player, event.target.value, this.religiousWorld); this.render(false);
+    });
+    const tolerance = document.getElementById('religious-tolerance');
+    tolerance?.addEventListener('input', () => {
+      setReligiousTolerance(player, Number(tolerance.value) / 100, this.religiousWorld);
+      document.getElementById('religious-tolerance-label').textContent = `${tolerance.value}%`;
+    });
+    document.getElementById('fork-religion')?.addEventListener('click', () => {
+      const name = window.prompt('Name the new religious branch:', `${player.name} Reform`);
+      if (name && forkReligion(player, this.religiousWorld, this.clock.tickIndex, name.slice(0, 60))) this.render(false);
+    });
+    document.getElementById('religious-centre')?.addEventListener('click', () => {
+      const religion = dominantReligion(player, this.religiousWorld);
+      if (religion && establishReligiousCentre(player, this.religiousWorld, religion.id)) this.render(false);
+    });
+    document.querySelectorAll('[data-religious-influence]').forEach((button) => button.addEventListener('click', () => {
+      const religion = religionById(this.religiousWorld, player.religion.stateReligionId) || dominantReligion(player, this.religiousWorld);
+      const family = document.getElementById('religious-target-family')?.value;
+      const spend = document.getElementById('religious-influence-spend')?.value;
+      if (religion) {
+        const result = influenceReligiousLeader(player, this.religiousWorld, religion.id,
+          button.dataset.religiousInfluence, family, spend, this.clock.tickIndex);
+        player.religion.lastInfluenceResult = result.accepted
+          ? 'The religious leader has adopted your proposed direction.'
+          : 'Your gifts were accepted, but the religious leader was not persuaded.';
+      }
+      this.render(false);
     }));
     const newType = document.getElementById('construction-type');
     const newWorkers = document.getElementById('new-construction-workers');

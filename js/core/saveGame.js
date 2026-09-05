@@ -51,20 +51,20 @@ function restoreRegion(region, saved) {
   if (!(knowledge._observationByStream instanceof Map)) knowledge._observationByStream = new Map();
 }
 
-export function createGameSnapshot({ regions, seaRegions, polities, agreements, activeRaids, activeCampaigns, clock, playerRegionId, fogOfWar }) {
+export function createGameSnapshot({ regions, seaRegions, polities, religiousWorld, agreements, activeRaids, activeCampaigns, clock, playerRegionId, fogOfWar }) {
   if (!playerRegionId) throw new Error('Choose a starting region before saving.');
   return {
     format: 'worldsim-save', version: SAVE_VERSION, savedAt: new Date().toISOString(),
     worldRegionIds: regions.map((region) => region.id), playerRegionId,
     clock: { tickIndex: clock.tickIndex, speed: clock.speed, resumeSpeed: clock._resumeSpeed, estimatedTickMs: clock._estimatedTickMs },
     fogOfWar: { devMode: fogOfWar.devMode },
-    regions: regions.map(regionSnapshot), polities: encode(polities),
+    regions: regions.map(regionSnapshot), polities: encode(polities), religiousWorld: encode(religiousWorld),
     seaRegions: seaRegions.map((sea) => ({ id: sea.id, fish: encode(sea.fish) })),
     agreements: encode(agreements), activeRaids: encode(activeRaids), activeCampaigns: encode(activeCampaigns),
   };
 }
 
-export function restoreGameSnapshot(snapshot, { regions, seaRegions, polities, agreements, activeRaids, activeCampaigns, clock, fogOfWar }) {
+export function restoreGameSnapshot(snapshot, { regions, seaRegions, polities, religiousWorld, agreements, activeRaids, activeCampaigns, clock, fogOfWar }) {
   if (!snapshot || snapshot.format !== 'worldsim-save') throw new Error('This is not a Worldsim save.');
   if (snapshot.version !== SAVE_VERSION) throw new Error(`Unsupported save version ${snapshot.version}.`);
   const expectedIds = regions.map((region) => region.id);
@@ -84,6 +84,10 @@ export function restoreGameSnapshot(snapshot, { regions, seaRegions, polities, a
     sea.fish = decode(saved.fish);
   }
   polities.splice(0, polities.length, ...decode(snapshot.polities));
+  if (religiousWorld && snapshot.religiousWorld) {
+    for (const key of Object.keys(religiousWorld)) delete religiousWorld[key];
+    Object.assign(religiousWorld, decode(snapshot.religiousWorld));
+  }
   agreements.splice(0, agreements.length, ...decode(snapshot.agreements));
   activeRaids.splice(0, activeRaids.length, ...decode(snapshot.activeRaids));
   activeCampaigns.splice(0, activeCampaigns.length, ...decode(snapshot.activeCampaigns || []));

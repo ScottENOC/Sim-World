@@ -6,6 +6,7 @@
 
 import { FOOD_PER_PERSON_PER_WEEK } from '../economy/labor.js?v=20260904-weather1';
 import { chooseEmigrationDestinations } from './migration.js?v=20260904-weather1';
+import { migrateReligion } from './religion.js?v=20260905-religion1';
 
 const CHILD_BAND_YEARS = 14;
 const WORKING_BAND_YEARS = 45; // 15-59; elderly is open-ended above that
@@ -40,7 +41,7 @@ function clamp01(v) {
   return Math.max(0, Math.min(1, v));
 }
 
-export function tickDemographics(regions) {
+export function tickDemographics(regions, religiousWorld = null) {
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   for (const region of regions) {
     applyBaselineDemographics(region);
@@ -49,7 +50,7 @@ export function tickDemographics(regions) {
   // destinations, so it runs as its own pass once baseline demographics are
   // settled for everyone this tick.
   for (const region of regions) {
-    applyFamineResponse(region, regionsById);
+    applyFamineResponse(region, regionsById, religiousWorld);
   }
 }
 
@@ -86,7 +87,7 @@ function applyBaselineDemographics(region) {
   region.population = Math.round(d.children + d.workingAge + d.elderly);
 }
 
-function applyFamineResponse(region, regionsById) {
+function applyFamineResponse(region, regionsById, religiousWorld) {
   const foodNeeded = region._foodNeeded || 0;
   const shortfall = Math.max(0, -(region.stockpile.food || 0));
   const deficitRatio = foodNeeded > 0 ? Math.min(1, shortfall / foodNeeded) : 0;
@@ -125,6 +126,7 @@ function applyFamineResponse(region, regionsById) {
   region.banditPopulation += banditsNew;
 
   for (const { dest, count } of destinations) {
+    migrateReligion(region, dest, count, religiousWorld);
     addToBands(dest, count);
     // Refugees carry practical craft knowledge as well as mouths to feed.
     // This is exposure, not an instant unlock: breakthroughs.js turns a

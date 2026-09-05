@@ -24,6 +24,7 @@ import { initialiseDeposit } from '../js/world/resources/extraction.js';
 import { ironSmeltingChance } from '../js/technology/breakthroughs.js';
 import { prepareConstructionLabor, tickConstruction, tickInfrastructureMaintenance } from '../js/economy/construction.js';
 import { prepareSiegeWorkforce, tickSiegeEquipment } from '../js/military/siegeEquipment.js';
+import { createReligiousWorld, initialiseReligions, tickReligion } from '../js/society/religion.js';
 
 const ROOT = new URL('../', import.meta.url);
 const readJson = (path) => JSON.parse(fs.readFileSync(new URL(path, ROOT), 'utf8'));
@@ -215,6 +216,7 @@ function run(seed) {
   const rng = mulberry32(seed);
   const { regions, seas, fishingPairs } = makeWorld(rng);
   const polities = initialisePolities(regions);
+  const religiousWorld = initialiseReligions(regions, createReligiousWorld());
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   const initial = {
     population: total(regions, (r) => r.population),
@@ -238,11 +240,13 @@ function run(seed) {
     tickConstruction(regions, tick);
     tickSiegeEquipment(regions);
     tickBreakthroughs(regions, tick, rng);
-    tickDemographics(regions);
+    tickReligion(regions, religiousWorld, tick, raids, campaigns, rng);
+    tickDemographics(regions, religiousWorld);
     tickDiplomacy(regions, agreements, toolTypes, tick);
     tickPolities(polities, regions, tick);
     tickBanditry(regions, toolTypes, agreements);
-    tickNationAi(regions, '__calibration__', raids, campaigns, agreements, polities, tick, toolTypes, rng);
+    tickNationAi(regions, '__calibration__', raids, campaigns, agreements, polities,
+      religiousWorld, tick, toolTypes, rng);
     const raidResult = tickRaids(raids, regionsById, tick, toolTypes, rng);
     raids = raidResult.remaining;
     pruneKnowledge(regions, tick);
