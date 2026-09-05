@@ -15,9 +15,11 @@ export const TRADE_GOODS = {
   food:       { label: 'Food', basePrice: 0.2, referenceStock: 50000, category: 'bulk', cargoKgPerUnit: 1 },
   wood:       { label: 'Wood', basePrice: 0.5, referenceStock: 5000, category: 'bulk', cargoKgPerUnit: 4 },
   stone:      { label: 'Stone', basePrice: 0.3, referenceStock: 20000, category: 'bulk', cargoKgPerUnit: 8 },
-  copper:     { label: 'Copper', basePrice: 8, referenceStock: 2000, category: 'raw_material', cargoKgPerUnit: 1 },
-  tin:        { label: 'Tin', basePrice: 20, referenceStock: 1000, category: 'raw_material', cargoKgPerUnit: 1 },
-  ironOre:    { label: 'Iron ore', basePrice: 2, referenceStock: 10000, category: 'raw_material', cargoKgPerUnit: 6 },
+  copperOre:  { label: 'Copper ore', basePrice: 0.7, referenceStock: 12000, category: 'raw_material', cargoKgPerUnit: 1 },
+  tinOre:     { label: 'Tin ore', basePrice: 1.8, referenceStock: 8000, category: 'raw_material', cargoKgPerUnit: 1 },
+  copper:     { label: 'Copper metal', basePrice: 8, referenceStock: 2000, category: 'material', cargoKgPerUnit: 1 },
+  tin:        { label: 'Tin metal', basePrice: 20, referenceStock: 1000, category: 'material', cargoKgPerUnit: 1 },
+  ironOre:    { label: 'Iron ore', basePrice: 2, referenceStock: 10000, category: 'raw_material', cargoKgPerUnit: 1 },
   gold:       { label: 'Gold', basePrice: 40, referenceStock: 200, category: 'raw_material', cargoKgPerUnit: 0.2 },
   bronze:     { label: 'Bronze', basePrice: 60, referenceStock: 500, category: 'material', cargoKgPerUnit: 1 },
   iron:       { label: 'Iron', basePrice: 24, referenceStock: 1500, category: 'material', cargoKgPerUnit: 1 },
@@ -25,6 +27,7 @@ export const TRADE_GOODS = {
   pottery:    { label: 'Pottery', basePrice: 1.2, referenceStock: 3000, category: 'manufactured', cargoKgPerUnit: 1.5 },
   pitch:      { label: 'Pitch', basePrice: 2.5, referenceStock: 300, category: 'manufactured', cargoKgPerUnit: 1 },
   textiles:   { label: 'Textiles', basePrice: 4, referenceStock: 300, category: 'manufactured', cargoKgPerUnit: 0.5 },
+  clothes:    { label: 'Clothing', basePrice: 7, referenceStock: 600, category: 'consumer_good', cargoKgPerUnit: 0.6 },
   horses:     { label: 'Horses', basePrice: 18, referenceStock: 100, category: 'livestock', cargoKgPerUnit: 60 },
 
   // New civilian tools. Issued/used tools live under region.equipment instead
