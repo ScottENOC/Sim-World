@@ -17,6 +17,8 @@ export class Region {
     this.landQuality = null; this.forest = null; this.deposits = null; this.stockpile = {};
     this.occupations = {}; this.report = {}; this.equipment = {}; this.militaryBronzeDemand = 0;
     this.wallet = 0; this.treasury = 0; this.unlockedTechIds = new Set();
+    this.construction = { projects: [], completed: {}, workersReserved: 0, lastWeek: null };
+    this.infrastructure = { hillForts: 0 };
     this.horseEconomy = { draft: 0, transport: 0, war: 0, breeders: 0, trainers: 0,
       births: 0, deaths: 0, capacity: 0, pastureFraction: 0 };
     this.weather = { index: 0, yieldMultiplier: 1, seasonalMultiplier: 1, condition: 'normal' };

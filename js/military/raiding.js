@@ -6,6 +6,7 @@ import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-weather
 import { horseLandSpeedMultiplier, horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-weather1';
 import { localPrice } from '../economy/prices.js?v=20260904-weather1';
 import { changeAttitude } from '../diplomacy/relations.js?v=20260904-save1';
+import { hillFortDefenceMultiplier } from '../economy/construction.js?v=20260904-build1';
 import { findLandStagingRegion, recordContingentReturns } from '../politics/polities.js?v=20260904-kingdom1';
 import { armyCohesionMultiplier, navalMissionProfile, postureProfile } from './policies.js?v=20260904-policy1';
 
@@ -140,7 +141,7 @@ function resolveCombat(attacker, defender, raidingPersonnel, toolTypes, rng, via
     armyCohesionMultiplier(attacker) * (viaSea ? 1 : horseMilitaryMultiplier(attacker));
   const defenderPower = defender.army.personnel * defenderEquip * DEFENDER_HOME_ADVANTAGE *
     postureProfile(defender).raidDefence * militaryReadiness(defender) *
-    armyCohesionMultiplier(defender) * horseMilitaryMultiplier(defender);
+    armyCohesionMultiplier(defender) * horseMilitaryMultiplier(defender) * hillFortDefenceMultiplier(defender);
   const totalPower = attackerPower + defenderPower;
   const attackerRatio = totalPower > 0 ? attackerPower / totalPower : 0.5;
   const variance = () => 0.7 + rng() * 0.6;

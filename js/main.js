@@ -1,25 +1,26 @@
 import { Clock } from './core/clock.js?v=20260904-weather1';
 import { EventBus } from './core/eventBus.js?v=20260904-weather1';
-import { loadWorld } from './world/region.js?v=20260904-policy1';
+import { loadWorld } from './world/region.js?v=20260904-build1';
 import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260904-weather1';
 import { seedCensus, densityPerKm2 } from './society/census.js?v=20260904-weather1';
-import { tickEconomy } from './economy/labor.js?v=20260904-war1';
+import { tickEconomy } from './economy/labor.js?v=20260904-build1';
 import { tickTrade } from './economy/trade.js?v=20260904-policy1';
 import { tickStateFinance } from './economy/stateFinance.js?v=20260904-weather1';
 import { tickDemographics } from './society/demographics.js?v=20260904-weather1';
 import { tickBanditry } from './military/banditry.js?v=20260904-policy1';
-import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable, syncNextRaidId } from './military/raiding.js?v=20260904-policy1';
-import { tickNationAi } from './ai/nationAi.js?v=20260904-war1';
+import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable, syncNextRaidId } from './military/raiding.js?v=20260904-build1';
+import { tickNationAi } from './ai/nationAi.js?v=20260904-build1';
 import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260904-weather1';
-import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID } from './technology/breakthroughs.js?v=20260904-weather1';
+import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID } from './technology/breakthroughs.js?v=20260904-build1';
 import { MapRenderer } from './ui/mapRenderer.js?v=20260904-war1';
-import { AdvisorCouncil } from './ui/advisors.js?v=20260904-war1';
+import { AdvisorCouncil } from './ui/advisors.js?v=20260904-build1';
 import { FogOfWar } from './core/fogOfWar.js?v=20260904-weather1';
 import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260904-weather1';
 import { attitudeLabel, attitudeToward, canDiplomaticallyReach, endAgreement, proposeAgreement, syncNextAgreementId, tickDiplomacy } from './diplomacy/relations.js?v=20260904-save1';
 import { availableVassalLevies, changeGovernanceForm, demandVassalage, governanceFormAvailability, governanceLabel, initialisePolities, musterVassalLevies, setDelegatedPower, setGovernancePolicy, sovereignPolity, tickPolities } from './politics/polities.js?v=20260904-war1';
 import { createGameSnapshot, readSave, restoreGameSnapshot, saveSummary, writeSave } from './core/saveGame.js?v=20260904-war1';
-import { syncNextCampaignId, tickCampaigns } from './military/campaigns.js?v=20260904-war1';
+import { syncNextCampaignId, tickCampaigns } from './military/campaigns.js?v=20260904-build1';
+import { prepareConstructionLabor, syncNextProjectId, tickConstruction } from './economy/construction.js?v=20260904-build1';
 
 const START_YEAR = -1300; // target: roughly eighty prosperous years before a c.1220 BCE collapse
 const LAYERS = {
@@ -146,6 +147,7 @@ async function main() {
     syncNextRaidId(activeRaids);
     syncNextAgreementId(agreements);
     syncNextCampaignId(activeCampaigns);
+    syncNextProjectId(regions);
     eventQueue.length = 0;
     document.getElementById('event-modal').classList.add('hidden');
     document.getElementById('picker-modal').classList.add('hidden');
@@ -186,11 +188,13 @@ async function main() {
   clock.onTick(() => {
     const campaignResult = tickCampaigns(activeCampaigns, regionsById, polities, clock.tickIndex, toolTypes, Math.random);
     activeCampaigns = campaignResult.remaining;
+    prepareConstructionLabor(regions);
     tickEconomy(regions, seaRegions, toolTypes, Math.random, clock.tickIndex);
     pruneKnowledge(regions, clock.tickIndex);
     tickFishingKnowledge(fishingContactPairs, clock.tickIndex);
     tickTrade(regions, clock.tickIndex);
     tickStateFinance(regions);
+    const constructionEvents = tickConstruction(regions, clock.tickIndex);
     const breakthroughEvents = tickBreakthroughs(regions, clock.tickIndex, Math.random);
     tickDemographics(regions);
     const diplomacyEvents = tickDiplomacy(regions, agreements, toolTypes, clock.tickIndex);
@@ -215,6 +219,7 @@ async function main() {
       });
     const playerEvents = [
       ...breakthroughEvents.filter((event) => event.regionId === playerRegionId),
+      ...constructionEvents.filter((event) => event.regionId === playerRegionId),
       ...playerRaidEvents,
       ...diplomacyEvents.filter((event) => event.agreement.fromId === playerRegionId || event.agreement.toId === playerRegionId),
       ...polityEvents.filter((event) => event.regionId === playerRegionId),
@@ -965,6 +970,22 @@ function showNextEvent(clock, eventQueue) {
       Advanced boats require wood, pitch, textiles and bronze or iron fittings. They carry more
       cargo and soldiers, travel faster and farther, improve offshore fishing and perform better in war.
     `;
+    wireEventContinue(clock, eventQueue);
+    return;
+  }
+  if (event.type === 'hill_fort_breakthrough') {
+    document.getElementById('event-title').textContent = 'Breakthrough: Hill forts';
+    document.getElementById('event-body').innerHTML = `
+      Builders and warriors in ${event.regionName} have begun planning defended settlements on commanding ground.<br><br>
+      A hill fort is now available through the Steward's construction interface. It still requires stone, wood,
+      paid builders and many weeks of work; knowing how to build one does not create it for free.
+    `;
+    wireEventContinue(clock, eventQueue);
+    return;
+  }
+  if (event.type === 'construction_completed') {
+    document.getElementById('event-title').textContent = `Construction complete: ${event.constructionType.name}`;
+    document.getElementById('event-body').textContent = `${event.constructionType.name} has been completed in ${event.regionName}. Its builders are released back to ordinary work.`;
     wireEventContinue(clock, eventQueue);
     return;
   }

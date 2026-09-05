@@ -1,5 +1,6 @@
 export const IRON_SMELTING_TECH_ID = 'iron_smelting';
 export const ADVANCED_BOATBUILDING_TECH_ID = 'advanced_boatbuilding';
+export const HILL_FORT_TECH_ID = 'hill_forts';
 
 // With hundreds of independent regions, even a tiny per-region chance can
 // produce an early world-first. These values make accumulated craft knowledge
@@ -16,6 +17,22 @@ const MIGRANT_EXPOSURE_CHANCE = 0.02;
 const BOATBUILDING_EXPERIENCE_SCALE = 120_000;
 const MAX_ADVANCED_BOAT_CHANCE = 2e-5;
 const CHANCE_PER_ADVANCED_BOAT_PARTNER = 0.002;
+const BASE_HILL_FORT_CHANCE = 0.000015;
+const HILL_FORT_NEED_CHANCE = 0.0008;
+const HILL_FORT_DIFFUSION_CHANCE = 0.004;
+
+export function hillFortChance(region, regionsById) {
+  if (region.unlockedTechIds.has(HILL_FORT_TECH_ID)) return 0;
+  const settlementScale = Math.min(1, Math.max(0, (region.population || 0) - 2000) / 18000);
+  const insecurity = Math.min(1, Math.max(0, 0.8 - (region.safetyRating ?? 1)) / 0.6 +
+    Math.max(0, region.banditPopulation || 0) / Math.max(1, region.population) * 10);
+  const stoneAccess = region.deposits?.stone ? 1 : 0.35;
+  const needChance = settlementScale * (0.2 + insecurity * 0.8) * stoneAccess * HILL_FORT_NEED_CHANCE;
+  const knownNeighbours = (region.neighbors || []).filter((id) =>
+    regionsById.get(id)?.unlockedTechIds.has(HILL_FORT_TECH_ID)).length;
+  const diffusionChance = 1 - Math.pow(1 - HILL_FORT_DIFFUSION_CHANCE, knownNeighbours);
+  return 1 - (1 - BASE_HILL_FORT_CHANCE - needChance) * (1 - diffusionChance);
+}
 
 function smithingKnowledge(region) {
   const experience = region.experience?.smithing || 0;
@@ -96,6 +113,7 @@ export function tickBreakthroughs(regions, currentTick, rng = Math.random) {
   // entire trade network in one loop iteration.
   const ironDiscoveries = regions.filter((region) => rng() < ironSmeltingChance(region, regionsById, currentTick));
   const boatDiscoveries = regions.filter((region) => rng() < advancedBoatbuildingChance(region, regionsById, currentTick));
+  const hillFortDiscoveries = regions.filter((region) => rng() < hillFortChance(region, regionsById));
   for (const region of ironDiscoveries) {
     region.unlockedTechIds.add(IRON_SMELTING_TECH_ID);
     region.ironWorkingReadiness = Math.max(0.02, region.ironWorkingReadiness || 0);
@@ -114,6 +132,10 @@ export function tickBreakthroughs(regions, currentTick, rng = Math.random) {
       regionName: region.name,
       tick: currentTick,
     });
+  }
+  for (const region of hillFortDiscoveries) {
+    region.unlockedTechIds.add(HILL_FORT_TECH_ID);
+    events.push({ type: 'hill_fort_breakthrough', regionId: region.id, regionName: region.name, tick: currentTick });
   }
   for (const region of regions) {
     advanceIronIndustry(region);

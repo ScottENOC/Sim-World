@@ -1,8 +1,10 @@
-import { canRaid, launchRaid, maxSeaRaidersAvailable } from '../military/raiding.js?v=20260904-policy1';
+import { canRaid, launchRaid, maxSeaRaidersAvailable } from '../military/raiding.js?v=20260904-build1';
 import { attitudeLabel, attitudeToward } from '../diplomacy/relations.js?v=20260904-save1';
 import { governanceLabel } from '../politics/polities.js?v=20260904-kingdom1';
 import { ensureMilitaryPolicy, mobilisedArmyTarget, setMilitaryPolicy } from '../military/policies.js?v=20260904-policy1';
-import { CAMPAIGN_OBJECTIVES, canCampaign, launchCampaign, massMobiliseDefender, requestCampaignWithdrawal } from '../military/campaigns.js?v=20260904-war1';
+import { CAMPAIGN_OBJECTIVES, canCampaign, launchCampaign, massMobiliseDefender, requestCampaignWithdrawal } from '../military/campaigns.js?v=20260904-build1';
+import { availableConstructionTypes, cancelConstruction, CONSTRUCTION_TYPES, constructionEstimate,
+  ensureConstruction, setConstructionWorkers, startConstruction } from '../economy/construction.js?v=20260904-build1';
 
 const ADVISORS = [
   { id: 'marshal', icon: '\u2694', name: 'Marshal', brief: 'Forces & raids' },
@@ -74,7 +76,7 @@ export class AdvisorCouncil {
   refresh() {
     if (this.panel.classList.contains('hidden')) return;
     const active = document.activeElement;
-    if (this.activeAdvisor === 'marshal' && this.content.contains(active) &&
+    if (this.content.contains(active) &&
       (active.tagName === 'INPUT' || active.tagName === 'SELECT')) return;
     this.render(false);
   }
@@ -125,6 +127,8 @@ export class AdvisorCouncil {
       ${section('Active conflicts', campaigns.length
         ? campaigns.map((campaign) => this.renderCampaignCard(campaign, player)).join('')
         : '<p class="advisor-note">The realm is not fighting a sustained campaign.</p>')}
+      ${(player.unlockedTechIds.has('hill_forts') && !(player.infrastructure?.hillForts > 0))
+        ? section('Marshal\'s recommendation', '<p class="advisor-note">A hill fort would strengthen the defender\'s home advantage in a sustained campaign.</p><button class="advisor-order" data-open-construction>Ask the Steward to build it</button>') : ''}
       ${section('Standing orders', `
         <label class="advisor-field"><span>Full army establishment</span><input id="council-army-target" type="number" min="0" step="100" value="${Math.round(player.targetArmySize)}"></label>
         <label class="advisor-field"><span>Target navy size</span><input id="council-navy-target" type="number" min="0" step="1" value="${Math.round(player.targetNavySize)}" ${player.isCoastal ? '' : 'disabled'}></label>
@@ -214,9 +218,31 @@ export class AdvisorCouncil {
 
   renderSteward(player) {
     const food = (player.stockpile.food || 0);
+    const construction = ensureConstruction(player);
+    const active = construction.projects.find((project) => project.status === 'active');
+    const type = active ? CONSTRUCTION_TYPES[active.typeId] : null;
+    const progress = active && type ? active.workDone / type.workRequired : 0;
+    const available = availableConstructionTypes(player);
     return `<p class="advisor-voice">“The realm is more than its warriors. These are the people, harvests and dangers that will still matter next winter.”</p>
       ${section('Realm at home', row('Population', number(player.population)) + row('Stability', percent(player.stability), player.stability < .6 ? 'warning' : '') + row('Safety', percent(player.safetyRating), player.safetyRating < .6 ? 'warning' : '') + row('Bandits', number(player.banditPopulation), player.banditPopulation > 50 ? 'warning' : '') + row('Food stores', number(food)))}
-      ${section('This season', row('Weather', player.weather?.condition || 'normal') + row('Crop yield effect', percent(player.weather?.yieldMultiplier ?? 1)) + row('Food import dependence', percent(player.foodImportDependence || player.report?.foodPlan?.importDependence || 0)))}`;
+      ${section('This season', row('Weather', player.weather?.condition || 'normal') + row('Crop yield effect', percent(player.weather?.yieldMultiplier ?? 1)) + row('Food import dependence', percent(player.foodImportDependence || player.report?.foodPlan?.importDependence || 0)))}
+      ${section('Construction', active && type ? `
+        <div class="construction-project"><strong>${type.name}</strong><span>${Math.round(progress * 100)}%</span>
+          <div class="construction-progress"><i style="width:${Math.round(progress * 100)}%"></i></div></div>
+        ${row('Work completed', `${number(active.workDone)} / ${number(type.workRequired)} worker-weeks`)}
+        ${row('Builders this week', number(active.workersThisWeek))}
+        ${row('Stone used', `${number(active.materialsUsed.stone)} / ${number(type.materials.stone)}`)}
+        ${row('Wood used', `${number(active.materialsUsed.wood)} / ${number(type.materials.wood)}`)}
+        <label class="advisor-field advisor-slider"><span>Assigned builders <b id="builder-count-label">${number(active.targetWorkers)}</b></span><input id="construction-workers" data-project-id="${active.id}" type="range" min="${type.minWorkers}" max="${type.maxWorkers}" step="5" value="${active.targetWorkers}"></label>
+        <p class="advisor-note">${active.stalledReason || `${Math.ceil((type.workRequired - active.workDone) / Math.max(1, active.targetWorkers))} weeks remaining at the ordered workforce, if coin and materials remain available.`}</p>
+        <button class="advisor-order danger" data-cancel-project="${active.id}">Cancel project</button>`
+        : available.length ? `
+          <label class="advisor-field"><span>Project</span><select id="construction-type">${available.map((item) => `<option value="${item.id}">${item.name}</option>`).join('')}</select></label>
+          <label class="advisor-field advisor-slider"><span>Assigned builders <b id="new-builder-count-label">100</b></span><input id="new-construction-workers" type="range" min="25" max="400" step="5" value="100"></label>
+          <div id="construction-estimate" class="advisor-note"></div>
+          <button id="start-construction" class="advisor-order">Commission project</button>`
+        : '<p class="advisor-note">No known project is available. New forms of construction emerge through need, accumulated skill and contact with other builders.</p>')}
+      ${(player.infrastructure?.hillForts || 0) > 0 ? section('Completed works', row('Hill forts', number(player.infrastructure.hillForts))) : ''}`;
   }
 
   renderEnvoy(player) {
@@ -247,6 +273,35 @@ export class AdvisorCouncil {
     document.querySelectorAll('#advisor-content [data-open-region]').forEach((button) => button.addEventListener('click', () => {
       this.close(); this.openRegion(button.dataset.openRegion);
     }));
+    document.querySelector('[data-open-construction]')?.addEventListener('click', () => {
+      this.activeAdvisor = 'steward'; this.render();
+    });
+    const activeWorkers = document.getElementById('construction-workers');
+    activeWorkers?.addEventListener('input', () => {
+      setConstructionWorkers(player, activeWorkers.dataset.projectId, activeWorkers.value);
+      document.getElementById('builder-count-label').textContent = number(activeWorkers.value);
+    });
+    document.querySelector('[data-cancel-project]')?.addEventListener('click', (event) => {
+      if (window.confirm('Cancel this project? Materials and wages already spent will not be recovered.')) {
+        cancelConstruction(player, event.currentTarget.dataset.cancelProject); this.render(false);
+      }
+    });
+    const newType = document.getElementById('construction-type');
+    const newWorkers = document.getElementById('new-construction-workers');
+    const startProject = document.getElementById('start-construction');
+    if (newType && newWorkers && startProject) {
+      const assess = () => {
+        const type = CONSTRUCTION_TYPES[newType.value];
+        newWorkers.min = type.minWorkers; newWorkers.max = type.maxWorkers;
+        const estimate = constructionEstimate(player, type.id, newWorkers.value);
+        document.getElementById('new-builder-count-label').textContent = number(estimate.workers);
+        document.getElementById('construction-estimate').textContent = `${estimate.weeks} weeks · ${number(estimate.materials.stone || 0)} stone · ${number(estimate.materials.wood || 0)} wood · about ${estimate.totalCost.toFixed(1)} coin at current prices (${estimate.wages.toFixed(1)} wages, ${estimate.supplies.toFixed(1)} supplies). Doubling labour halves time only between ${type.minWorkers} and ${type.maxWorkers} builders.`;
+      };
+      newType.addEventListener('change', assess); newWorkers.addEventListener('input', assess); assess();
+      startProject.addEventListener('click', () => {
+        if (startConstruction(player, newType.value, newWorkers.value, this.clock.tickIndex)) this.render(false);
+      });
+    }
     if (this.activeAdvisor !== 'marshal') return;
     const army = document.getElementById('council-army-target');
     const navy = document.getElementById('council-navy-target');

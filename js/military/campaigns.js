@@ -7,6 +7,7 @@ import { advancedNavyShare, navyTransportCapacity } from './army.js?v=20260904-p
 import { armyCohesionMultiplier, navalMissionProfile, postureProfile } from './policies.js?v=20260904-policy1';
 import { establishVassalage, findLandStagingRegion } from '../politics/polities.js?v=20260904-war1';
 import { removeFromBands, syncPopulation } from '../society/demographics.js?v=20260904-weather1';
+import { hillFortDefenceMultiplier } from '../economy/construction.js?v=20260904-build1';
 
 export const CAMPAIGN_OBJECTIVES = Object.freeze({
   devastation: { label: 'Destroy the region', pressureRate: 0.8, damageRate: 1.8 },
@@ -105,7 +106,8 @@ export function conflictResourceAccess(region) {
 
 function combatPower(region, personnel, toolTypes, role, supply = 1, morale = 1) {
   const equipment = toolEfficiencyMultiplier(region, 'soldier', toolTypes.soldier, region.unlockedTechIds);
-  const homeAdvantage = role === 'defender' ? DEFENDER_HOME_ADVANTAGE * postureProfile(region).raidDefence : 1;
+  const homeAdvantage = role === 'defender'
+    ? DEFENDER_HOME_ADVANTAGE * postureProfile(region).raidDefence * hillFortDefenceMultiplier(region) : 1;
   return personnel * equipment * militaryReadiness(region) * armyCohesionMultiplier(region) *
     horseMilitaryMultiplier(region) * homeAdvantage * (0.55 + 0.45 * supply) * (0.65 + 0.35 * morale);
 }

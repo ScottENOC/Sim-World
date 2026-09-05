@@ -131,6 +131,9 @@ button, input, select {
 .advisor-order { width:100%; margin-top:8px; padding:11px; border:1px solid var(--bronze); border-radius:8px; background:var(--bronze); color:var(--ink); font-weight:700; }
 .advisor-order.danger { border-color:var(--danger); background:var(--danger); color:var(--parchment); }
 .advisor-order:disabled { opacity:.35; }
+.construction-project { display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; color:var(--parchment); }
+.construction-progress { width:100%; height:7px; overflow:hidden; border-radius:4px; background:var(--ink); }
+.construction-progress i { display:block; height:100%; background:var(--bronze); }
 .advisor-list { display:flex; flex-direction:column; gap:7px; }
 .advisor-list button { display:flex; justify-content:space-between; gap:12px; padding:10px; border:1px solid var(--bronze-dim); border-radius:8px; background:var(--ink); color:var(--parchment); text-align:left; }
 .advisor-list small { color:var(--parchment-dim); text-align:right; }

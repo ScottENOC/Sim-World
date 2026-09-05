@@ -22,6 +22,7 @@ import { initialiseKnowledge, buildFishingContactPairs, tickFishingKnowledge,
   pruneKnowledge } from '../js/core/knowledge.js';
 import { initialiseDeposit } from '../js/world/resources/extraction.js';
 import { ironSmeltingChance } from '../js/technology/breakthroughs.js';
+import { prepareConstructionLabor, tickConstruction } from '../js/economy/construction.js';
 
 const ROOT = new URL('../', import.meta.url);
 const readJson = (path) => JSON.parse(fs.readFileSync(new URL(path, ROOT), 'utf8'));
@@ -226,10 +227,12 @@ function run(seed) {
   const timeline = [];
   for (let tick = 1; tick <= years * 52; tick += 1) {
     campaigns = tickCampaigns(campaigns, regionsById, polities, tick, toolTypes, rng).remaining;
+    prepareConstructionLabor(regions);
     tickEconomy(regions, seas, toolTypes, rng, tick);
     tickFishingKnowledge(fishingPairs, tick);
     tickTrade(regions, tick);
     tickStateFinance(regions);
+    tickConstruction(regions, tick);
     tickBreakthroughs(regions, tick, rng);
     tickDemographics(regions);
     tickDiplomacy(regions, agreements, toolTypes, tick);
