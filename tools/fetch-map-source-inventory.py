@@ -28,8 +28,9 @@ def feature_name(feature):
 def main():
     manifest = json.loads(MANIFEST.read_text())
     api_template = manifest['defaultSource']['apiTemplate']
+    default_level = manifest['defaultSource'].get('level', 'ADM1')
     inventory = {
-        'version': 1,
+        'version': 2,
         'generatedFromManifestVersion': manifest.get('version'),
         'countries': []
     }
@@ -37,12 +38,14 @@ def main():
     failures = []
     for entry in manifest['countries']:
         iso = entry['iso']
-        api_url = api_template.format(iso=iso)
+        level = entry.get('level', default_level)
+        api_url = api_template.format(iso=iso, level=level)
         row = {
             'iso': iso,
             'name': entry['name'],
             'tier': entry['tier'],
             'preferred': entry['preferred'],
+            'level': level,
             'notes': entry.get('notes', ''),
             'geoBoundariesApi': api_url,
         }
@@ -67,11 +70,20 @@ def main():
                 row['units'] = sorted(filter(None, (feature_name(f) for f in features)), key=str.casefold)
                 if features:
                     row['propertyKeys'] = sorted((features[0].get('properties') or {}).keys())
+                if row.get('admUnitCountReported') != len(features):
+                    row['countMismatch'] = {
+                        'reported': row.get('admUnitCountReported'),
+                        'downloaded': len(features)
+                    }
+                names = row.get('units', [])
+                duplicates = sorted({name for name in names if names.count(name) > 1}, key=str.casefold)
+                if duplicates:
+                    row['duplicateUnitNames'] = duplicates
         except Exception as exc:
             row['error'] = f'{type(exc).__name__}: {exc}'
             failures.append(iso)
         inventory['countries'].append(row)
-        print(f"{iso}: {row.get('featureCountDownloaded', row.get('admUnitCountReported', 'ERROR'))}")
+        print(f"{iso} {level}: {row.get('featureCountDownloaded', row.get('admUnitCountReported', 'ERROR'))}")
 
     OUTPUT.write_text(json.dumps(inventory, ensure_ascii=False, indent=2) + '\n')
     print(f'Wrote {OUTPUT}')
