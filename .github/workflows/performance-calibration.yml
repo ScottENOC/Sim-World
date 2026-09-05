@@ -29,9 +29,11 @@ jobs:
       - name: V8 hotspot profile
         shell: bash
         run: |
-          rm -f simworld-v8.log v8-profile.txt
+          rm -f *simworld-v8.log isolate-*.log v8-profile.txt
           node --prof --logfile=simworld-v8.log tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --output /tmp/profile-calibration.json >/dev/null
-          node --prof-process simworld-v8.log > v8-profile.txt
+          profile_file=$(find . -maxdepth 1 -type f \( -name '*simworld-v8.log' -o -name 'isolate-*.log' \) | head -n 1)
+          echo "PROFILE_FILE=$profile_file"
+          node --prof-process "$profile_file" > v8-profile.txt
           echo '=== V8 PROFILE TOP ==='
           sed -n '1,180p' v8-profile.txt
       - name: Two-year calibration
