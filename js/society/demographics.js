@@ -1,163 +1,93 @@
-// Population is dynamic now: births, deaths (baseline + famine), aging
-// between age bands, and the three real famine responses all live here.
-// Runs after trade, so a region that successfully imported food gets to
-// actually benefit from that before anyone starves, emigrates, or turns
-// to banditry over a shortfall that no longer exists.
+// Population is dynamic: births, deaths, aging and famine response. Rates use
+// elapsed historical days, so changing the world cadence does not change the
+// underlying annual demography.
 
 import { FOOD_PER_PERSON_PER_WEEK } from '../economy/labor.js?v=20260904-weather1';
 import { chooseEmigrationDestinations } from './migration.js?v=20260904-weather1';
 import { migrateReligion } from './religion.js?v=20260905-religion1';
+import { DAYS_PER_YEAR, annualFractionRate, elapsedWeeks } from '../core/simTime.js?v=20260905-time1';
 
 const CHILD_BAND_YEARS = 14;
-const WORKING_BAND_YEARS = 45; // 15-59; elderly is open-ended above that
-
-const CHILD_TO_WORKING_RATE = 1 / (CHILD_BAND_YEARS * 52);
-const WORKING_TO_ELDERLY_RATE = 1 / (WORKING_BAND_YEARS * 52);
-
-// High pre-modern rates on both sides — this isn't a slow, gentle
-// demographic system, it's meant to be genuinely volatile.
-const BASE_ANNUAL_BIRTH_RATE = 0.030; // prosperous growth without a pre-collapse Malthusian explosion
-const EDUCATION_BIRTH_PENALTY = 0.5;  // at educationLevel=1, birth rate halves — the "double-edged sword"
-
+const WORKING_BAND_YEARS = 45;
+const BASE_ANNUAL_BIRTH_RATE = 0.030;
+const EDUCATION_BIRTH_PENALTY = 0.5;
 const BASE_ANNUAL_DEATH_RATE = { children: 0.025, workingAge: 0.01, elderly: 0.07 };
-const ARMY_BASE_ANNUAL_DEATH_RATE = 0.015; // slightly above civilian working-age: camp disease, accidents, skirmishes
-
-const STARVATION_STABILITY_PENALTY = 0.15;
-const WELL_FED_STABILITY_RECOVERY = 0.01;
-
-// Of the population whose food need genuinely isn't met even after trade,
-// how do they split? Placeholder shares, not derived from anything — three
-// real outcomes instead of a stability number sitting at zero forever with
-// no further consequence.
+const ARMY_BASE_ANNUAL_DEATH_RATE = 0.015;
+const STARVATION_STABILITY_PENALTY_PER_WEEK = 0.15;
+const WELL_FED_STABILITY_RECOVERY_PER_WEEK = 0.01;
 const FAMINE_DEATH_SHARE = 0.30;
 const FAMINE_EMIGRATE_SHARE = 0.45;
 const FAMINE_BANDIT_SHARE = 0.25;
 
-function weeklyRate(annualRate) {
-  return annualRate / 52;
-}
+function clamp01(v) { return Math.max(0, Math.min(1, v)); }
 
-function clamp01(v) {
-  return Math.max(0, Math.min(1, v));
-}
-
-export function tickDemographics(regions, religiousWorld = null) {
+export function tickDemographics(regions, religiousWorld = null, elapsedDays = 7) {
   const regionsById = new Map(regions.map((region) => [region.id, region]));
-  for (const region of regions) {
-    applyBaselineDemographics(region);
-  }
-  // Famine response needs every region's current state to pick emigration
-  // destinations, so it runs as its own pass once baseline demographics are
-  // settled for everyone this tick.
-  for (const region of regions) {
-    applyFamineResponse(region, regionsById, religiousWorld);
-  }
+  for (const region of regions) applyBaselineDemographics(region, elapsedDays);
+  for (const region of regions) applyFamineResponse(region, regionsById, religiousWorld, elapsedDays);
 }
 
-function applyBaselineDemographics(region) {
+function applyBaselineDemographics(region, elapsedDays) {
   const d = region.demographics;
   const totalPop = d.children + d.workingAge + d.elderly;
-
-  // Births — food-security modulated (people have fewer children when
-  // times are hard, not just more deaths when they do), and suppressed by
-  // education once that actually exists and grows above its baseline.
+  const years = Math.max(0, elapsedDays) / DAYS_PER_YEAR;
   const foodSecurityFactor = clamp01(region.stability);
-  const birthRate = weeklyRate(BASE_ANNUAL_BIRTH_RATE * (1 - region.educationLevel * EDUCATION_BIRTH_PENALTY));
-  const births = totalPop * birthRate * (0.4 + 0.6 * foodSecurityFactor); // even crisis doesn't hit exactly zero
-
-  // Baseline deaths per band — old age, disease, ordinary accidents.
-  // Famine-excess deaths are handled separately in applyFamineResponse.
-  const childDeaths = d.children * weeklyRate(BASE_ANNUAL_DEATH_RATE.children);
-  const workingDeaths = d.workingAge * weeklyRate(BASE_ANNUAL_DEATH_RATE.workingAge);
-  const elderlyDeaths = d.elderly * weeklyRate(BASE_ANNUAL_DEATH_RATE.elderly);
-
-  // Aging: a steady trickle from each band into the next.
-  const childToWorking = d.children * CHILD_TO_WORKING_RATE;
-  const workingToElderly = d.workingAge * WORKING_TO_ELDERLY_RATE;
+  const annualBirth = BASE_ANNUAL_BIRTH_RATE * (1 - region.educationLevel * EDUCATION_BIRTH_PENALTY);
+  const births = totalPop * annualBirth * years * (0.4 + 0.6 * foodSecurityFactor);
+  const childDeaths = d.children * annualFractionRate(BASE_ANNUAL_DEATH_RATE.children, elapsedDays);
+  const workingDeaths = d.workingAge * annualFractionRate(BASE_ANNUAL_DEATH_RATE.workingAge, elapsedDays);
+  const elderlyDeaths = d.elderly * annualFractionRate(BASE_ANNUAL_DEATH_RATE.elderly, elapsedDays);
+  const childToWorking = d.children * Math.min(1, years / CHILD_BAND_YEARS);
+  const workingToElderly = d.workingAge * Math.min(1, years / WORKING_BAND_YEARS);
 
   d.children = Math.max(0, d.children + births - childDeaths - childToWorking);
   d.workingAge = Math.max(0, d.workingAge + childToWorking - workingDeaths - workingToElderly);
   d.elderly = Math.max(0, d.elderly + workingToElderly - elderlyDeaths);
 
-  // Soldiers/sailors aren't immortal just because they're tracked outside
-  // the civilian bands — same baseline mortality logic, slightly elevated.
-  region.army.personnel = Math.max(0, region.army.personnel - region.army.personnel * weeklyRate(ARMY_BASE_ANNUAL_DEATH_RATE));
-  region.navy.personnel = Math.max(0, region.navy.personnel - region.navy.personnel * weeklyRate(ARMY_BASE_ANNUAL_DEATH_RATE));
-
+  const militaryDeathFraction = annualFractionRate(ARMY_BASE_ANNUAL_DEATH_RATE, elapsedDays);
+  region.army.personnel = Math.max(0, region.army.personnel * (1 - militaryDeathFraction));
+  region.navy.personnel = Math.max(0, region.navy.personnel * (1 - militaryDeathFraction));
   region.population = Math.round(d.children + d.workingAge + d.elderly);
 }
 
-function applyFamineResponse(region, regionsById, religiousWorld) {
+function applyFamineResponse(region, regionsById, religiousWorld, elapsedDays) {
   const foodNeeded = region._foodNeeded || 0;
   const shortfall = Math.max(0, -(region.stockpile.food || 0));
   const deficitRatio = foodNeeded > 0 ? Math.min(1, shortfall / foodNeeded) : 0;
-
-  region.stability = clamp01(
-    region.stability - deficitRatio * STARVATION_STABILITY_PENALTY +
-    (deficitRatio === 0 ? WELL_FED_STABILITY_RECOVERY : 0)
-  );
+  const weeks = elapsedWeeks(elapsedDays);
+  region.stability = clamp01(region.stability - deficitRatio * STARVATION_STABILITY_PENALTY_PER_WEEK * weeks +
+    (deficitRatio === 0 ? WELL_FED_STABILITY_RECOVERY_PER_WEEK * weeks : 0));
   region.stockpile.food = Math.max(0, region.stockpile.food || 0);
+  if (shortfall <= 0.5) return;
 
-  if (shortfall <= 0.5) return; // negligible, not worth splitting anyone up over
-
-  // Horse fodder competes with people for food in labor.js, but it cannot
-  // manufacture human refugees or bandits. Never split more people among the
-  // famine outcomes than physically exist in the local civilian and military
-  // population.
   const humansPresent = Math.max(0, region.population + region.army.personnel + region.navy.personnel);
-  const distressed = Math.min(
-    humansPresent,
-    shortfall / FOOD_PER_PERSON_PER_WEEK
-  );
-
+  const foodPerPersonThisTick = FOOD_PER_PERSON_PER_WEEK * Math.max(0.001, weeks);
+  const distressed = Math.min(humansPresent, shortfall / foodPerPersonThisTick);
   const deaths = distressed * FAMINE_DEATH_SHARE;
   const emigrants = distressed * FAMINE_EMIGRATE_SHARE;
   const banditsNew = distressed * FAMINE_BANDIT_SHARE;
-
-  const destinations = emigrants > 0
-    ? chooseEmigrationDestinations(region, regionsById, emigrants)
-    : [];
+  const destinations = emigrants > 0 ? chooseEmigrationDestinations(region, regionsById, emigrants) : [];
   const emigrantsWhoFoundADestination = destinations.reduce((sum, route) => sum + route.count, 0);
 
-  // People only leave for places their community knows about. If no known
-  // destination can receive them, the would-be emigrants remain at home this
-  // week rather than disappearing from the simulated population.
   removeFromBands(region, deaths + emigrantsWhoFoundADestination + banditsNew);
   region.banditPopulation += banditsNew;
-
   for (const { dest, count } of destinations) {
     migrateReligion(region, dest, count, religiousWorld);
     addToBands(dest, count);
-    // Refugees carry practical craft knowledge as well as mouths to feed.
-    // This is exposure, not an instant unlock: breakthroughs.js turns a
-    // sufficiently strong stream of iron-working migrants into a chance to
-    // learn the technique on a later tick.
     if (region.unlockedTechIds.has('iron_smelting')) {
       const sourceReadiness = Math.max(0.05, region.ironWorkingReadiness || 0);
-      dest.ironWorkingExposure = Math.min(
-        10,
-        (dest.ironWorkingExposure || 0) + (count / Math.max(1, dest.population)) * sourceReadiness
-      );
+      dest.ironWorkingExposure = Math.min(10,
+        (dest.ironWorkingExposure || 0) + (count / Math.max(1, dest.population)) * sourceReadiness);
     }
   }
-
   syncPopulation(region);
 }
 
-// Famine doesn't check ID cards, and a state that can't feed its people
-// can't sustain a standing army either — soldiers/sailors are pulled into
-// the same proportional loss as everyone else (desertion and starvation in
-// the ranks, not just civilian death/flight/banditry). Children and the
-// elderly are weighted more vulnerable, the standard excess-mortality
-// pattern in real famines.
 export function removeFromBands(region, count) {
   const d = region.demographics;
   const weights = {
-    children: d.children * 1.3,
-    workingAge: d.workingAge * 0.7,
-    elderly: d.elderly * 1.3,
-    army: region.army.personnel * 0.7,
-    navy: region.navy.personnel * 0.7,
+    children: d.children * 1.3, workingAge: d.workingAge * 0.7, elderly: d.elderly * 1.3,
+    army: region.army.personnel * 0.7, navy: region.navy.personnel * 0.7,
   };
   const weightTotal = Object.values(weights).reduce((a, b) => a + b, 0);
   if (weightTotal <= 0 || count <= 0) return;
@@ -168,8 +98,6 @@ export function removeFromBands(region, count) {
   region.navy.personnel = Math.max(0, region.navy.personnel - count * (weights.navy / weightTotal));
 }
 
-// Arrivals skew working-age — families with young children and the elderly
-// are less able to make a desperate journey.
 function addToBands(region, count) {
   region.demographics.workingAge += count * 0.70;
   region.demographics.children += count * 0.25;
@@ -177,9 +105,6 @@ function addToBands(region, count) {
   syncPopulation(region);
 }
 
-// Bandits who surrender or find ordinary work again re-enter as working-age
-// civilians. Keeping this helper here ensures the demographic bands and the
-// headline population can never drift apart.
 export function addWorkingAgePopulation(region, count) {
   if (count <= 0) return;
   region.demographics.workingAge += count;
