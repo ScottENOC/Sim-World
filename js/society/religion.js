@@ -4,6 +4,11 @@ const TRADE_CONVERSION_RATE = 0.00045;
 const STATE_SUPPORT_RATE = 0.0003;
 const VARIANT_CHANCE_PER_WEEK = 0.000004;
 const DIRECTIVE_INTERVAL = 260;
+const SHARE_PRUNE_INTERVAL = 13;
+const SHARE_PRUNE_THRESHOLD = 0.00025;
+const SPREAD_LOCAL = 'local';
+const SPREAD_ORGANISED = 'organised';
+const SPREAD_MISSIONARY = 'missionary';
 const clamp = (value, low = 0, high = 1) => Math.max(low, Math.min(high, value));
 
 function traditionName(region) {
@@ -14,6 +19,37 @@ function traditionName(region) {
 function leaderName(religion) {
   const stem = religion.name.replace(/ Tradition| Reform| Communion/g, '');
   return `Keeper of ${stem}`;
+}
+
+function invalidateReligionIndex(world) {
+  world._religionById = null;
+}
+
+function religionIndex(world) {
+  ensureReligiousWorld(world);
+  if (!(world._religionById instanceof Map) || world._religionById.size !== world.religions.length) {
+    world._religionById = new Map(world.religions.map((religion) => [religion.id, religion]));
+  }
+  return world._religionById;
+}
+
+function ensureSpreadMode(religion) {
+  if (!religion.spreadMode) {
+    religion.spreadMode = religion.adminCentreRegionId || religion.leader ? SPREAD_ORGANISED : SPREAD_LOCAL;
+  }
+  return religion.spreadMode;
+}
+
+function canProselytise(religion) {
+  if (!religion) return false;
+  const mode = ensureSpreadMode(religion);
+  return mode === SPREAD_ORGANISED || mode === SPREAD_MISSIONARY;
+}
+
+function missionStrength(religion, stateSponsored = false) {
+  if (!canProselytise(religion)) return 0;
+  const modeMultiplier = ensureSpreadMode(religion) === SPREAD_MISSIONARY ? 1.8 : 0.65;
+  return modeMultiplier * (stateSponsored ? 1.5 : 1) * (1 + (religion.authority || 0));
 }
 
 export function createReligiousWorld() {
@@ -29,6 +65,7 @@ export function ensureReligiousWorld(world) {
   if (!(world.observedConflicts instanceof Set)) world.observedConflicts = new Set(world.observedConflicts || []);
   if (!Number.isFinite(world.nextReligionId)) world.nextReligionId = world.religions.length + 1;
   if (!Number.isFinite(world.nextDirectiveId)) world.nextDirectiveId = world.directives.length + 1;
+  for (const religion of world.religions) ensureSpreadMode(religion);
   return world;
 }
 
@@ -43,8 +80,8 @@ export function ensureRegionReligion(region, world) {
   if (Object.keys(state.shares).length === 0) {
     const native = world.religions.find((religion) => religion.holyCityRegionId === region.id && !religion.parentId);
     if (native) state.shares[native.id] = 1;
+    normaliseShares(state);
   }
-  normaliseShares(state);
   return state;
 }
 
@@ -52,17 +89,19 @@ export function initialiseReligions(regions, world = createReligiousWorld()) {
   ensureReligiousWorld(world);
   if (world.religions.length > 0) {
     for (const region of regions) ensureRegionReligion(region, world);
+    invalidateReligionIndex(world);
     return world;
   }
   for (const region of regions) {
     const id = `religion_${world.nextReligionId++}`;
     world.religions.push({ id, name: traditionName(region), parentId: null, familyId: id,
       holyCityRegionId: region.id, adminCentreRegionId: null, foundedTick: 0,
-      authority: 0.08, leader: null, active: true });
+      authority: 0.08, leader: null, active: true, spreadMode: SPREAD_LOCAL });
     region.religion = { shares: { [id]: 1 }, stateReligionId: null, tolerance: 0.65,
       unrest: 0, conflictHistory: {} };
     if (region.cultureGroups?.[0]) region.cultureGroups[0].religionId = id;
   }
+  invalidateReligionIndex(world);
   return world;
 }
 
@@ -71,17 +110,41 @@ function normaliseShares(state) {
     if (!Number.isFinite(share) || share < 0.0001) delete state.shares[id];
   }
   const total = Object.values(state.shares).reduce((sum, value) => sum + value, 0);
-  if (total > 0) for (const id of Object.keys(state.shares)) state.shares[id] /= total;
+  if (total > 0 && Math.abs(total - 1) > 0.0000001) {
+    for (const id of Object.keys(state.shares)) state.shares[id] /= total;
+  }
+}
+
+function pruneShares(state) {
+  let removed = 0;
+  let largestId = null;
+  let largestShare = -1;
+  for (const [id, share] of Object.entries(state.shares)) {
+    if (share > largestShare) { largestShare = share; largestId = id; }
+    if (!Number.isFinite(share) || share <= 0) {
+      delete state.shares[id];
+    } else if (share < SHARE_PRUNE_THRESHOLD) {
+      removed += share;
+      delete state.shares[id];
+    }
+  }
+  if (removed > 0 && largestId && state.shares[largestId] !== undefined) state.shares[largestId] += removed;
+  normaliseShares(state);
 }
 
 export function religionById(world, id) {
-  return ensureReligiousWorld(world).religions.find((religion) => religion.id === id) || null;
+  if (!id) return null;
+  return religionIndex(world).get(id) || null;
 }
 
 export function dominantReligion(region, world) {
   const state = ensureRegionReligion(region, world);
-  const entry = Object.entries(state.shares).sort((a, b) => b[1] - a[1])[0];
-  return entry ? religionById(world, entry[0]) : null;
+  let bestId = null;
+  let bestShare = -1;
+  for (const [id, share] of Object.entries(state.shares)) {
+    if (share > bestShare) { bestShare = share; bestId = id; }
+  }
+  return bestId ? religionById(world, bestId) : null;
 }
 
 export function religionShare(region, religionId, world) {
@@ -100,13 +163,14 @@ export function setReligiousTolerance(region, value, world) {
   ensureRegionReligion(region, world).tolerance = clamp(Number(value));
 }
 
-function createVariant(world, parent, region, currentTick, name = null) {
+function createVariant(world, parent, region, currentTick, name = null, spreadMode = SPREAD_LOCAL) {
   const id = `religion_${world.nextReligionId++}`;
   const safeName = String(name || `${region.name} Reform`).replace(/[<>&"']/g, '').trim().slice(0, 60);
   const religion = { id, name: safeName || `${region.name} Reform`, parentId: parent.id,
     familyId: parent.familyId, holyCityRegionId: region.id, adminCentreRegionId: null,
-    foundedTick: currentTick, authority: 0.04, leader: null, active: true };
+    foundedTick: currentTick, authority: 0.04, leader: null, active: true, spreadMode };
   world.religions.push(religion);
+  invalidateReligionIndex(world);
   return religion;
 }
 
@@ -114,13 +178,12 @@ export function forkReligion(region, world, currentTick, name = null) {
   const parent = dominantReligion(region, world);
   if (!parent || (region.religion.shares[parent.id] || 0) < 0.35 || (region.treasury || 0) < 25) return null;
   region.treasury -= 25;
-  const variant = createVariant(world, parent, region, currentTick, name);
+  const variant = createVariant(world, parent, region, currentTick, name, SPREAD_MISSIONARY);
   const seed = Math.min(0.18, region.religion.shares[parent.id] * 0.25);
   region.religion.shares[parent.id] -= seed;
   region.religion.shares[variant.id] = seed;
   region.religion.stateReligionId = variant.id;
   region.religion.unrest = clamp(region.religion.unrest + 0.08);
-  normaliseShares(region.religion);
   return variant;
 }
 
@@ -134,6 +197,7 @@ export function establishReligiousCentre(region, world, religionId) {
   for (const [key, amount] of Object.entries(costs)) region.stockpile[key] -= amount;
   religion.adminCentreRegionId = region.id;
   religion.authority = Math.max(0.35, religion.authority);
+  if (ensureSpreadMode(religion) === SPREAD_LOCAL) religion.spreadMode = SPREAD_ORGANISED;
   religion.leader = { name: leaderName(religion), opinionOfRegions: {}, influence: {},
     currentDirectiveId: null };
   return true;
@@ -146,34 +210,56 @@ function shiftShare(region, fromId, toId, amount, world) {
   if (moved <= 0 || fromId === toId) return;
   state.shares[fromId] = available - moved;
   state.shares[toId] = (state.shares[toId] || 0) + moved;
-  normaliseShares(state);
 }
 
-function spreadThroughTrade(regions, world, currentTick) {
-  const byId = new Map(regions.map((region) => [region.id, region]));
-  const followers = {};
-  for (const region of regions) for (const [religionId, share] of Object.entries(region.religion?.shares || {})) {
-    followers[religionId] = (followers[religionId] || 0) + (region.population || 0) * share;
+function buildReligionTickCache(regions, world) {
+  const byId = new Map();
+  const dominantByRegion = new Map();
+  const followers = Object.create(null);
+  for (const region of regions) {
+    byId.set(region.id, region);
+    const state = ensureRegionReligion(region, world);
+    let dominantId = null;
+    let dominantShare = -1;
+    for (const [religionId, share] of Object.entries(state.shares)) {
+      followers[religionId] = (followers[religionId] || 0) + (region.population || 0) * share;
+      if (share > dominantShare) { dominantShare = share; dominantId = religionId; }
+    }
+    dominantByRegion.set(region.id, dominantId ? religionById(world, dominantId) : null);
   }
+  return { byId, dominantByRegion, followers };
+}
+
+function spreadThroughTrade(regions, world, currentTick, cache) {
+  const { byId, dominantByRegion, followers } = cache;
   const seen = new Set();
   for (const region of regions) for (const [partnerId, tick] of region.recentTradePartners || []) {
     if (currentTick - tick > 8) continue;
     const partner = byId.get(partnerId);
     if (!partner) continue;
-    const key = [region.id, partner.id].sort().join('|');
+    const key = region.id < partner.id ? `${region.id}|${partner.id}` : `${partner.id}|${region.id}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    const a = dominantReligion(region, world); const b = dominantReligion(partner, world);
-    const aMission = religionById(world, region.religion.stateReligionId) || a;
-    const bMission = religionById(world, partner.religion.stateReligionId) || b;
-    if (!a || !b || !aMission || !bMission || (a.id === bMission.id && b.id === aMission.id)) continue;
-    const aWeight = Math.sqrt((followers[aMission.id] || 0) + 1) *
-      (region.religion.stateReligionId === aMission.id ? 1.5 : 1) * (1 + aMission.authority);
-    const bWeight = Math.sqrt((followers[bMission.id] || 0) + 1) *
-      (partner.religion.stateReligionId === bMission.id ? 1.5 : 1) * (1 + bMission.authority);
-    const total = aWeight + bWeight;
-    shiftShare(region, a.id, bMission.id, TRADE_CONVERSION_RATE * bWeight / total, world);
-    shiftShare(partner, b.id, aMission.id, TRADE_CONVERSION_RATE * aWeight / total, world);
+    const a = dominantByRegion.get(region.id);
+    const b = dominantByRegion.get(partner.id);
+    const aOfficial = religionById(world, region.religion.stateReligionId);
+    const bOfficial = religionById(world, partner.religion.stateReligionId);
+    const aMission = canProselytise(aOfficial) ? aOfficial : (canProselytise(a) ? a : null);
+    const bMission = canProselytise(bOfficial) ? bOfficial : (canProselytise(b) ? b : null);
+    if (!a || !b || (!aMission && !bMission)) continue;
+
+    if (bMission && bMission.id !== a.id) {
+      const bStrength = Math.sqrt((followers[bMission.id] || 0) + 1) *
+        missionStrength(bMission, partner.religion.stateReligionId === bMission.id);
+      const resistance = a.familyId === bMission.familyId ? 0.7 : 1;
+      shiftShare(region, a.id, bMission.id, TRADE_CONVERSION_RATE * resistance * bStrength / (bStrength + 120), world);
+    }
+    if (aMission && aMission.id !== b.id) {
+      const aStrength = Math.sqrt((followers[aMission.id] || 0) + 1) *
+        missionStrength(aMission, region.religion.stateReligionId === aMission.id);
+      const resistance = b.familyId === aMission.familyId ? 0.7 : 1;
+      shiftShare(partner, b.id, aMission.id, TRADE_CONVERSION_RATE * resistance * aStrength / (aStrength + 120), world);
+    }
   }
 }
 
@@ -181,21 +267,25 @@ function stateSponsorship(region, world) {
   const state = ensureRegionReligion(region, world);
   const official = state.stateReligionId;
   if (!official || !state.shares[official]) return;
-  const rivals = Object.entries(state.shares).filter(([id]) => id !== official).sort((a, b) => b[1] - a[1]);
-  if (rivals[0]) shiftShare(region, rivals[0][0], official,
+  let rivalId = null;
+  let rivalShare = -1;
+  for (const [id, share] of Object.entries(state.shares)) {
+    if (id !== official && share > rivalShare) { rivalId = id; rivalShare = share; }
+  }
+  if (rivalId) shiftShare(region, rivalId, official,
     STATE_SUPPORT_RATE * (0.4 + (1 - state.tolerance)) * state.shares[official], world);
 }
 
-function observeConflicts(regions, world, raids, campaigns, currentTick) {
-  const byId = new Map(regions.map((region) => [region.id, region]));
+function observeConflicts(regions, world, raids, campaigns, currentTick, cache) {
+  const { byId, dominantByRegion } = cache;
   const conflicts = [...(raids || []).map((item) => ({ key: `raid:${item.id}`, item })),
     ...(campaigns || []).map((item) => ({ key: `campaign:${item.id}`, item }))];
   for (const { key, item } of conflicts) {
     if (world.observedConflicts.has(key)) continue;
     world.observedConflicts.add(key);
     const attacker = byId.get(item.attackerId); const defender = byId.get(item.defenderId);
-    const attackFaith = attacker && dominantReligion(attacker, world);
-    const defendFaith = defender && dominantReligion(defender, world);
+    const attackFaith = attacker && dominantByRegion.get(attacker.id);
+    const defendFaith = defender && dominantByRegion.get(defender.id);
     if (!attacker || !defender || !attackFaith || !defendFaith || attackFaith.familyId === defendFaith.familyId) continue;
     const grievanceKey = `${defendFaith.familyId}|${attackFaith.familyId}`;
     world.grievances[grievanceKey] = (world.grievances[grievanceKey] || 0) +
@@ -205,15 +295,17 @@ function observeConflicts(regions, world, raids, campaigns, currentTick) {
       religion.leader.opinionOfRegions[attacker.id] = clamp(
         (religion.leader.opinionOfRegions[attacker.id] || 0) - (attackFaith.id === defendFaith.id ? 0.08 : 0.12), -1, 1);
     }
-    for (const observer of regions) {
-      const observerFaith = dominantReligion(observer, world);
-      if (observerFaith?.familyId !== defendFaith.familyId) continue;
-      for (const target of regions) {
-        const targetFaith = dominantReligion(target, world);
-        if (targetFaith?.familyId !== attackFaith.familyId) continue;
-        const specific = targetFaith.id === attackFaith.id ? 1.5 : 1;
-        changeAttitude(observer, target.id, -0.015 * specific, 'religious_solidarity', currentTick);
-      }
+    const defenderFamilyRegions = [];
+    const attackerFamilyRegions = [];
+    for (const region of regions) {
+      const faith = dominantByRegion.get(region.id);
+      if (faith?.familyId === defendFaith.familyId) defenderFamilyRegions.push(region);
+      if (faith?.familyId === attackFaith.familyId) attackerFamilyRegions.push(region);
+    }
+    for (const observer of defenderFamilyRegions) for (const target of attackerFamilyRegions) {
+      const targetFaith = dominantByRegion.get(target.id);
+      const specific = targetFaith?.id === attackFaith.id ? 1.5 : 1;
+      changeAttitude(observer, target.id, -0.015 * specific, 'religious_solidarity', currentTick);
     }
   }
 }
@@ -321,8 +413,9 @@ export function migrateReligion(source, destination, count, world) {
 export function tickReligion(regions, world, currentTick, raids = [], campaigns = [], rng = Math.random) {
   ensureReligiousWorld(world);
   for (const region of regions) ensureRegionReligion(region, world);
-  spreadThroughTrade(regions, world, currentTick);
-  observeConflicts(regions, world, raids, campaigns, currentTick);
+  const cache = buildReligionTickCache(regions, world);
+  spreadThroughTrade(regions, world, currentTick, cache);
+  observeConflicts(regions, world, raids, campaigns, currentTick, cache);
   const issued = updateLeaders(world, currentTick);
   const events = [];
   for (const directive of issued) for (const region of regions) {
@@ -338,10 +431,11 @@ export function tickReligion(regions, world, currentTick, raids = [], campaigns 
     applyReligionPolitics(region, world, currentTick);
     const dominant = dominantReligion(region, world);
     if (dominant && region.population >= 5000 && rng() < VARIANT_CHANCE_PER_WEEK) {
-      const variant = createVariant(world, dominant, region, currentTick);
+      const variant = createVariant(world, dominant, region, currentTick, null, SPREAD_LOCAL);
       shiftShare(region, dominant.id, variant.id, 0.04, world);
       events.push({ type: 'religious_variant', regionId: region.id, regionName: region.name, religion: variant });
     }
+    if (currentTick % SHARE_PRUNE_INTERVAL === 0) pruneShares(region.religion);
   }
   const living = new Set(regions.flatMap((region) => Object.keys(region.religion.shares)));
   for (const religion of world.religions) religion.active = living.has(religion.id);
