@@ -1,5 +1,5 @@
 import { localPrice } from './prices.js?v=20260905-goods1';
-import { TRADE_GOODS, defaultExportAllowed } from './tradeGoods.js?v=20260905-goods1';
+import { TRADE_GOODS, defaultExportAllowed } from './tradeGoods.js?v=20260905-goods2';
 import { changeAttitude } from '../diplomacy/relations.js?v=20260904-save1';
 
 let nextTradeRuleId = 1;
@@ -30,6 +30,14 @@ function ruleMatches(rule, direction, resource, counterpartActorId) {
 }
 
 export function tradePolicyDecision(region, direction, resource, counterpart) {
+  // Almost every region has the Bronze Age defaults almost all the time. Keep
+  // that hot path allocation-free; explicit policy objects are created only
+  // when a ruler actually changes something.
+  const existing = region.tradePolicy;
+  if (!existing) return {
+    allowed: direction === 'export' ? defaultExportAllowed(resource) : true,
+    tariffRate: 0, matchedRule: null,
+  };
   const policy = ensureTradePolicy(region);
   const counterpartActorId = typeof counterpart === 'string' ? counterpart : tradeActorId(counterpart);
   let allowed = direction === 'export'
@@ -47,6 +55,7 @@ export function tradePolicyDecision(region, direction, resource, counterpart) {
 }
 
 export function tradeAllowed(exporter, importer, resource) {
+  if (!exporter.tradePolicy && !importer.tradePolicy) return defaultExportAllowed(resource);
   return tradePolicyDecision(exporter, 'export', resource, importer).allowed &&
     tradePolicyDecision(importer, 'import', resource, exporter).allowed;
 }
