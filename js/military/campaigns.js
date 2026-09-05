@@ -8,6 +8,7 @@ import { armyCohesionMultiplier, navalMissionProfile, postureProfile } from './p
 import { establishVassalage, findLandStagingRegion } from '../politics/polities.js?v=20260904-war1';
 import { removeFromBands, syncPopulation } from '../society/demographics.js?v=20260904-weather1';
 import { hillFortDefenceMultiplier } from '../economy/construction.js?v=20260904-build1';
+import { returnSiegeTrain, survivingFortBenefit, takeSiegeTrain } from './siegeEquipment.js?v=20260905-siege1';
 
 export const CAMPAIGN_OBJECTIVES = Object.freeze({
   devastation: { label: 'Destroy the region', pressureRate: 0.8, damageRate: 1.8 },
@@ -66,12 +67,14 @@ export function launchCampaign(attacker, defender, objective, requestedPersonnel
   const travelWeeks = campaignTravelWeeks(attacker, defender, reach.viaSea);
   attacker.army.personnel -= personnel;
   attacker.army.away = (attacker.army.away || 0) + personnel;
+  const siegeEquipment = takeSiegeTrain(attacker, personnel);
   return {
     id: nextCampaignId++, attackerId: attacker.id, defenderId: defender.id, objective,
     viaSea: reach.viaSea, stagingRegionId: reach.stagingRegionId || attacker.id,
     phase: 'travelling', departTick: currentTick, arriveTick: currentTick + travelWeeks,
     travelWeeks, returnTick: null, completed: false, withdrawRequested: false,
     initialPersonnel: personnel, personnel, militia: 0,
+    siegeEquipment,
     pressure: 0, damage: 0, attackerMorale: 1, defenderMorale: 1, supply: 1,
     attackerCasualties: 0, defenderCasualties: 0, civilianDeaths: 0,
     weeksEngaged: 0, stage: 'marching', lastWeek: null, history: [], outcome: null,
@@ -104,10 +107,14 @@ export function conflictResourceAccess(region) {
   return clamp(1 - pressure * 0.65 - militiaShare * 1.8, 0.15, 1);
 }
 
-function combatPower(region, personnel, toolTypes, role, supply = 1, morale = 1) {
+function combatPower(region, personnel, toolTypes, role, supply = 1, morale = 1, siegeTrain = null) {
   const equipment = toolEfficiencyMultiplier(region, 'soldier', toolTypes.soldier, region.unlockedTechIds);
+  const fortCount = Math.max(0, region.infrastructure?.hillForts || 0);
+  const fullFortMultiplier = hillFortDefenceMultiplier(region);
+  const fortMultiplier = role === 'defender'
+    ? 1 + (fullFortMultiplier - 1) * survivingFortBenefit(siegeTrain, fortCount) : 1;
   const homeAdvantage = role === 'defender'
-    ? DEFENDER_HOME_ADVANTAGE * postureProfile(region).raidDefence * hillFortDefenceMultiplier(region) : 1;
+    ? DEFENDER_HOME_ADVANTAGE * postureProfile(region).raidDefence * fortMultiplier : 1;
   return personnel * equipment * militaryReadiness(region) * armyCohesionMultiplier(region) *
     horseMilitaryMultiplier(region) * homeAdvantage * (0.55 + 0.45 * supply) * (0.65 + 0.35 * morale);
 }
@@ -162,7 +169,7 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   campaign.supply = clamp(campaign.supply + supplySuccess * 0.035 - supplyDrain - campaign.pressure * 0.008);
 
   const attackerPower = combatPower(attacker, campaign.personnel, toolTypes, 'attacker', campaign.supply, campaign.attackerMorale);
-  const defenderArmyPower = combatPower(defender, defender.army.personnel, toolTypes, 'defender', 1, campaign.defenderMorale);
+  const defenderArmyPower = combatPower(defender, defender.army.personnel, toolTypes, 'defender', 1, campaign.defenderMorale, campaign.siegeEquipment);
   const militiaPower = campaign.militia * 0.24 * postureProfile(defender).raidDefence;
   const defenderPower = defenderArmyPower + militiaPower;
   const totalPower = Math.max(1, attackerPower + defenderPower);
@@ -253,6 +260,7 @@ export function tickCampaigns(campaigns, regionsById, polities, currentTick, too
     if (campaign.phase === 'returning' && currentTick >= campaign.returnTick) {
       attacker.army.personnel += campaign.personnel;
       attacker.army.away = Math.max(0, (attacker.army.away || 0) - campaign.personnel);
+      returnSiegeTrain(attacker, campaign.siegeEquipment);
       campaign.completed = true; campaign.phase = 'completed';
       events.push({ type: 'campaign_returned', campaign, attackerName: attacker.name, defenderName: defender.name });
     }

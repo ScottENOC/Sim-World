@@ -1,26 +1,27 @@
 import { Clock } from './core/clock.js?v=20260904-weather1';
 import { EventBus } from './core/eventBus.js?v=20260904-weather1';
-import { loadWorld } from './world/region.js?v=20260904-build1';
+import { loadWorld } from './world/region.js?v=20260905-siege1';
 import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260904-weather1';
 import { seedCensus, densityPerKm2 } from './society/census.js?v=20260904-weather1';
-import { tickEconomy } from './economy/labor.js?v=20260904-build1';
+import { tickEconomy } from './economy/labor.js?v=20260905-siege1';
 import { tickTrade } from './economy/trade.js?v=20260904-policy1';
 import { tickStateFinance } from './economy/stateFinance.js?v=20260904-weather1';
 import { tickDemographics } from './society/demographics.js?v=20260904-weather1';
 import { tickBanditry } from './military/banditry.js?v=20260904-policy1';
 import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable, syncNextRaidId } from './military/raiding.js?v=20260904-build1';
-import { tickNationAi } from './ai/nationAi.js?v=20260904-build1';
+import { tickNationAi } from './ai/nationAi.js?v=20260905-siege1';
 import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260904-weather1';
-import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID } from './technology/breakthroughs.js?v=20260904-build1';
+import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID, CATAPULT_TECH_ID } from './technology/breakthroughs.js?v=20260905-siege1';
 import { MapRenderer } from './ui/mapRenderer.js?v=20260904-war1';
-import { AdvisorCouncil } from './ui/advisors.js?v=20260904-build1';
+import { AdvisorCouncil } from './ui/advisors.js?v=20260905-siege1';
 import { FogOfWar } from './core/fogOfWar.js?v=20260904-weather1';
 import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260904-weather1';
 import { attitudeLabel, attitudeToward, canDiplomaticallyReach, endAgreement, proposeAgreement, syncNextAgreementId, tickDiplomacy } from './diplomacy/relations.js?v=20260904-save1';
 import { availableVassalLevies, changeGovernanceForm, demandVassalage, governanceFormAvailability, governanceLabel, initialisePolities, musterVassalLevies, setDelegatedPower, setGovernancePolicy, sovereignPolity, tickPolities } from './politics/polities.js?v=20260904-war1';
 import { createGameSnapshot, readSave, restoreGameSnapshot, saveSummary, writeSave } from './core/saveGame.js?v=20260904-war1';
-import { syncNextCampaignId, tickCampaigns } from './military/campaigns.js?v=20260904-build1';
+import { syncNextCampaignId, tickCampaigns } from './military/campaigns.js?v=20260905-siege1';
 import { prepareConstructionLabor, syncNextProjectId, tickConstruction } from './economy/construction.js?v=20260904-build1';
+import { prepareSiegeWorkforce, tickSiegeEquipment } from './military/siegeEquipment.js?v=20260905-siege1';
 
 const START_YEAR = -1300; // target: roughly eighty prosperous years before a c.1220 BCE collapse
 const LAYERS = {
@@ -189,12 +190,14 @@ async function main() {
     const campaignResult = tickCampaigns(activeCampaigns, regionsById, polities, clock.tickIndex, toolTypes, Math.random);
     activeCampaigns = campaignResult.remaining;
     prepareConstructionLabor(regions);
+    prepareSiegeWorkforce(regions);
     tickEconomy(regions, seaRegions, toolTypes, Math.random, clock.tickIndex);
     pruneKnowledge(regions, clock.tickIndex);
     tickFishingKnowledge(fishingContactPairs, clock.tickIndex);
     tickTrade(regions, clock.tickIndex);
     tickStateFinance(regions);
     const constructionEvents = tickConstruction(regions, clock.tickIndex);
+    tickSiegeEquipment(regions);
     const breakthroughEvents = tickBreakthroughs(regions, clock.tickIndex, Math.random);
     tickDemographics(regions);
     const diplomacyEvents = tickDiplomacy(regions, agreements, toolTypes, clock.tickIndex);
@@ -983,6 +986,15 @@ function showNextEvent(clock, eventQueue) {
     wireEventContinue(clock, eventQueue);
     return;
   }
+  if (event.type === 'catapult_breakthrough') {
+    document.getElementById('event-title').textContent = 'Breakthrough: Torsion catapults';
+    document.getElementById('event-body').innerHTML = `
+      Engineers in ${event.regionName} have learnt to store tremendous force in twisted cords and release it through a throwing arm.<br><br>
+      Catapults can now be ordered through the Marshal. They are costly, but reduce fortification advantages much more effectively than battering rams.
+    `;
+    wireEventContinue(clock, eventQueue);
+    return;
+  }
   if (event.type === 'construction_completed') {
     document.getElementById('event-title').textContent = `Construction complete: ${event.constructionType.name}`;
     document.getElementById('event-body').textContent = `${event.constructionType.name} has been completed in ${event.regionName}. Its builders are released back to ordinary work.`;
@@ -1245,7 +1257,10 @@ function updateRegionStats(region, seaRegionsById, fogOfWar, regions, playerRegi
   const bronzeArms = region.equipment.soldier?.bronze_weapons || 0;
   const ironArms = region.equipment.soldier?.iron_weapons || 0;
   const armyEquipped = bronzeArms + ironArms;
-  const militaryLine = `${occ.soldier || 0} soldiers (${Math.min(armyEquipped * 2, occ.soldier || 0).toFixed(0)} equipped by ${armyEquipped.toFixed(0)} weapon sets: ${bronzeArms.toFixed(0)} bronze, ${ironArms.toFixed(0)} iron) &middot; ${Math.round(region.horseEconomy?.war || 0)} war horses &middot; ${occ.sailor || 0} sailors &middot; ${Math.round(region.navy.boats)} navy boats (${Math.round(region.navy.advancedBoats || 0)} advanced)`;
+  const siege = region.siegeEquipment?.inventory || {};
+  const rams = (siege.ram?.bronze || 0) + (siege.ram?.iron || 0);
+  const catapults = (siege.catapult?.bronze || 0) + (siege.catapult?.iron || 0);
+  const militaryLine = `${occ.soldier || 0} soldiers (${Math.min(armyEquipped * 2, occ.soldier || 0).toFixed(0)} equipped by ${armyEquipped.toFixed(0)} weapon sets: ${bronzeArms.toFixed(0)} bronze, ${ironArms.toFixed(0)} iron) &middot; ${Math.round(region.horseEconomy?.war || 0)} war horses &middot; ${occ.sailor || 0} sailors &middot; ${Math.round(region.navy.boats)} navy boats (${Math.round(region.navy.advancedBoats || 0)} advanced) &middot; ${Math.round(rams)} rams &middot; ${Math.round(catapults)} catapults`;
 
   const fishingLine = region.adjacentSeaIds.length
     ? `${Math.round(region.fishingBoats)} fishing boats (${Math.round(region.advancedFishingBoats || 0)} advanced) &middot; fishes ${region.adjacentSeaIds.join(', ')}`
@@ -1289,6 +1304,7 @@ function updateRegionStats(region, seaRegionsById, fogOfWar, regions, playerRegi
     ${knowsDetailed ? `<div>Skill (learning by doing): ${skillLine}</div>` : ''}
     ${knowsDetailed ? `<div>Iron smelting: ${region.unlockedTechIds.has(IRON_SMELTING_TECH_ID) ? `discovered &middot; industry ${(region.ironWorkingReadiness * 100).toFixed(0)}% established` : 'not yet discovered'}</div>` : ''}
     ${knowsDetailed ? `<div>Advanced boatbuilding: ${region.unlockedTechIds.has(ADVANCED_BOATBUILDING_TECH_ID) ? 'discovered' : 'not yet discovered'}</div>` : ''}
+    ${knowsDetailed ? `<div>Torsion catapults: ${region.unlockedTechIds.has(CATAPULT_TECH_ID) ? 'discovered' : 'not yet discovered'}</div>` : ''}
     ${knowsEconomy ? `<div>Wealth: ${region.wallet.toFixed(0)} populace &middot; ${region.treasury.toFixed(0)} treasury${creditLine}</div><div>State: ${financeLine}</div><div>Trade: ${tradeLine}</div>` : '<div>Wealth: unknown</div>'}
     ${knowsDetailed ? `<div>Tools: ${toolLine}</div><div>Culture: ${culture.cultureId} &middot; identity strength ${(culture.identityStrength * 100).toFixed(0)}%</div>` : ''}
     <div>Neighbours: ${neighbourLine}</div>

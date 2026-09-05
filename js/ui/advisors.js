@@ -2,9 +2,10 @@ import { canRaid, launchRaid, maxSeaRaidersAvailable } from '../military/raiding
 import { attitudeLabel, attitudeToward } from '../diplomacy/relations.js?v=20260904-save1';
 import { governanceLabel } from '../politics/polities.js?v=20260904-kingdom1';
 import { ensureMilitaryPolicy, mobilisedArmyTarget, setMilitaryPolicy } from '../military/policies.js?v=20260904-policy1';
-import { CAMPAIGN_OBJECTIVES, canCampaign, launchCampaign, massMobiliseDefender, requestCampaignWithdrawal } from '../military/campaigns.js?v=20260904-build1';
+import { CAMPAIGN_OBJECTIVES, canCampaign, launchCampaign, massMobiliseDefender, requestCampaignWithdrawal } from '../military/campaigns.js?v=20260905-siege1';
 import { availableConstructionTypes, cancelConstruction, CONSTRUCTION_TYPES, constructionEstimate,
   ensureConstruction, setConstructionWorkers, startConstruction } from '../economy/construction.js?v=20260904-build1';
+import { CATAPULT_TECH_ID, ensureSiegeEquipment, setSiegeTarget, siegeCount, siegeTrainCount } from '../military/siegeEquipment.js?v=20260905-siege1';
 
 const ADVISORS = [
   { id: 'marshal', icon: '\u2694', name: 'Marshal', brief: 'Forces & raids' },
@@ -114,6 +115,7 @@ export class AdvisorCouncil {
         defender?.governance?.sovereignPolityId === playerPolityId;
     });
     const campaignTargets = this.campaignTargets(player);
+    const siege = ensureSiegeEquipment(player);
     return `
       <p class="advisor-voice">“I will keep the fighting strength of the realm before you, and speak plainly about what we can afford.”</p>
       ${section('Military report',
@@ -129,6 +131,16 @@ export class AdvisorCouncil {
         : '<p class="advisor-note">The realm is not fighting a sustained campaign.</p>')}
       ${(player.unlockedTechIds.has('hill_forts') && !(player.infrastructure?.hillForts > 0))
         ? section('Marshal\'s recommendation', '<p class="advisor-note">A hill fort would strengthen the defender\'s home advantage in a sustained campaign.</p><button class="advisor-order" data-open-construction>Ask the Steward to build it</button>') : ''}
+      ${section('Siege equipment', player.unlockedTechIds.has('hill_forts') ? `
+        ${row('Rams at home', `${number(siegeCount(player, 'ram'))} · ${number(siege.inventory.ram.bronze)} bronze / ${number(siege.inventory.ram.iron)} iron`)}
+        <label class="advisor-field"><span>Target battering rams</span><input id="target-rams" type="number" min="0" step="1" value="${siege.targets.ram}"></label>
+        ${player.unlockedTechIds.has(CATAPULT_TECH_ID) ? `
+          ${row('Catapults at home', `${number(siegeCount(player, 'catapult'))} · ${number(siege.inventory.catapult.bronze)} bronze / ${number(siege.inventory.catapult.iron)} iron`)}
+          <label class="advisor-field"><span>Target catapults</span><input id="target-catapults" type="number" min="0" step="1" value="${siege.targets.catapult}"></label>`
+          : '<p class="advisor-note">Catapults require a later torsion-artillery breakthrough. Experience building rams, mature metalwork and contact with knowledgeable neighbours make discovery possible.</p>'}
+        <p class="advisor-note">Engineers use wood and metal through military procurement. Bronze equipment is more effective. A sustained campaign takes up to one engine per 100 troops; raids always leave every engine at home.</p>
+        ${siege.lastWeek?.stalledReason ? `<p class="advisor-note">Production stalled: ${siege.lastWeek.stalledReason}.</p>` : ''}`
+        : '<p class="advisor-note">We do not yet understand fortified warfare well enough to build siege engines.</p>')}
       ${section('Standing orders', `
         <label class="advisor-field"><span>Full army establishment</span><input id="council-army-target" type="number" min="0" step="100" value="${Math.round(player.targetArmySize)}"></label>
         <label class="advisor-field"><span>Target navy size</span><input id="council-navy-target" type="number" min="0" step="1" value="${Math.round(player.targetNavySize)}" ${player.isCoastal ? '' : 'disabled'}></label>
@@ -194,6 +206,7 @@ export class AdvisorCouncil {
         ${row('Defender morale', percent(campaign.defenderMorale), campaign.defenderMorale < .35 ? 'warning' : '')}
         ${row('Supply', percent(campaign.supply), campaign.supply < .4 ? 'warning' : '')}
         ${row('Economic damage', percent(campaign.damage))}
+        ${row('Siege train', `${number(siegeTrainCount(campaign.siegeEquipment))} engines`)}
         ${last ? `<p class="advisor-note">Last week: ${number(last.attackerLosses)} attacker and ${number(last.defenderLosses + last.militiaLosses)} defender losses. Relative field strength ${last.strengthRatio.toFixed(2)}×.</p>` : ''}
         ${campaign.attackerId === player.id && campaign.phase !== 'returning' ? `<button class="advisor-order" data-withdraw-campaign="${campaign.id}">Order withdrawal</button>` : ''}
         ${campaign.defenderId === player.id && campaign.phase === 'engaged' && campaign.militia <= 0 ? `<button class="advisor-order danger" data-mobilise-campaign="${campaign.id}">Mass mobilisation</button><p class="advisor-note">Call roughly 15% of available working adults into an inefficient emergency militia. Production will fall sharply until the campaign ends.</p>` : ''}
@@ -302,6 +315,10 @@ export class AdvisorCouncil {
         if (startConstruction(player, newType.value, newWorkers.value, this.clock.tickIndex)) this.render(false);
       });
     }
+    const ramTarget = document.getElementById('target-rams');
+    const catapultTarget = document.getElementById('target-catapults');
+    ramTarget?.addEventListener('change', () => setSiegeTarget(player, 'ram', ramTarget.value));
+    catapultTarget?.addEventListener('change', () => setSiegeTarget(player, 'catapult', catapultTarget.value));
     if (this.activeAdvisor !== 'marshal') return;
     const army = document.getElementById('council-army-target');
     const navy = document.getElementById('council-navy-target');

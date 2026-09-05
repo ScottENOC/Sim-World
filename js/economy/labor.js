@@ -347,13 +347,18 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   // committed tick to tick (ramping toward the player's target) rather
   // than being freely reallocated like every other occupation below.
   const requestedBuilders = Math.max(0, region.construction?.workersReserved || 0);
-  adjustArmySize(region, Math.max(0, civilianWorkingAge - region.army.personnel - region.navy.personnel - horseReport.workers - requestedBuilders));
-  adjustNavyCrew(region, Math.max(0, civilianWorkingAge - region.army.personnel - region.navy.personnel - horseReport.workers - requestedBuilders));
+  const requestedSiegeWorkers = Math.max(0, region.siegeEquipment?.workersReserved || 0);
+  adjustArmySize(region, Math.max(0, civilianWorkingAge - region.army.personnel - region.navy.personnel - horseReport.workers - requestedBuilders - requestedSiegeWorkers));
+  adjustNavyCrew(region, Math.max(0, civilianWorkingAge - region.army.personnel - region.navy.personnel - horseReport.workers - requestedBuilders - requestedSiegeWorkers));
   const constructionWorkers = Math.min(requestedBuilders,
     Math.max(0, civilianWorkingAge - region.army.personnel - region.navy.personnel - horseReport.workers));
   if (region.construction) region.construction.workersReserved = constructionWorkers;
-  const laborPool = Math.max(0, civilianWorkingAge - region.army.personnel - region.navy.personnel - horseReport.workers - constructionWorkers);
+  const siegeWorkers = Math.min(requestedSiegeWorkers,
+    Math.max(0, civilianWorkingAge - region.army.personnel - region.navy.personnel - horseReport.workers - constructionWorkers));
+  if (region.siegeEquipment) region.siegeEquipment.workersReserved = siegeWorkers;
+  const laborPool = Math.max(0, civilianWorkingAge - region.army.personnel - region.navy.personnel - horseReport.workers - constructionWorkers - siegeWorkers);
   report.construction = { workers: Math.round(constructionWorkers) };
+  report.siegeEquipment = { workers: Math.round(siegeWorkers) };
 
   const noise = foodYieldNoise(region, rng);
   const seasonalMultiplier = region.weather?.seasonalMultiplier ?? 1;
@@ -870,6 +875,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
     horseBreeder: Math.round(horseReport.breeders),
     horseTrainer: Math.round(horseReport.trainers),
     builder: Math.round(constructionWorkers),
+    siegeEngineer: Math.round(siegeWorkers),
     trader: 0, // set by trade.js
     // "general" = unspecialized subsistence labor, not literally unemployed —
     // gathering, herding, household production. It's now the genuine

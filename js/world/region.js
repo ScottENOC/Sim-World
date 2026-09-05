@@ -19,6 +19,10 @@ export class Region {
     this.wallet = 0; this.treasury = 0; this.unlockedTechIds = new Set();
     this.construction = { projects: [], completed: {}, workersReserved: 0, lastWeek: null };
     this.infrastructure = { hillForts: 0 };
+    this.siegeEquipment = { targets: { ram: 0, catapult: 0 },
+      inventory: { ram: { bronze: 0, iron: 0 }, catapult: { bronze: 0, iron: 0 } },
+      away: { ram: { bronze: 0, iron: 0 }, catapult: { bronze: 0, iron: 0 } },
+      experience: 0, workersReserved: 0, lastWeek: null };
     this.horseEconomy = { draft: 0, transport: 0, war: 0, breeders: 0, trainers: 0,
       births: 0, deaths: 0, capacity: 0, pastureFraction: 0 };
     this.weather = { index: 0, yieldMultiplier: 1, seasonalMultiplier: 1, condition: 'normal' };

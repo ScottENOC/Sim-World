@@ -1,6 +1,7 @@
 export const IRON_SMELTING_TECH_ID = 'iron_smelting';
 export const ADVANCED_BOATBUILDING_TECH_ID = 'advanced_boatbuilding';
 export const HILL_FORT_TECH_ID = 'hill_forts';
+export const CATAPULT_TECH_ID = 'torsion_catapults';
 
 // With hundreds of independent regions, even a tiny per-region chance can
 // produce an early world-first. These values make accumulated craft knowledge
@@ -20,6 +21,9 @@ const CHANCE_PER_ADVANCED_BOAT_PARTNER = 0.002;
 const BASE_HILL_FORT_CHANCE = 0.000015;
 const HILL_FORT_NEED_CHANCE = 0.0008;
 const HILL_FORT_DIFFUSION_CHANCE = 0.004;
+const CATAPULT_EARLIEST_TICK = 35_000;
+const MAX_CATAPULT_INNOVATION_CHANCE = 0.00005;
+const CATAPULT_DIFFUSION_CHANCE = 0.001;
 
 export function hillFortChance(region, regionsById) {
   if (region.unlockedTechIds.has(HILL_FORT_TECH_ID)) return 0;
@@ -32,6 +36,22 @@ export function hillFortChance(region, regionsById) {
     regionsById.get(id)?.unlockedTechIds.has(HILL_FORT_TECH_ID)).length;
   const diffusionChance = 1 - Math.pow(1 - HILL_FORT_DIFFUSION_CHANCE, knownNeighbours);
   return 1 - (1 - BASE_HILL_FORT_CHANCE - needChance) * (1 - diffusionChance);
+}
+
+export function catapultChance(region, regionsById, currentTick) {
+  if (region.unlockedTechIds.has(CATAPULT_TECH_ID) || currentTick < CATAPULT_EARLIEST_TICK) return 0;
+  const siegeExperience = Math.max(0, region.siegeEquipment?.experience || 0);
+  const craftExperience = Math.max(0, region.experience?.smithing || 0) +
+    Math.max(0, region.experience?.boatbuilding || 0);
+  const hasRams = ((region.siegeEquipment?.inventory?.ram?.bronze || 0) +
+    (region.siegeEquipment?.inventory?.ram?.iron || 0)) > 0;
+  const independent = hasRams
+    ? (1 - Math.exp(-siegeExperience / 500)) * (1 - Math.exp(-craftExperience / 100_000)) * MAX_CATAPULT_INNOVATION_CHANCE
+    : 0;
+  const knowledgeable = (region.neighbors || []).filter((id) =>
+    regionsById.get(id)?.unlockedTechIds.has(CATAPULT_TECH_ID)).length;
+  const diffusion = 1 - Math.pow(1 - CATAPULT_DIFFUSION_CHANCE, knowledgeable);
+  return 1 - (1 - independent) * (1 - diffusion);
 }
 
 function smithingKnowledge(region) {
@@ -114,6 +134,7 @@ export function tickBreakthroughs(regions, currentTick, rng = Math.random) {
   const ironDiscoveries = regions.filter((region) => rng() < ironSmeltingChance(region, regionsById, currentTick));
   const boatDiscoveries = regions.filter((region) => rng() < advancedBoatbuildingChance(region, regionsById, currentTick));
   const hillFortDiscoveries = regions.filter((region) => rng() < hillFortChance(region, regionsById));
+  const catapultDiscoveries = regions.filter((region) => rng() < catapultChance(region, regionsById, currentTick));
   for (const region of ironDiscoveries) {
     region.unlockedTechIds.add(IRON_SMELTING_TECH_ID);
     region.ironWorkingReadiness = Math.max(0.02, region.ironWorkingReadiness || 0);
@@ -136,6 +157,10 @@ export function tickBreakthroughs(regions, currentTick, rng = Math.random) {
   for (const region of hillFortDiscoveries) {
     region.unlockedTechIds.add(HILL_FORT_TECH_ID);
     events.push({ type: 'hill_fort_breakthrough', regionId: region.id, regionName: region.name, tick: currentTick });
+  }
+  for (const region of catapultDiscoveries) {
+    region.unlockedTechIds.add(CATAPULT_TECH_ID);
+    events.push({ type: 'catapult_breakthrough', regionId: region.id, regionName: region.name, tick: currentTick });
   }
   for (const region of regions) {
     advanceIronIndustry(region);
