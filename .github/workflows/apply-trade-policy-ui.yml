@@ -1,0 +1,39 @@
+name: Apply trade policy UI
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/apply-trade-policy-ui.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch Treasurer trade controls
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('js/ui/advisors.js'); s=p.read_text()
+          def r(old,new):
+              global s
+              if old not in s: raise SystemExit('target missing: '+old[:100])
+              s=s.replace(old,new,1)
+          r("import { dominantReligion, establishReligiousCentre, forkReligion, influenceReligiousLeader,\n  religionById, setReligiousTolerance, setStateReligion } from '../society/religion.js?v=20260905-religion1';",
+            "import { dominantReligion, establishReligiousCentre, forkReligion, influenceReligiousLeader,\n  religionById, setReligiousTolerance, setStateReligion } from '../society/religion.js?v=20260905-religion1';\nimport { TRADE_GOODS } from '../economy/tradeGoods.js?v=20260905-goods2';\nimport { activeTradeRestrictions, removeTradeRestriction, setTradeRestriction, tradeActorId } from '../economy/tradePolicy.js?v=20260905-policy1';")
+          old='''  renderTreasurer(player) {\n    const finance = player.militaryFinance || {};\n    const trade = player.tradeEconomy || {};\n    const revenue = (finance.weeklyTaxRevenue || 0) + (finance.weeklyTradeDuties || 0);\n    return `<p class="advisor-voice">“Coin is stored labour, Majesty. I count where it comes from, and which promises are consuming it.”</p>\n      ${section('Treasury', row('Treasury', number(player.treasury)) + row('Household wealth', number(player.wallet)) + row('Revenue this week', revenue.toFixed(1)) + row('Military payroll paid', percent(finance.payRatio ?? 1), (finance.payRatio ?? 1) < .9 ? 'warning' : '') + row('Administration capacity', percent(finance.stateCapacity ?? 1)))}\n      ${section('Trade', row('Exports this week', number(trade.weeklyExports)) + row('Imports this week', number(trade.weeklyImports)) + row('Trade debt', `${number(trade.debt)} / ${number(trade.creditLimit)}`) + row('Known partners', number(player.tradePartnerIds?.size)))}`;\n  }'''
+          new='''  renderTreasurer(player) {\n    const finance = player.militaryFinance || {};\n    const trade = player.tradeEconomy || {};\n    const revenue = (finance.weeklyTaxRevenue || 0) + (finance.weeklyTradeDuties || 0);\n    const restrictions = activeTradeRestrictions(player);\n    const contacts = this.regions.filter((region) => region.id !== player.id && this.fogOfWar.isVisible(region));\n    const actors = [...new Map(contacts.map((region) => [tradeActorId(region), region])).values()];\n    const goods = Object.entries(TRADE_GOODS);\n    const ruleLabel = (rule) => {\n      const direction = rule.direction === 'trade' ? 'All trade' : rule.direction === 'import' ? 'Imports' : 'Exports';\n      const goodText = rule.goods?.length ? rule.goods.map((id) => TRADE_GOODS[id]?.label || id).join(', ') : 'all goods';\n      const partnerText = rule.counterparties?.length ? rule.counterparties.map((id) => actors.find((r) => tradeActorId(r) === id)?.name || id).join(', ') : 'all countries';\n      return `${direction}: ${goodText} · ${partnerText}`;\n    };\n    return `<p class="advisor-voice">“Coin is stored labour, Majesty. I count where it comes from, and which promises are consuming it.”</p>\n      ${section('Treasury', row('Treasury', number(player.treasury)) + row('Household wealth', number(player.wallet)) + row('Revenue this week', revenue.toFixed(1)) + row('Military payroll paid', percent(finance.payRatio ?? 1), (finance.payRatio ?? 1) < .9 ? 'warning' : '') + row('Administration capacity', percent(finance.stateCapacity ?? 1)))}\n      ${section('Trade', row('Exports this week', number(trade.weeklyExports)) + row('Imports this week', number(trade.weeklyImports)) + row('Trade debt', `${number(trade.debt)} / ${number(trade.creditLimit)}`) + row('Known partners', number(player.tradePartnerIds?.size)))}\n      ${section('Trade restrictions', `\n        <p class="advisor-note">Imports are open by default. Civilian exports are open by default; military goods are closed by default. Embargoes can cover imports, exports or both. The diplomatic reaction depends on how much the restriction is expected to hurt the other realm.</p>\n        <label class="advisor-field"><span>Direction</span><select id="trade-rule-direction"><option value="trade">All trade</option><option value="export">Exports only</option><option value="import">Imports only</option></select></label>\n        <label class="advisor-field"><span>Goods</span><select id="trade-rule-good"><option value="*">All goods</option>${goods.map(([id, good]) => `<option value="${id}">${good.label}${good.strategic ? ' · military' : ''}</option>`).join('')}</select></label>\n        <label class="advisor-field"><span>Country</span><select id="trade-rule-country"><option value="*">All countries</option>${actors.map((region) => `<option value="${tradeActorId(region)}">${region.name}</option>`).join('')}</select></label>\n        <button id="add-trade-embargo" class="advisor-order danger">Prohibit trade</button>\n        ${restrictions.length ? `<div class="advisor-list">${restrictions.map((rule) => `<button data-remove-trade-rule="${rule.id}"><span>${ruleLabel(rule)}</span><small>Lift restriction</small></button>`).join('')}</div>` : '<p class="advisor-note">No additional embargoes are in force.</p>'}\n        <p class="advisor-note">For a list of goods or countries, add several specific rules. The underlying policy supports grouped lists as well; this phone-first control avoids awkward multi-select gestures.</p>`)}\n      ${section('Later institutions', '<p class="advisor-note">The same policy engine already carries a tariff-rate field, but tariffs are not active in Bronze Age play. A later state can use this layer for customs duties without replacing the embargo system.</p>')}`;\n  }'''
+          r(old,new)
+          needle="    document.querySelector('[data-open-construction]')?.addEventListener('click', () => {\n      this.activeAdvisor = 'steward'; this.render();\n    });"
+          add=needle+'''\n    document.getElementById('add-trade-embargo')?.addEventListener('click', () => {\n      const direction = document.getElementById('trade-rule-direction')?.value || 'trade';\n      const good = document.getElementById('trade-rule-good')?.value || '*';\n      const country = document.getElementById('trade-rule-country')?.value || '*';\n      setTradeRestriction(player, {\n        direction, goods: good === '*' ? null : [good],\n        counterparties: country === '*' ? null : [country], allowed: false,\n      }, this.regions, this.clock.tickIndex);\n      this.render(false);\n    });\n    document.querySelectorAll('[data-remove-trade-rule]').forEach((button) => button.addEventListener('click', () => {\n      removeTradeRestriction(player, button.dataset.removeTradeRule, this.regions, this.clock.tickIndex);\n      this.render(false);\n    }));'''
+          r(needle,add)
+          p.write_text(s)
+          PY
+          node --check js/ui/advisors.js
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/ui/advisors.js
+          git commit -m 'Add player embargo controls to Treasurer'
+          git push origin HEAD:main
