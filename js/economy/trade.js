@@ -1,4 +1,5 @@
-import { localPrice, TRADABLE_RESOURCES } from './prices.js?v=20260904-weather1';
+import { localPrice, TRADABLE_RESOURCES } from './prices.js?v=20260905-goods1';
+import { defaultExportAllowed } from './tradeGoods.js?v=20260905-goods1';
 import { directContactIds, knownRegionIds, recordDirectTrade, diffuseTradeNetworkKnowledge } from '../core/knowledge.js?v=20260904-weather1';
 import { centroidDistanceKm } from '../world/distance.js?v=20260904-weather1';
 import { advancedMaritimeShare } from '../military/army.js?v=20260905-infra1';
@@ -75,7 +76,12 @@ function sharesSea(regionA, regionB) {
 
 function seaTransportProfile(regionA, regionB) {
   const canDockAdvanced = operationalInfrastructure(regionA, 'harbour') && operationalInfrastructure(regionB, 'harbour');
-  const advancedShare = canDockAdvanced ? Math.max(advancedMaritimeShare(regionA), advancedMaritimeShare(regionB)) : 0;
+  const merchantFleet = regionA.tradeEconomy;
+  const merchantShare = merchantFleet?.merchantBoats > 0
+    ? Math.min(1, Math.max(0, merchantFleet.advancedMerchantBoats || 0) / merchantFleet.merchantBoats)
+    : 0;
+  const legacyShare = Math.max(advancedMaritimeShare(regionA), advancedMaritimeShare(regionB));
+  const advancedShare = canDockAdvanced ? Math.max(merchantShare, legacyShare) : 0;
   return {
     advancedShare,
     rangeKm: BASIC_SEA_RANGE_KM + (ADVANCED_SEA_RANGE_KM - BASIC_SEA_RANGE_KM) * advancedShare,
@@ -174,6 +180,7 @@ function ensureTradeEconomy(region) {
     foodImportEma: 0, bronzeExportEma: 0, routeReliabilityEma: 0,
     weeklyExports: 0, weeklyImports: 0, searchPressure: 0,
     merchantPopulation: NaN, merchantConfidence: 0,
+    merchantBoats: NaN, advancedMerchantBoats: NaN,
     nextVentureId: 1,
   };
   for (const [key, value] of Object.entries(defaults)) {
@@ -189,11 +196,38 @@ function ensureTradeEconomy(region) {
     const seed = Math.max(1, Math.round((region.population || 0) * INITIAL_MERCHANT_SHARE));
     region.tradeEconomy.merchantPopulation = Math.min(available || seed, previous || seed);
   }
+  if (!Number.isFinite(region.tradeEconomy.merchantBoats)) {
+    region.tradeEconomy.merchantBoats = Math.max(1, Math.ceil(region.tradeEconomy.merchantPopulation / 4));
+  }
+  if (!Number.isFinite(region.tradeEconomy.advancedMerchantBoats)) region.tradeEconomy.advancedMerchantBoats = 0;
   return region.tradeEconomy;
+}
+
+function commissionMerchantBoats(region) {
+  const economy = ensureTradeEconomy(region);
+  const target = Math.max(1, Math.ceil(economy.merchantPopulation / 4));
+  let gap = Math.max(0, target - economy.merchantBoats);
+  if (gap <= 0) return;
+  const canUseAdvanced = operationalInfrastructure(region, 'harbour');
+  if (canUseAdvanced) {
+    const advanced = Math.min(gap, Math.max(0, region.stockpile?.advanced_boat || 0));
+    if (advanced > 0) {
+      region.stockpile.advanced_boat -= advanced;
+      economy.merchantBoats += advanced;
+      economy.advancedMerchantBoats += advanced;
+      gap -= advanced;
+    }
+  }
+  const basic = Math.min(gap, Math.max(0, region.stockpile?.basic_boat || 0));
+  if (basic > 0) {
+    region.stockpile.basic_boat -= basic;
+    economy.merchantBoats += basic;
+  }
 }
 
 function beginTradeWeek(region) {
   const economy = ensureTradeEconomy(region);
+  commissionMerchantBoats(region);
   economy.weeklyExports = 0;
   economy.weeklyImports = 0;
   economy.weeklyFoodImports = 0;
@@ -281,7 +315,9 @@ function ventureRouteProfile(origin, dest, regionsById) {
 function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByRegion, regionsById) {
   const opportunities = [];
   const pricesHere = pricesByRegion.get(region.id);
-  const stockedResources = TRADABLE_RESOURCES.filter((resource) => (region.stockpile[resource] || 0) > 0.01);
+  const stockedResources = TRADABLE_RESOURCES.filter((resource) =>
+    defaultExportAllowed(resource) && (region.stockpile[resource] || 0) > 0.01);
+
   const habits = ensureTradeEconomy(region).routeHabits;
   for (const dest of candidateRegions) {
     if (dest.id === region.id) continue;

@@ -339,6 +339,12 @@ function persistentWorkforce(region, occupation, target, available, { crisis = f
   return Math.max(0, Math.min(Math.max(0, available), next));
 }
 
+const MANUFACTURED_ORDER_KEYS = [
+  'bronze_plough', 'iron_plough', 'bronze_picks', 'iron_picks',
+  'bronze_axes', 'iron_axes', 'bronze_weapons', 'iron_weapons',
+  'basic_boat', 'advanced_boat'
+];
+
 export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, currentTick = null) {
   const regionsById = new Map(regions.map((r) => [r.id, r]));
   const seaRegionsById = new Map(seaRegions.map((s) => [s.id, s]));
@@ -351,6 +357,12 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
     region._externalBronzeDemand = region.neighbors.reduce((sum, id) =>
       sum + (regionsById.get(id)?.marketDemand?.bronze || 0), 0
     ) * 0.25;
+    region._externalManufacturedDemand = {};
+    for (const key of MANUFACTURED_ORDER_KEYS) {
+      region._externalManufacturedDemand[key] = region.neighbors.reduce((sum, id) =>
+        sum + (regionsById.get(id)?.marketDemand?.[key] || 0), 0
+      );
+    }
   }
 
   for (const region of regions) {
@@ -633,6 +645,22 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   // intent; fishing gets whatever's left.
   let boatMakers = 0;
   if (region.isCoastal) {
+    let importedFishingGap = Math.max(0, region.targetFishingBoats - region.fishingBoats);
+    if (importedFishingGap > 0 && operationalInfrastructure(region, 'harbour')) {
+      const advancedImported = Math.min(importedFishingGap, Math.max(0, region.stockpile.advanced_boat || 0));
+      if (advancedImported > 0) {
+        region.stockpile.advanced_boat -= advancedImported;
+        region.fishingBoats += advancedImported;
+        region.advancedFishingBoats = (region.advancedFishingBoats || 0) + advancedImported;
+        importedFishingGap -= advancedImported;
+      }
+    }
+    const basicImported = Math.min(importedFishingGap, Math.max(0, region.stockpile.basic_boat || 0));
+    if (basicImported > 0) {
+      region.stockpile.basic_boat -= basicImported;
+      region.fishingBoats += basicImported;
+    }
+
     const navyGap = Math.max(0, region.targetNavySize - region.navy.boats);
     const navyBoatsWanted = navyGap * BOAT_MOBILIZATION_RATE;
     const navyMakersWanted = BOATMAKER_BUILD_RATE > 0 ? navyBoatsWanted / BOATMAKER_BUILD_RATE : 0;
@@ -652,10 +680,22 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
     const fishMakersUsed = fishBuild.makers;
 
     boatMakers = navyMakersUsed + fishMakersUsed;
+
+    const externalBoatOrders = Math.max(0,
+      (region._externalManufacturedDemand?.basic_boat || 0) +
+      (region._externalManufacturedDemand?.advanced_boat || 0));
+    const marketBoatTarget = Math.min(2, externalBoatOrders * 0.2);
+    const marketMakersAvailable = Math.max(0, remainingSurplus - boatMakers);
+    const marketBuild = buildFleetBoats(region, marketBoatTarget, marketMakersAvailable);
+    const marketBasic = Math.max(0, marketBuild.built - marketBuild.advanced);
+    if (marketBasic > 0) region.stockpile.basic_boat = (region.stockpile.basic_boat || 0) + marketBasic;
+    if (marketBuild.advanced > 0) region.stockpile.advanced_boat = (region.stockpile.advanced_boat || 0) + marketBuild.advanced;
+    boatMakers += marketBuild.makers;
+
     accumulateExperience(region, 'boatbuilding', boatMakers);
     report.boatmaking = { workers: Math.round(boatMakers), navyBoats: navyBuild.built,
       advancedNavyBoats: navyBuild.advanced, fishingBoats: fishBuild.built,
-      advancedFishingBoats: fishBuild.advanced };
+      advancedFishingBoats: fishBuild.advanced, newBoatsForMarket: marketBuild.built };
   }
   remainingSurplus -= boatMakers;
 
@@ -702,8 +742,12 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
     ['soldier', desiredToolInvestment(region, 'soldier', Math.round(region.army.personnel), toolTypes.soldier, region.unlockedTechIds, materialAvailability)],
   ];
   const wantedByMaterial = { bronze: 0, iron: 0 };
+  const finishedToolDemand = {};
   for (const [, want] of toolWants) {
     if (want.material) wantedByMaterial[want.material] += want.materialWanted;
+    if (want.tier && want.newToolsWanted > 0) {
+      finishedToolDemand[want.tier.id] = (finishedToolDemand[want.tier.id] || 0) + want.newToolsWanted;
+    }
   }
 
   // Bronze production concentrates in ore-rich origins and well-connected
@@ -740,7 +784,16 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng) {
   const foodBufferGap = Math.max(0, desiredFoodBuffer - Math.max(0, region.stockpile.food || 0));
   const plannedFoodImportDemand = humanFoodNeeded * foodPlan.importDependence + foodBufferGap / 26;
 
+  const merchantFleet = region.tradeEconomy || {};
+  const merchantBoatTarget = Math.max(1, Math.ceil((merchantFleet.merchantPopulation || 0) / 4));
+  const merchantBoatGap = Math.max(0, merchantBoatTarget - (merchantFleet.merchantBoats || 0));
+  const fishingBoatGap = Math.max(0, region.targetFishingBoats - region.fishingBoats);
+  const boatDemand = merchantBoatGap + fishingBoatGap;
+
   region.marketDemand = {
+    ...finishedToolDemand,
+    basic_boat: boatDemand,
+    advanced_boat: operationalInfrastructure(region, 'harbour') ? boatDemand * 0.5 : 0,
     food: plannedFoodImportDemand,
     bronze: isBronzeWorkshop ? 0 : wantedByMaterial.bronze,
     copper: isBronzeWorkshop ? Math.max(0, desiredBronzeOutput * 2 - (region.stockpile.copper || 0)) : 0,
