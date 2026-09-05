@@ -45,6 +45,7 @@ const outputPath = option('output', null);
 const baseSeed = Number(option('base-seed', 0x12345678)) >>> 0;
 const worldScale = Math.max(1, Math.floor(Number(option('scale', 1))));
 const daysPerTick = Math.max(1, Number(option('days-per-tick', 30)));
+const systemTiming = String(option('system-timing', 'false')).toLowerCase() === 'true';
 
 function mulberry32(seed) {
   let state = seed >>> 0;
@@ -234,7 +235,16 @@ function run(seed) {
   const agreements = [];
   let window = newWindow(regions);
   const timeline = [];
+  const timings = Object.create(null);
+  const timed = (name, fn) => {
+    if (!systemTiming) return fn();
+    const started = performance.now();
+    const result = fn();
+    timings[name] = (timings[name] || 0) + (performance.now() - started);
+    return result;
+  };
   const targetDays = years * 365.2425;
+  let nextSnapshotDay = snapshotYears * 365.2425;
   let elapsedDays = 0;
   let tick = 0;
   while (elapsedDays < targetDays - 0.001) {
@@ -244,28 +254,28 @@ function run(seed) {
     elapsedDays += thisTickDays;
     const time = { tickIndex: tick, startDay, endDay: elapsedDays, elapsedDays: thisTickDays, resolution: 'benchmark' };
     const calendarWeek = calendarWeekIndex(time.endDay);
-    campaigns = tickCampaigns(campaigns, regionsById, polities, calendarWeek, toolTypes, rng).remaining;
-    prepareConstructionLabor(regions);
-    prepareSiegeWorkforce(regions);
-    tickEconomy(regions, seas, toolTypes, rng, calendarWeek, time.elapsedDays, time.endDay);
-    tickFishingKnowledge(fishingPairs, calendarWeek);
-    tickTrade(regions, calendarWeek, time);
-    tickStateFinance(regions, time.elapsedDays);
-    tickInfrastructureMaintenance(regions, time.elapsedDays);
-    tickConstruction(regions, calendarWeek, time.elapsedDays);
-    tickSiegeEquipment(regions, time.elapsedDays);
-    tickBreakthroughs(regions, calendarWeek, rng, time.elapsedDays);
-    tickReligion(regions, religiousWorld, calendarWeek, raids, campaigns, rng, time.elapsedDays);
-    tickDemographics(regions, religiousWorld, time.elapsedDays);
-    tickDiplomacy(regions, agreements, toolTypes, calendarWeek, time.elapsedDays);
-    tickPolities(polities, regions, calendarWeek, time.elapsedDays);
-    tickBanditry(regions, toolTypes, agreements, time.elapsedDays);
-    tickNationAi(regions, '__calibration__', raids, campaigns, agreements, polities,
-      religiousWorld, calendarWeek, toolTypes, rng, time.elapsedDays);
-    const raidResult = tickRaids(raids, regionsById, calendarWeek, toolTypes, rng);
+    campaigns = timed('campaigns', () => tickCampaigns(campaigns, regionsById, polities, calendarWeek, toolTypes, rng)).remaining;
+    timed('constructionPrep', () => prepareConstructionLabor(regions));
+    timed('siegePrep', () => prepareSiegeWorkforce(regions));
+    timed('economy', () => tickEconomy(regions, seas, toolTypes, rng, calendarWeek, time.elapsedDays, time.endDay));
+    timed('fishingKnowledge', () => tickFishingKnowledge(fishingPairs, calendarWeek));
+    timed('trade', () => tickTrade(regions, calendarWeek, time));
+    timed('stateFinance', () => tickStateFinance(regions, time.elapsedDays));
+    timed('infrastructureMaintenance', () => tickInfrastructureMaintenance(regions, time.elapsedDays));
+    timed('construction', () => tickConstruction(regions, calendarWeek, time.elapsedDays));
+    timed('siegeEquipment', () => tickSiegeEquipment(regions, time.elapsedDays));
+    timed('breakthroughs', () => tickBreakthroughs(regions, calendarWeek, rng, time.elapsedDays));
+    timed('religion', () => tickReligion(regions, religiousWorld, calendarWeek, raids, campaigns, rng, time.elapsedDays));
+    timed('demographics', () => tickDemographics(regions, religiousWorld, time.elapsedDays));
+    timed('diplomacy', () => tickDiplomacy(regions, agreements, toolTypes, calendarWeek, time.elapsedDays));
+    timed('polities', () => tickPolities(polities, regions, calendarWeek, time.elapsedDays));
+    timed('banditry', () => tickBanditry(regions, toolTypes, agreements, time.elapsedDays));
+    timed('nationAi', () => tickNationAi(regions, '__calibration__', raids, campaigns, agreements, polities,
+      religiousWorld, calendarWeek, toolTypes, rng, time.elapsedDays));
+    const raidResult = timed('raids', () => tickRaids(raids, regionsById, calendarWeek, toolTypes, rng));
     raids = raidResult.remaining;
-    pruneKnowledge(regions, calendarWeek);
-    assertFiniteWorld(regions, initial.population, tick);
+    timed('knowledgePrune', () => pruneKnowledge(regions, calendarWeek));
+    timed('validation', () => assertFiniteWorld(regions, initial.population, tick));
 
     for (const region of regions) {
       const activity = window.get(region.id);
@@ -283,12 +293,16 @@ function run(seed) {
       activity.loot = region.raidEconomy.totalLootValue - activity.raidBaseline;
       activity.raidsWon = region.raidEconomy.raidsWon - activity.winBaseline;
     }
-    if (tick % (snapshotYears * 52) === 0 || tick === years * 52) {
-      timeline.push(snapshot(regions, initial, +(tick / 52).toFixed(1), window, polities));
+    if (elapsedDays + 0.001 >= nextSnapshotDay || elapsedDays + 0.001 >= targetDays) {
+      timeline.push(snapshot(regions, initial, +(elapsedDays / 365.2425).toFixed(1), window, polities));
       window = newWindow(regions);
+      while (nextSnapshotDay <= elapsedDays + 0.001) nextSnapshotDay += snapshotYears * 365.2425;
     }
   }
-  return { seed, timeline };
+  const tickCount = Math.ceil(targetDays / daysPerTick);
+  const systemTimingMsPerTick = Object.fromEntries(Object.entries(timings)
+    .sort((a, b) => b[1] - a[1]).map(([name, ms]) => [name, +(ms / Math.max(1, tickCount)).toFixed(3)]));
+  return { seed, timeline, ...(systemTiming ? { systemTimingMsPerTick } : {}) };
 }
 
 const started = performance.now();
@@ -300,7 +314,7 @@ for (let index = 0; index < seedCount; index += 1) {
 }
 const report = {
   generatedAt: new Date().toISOString(),
-  configuration: { years, seedCount, snapshotYears, baseSeed, worldScale, daysPerTick },
+  configuration: { years, seedCount, snapshotYears, baseSeed, worldScale, daysPerTick, systemTiming },
   elapsedSeconds: +((performance.now() - started) / 1000).toFixed(1),
   raidingSpecialityDefinition: 'At least two successful raids in the window; loot exceeds exports and is at least 50% of external income.',
   runs,
