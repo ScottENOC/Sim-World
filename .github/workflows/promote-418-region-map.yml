@@ -1,0 +1,59 @@
+name: Promote 418-region map
+on:
+  push:
+    branches: [promote-418-region-map]
+    paths: ['.github/workflows/promote-418-region-map.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install geometry dependencies
+        run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2
+      - name: Build and validate expanded land map
+        run: |
+          python tools/validate-map-region-plan.py
+          python -m json.tool tools/map-resource-plan.json >/dev/null
+          rm -rf /tmp/simworld-map-expansion /tmp/simworld-sea-expansion
+          python tools/build-map-expansion.py --fail-on-overlap --output-dir /tmp/simworld-map-expansion
+          python tools/build-sea-expansion.py --land-geo /tmp/simworld-map-expansion/regions.geo.json --output-dir /tmp/simworld-sea-expansion
+      - name: Promote generated data
+        run: |
+          cp /tmp/simworld-map-expansion/regions.geo.json data/world/regions.geo.json
+          cp /tmp/simworld-map-expansion/regions.meta.json data/world/regions.meta.json
+          cp /tmp/simworld-map-expansion/resources.initial.json data/world/resources.initial.json
+          cp /tmp/simworld-sea-expansion/seaRegions.geo.json data/world/seaRegions.geo.json
+          cp /tmp/simworld-sea-expansion/seaRegions.meta.json data/world/seaRegions.meta.json
+      - name: Sanity check promoted world
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const geo=JSON.parse(fs.readFileSync('data/world/regions.geo.json','utf8'));
+          const meta=JSON.parse(fs.readFileSync('data/world/regions.meta.json','utf8'));
+          const resources=JSON.parse(fs.readFileSync('data/world/resources.initial.json','utf8'));
+          const seaGeo=JSON.parse(fs.readFileSync('data/world/seaRegions.geo.json','utf8'));
+          const seaMeta=JSON.parse(fs.readFileSync('data/world/seaRegions.meta.json','utf8'));
+          if (geo.features.length !== 418 || meta.regions.length !== 418 || Object.keys(resources).length !== 418) throw new Error(`Expected 418 land regions; got geo=${geo.features.length} meta=${meta.regions.length} resources=${Object.keys(resources).length}`);
+          if (seaGeo.features.length !== seaMeta.seaRegions.length || seaMeta.seaRegions.length <= 17) throw new Error(`Sea expansion invalid: geo=${seaGeo.features.length} meta=${seaMeta.seaRegions.length}`);
+          const ids=new Set(meta.regions.map(r=>r.id));
+          for (const r of meta.regions) for (const n of r.neighbors || []) if (!ids.has(n)) throw new Error(`Unknown neighbour ${n} from ${r.id}`);
+          for (const s of seaMeta.seaRegions) for (const id of s.adjacentLand || []) if (!ids.has(id)) throw new Error(`Unknown coastal land ${id} from sea ${s.id}`);
+          console.log(`PROMOTED_LAND=${meta.regions.length}`);
+          console.log(`PROMOTED_SEAS=${seaMeta.seaRegions.length}`);
+          NODE
+          find js tools -name '*.js' -o -name '*.mjs' | while read f; do node --check "$f"; done
+      - name: Commit promoted world data
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/world/regions.geo.json data/world/regions.meta.json data/world/resources.initial.json data/world/seaRegions.geo.json data/world/seaRegions.meta.json
+          git commit -m 'Promote 418-region Bronze Age map and eastern seas'
+          git push
