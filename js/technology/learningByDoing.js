@@ -1,17 +1,15 @@
 // Bronze Age technology isn't a tree of discrete unlocks yet — mostly it's
 // tacit knowledge that accumulates from actually doing the work: soil
-// reading, timing, ore sense, hammer control. The more cumulative
-// worker-effort a region has put into an activity, the better it gets at
-// it — same saturating-curve shape used everywhere else in this sim (fast
-// early gains, tapering toward a ceiling). A genuine technological leap
-// (such as iron smelting) is a separate breakthrough. Smithing experience
-// raises that breakthrough's chance, and bronze and iron work both continue
-// contributing to this same shared store of practical metallurgy knowledge.
+// reading, timing, ore sense, hammer control, seamanship and navigation. The
+// more cumulative worker-effort a region has put into an activity, the better
+// it gets at it — same saturating-curve shape used everywhere else in this sim
+// (fast early gains, tapering toward a ceiling). Genuine technological leaps
+// (such as iron smelting or advanced boatbuilding) remain separate breakthroughs.
 
 const CEILING = {
-  farming: 0.50,     // up to +50% from technique alone: rotation instinct, soil reading, timing
-  gathering: 0.25,   // less room for "technique" in foraging than in a cultivated practice
-  fishing: 0.35,     // reading currents, seasonal runs, net/line technique
+  farming: 0.50,
+  gathering: 0.25,
+  fishing: 0.35,
   lumberjack: 0.35,
   mining: 0.40,
   smithing: 0.45,
@@ -19,16 +17,13 @@ const CEILING = {
   textiles: 0.30,
   boatbuilding: 0.45,
   horseHusbandry: 0.40,
+  seamanship: 0.55, // navigation, weather-reading, coastal piloting, sail handling and fleet coordination
 };
 
 // Cumulative worker-ticks to reach ~63% of the ceiling (1 - 1/e). Scaled
-// against each activity's actual typical workforce, not a uniform guess —
-// farming/gathering involve hundreds of thousands of workers, lumberjack
-// (forest-capacity-capped) involves single digits to low hundreds, and
-// mining/smithing sit in between. Checked against a 200-year headless run
-// before shipping: first-pass values had farming/gathering fully saturated
-// within 2 years (workforce far bigger than assumed) and lumberjack barely
-// moving at all after 200 years (workforce far smaller than assumed).
+// against each activity's typical workforce. Seamanship deliberately takes
+// generations of repeated maritime activity to approach its ceiling: a few
+// successful expeditions help, but do not create an instant naval superpower.
 const EXPERIENCE_HALFLIFE = {
   farming: 700_000_000,
   gathering: 400_000_000,
@@ -40,19 +35,17 @@ const EXPERIENCE_HALFLIFE = {
   textiles: 300_000,
   boatbuilding: 120_000,
   horseHusbandry: 100_000,
+  seamanship: 300_000,
 };
 
 export const LEARNABLE_ACTIVITIES = Object.keys(CEILING);
 
 export function accumulateExperience(region, activity, workers) {
   if (!(activity in CEILING) || workers <= 0) return;
+  if (!region.experience) region.experience = {};
   region.experience[activity] = (region.experience[activity] || 0) + workers;
 }
 
-// Efficiency multiplier from experience alone — combine with tools.js's
-// multiplier the same way farming already combines with equipment: they
-// stack multiplicatively (well-practiced AND well-equipped is better than
-// either alone).
 export function skillMultiplier(region, activity) {
   const ceiling = CEILING[activity];
   const halflife = EXPERIENCE_HALFLIFE[activity];
