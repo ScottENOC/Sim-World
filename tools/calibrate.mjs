@@ -44,8 +44,11 @@ const snapshotYears = Math.max(1, Number(option('snapshot-years', 5)));
 const outputPath = option('output', null);
 const baseSeed = Number(option('base-seed', 0x12345678)) >>> 0;
 const worldScale = Math.max(1, Math.floor(Number(option('scale', 1))));
+const requestedTargetRegions = Math.floor(Number(option('target-regions', 0)));
+const targetRegions = requestedTargetRegions > 0 ? requestedTargetRegions : null;
 const daysPerTick = Math.max(1, Number(option('days-per-tick', 30)));
 const systemTiming = String(option('system-timing', 'false')).toLowerCase() === 'true';
+const regionalDetail = String(option('regional-detail', 'false')).toLowerCase() === 'true';
 
 function mulberry32(seed) {
   let state = seed >>> 0;
@@ -59,8 +62,19 @@ function mulberry32(seed) {
 }
 
 function makeWorld(rng) {
+  const desiredRegions = targetRegions || meta.length * worldScale;
+  const copyCount = Math.ceil(desiredRegions / meta.length);
   const scaledMeta = [];
-  for (let copy = 0; copy < worldScale; copy++) for (const m of meta) scaledMeta.push({ ...m, id: `${m.id}__${copy}`, neighbors: m.neighbors.map(id => `${id}__${copy}`) });
+  const includedByCopy = [];
+  let remaining = desiredRegions;
+  for (let copy = 0; copy < copyCount; copy += 1) {
+    const selected = meta.slice(0, Math.min(meta.length, remaining));
+    const included = new Set(selected.map((m) => m.id));
+    includedByCopy.push(included);
+    for (const m of selected) scaledMeta.push({ ...m, id: `${m.id}__${copy}`,
+      neighbors: m.neighbors.filter((id) => included.has(id)).map((id) => `${id}__${copy}`) });
+    remaining -= selected.length;
+  }
   const regions = scaledMeta.map((m) => {
     const region = new Region({ id: m.id, name: m.name, feature: null,
       centroid: m.centroid, areaSqKm: m.areaSqKm, neighbors: m.neighbors });
@@ -79,12 +93,18 @@ function makeWorld(rng) {
     }
     return region;
   });
-  const seas = Array.from({length: worldScale}, (_, copy) => seaMeta.map((m) => ({...m, id: `${m.id}__${copy}`, adjacentLand: m.adjacentLand.map(id => `${id}__${copy}`)}))).flat().map((m) => {
-    const sea = new SeaRegion({ id: m.id, name: m.name, feature: null,
-      centroid: m.centroid, areaSqKm: m.areaSqKm, adjacentLand: m.adjacentLand });
-    sea.fish = { currentStock: sea.areaSqKm * 2 * 0.7, K: sea.areaSqKm * 2 };
-    return sea;
-  });
+  const seas = [];
+  for (let copy = 0; copy < includedByCopy.length; copy += 1) {
+    const included = includedByCopy[copy];
+    for (const m of seaMeta) {
+      const adjacentLand = m.adjacentLand.filter((id) => included.has(id)).map((id) => `${id}__${copy}`);
+      if (adjacentLand.length === 0) continue;
+      const sea = new SeaRegion({ id: `${m.id}__${copy}`, name: m.name, feature: null,
+        centroid: m.centroid, areaSqKm: m.areaSqKm, adjacentLand });
+      sea.fish = { currentStock: sea.areaSqKm * 2 * 0.7, K: sea.areaSqKm * 2 };
+      seas.push(sea);
+    }
+  }
   seedCensus(regions, rng);
   linkSeaAdjacency(regions, seas);
   initialiseKnowledge(regions);
@@ -147,7 +167,7 @@ function assertFiniteWorld(regions, initialPopulation, tick) {
   }
 }
 
-function snapshot(regions, initial, year, window, polities = []) {
+function snapshot(regions, initial, year, window, polities = [], includeRegionalDetail = false) {
   const specialities = classifySpecialities(regions, window);
   const windowActivity = [...window.values()];
   const regionsById = new Map(regions.map((region) => [region.id, region]));
@@ -216,6 +236,20 @@ function snapshot(regions, initial, year, window, polities = []) {
     },
     specialities: Object.fromEntries(Object.entries(specialities).map(([key, entries]) =>
       [key, { count: entries.length, leaders: entries.slice(0, 5) }])),
+    ...(includeRegionalDetail ? { regional: regions.map((r) => ({
+      id: r.id,
+      name: r.name,
+      population: Math.round(r.population),
+      stability: +r.stability.toFixed(3),
+      weeklyExports: +(r.tradeEconomy.weeklyExports || 0).toFixed(2),
+      weeklyFoodImports: +(r.tradeEconomy.weeklyFoodImports || 0).toFixed(2),
+      foodImportDependence: +(r.foodImportDependence || 0).toFixed(4),
+      bronzeOutput: +(r.report.smithing?.bronze || 0).toFixed(2),
+      bronzeStock: +(r.stockpile.bronze || 0).toFixed(2),
+      iron: r.unlockedTechIds.has('iron_smelting'),
+      surfaceCopperRemaining: +(r.deposits.copper?.tiers[0]?.remainingStock || 0).toFixed(1),
+      surfaceTinRemaining: +(r.deposits.tin?.tiers[0]?.remainingStock || 0).toFixed(1),
+    })) } : {}),
   };
 }
 
@@ -294,7 +328,7 @@ function run(seed) {
       activity.raidsWon = region.raidEconomy.raidsWon - activity.winBaseline;
     }
     if (elapsedDays + 0.001 >= nextSnapshotDay || elapsedDays + 0.001 >= targetDays) {
-      timeline.push(snapshot(regions, initial, +(elapsedDays / 365.2425).toFixed(1), window, polities));
+      timeline.push(snapshot(regions, initial, +(elapsedDays / 365.2425).toFixed(1), window, polities, regionalDetail));
       window = newWindow(regions);
       while (nextSnapshotDay <= elapsedDays + 0.001) nextSnapshotDay += snapshotYears * 365.2425;
     }
@@ -314,7 +348,7 @@ for (let index = 0; index < seedCount; index += 1) {
 }
 const report = {
   generatedAt: new Date().toISOString(),
-  configuration: { years, seedCount, snapshotYears, baseSeed, worldScale, daysPerTick, systemTiming },
+  configuration: { years, seedCount, snapshotYears, baseSeed, worldScale, targetRegions, actualRegions: targetRegions || meta.length * worldScale, daysPerTick, systemTiming, regionalDetail },
   elapsedSeconds: +((performance.now() - started) / 1000).toFixed(1),
   raidingSpecialityDefinition: 'At least two successful raids in the window; loot exceeds exports and is at least 50% of external income.',
   runs,
