@@ -43,9 +43,14 @@ Status meanings:
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Basic culture-group seed | MERGED | Each starting region gets ancestry/culture/religion identity fields and an identity-strength seed. |
-| Dynamic culture / assimilation / recognition | DESIGNED | Recovered from prior design discussions. Needed: persistent minority populations after conquest, recognition status, assimilation/integration policy, expulsion, cultural resilience and era-dependent resistance to assimilation. No full production module found in Git or saved ChatGPT artifacts. |
-| Diaspora-aware migration | DESIGNED | Current migration chooses destinations for famine emigrants but does not yet transfer and maintain full cultural population groups. |
+| Basic culture-group seed | MERGED | Legacy one-culture-per-region seed on `main`; superseded on `culture-identity-v1` by historically cautious 1300 BCE identities/traditions. |
+| Historical 1300 BCE culture families | BUILT/PREVIEW | `culture-identity-v1`: attested identities where defensible (Egyptian, Assyrian, Babylonian, Mycenaean, Hittite/Luwian, Canaanite etc.) and broad archaeological/regional traditions with confidence markers elsewhere. |
+| Dynamic branching / fusion / assimilation | BUILT/PREVIEW | `culture-identity-v1`: active identity is distinct from ancestry; cultures can branch, merge, assimilate and retain parentage/ancestry. Evolution runs annually rather than every simulation tick. |
+| Layered political/super-identities | BUILT/PREVIEW | `culture-identity-v1`: long-lived multi-region polities can add a shared affiliation without deleting local identities, enabling English+British-style identity layering later. |
+| Diaspora-aware migration | BUILT/PREVIEW | `culture-identity-v1`: famine migration now carries identity and ancestry into destination cohorts rather than moving anonymous population only. |
+| Culture effects on diplomacy/trade | BUILT/PREVIEW | `culture-identity-v1`: cultural affinity is a modest diplomatic/trade trust term; repeated trade builds familiarity and largely overcomes cultural distance. |
+| Era/institution-dependent assimilation resistance | BUILT/PREVIEW | `culture-identity-v1`: identity strength, identity age, education/archives/state institutions and future mass-schooling/print/media/internet capabilities progressively reduce assimilation; chronological floor is negligible before early modernity and satisfies Bronze Age < 1926 < 1976 < 2026. |
+| Recognition / integration / expulsion policy | DESIGNED | Still to implement as explicit government policy controls on top of the identity engine. |
 | Spoken-language families and trade communication | BUILT/PREVIEW | Implemented on `collapse-trade-raiding-language-v1`; being ported to the 418-world calibration branch. |
 | Historical starting maritime competence | DESIGNED | Seamanship learning-by-doing is live, but established maritime societies currently begin effectively at zero inherited maritime experience. Seed historically appropriate competence after geography calibration. |
 
@@ -74,7 +79,7 @@ Status meanings:
 | Famine migration | MERGED | Destination choice responds to known regions, food price, stability, density and route cost. |
 | War-time displacement / migration | MERGED | Previous temporary migration patches were incorporated then cleaned up. |
 | Collapse-driven organised raiding | BUILT/PREVIEW | AI motivation changes exist on `collapse-trade-raiding-language-v1`, but calibration still produced effectively zero successful raids. Must fix before merge. |
-| Era-dependent assimilation difficulty | DESIGNED | Bronze Age conquest can be brutal; cultural/religious assimilation should become progressively harder as identities/institutions strengthen. |
+| Era-dependent assimilation difficulty | BUILT/PREVIEW | Implemented in the culture engine; explicit state assimilation/integration policies remain future work. |
 
 ## Performance targets and latest measurements
 
@@ -82,16 +87,14 @@ Status meanings:
 - Current 418-region world: approximately **165 ms/tick** in the latest subsystem benchmark.
 - Trade remains the largest cost, around **78 ms/tick**; economy is the next largest at roughly **35 ms/tick**.
 - 2,830-region stress test: approximately **1.09 s/tick**.
-- Latest 418-region 160-year histories show roughly 15–18% population loss by year 20, which is too early for the intended prosperous opening and is the current macro-calibration priority.
+- Culture evolution is intentionally annual and uses cached cohort/affinity state; targeted performance tests live in `tools/test-culture.mjs` on the culture branch.
 
 ## Current active work
 
-1. Port the persistent trade/language/raiding branch onto the 418-region world without losing newer `main` changes.
-2. Diagnose the early 418-world population decline by region and mechanism; check whether large desert administrative polygons (especially Nile/Egypt regions) are being treated as uniformly productive/inhabited land.
-3. Restore a prosperous opening of roughly 80 years without globally inflating food or tin.
-4. Make organised raiding emerge from collapse conditions and verify it in long-history runs.
-5. Seed historically inherited maritime competence once the base economy/geography is stable.
-6. Return to the recovered culture/identity system as a separate implementation stream.
+1. Validate `culture-identity-v1` on the 418-region world, including long-run identity proliferation, migration mixing, assimilation hardening and simulation performance.
+2. Rebase/compose the validated culture branch with the separately calibrated population/trade/language/raiding work rather than silently mixing experimental branches.
+3. Add explicit recognition/integration/assimilation policy controls after the identity engine is stable.
+4. Seed historically inherited maritime competence once the base economy/geography is stable.
 
 ## Handover rule
 
