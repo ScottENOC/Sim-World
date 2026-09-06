@@ -1,0 +1,55 @@
+name: Validate collapse trade changes
+
+on:
+  push:
+    branches: [collapse-trade-raiding-language-v1]
+
+jobs:
+  performance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check
+        run: find js tools -type f \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check
+      - name: Current world benchmark
+        run: |
+          start=$(date +%s%N)
+          node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 1 --system-timing true --output perf-current.json
+          end=$(date +%s%N)
+          elapsed_ms=$(( (end - start) / 1000000 ))
+          echo "CURRENT_MS_PER_TICK=$(awk -v ms="$elapsed_ms" 'BEGIN { printf "%.2f", ms / 13 }')"
+          node -e "const r=require('./perf-current.json'); console.log('SYSTEM='+JSON.stringify(r.runs[0].systemTimingMsPerTick));"
+      - name: 2830 region benchmark
+        run: |
+          start=$(date +%s%N)
+          node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --target-regions 2830 --system-timing true --output perf-2830.json
+          end=$(date +%s%N)
+          elapsed_ms=$(( (end - start) / 1000000 ))
+          echo "STRESS_MS_PER_TICK=$(awk -v ms="$elapsed_ms" 'BEGIN { printf "%.2f", ms / 13 }')"
+          node -e "const r=require('./perf-2830.json'); console.log('SYSTEM='+JSON.stringify(r.runs[0].systemTimingMsPerTick));"
+
+  history:
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [305419896, 2959855665]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run 160 year history
+        run: node tools/calibrate.mjs --years 160 --seeds 1 --base-seed ${{ matrix.seed }} --snapshot-years 20 --days-per-tick 30 --regional-detail true --output history.json
+      - name: Print history summary
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const r=JSON.parse(fs.readFileSync('history.json','utf8'));
+          for (const s of r.runs[0].timeline) console.log('SNAPSHOT '+JSON.stringify({year:s.year,pop:s.populationPct,trade:s.smoothedWeeklyTrade,foodImports:s.smoothedWeeklyFoodImports,tin:s.surfaceTinPct,copper:s.surfaceCopperPct,distressed:s.distressedRegions,bandits:s.bandits,raids:s.raidWindow,bronze:s.weeklyBronzeOutput,bronzeStock:s.bronzeStock,iron:s.ironRegions,toolCoverage:s.farmerToolCoveragePct,toolMultiplier:s.averageFarmerToolMultiplier,readiness:s.averageMilitaryReadinessPct,foodDependent:s.foodDependentRegions}));
+          console.log('ELAPSED='+r.elapsedSeconds);
+          NODE
