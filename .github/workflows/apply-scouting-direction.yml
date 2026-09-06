@@ -1,0 +1,28 @@
+name: Apply directional scouting
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-scouting-direction.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python tools/apply-scouting-direction.py
+      - run: |
+          node --check js/main.js
+          node --check js/military/army.js
+          node --check js/core/scouting.js
+      - run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/main.js js/military/army.js
+          git diff --cached --check
+          git commit -m "Add directional distance-based scouting controls" || exit 0
+          git push
