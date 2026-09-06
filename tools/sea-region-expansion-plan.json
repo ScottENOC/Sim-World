@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "purpose": "Candidate game-geographic sea partitions for the Bronze/Iron Age map expansion. Order is significant: narrow/specific seas claim water before broader basins.",
+  "coastalToleranceDegrees": 0.06,
+  "regions": [
+    {"id":"sea_marmara","name":"Sea of Marmara","bbox":[26.0,39.4,30.2,41.3]},
+    {"id":"sea_gulf_aqaba","name":"Gulf of Aqaba","bbox":[33.9,27.7,35.9,30.1]},
+    {"id":"sea_adriatic","name":"Adriatic Sea","bbox":[11.5,39.0,20.5,46.5]},
+    {"id":"sea_aegean","name":"Aegean Sea","bbox":[21.5,34.2,30.2,41.5]},
+    {"id":"sea_tyrrhenian","name":"Tyrrhenian Sea","bbox":[8.0,37.0,16.2,44.4]},
+    {"id":"sea_ionian","name":"Ionian Sea","bbox":[14.0,33.8,23.5,41.0]},
+    {"id":"sea_gulf_sidra","name":"Gulf of Sidra","bbox":[15.0,29.0,24.0,35.0]},
+    {"id":"sea_nile_mediterranean","name":"Nile Mediterranean","bbox":[24.0,29.0,33.5,33.8]},
+    {"id":"sea_central_mediterranean","name":"Central Mediterranean","bbox":[7.5,30.0,19.0,39.2]},
+    {"id":"sea_levantine","name":"Levantine Sea","bbox":[27.0,30.0,37.0,37.7]},
+    {"id":"sea_black","name":"Black Sea","bbox":[26.0,40.5,42.5,47.2]},
+    {"id":"sea_northern_red","name":"Northern Red Sea","bbox":[31.5,22.0,44.5,30.6]},
+    {"id":"sea_persian_gulf","name":"Persian Gulf","bbox":[47.0,24.0,57.0,31.5]}
+  ]
+}
