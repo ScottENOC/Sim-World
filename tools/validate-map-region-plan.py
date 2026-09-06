@@ -28,6 +28,10 @@ def main():
             continue
         source_units = source.get('units') or []
         source_set = set(source_units)
+        excluded = set(country.get('excludedSourceUnits') or [])
+        unknown_excluded = sorted(excluded - source_set)
+        if unknown_excluded:
+            fail(f'{iso}: excluded source units not found: {unknown_excluded}', errors)
         if len(source_units) != len(source_set):
             duplicates = sorted({u for u in source_units if source_units.count(u) > 1})
             if country.get('requireAllSourceUnits', True):
@@ -37,12 +41,13 @@ def main():
 
         mode = country['mode']
         if mode == 'one-per-source':
-            new_region_count += len(source_units)
+            included_units = [u for u in source_units if u not in excluded]
+            new_region_count += len(included_units)
             rename = country.get('rename') or {}
             missing_renames = sorted(set(rename) - source_set)
             if missing_renames:
                 fail(f'{iso}: rename keys not found in source: {missing_renames}', errors)
-            print(f'{iso}: {len(source_units)} one-per-source regions')
+            print(f'{iso}: {len(included_units)} one-per-source regions ({len(excluded)} excluded)')
             continue
 
         if mode != 'merge':
@@ -62,6 +67,9 @@ def main():
             unknown = sorted(set(units) - source_set)
             if unknown:
                 fail(f'{iso}/{name}: unknown source units {unknown}', errors)
+            excluded_used = sorted(set(units) & excluded)
+            if excluded_used:
+                fail(f'{iso}/{name}: uses explicitly excluded units {excluded_used}', errors)
             seen.extend(units)
 
         duplicates = sorted({u for u in seen if seen.count(u) > 1})
@@ -70,12 +78,15 @@ def main():
 
         used = set(seen)
         if country.get('requireAllSourceUnits', True):
-            omitted = sorted(source_set - used)
+            omitted = sorted(source_set - used - excluded)
             if omitted:
                 fail(f'{iso}: unassigned source units {omitted}', errors)
 
         new_region_count += len(country.get('regions', []))
-        print(f'{iso}: {len(country.get("regions", []))} game regions from {len(used)}/{len(source_set)} source units')
+        print(
+            f'{iso}: {len(country.get("regions", []))} game regions from '
+            f'{len(used)}/{len(source_set)} source units ({len(excluded)} excluded)'
+        )
 
     existing = int(plan.get('targetExistingRegionCount', 0))
     print(f'NEW_GAME_REGIONS={new_region_count}')
