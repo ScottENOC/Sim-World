@@ -1,20 +1,49 @@
-import { accumulateExperience, skillMultiplier } from './learningByDoing.js?v=20260906-seamanship1';
+// Maritime knowledge is a family of related practical skills. Fishing,
+// merchant sailing, exploration and naval combat each improve fastest through
+// doing that activity, while transferable skills such as navigation, weather
+// reading, sail handling, coastal piloting and crew discipline spill over.
 
-// Seamanship is practical, shared maritime know-how rather than a discrete
-// invention. Experience comes from actually putting people and boats to sea.
-// The coefficients are intentionally modest: repeated generations of activity
-// matter, while one expedition does not create an instant naval powerhouse.
-const BOAT_FISHER_WEIGHT = 1;
-const SEA_MERCHANT_WEIGHT = 1.8;
-const SCOUTING_SOLDIER_WEIGHT = 2.2;
-const NAVAL_RAIDER_WEIGHT = 2.8;
+export const MARITIME_SKILLS = Object.freeze({
+  FISHING: 'maritimeFishing',
+  TRADE: 'maritimeTrade',
+  SCOUTING: 'maritimeScouting',
+  COMBAT: 'maritimeCombat',
+});
 
-export function seamanshipMultiplier(region) {
-  return skillMultiplier(region, 'seamanship');
+const SKILL_KEYS = Object.values(MARITIME_SKILLS);
+const CEILING = 0.45;
+const EXPERIENCE_SCALE = 220_000; // ~63% of ceiling at this much effective practice
+const SPILLOVER = 0.22; // 22% of practice transfers into each sibling skill
+
+const ACTIVITY_WEIGHT = Object.freeze({
+  [MARITIME_SKILLS.FISHING]: 1.0,
+  [MARITIME_SKILLS.TRADE]: 1.4,
+  [MARITIME_SKILLS.SCOUTING]: 1.8,
+  [MARITIME_SKILLS.COMBAT]: 2.2,
+});
+
+function ensureExperience(region) {
+  if (!region.experience) region.experience = {};
 }
 
-export function recordMaritimeExperience(region, workerEquivalent) {
-  accumulateExperience(region, 'seamanship', Math.max(0, Number(workerEquivalent) || 0));
+export function recordMaritimePractice(region, primarySkill, workerEquivalent) {
+  if (!SKILL_KEYS.includes(primarySkill)) return;
+  const amount = Math.max(0, Number(workerEquivalent) || 0) * (ACTIVITY_WEIGHT[primarySkill] || 1);
+  if (amount <= 0) return;
+  ensureExperience(region);
+  for (const skill of SKILL_KEYS) {
+    region.experience[skill] = (region.experience[skill] || 0) + amount * (skill === primarySkill ? 1 : SPILLOVER);
+  }
+}
+
+export function maritimeSkillMultiplier(region, skill) {
+  if (!SKILL_KEYS.includes(skill)) return 1;
+  const experience = Math.max(0, Number(region.experience?.[skill]) || 0);
+  return 1 + CEILING * (1 - Math.exp(-experience / EXPERIENCE_SCALE));
+}
+
+export function maritimeSkillLevel(region, skill) {
+  return (maritimeSkillMultiplier(region, skill) - 1) / CEILING;
 }
 
 function activeSeaMerchantWorkers(region) {
@@ -26,6 +55,8 @@ function activeSeaMerchantWorkers(region) {
       Number(venture.merchants ?? venture.personnel ?? venture.workers ?? 0) || 0), 0);
 }
 
+// Called once per simulation tick. It records time actually spent at sea,
+// rather than rewarding ownership of boats sitting in harbour.
 export function tickMaritimeExperience(regions, activeRaids = [], elapsedDays = 7) {
   const weekScale = Math.max(0, (Number(elapsedDays) || 0) / 7);
   if (weekScale <= 0) return;
@@ -45,13 +76,9 @@ export function tickMaritimeExperience(regions, activeRaids = [], elapsedDays = 
       : 0;
     const navalRaiders = raidersByOrigin.get(region.id) || 0;
 
-    const workerEquivalent = (
-      boatFishers * BOAT_FISHER_WEIGHT +
-      seaMerchants * SEA_MERCHANT_WEIGHT +
-      scouts * SCOUTING_SOLDIER_WEIGHT +
-      navalRaiders * NAVAL_RAIDER_WEIGHT
-    ) * weekScale;
-
-    if (workerEquivalent > 0) recordMaritimeExperience(region, workerEquivalent);
+    if (boatFishers > 0) recordMaritimePractice(region, MARITIME_SKILLS.FISHING, boatFishers * weekScale);
+    if (seaMerchants > 0) recordMaritimePractice(region, MARITIME_SKILLS.TRADE, seaMerchants * weekScale);
+    if (scouts > 0) recordMaritimePractice(region, MARITIME_SKILLS.SCOUTING, scouts * weekScale);
+    if (navalRaiders > 0) recordMaritimePractice(region, MARITIME_SKILLS.COMBAT, navalRaiders * weekScale);
   }
 }
