@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { startingCultureFor } from '../js/society/cultureSeeds.js';
 import {
-  assimilationResistance, cultureAffinity, cultureHistory, cultureSummary,
-  initialiseRegionCulture, migrateCulture, tickCulture,
+  assimilationResistance, coerciveCultureConstraint, cultureAffinity, cultureHistory, cultureSummary,
+  initialiseRegionCulture, migrateCulture, recordCulturalPersecution, tickCulture,
 } from '../js/society/culture.js';
 
 const meta = JSON.parse(fs.readFileSync(new URL('../data/world/regions.meta.json', import.meta.url), 'utf8')).regions;
@@ -56,23 +56,34 @@ assert(britSummary.some((g) => g.identityId === 'egyptian_lba' && g.share > 0.05
 assert(cultureSummary(egyptA)[0].identityId === 'egyptian_lba', 'Migration unexpectedly changed source identity');
 console.log('MIGRATION_SUMMARY', britSummary);
 
-// The requested modern-era hardening must be monotonic even with identical institutions.
+// There is no calendar-era bonus. The tiny difference below is only the real
+// age of the same identity, not 1926/1976/2026 as special dates.
 const group = cultureSummary(egyptA)[0];
-const bronze = assimilationResistance(egyptA, group, -1200);
 const y1926 = assimilationResistance(egyptA, group, 1926);
 const y1976 = assimilationResistance(egyptA, group, 1976);
 const y2026 = assimilationResistance(egyptA, group, 2026);
-assert(bronze < y1926 && y1926 < y1976 && y1976 < y2026,
-  `Assimilation hardening not monotonic: ${bronze}, ${y1926}, ${y1976}, ${y2026}`);
-console.log('ASSIMILATION_RESISTANCE', { bronze, y1926, y1976, y2026 });
+const ageSpread = y2026 - y1926;
+assert(ageSpread >= 0 && ageSpread < 0.01, `Identity-age effect too large: ${ageSpread}`);
+console.log('IDENTITY_AGE_ONLY', { y1926, y1976, y2026, spread: ageSpread });
 
-// Modern institutions should matter more than the calendar floor.
+// Institutions and recorded memory, not the date, dominate resilience.
 egyptA.educationLevel = 1;
 egyptA.education.archiveLevel = 1;
-egyptA.unlockedTechIds = new Set(['mass_schooling', 'printing_press', 'radio', 'internet']);
-const modernInstitutional = assimilationResistance(egyptA, group, 2026);
-assert(modernInstitutional > y2026 + 0.25, `Modern institutions are not materially hardening identity: ${modernInstitutional}`);
-console.log('MODERN_INSTITUTIONAL_RESISTANCE', modernInstitutional);
+egyptA.education.writingTradition = true;
+egyptA.unlockedTechIds = new Set(['writing', 'mass_schooling', 'printing_press', 'newspapers', 'radio', 'television', 'internet']);
+egyptA.society = { ruleOfLaw: 0.9, minorityRights: 0.85, legalConstraintOnState: 0.8,
+  internationalAtrocityNorm: 0.9, internationalLawConstraint: 0.85, externalEnforcementRisk: 0.7 };
+const institutional = assimilationResistance(egyptA, group, 2026);
+assert(institutional > y2026 + 0.25, `Institutions are not materially hardening identity: ${institutional}`);
+const constraint = coerciveCultureConstraint(egyptA);
+assert(constraint > 0.55, `Coercive constraint too weak: ${constraint}`);
+console.log('INSTITUTIONAL_RESISTANCE', institutional, 'COERCIVE_CONSTRAINT', constraint);
+
+const beforePersecution = assimilationResistance(egyptA, group, 2026);
+recordCulturalPersecution(egyptA, group.identityId, 0.8, 0.9);
+const afterPersecution = assimilationResistance(egyptA, cultureSummary(egyptA)[0], 2026);
+assert(afterPersecution > beforePersecution, 'Persecution memory should increase identity resilience');
+console.log('PERSECUTION_MEMORY_EFFECT', { beforePersecution, afterPersecution });
 
 // Long-run evolution smoke/performance test. A mixed region should remain normalised,
 // preserve ancestry and avoid unbounded identity proliferation.
