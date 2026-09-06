@@ -31,6 +31,7 @@ export const KNOWLEDGE_SOURCES = Object.freeze({
   RUMOUR: 'rumour',
   SECOND_HAND_RUMOUR: 'second_hand_rumour',
   SPY: 'spy',
+  SCOUT: 'scout',
 });
 
 // Reports from these sources establish direct contact for trade/raiding.
@@ -45,6 +46,7 @@ const DIRECT_CONTACT_SOURCES = new Set([
   KNOWLEDGE_SOURCES.DIPLOMAT,
   KNOWLEDGE_SOURCES.REFUGEE,
   KNOWLEDGE_SOURCES.SPY,
+  KNOWLEDGE_SOURCES.SCOUT,
 ]);
 
 // Dated reports which have not been refreshed for a year cease to be useful
@@ -380,9 +382,71 @@ function addInitialNeighbourReports(observer, subject) {
   }
 }
 
-export function initialiseKnowledge(regions) {
+function addInitialRumour(observer, subject, provenanceType, confidence = 0.35, locationConfidence = 0.25) {
+  const ledger = getLedger(observer);
+  if (!ledger || !subject || observer.id === subject.id) return;
+  ledger.addObservation({
+    subjectId: subject.id,
+    topic: KNOWLEDGE_TOPICS.EXISTENCE,
+    value: { name: subject.name },
+    source: KNOWLEDGE_SOURCES.RUMOUR,
+    confidence,
+    specificity: confidence,
+    provenance: { type: provenanceType },
+    subjectMatter: ['identity', 'inherited_geography'],
+  });
+  ledger.addObservation({
+    subjectId: subject.id,
+    topic: KNOWLEDGE_TOPICS.LOCATION,
+    value: { direction: compassDirection(observer, subject) },
+    source: KNOWLEDGE_SOURCES.RUMOUR,
+    confidence: locationConfidence,
+    specificity: locationConfidence,
+    provenance: { type: provenanceType },
+    subjectMatter: ['location', 'inherited_geography'],
+  });
+}
+
+function initialDistanceKm(a, b) {
+  const [lon1, lat1] = a?.centroid || [];
+  const [lon2, lat2] = b?.centroid || [];
+  if (![lon1, lat1, lon2, lat2].every(Number.isFinite)) return Infinity;
+  const toRad = Math.PI / 180;
+  const p1 = lat1 * toRad, p2 = lat2 * toRad;
+  const dLat = (lat2 - lat1) * toRad, dLon = (lon2 - lon1) * toRad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dLon / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(Math.max(0, 1 - h)));
+}
+
+function addHistoricalContact(observer, subject, label = 'historical_contact') {
+  const ledger = getLedger(observer);
+  if (!ledger || !subject || observer.id === subject.id) return;
+  ledger.addObservation({
+    subjectId: subject.id,
+    topic: KNOWLEDGE_TOPICS.EXISTENCE,
+    value: { name: subject.name },
+    source: KNOWLEDGE_SOURCES.DIPLOMAT,
+    confidence: 1,
+    specificity: 1,
+    provenance: { type: label },
+    subjectMatter: ['identity', 'trade', 'diplomacy'],
+  });
+  ledger.addObservation({
+    subjectId: subject.id,
+    topic: KNOWLEDGE_TOPICS.LOCATION,
+    value: { direction: compassDirection(observer, subject), routeKnown: true },
+    source: KNOWLEDGE_SOURCES.DIPLOMAT,
+    confidence: 0.95,
+    specificity: 0.9,
+    provenance: { type: label },
+    subjectMatter: ['location', 'trade_route'],
+  });
+}
+
+export function initialiseKnowledge(regions, seaRegions = []) {
   const byId = new Map(regions.map((region) => [region.id, region]));
 
+  // Immediate land neighbours are certain direct contacts, as before.
   for (const region of regions) {
     getLedger(region);
     for (const neighbourId of region.neighbors || []) {
@@ -390,6 +454,76 @@ export function initialiseKnowledge(regions) {
       if (neighbour) addInitialNeighbourReports(region, neighbour);
     }
   }
+
+  // People normally inherit some vague geography beyond the next border.
+  // This is deliberately only a rumour: enough to know a direction, not enough
+  // to trade, raid or inspect the region through fog of war.
+  for (const region of regions) {
+    const direct = new Set(region.neighbors || []);
+    for (const neighbourId of direct) {
+      const neighbour = byId.get(neighbourId);
+      for (const secondId of neighbour?.neighbors || []) {
+        if (secondId === region.id || direct.has(secondId)) continue;
+        const second = byId.get(secondId);
+        if (second) addInitialRumour(region, second, 'neighbour_of_neighbour', 0.4, 0.28);
+      }
+    }
+  }
+
+  // Very short sea crossings are usually part of inherited local geography,
+  // but still do not automatically create diplomatic/trading contact.
+  for (const sea of seaRegions || []) {
+    const adjacent = (sea.adjacentLand || []).map((id) => byId.get(id)).filter(Boolean);
+    for (let i = 0; i < adjacent.length; i += 1) for (let j = i + 1; j < adjacent.length; j += 1) {
+      const a = adjacent[i], b = adjacent[j];
+      if (initialDistanceKm(a, b) > 120) continue;
+      addInitialRumour(a, b, 'short_sea_horizon', 0.5, 0.38);
+      addInitialRumour(b, a, 'short_sea_horizon', 0.5, 0.38);
+    }
+  }
+
+  // Historical 1300 BCE exception: Cyprus/Alashiya was already embedded in
+  // eastern Mediterranean trade and diplomacy. Do this explicitly rather than
+  // inventing a universal island-mainland rule.
+  const names = new Map(regions.map((region) => [region.name, region]));
+  const cyprus = ['Central Cyprus', 'Eastern Cyprus', 'Western Cyprus'].map((name) => names.get(name)).filter(Boolean);
+  const easternContacts = ['Ugarit Coast', 'Cilicia', 'Lycia & Pamphylia', 'Northern Phoenician Coast', 'Central Phoenician Coast']
+    .map((name) => names.get(name)).filter(Boolean);
+  for (const island of cyprus) for (const coast of easternContacts) {
+    addHistoricalContact(island, coast, 'late_bronze_age_cyprus_network');
+    addHistoricalContact(coast, island, 'late_bronze_age_cyprus_network');
+  }
+}
+
+export function recordScoutContact(observer, subject, receivedAt = null, mode = 'land') {
+  if (!observer || !subject) return null;
+  const ledger = getLedger(observer);
+  const provenance = { type: 'government_scouting', mode };
+  const existence = ledger?.addObservation({
+    subjectId: subject.id,
+    topic: KNOWLEDGE_TOPICS.EXISTENCE,
+    value: { name: subject.name },
+    source: KNOWLEDGE_SOURCES.SCOUT,
+    observedAt: receivedAt,
+    receivedAt,
+    confidence: 0.9,
+    specificity: 0.85,
+    provenance,
+    subjectMatter: ['identity', 'military_scouting'],
+  });
+  ledger?.addObservation({
+    subjectId: subject.id,
+    topic: KNOWLEDGE_TOPICS.LOCATION,
+    value: { direction: compassDirection(observer, subject), routeKnown: true },
+    source: KNOWLEDGE_SOURCES.SCOUT,
+    observedAt: receivedAt,
+    receivedAt,
+    confidence: 0.8,
+    specificity: 0.75,
+    provenance,
+    subjectMatter: ['location', 'military_scouting'],
+  });
+  return existence;
 }
 
 function fishingEffort(region) {

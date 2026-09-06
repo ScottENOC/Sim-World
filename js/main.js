@@ -16,7 +16,8 @@ import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID
 import { MapRenderer } from './ui/mapRenderer.js?v=20260904-war1';
 import { AdvisorCouncil } from './ui/advisors.js?v=20260905-projects1';
 import { FogOfWar } from './core/fogOfWar.js?v=20260904-weather1';
-import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260904-weather1';
+import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260906-scouting1';
+import { startScoutingMission, tickScouting } from './core/scouting.js?v=20260906-scouting1';
 import { attitudeLabel, attitudeToward, canDiplomaticallyReach, endAgreement, proposeAgreement, syncNextAgreementId, tickDiplomacy } from './diplomacy/relations.js?v=20260904-save1';
 import { availableVassalLevies, changeGovernanceForm, demandVassalage, governanceFormAvailability, governanceLabel, initialisePolities, musterVassalLevies, setDelegatedPower, setGovernancePolicy, sovereignPolity, tickPolities } from './politics/polities.js?v=20260904-war1';
 import { createGameSnapshot, readSave, restoreGameSnapshot, saveSummary, writeSave } from './core/saveGame.js?v=20260904-war1';
@@ -62,7 +63,7 @@ async function main() {
   const seaRegions = await loadSeaWorld();
   linkSeaAdjacency(regions, seaRegions);
   const fishingContactPairs = buildFishingContactPairs(regions, seaRegions);
-  initialiseKnowledge(regions);
+  initialiseKnowledge(regions, seaRegions);
   const toolTypes = await (await fetch('data/world/toolTypes.json?v=20260904-weather1')).json();
 
   console.log(
@@ -202,6 +203,7 @@ async function main() {
     tickEconomy(regions, seaRegions, toolTypes, Math.random, calendarWeek, time.elapsedDays, time.endDay);
     pruneKnowledge(regions, calendarWeek);
     tickFishingKnowledge(fishingContactPairs, calendarWeek);
+    tickScouting(regions, calendarWeek, Math.random);
     tickTrade(regions, calendarWeek, time);
     tickStateFinance(regions, time.elapsedDays);
     tickInfrastructureMaintenance(regions, time.elapsedDays);
@@ -720,6 +722,22 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
     <label class="control-row">Target navy size (boats)
       <input type="number" min="0" step="1" id="input-navy" value="${Math.round(region.targetNavySize)}" ${region.isCoastal ? '' : 'disabled title="not a coastal region"'}>
     </label>
+    <div class="raid-section">
+      <strong>Government scouting</strong>
+      <div id="scouting-control-status" class="raid-status">${region.scouting?.active
+        ? `${region.scouting.mode === 'sea' ? 'Naval' : 'Land'} expedition away · ${region.scouting.armyCommitted || 0} soldiers${region.scouting.navyCommitted ? ' · 1 fleet boat' : ''}`
+        : region.scouting?.lastResult?.success
+          ? `Last expedition made contact with ${region.scouting.lastResult.targetName}`
+          : region.scouting?.lastResult ? 'Last expedition returned without making contact' : 'No expedition currently away'}</div>
+      <label class="control-row">Scout by
+        <select id="scouting-mode">
+          <option value="auto">best available route</option>
+          <option value="land">land patrol</option>
+          ${region.isCoastal ? '<option value="sea">naval expedition</option>' : ''}
+        </select>
+      </label>
+      <button id="btn-scout-launch" ${region.scouting?.active ? 'disabled' : ''}>Send scouting expedition</button>
+    </div>
     ${polity ? `<div class="raid-status"><strong>${polity.name}</strong> · ${polity.report.subjectCount || 0} subject region(s) · legitimacy ${(polity.administration.legitimacy * 100).toFixed(0)}%<br>
       Administration: records ${(polity.administration.recordKeeping * 100).toFixed(0)}%, accounting ${(polity.administration.accounting * 100).toFixed(0)}%, communications ${(polity.administration.communications * 100).toFixed(0)}%, officials ${(polity.administration.officialdom * 100).toFixed(0)}%, delegation ${(polity.administration.delegation * 100).toFixed(0)}%<br>
       Institutions: ${[...polity.administration.breakthroughs].map((name) => name.replaceAll('_', ' ')).join(', ') || 'custom and oral authority'}</div>` : ''}
@@ -788,6 +806,20 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
 
   document.getElementById('input-navy').addEventListener('change', (e) => {
     region.targetNavySize = Math.max(0, Number(e.target.value) || 0);
+  });
+
+  const scoutButton = document.getElementById('btn-scout-launch');
+  scoutButton?.addEventListener('click', () => {
+    const mode = document.getElementById('scouting-mode')?.value || 'auto';
+    const currentWeek = calendarWeekIndex(clock.elapsedDays || 0);
+    const mission = startScoutingMission(region, regions, currentWeek, Math.random, mode);
+    const status = document.getElementById('scouting-control-status');
+    if (!mission) {
+      if (status) status.textContent = 'No viable scouting route or insufficient army/fleet capacity.';
+      return;
+    }
+    if (status) status.textContent = `${mission.mode === 'sea' ? 'Naval' : 'Land'} expedition dispatched · ${mission.armyCommitted} soldiers${mission.navyCommitted ? ' · 1 fleet boat' : ''}`;
+    scoutButton.disabled = true;
   });
 
   if (targets.length > 0) {
@@ -1366,6 +1398,7 @@ function updateRegionStats(region, seaRegionsById, fogOfWar, regions, playerRegi
     ${knowsDetailed ? `<div>Tools: ${toolLine}</div><div>Culture: ${culture.cultureId} &middot; identity strength ${(culture.identityStrength * 100).toFixed(0)}%</div>` : ''}
     <div>Neighbours: ${neighbourLine}</div>
     <div>Government: ${governanceLabel(region)}${region.governance?.relationship !== 'core' ? ` &middot; administrative control ${(region.governance.administrativeControl * 100).toFixed(0)}% &middot; reports delayed ${region.governance.reportDelayWeeks} weeks` : ''}</div>
+    ${observer.id === region.id && region.scouting?.active ? `<div>Scouting: ${region.scouting.mode} expedition away until about week ${Math.round(region.scouting.completeTick)}</div>` : ''}
     ${buildContactsSection(region, regions, playerRegionId, fogOfWar)}
     ${knowsResources ? `<details id="details-resources"><summary>Resources</summary>${buildResourcesSection(region, seaRegionsById)}</details>` : '<div>Resources: only broad rumours</div>'}
     ${knowsEconomy ? `<details id="details-report"><summary>Economy report (this week)</summary>${buildReportSection(region)}</details><details id="details-occupations"><summary>Working as</summary><div>${occLine}</div></details><details id="details-stockpile"><summary>Stockpile</summary><div>${stockLine}</div></details>` : '<div>Economic activity: little known</div>'}

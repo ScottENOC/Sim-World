@@ -16,6 +16,7 @@ import { chooseAiConstruction } from '../economy/construction.js?v=20260905-proj
 import { chooseAiSiegeTargets } from '../military/siegeEquipment.js?v=20260905-projects1';
 import { chooseAiReligion, religiousWarModifier } from '../society/religion.js?v=20260905-religion1';
 import { activeTradeRestrictions, setTradeRestriction, tradeActorId } from '../economy/tradePolicy.js?v=20260905-policy1';
+import { startScoutingMission } from '../core/scouting.js?v=20260906-scouting1';
 
 // A one-percent peacetime levy is supportable while trade and taxation are
 // healthy. Threatened states still expand this through the safety multiplier;
@@ -62,6 +63,7 @@ export function tickNationAi(regions, playerRegionId, activeRaids, activeCampaig
     chooseAiSiegeTargets(region);
     chooseAiReligion(region, religiousWorld, currentTick, rng, strategicWeeks);
     maybeAdjustTradeEmbargo(region, regionsById, currentTick);
+    maybeScout(region, regionsById, currentTick, rng);
     maybeMakeAgreement(region, regionsById, playerRegionId, agreements, polities, currentTick, toolTypes, rng, chance(DIPLOMACY_CONSIDERATION_CHANCE_PER_WEEK));
     maybeCampaign(region, regionsById, activeCampaigns, polities, religiousWorld, currentTick, toolTypes, rng, chance(CAMPAIGN_CONSIDERATION_CHANCE_PER_WEEK));
     maybeRaid(region, regionsById, activeRaids, polities, religiousWorld, currentTick, toolTypes, rng, chance(RAID_CONSIDERATION_CHANCE_PER_WEEK));
@@ -105,6 +107,30 @@ function maybeAdjustTradeEmbargo(region, regionsById, currentTick) {
       setTradeRestriction(region, { direction: 'trade', goods: null, counterparties: [actor], allowed: true }, [...regionsById.values()], currentTick);
     }
   }
+}
+
+function maybeScout(region, regionsById, currentTick, rng) {
+  if (region.scouting?.active) return;
+  const contacts = directContactIds(region).size;
+  const demand = region.marketDemand || {};
+  const unmet = ['food', 'bronze', 'copper', 'wood', 'clothing']
+    .reduce((sum, key) => sum + Math.max(0, Number(demand[key]) || 0), 0);
+  const population = Math.max(1, region.population || 1);
+  const shortagePressure = Math.min(1, unmet / Math.max(50, population * 0.02));
+  const tradeExperience = (region.recentTradePartners?.size || 0) > 0 ||
+    (region.occupations?.trader || 0) > 0 ||
+    (region.tradeEconomy?.exportIncomeEma || 0) + (region.tradeEconomy?.importSpendEma || 0) > 20;
+
+  // No omniscient catch-up motive. A truly isolated, self-sufficient society
+  // does not know that unseen foreigners have better technology. Scouting is
+  // attractive when rulers already understand trade, feel a local shortage,
+  // or have remarkably few known neighbours despite maintaining armed forces.
+  if (!tradeExperience && shortagePressure < 0.15 && contacts >= 2) return;
+  const isolation = Math.max(0, 1 - contacts / 5);
+  const motive = shortagePressure * 0.55 + (tradeExperience ? 0.25 : 0) + isolation * 0.2;
+  if (motive < 0.18 || rng() > Math.min(0.65, motive)) return;
+
+  startScoutingMission(region, [...regionsById.values()], currentTick, rng, 'auto');
 }
 
 function stableAiHash(value) {
