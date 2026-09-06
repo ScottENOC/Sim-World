@@ -26,6 +26,7 @@ jobs:
         run: python tools/validate-map-region-plan.py
       - name: Build expanded land map preview
         run: |
+          # Build from the current source inventory and gameplay-region plan.
           rm -rf /tmp/simworld-map-expansion
           python tools/build-map-expansion.py --fail-on-overlap --output-dir /tmp/simworld-map-expansion
           python - <<'PY'
