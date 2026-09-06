@@ -27,18 +27,18 @@ jobs:
           echo "CURRENT_WORLD_MS=$elapsed_ms"
           echo "CURRENT_WORLD_MS_PER_TICK=$(awk -v ms="$elapsed_ms" -v ticks="$ticks" 'BEGIN { printf "%.2f", ms / ticks }')"
           echo "TARGET_MS_PER_TICK=50"
-          node -e "const r=require('./calibration-1x.json'); console.log('CURRENT_WORLD_SCALE='+r.configuration.worldScale); console.log('DAYS_PER_TICK='+r.configuration.daysPerTick); console.log('RUNNER_SECONDS='+r.elapsedSeconds); console.log('SYSTEM_TIMING_MS_PER_TICK='+JSON.stringify(r.runs[0].systemTimingMsPerTick))"
-      - name: Ten-times-world monthly benchmark
+          node -e "const r=require('./calibration-1x.json'); console.log('CURRENT_WORLD_REGIONS='+r.configuration.actualRegions); console.log('DAYS_PER_TICK='+r.configuration.daysPerTick); console.log('RUNNER_SECONDS='+r.elapsedSeconds); console.log('SYSTEM_TIMING_MS_PER_TICK='+JSON.stringify(r.runs[0].systemTimingMsPerTick))"
+      - name: Fixed 2830-region monthly benchmark
         shell: bash
         run: |
           start=$(date +%s%N)
-          node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 10 --system-timing true --output calibration-10x.json
+          node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --target-regions 2830 --system-timing true --output calibration-2830.json
           end=$(date +%s%N)
           elapsed_ms=$(( (end - start) / 1000000 ))
           ticks=13
-          echo "TEN_X_WORLD_MS=$elapsed_ms"
-          echo "TEN_X_WORLD_MS_PER_TICK=$(awk -v ms="$elapsed_ms" -v ticks="$ticks" 'BEGIN { printf "%.2f", ms / ticks }')"
-          node -e "const r=require('./calibration-10x.json'); console.log('TEN_X_WORLD_SCALE='+r.configuration.worldScale); console.log('RUNNER_SECONDS='+r.elapsedSeconds); console.log('SYSTEM_TIMING_MS_PER_TICK='+JSON.stringify(r.runs[0].systemTimingMsPerTick))"
+          echo "FIXED_2830_WORLD_MS=$elapsed_ms"
+          echo "FIXED_2830_WORLD_MS_PER_TICK=$(awk -v ms="$elapsed_ms" -v ticks="$ticks" 'BEGIN { printf "%.2f", ms / ticks }')"
+          node -e "const r=require('./calibration-2830.json'); console.log('STRESS_TARGET_REGIONS='+r.configuration.actualRegions); console.log('RUNNER_SECONDS='+r.elapsedSeconds); console.log('SYSTEM_TIMING_MS_PER_TICK='+JSON.stringify(r.runs[0].systemTimingMsPerTick))"
       - name: Current-world V8 hotspot profile
         shell: bash
         run: |
