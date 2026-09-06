@@ -42,7 +42,7 @@ const MARKET_TURNAROUND_DAYS = 7;
 
 // Merchants are habitual. Most returned merchants reconsider only places where
 // they already have successful routes, plus unusually salient new information.
-const BROAD_SEARCH_INTERVAL = 52;
+const BROAD_SEARCH_INTERVAL = 26;
 const HUB_CHECK_INTERVAL = 13;
 const IMITATION_INTERVAL = 26;
 const FRESH_REPORT_WEEKS = 13;
@@ -405,8 +405,14 @@ function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByR
       .filter((habit) => (region.stockpile[habit.resource] || 0) > 0.01)
       .sort((a, b) => (b.score || 0) - (a.score || 0))
       .map((habit) => habit.resource);
+    // Familiar routes get first look, but never monopolise the product list.
+    // A merchant who knows a destination should still occasionally notice a
+    // different cargo becoming attractive there as relative prices change.
+    const exploratoryResources = stockedResources
+      .filter((resource) => !habitualResources.includes(resource))
+      .slice(0, 1);
     const resources = habitualResources.length
-      ? [...new Set(habitualResources)]
+      ? [...new Set([...habitualResources, ...exploratoryResources])]
       : stockedResources.slice(0, MAX_NEW_RESOURCES_PER_DESTINATION);
     const communication = tradeCommunicationMultiplier(region, dest);
 
@@ -507,7 +513,7 @@ function adjustMerchantCareerPopulation(region) {
     const actual = Math.min(recruits, availableGeneral, maxMerchants - economy.merchantPopulation);
     economy.merchantPopulation += actual;
     if (region.occupations) region.occupations.general = Math.max(0, region.occupations.general - actual);
-  } else if (economy.merchantConfidence < -0.25 && idle > 0) {
+  } else if (economy.weeklyReturns > 0 && economy.merchantConfidence < -0.25 && idle > 0) {
     const retirements = Math.min(idle, Math.max(1, Math.ceil(economy.merchantPopulation * MERCHANT_RETIREMENT_RATE)));
     economy.merchantPopulation = Math.max(active, economy.merchantPopulation - retirements);
     if (region.occupations) region.occupations.general = (region.occupations.general || 0) + retirements;
@@ -751,7 +757,11 @@ function imitatedDestinationIds(region, regionsById) {
 
 function candidateMarketIds(region, regionsById, knownIds, hubIds, currentTick) {
   const economy = ensureTradeEconomy(region);
-  const candidateIds = new Set(habitDestinationIds(region).slice(0, MAX_CANDIDATE_MARKETS));
+  // Reserve candidate slots for genuinely new markets. Previously, once a
+  // region had MAX_CANDIDATE_MARKETS habitual destinations, appending broad-
+  // search leads and then slicing back to the cap discarded every new lead.
+  const habitualSlots = Math.max(4, MAX_CANDIDATE_MARKETS - MAX_EXPLORATION_MARKETS);
+  const candidateIds = new Set(habitDestinationIds(region).slice(0, habitualSlots));
   for (const id of freshTradeLeadIds(region, currentTick).slice(0, 4)) candidateIds.add(id);
   const noHabitsYet = Object.keys(economy.routeHabits).length === 0;
   const crisis = economy.searchPressure >= CRISIS_SEARCH_PRESSURE;
