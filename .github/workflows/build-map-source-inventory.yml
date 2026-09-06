@@ -5,6 +5,8 @@ on:
       - '.github/workflows/build-map-source-inventory.yml'
       - 'tools/map-source-manifest.json'
       - 'tools/fetch-map-source-inventory.py'
+      - 'tools/map-region-plan.json'
+      - 'tools/validate-map-region-plan.py'
   workflow_dispatch:
 permissions:
   contents: write
@@ -22,6 +24,8 @@ jobs:
         run: |
           python tools/fetch-map-source-inventory.py
           python -m json.tool tools/map-source-inventory.json >/dev/null
+          python -m json.tool tools/map-region-plan.json >/dev/null
+          python tools/validate-map-region-plan.py
           git diff --check
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
