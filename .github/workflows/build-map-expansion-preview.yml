@@ -27,7 +27,7 @@ jobs:
       - name: Build expanded land map preview
         run: |
           rm -rf /tmp/simworld-map-expansion
-          python tools/build-map-expansion.py --output-dir /tmp/simworld-map-expansion
+          python tools/build-map-expansion.py --fail-on-overlap --output-dir /tmp/simworld-map-expansion
           python - <<'PY'
           import json
           from pathlib import Path
