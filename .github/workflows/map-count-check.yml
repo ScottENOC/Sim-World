@@ -1,0 +1,25 @@
+name: Map count check
+on:
+  push:
+    branches: [collapse-trade-raiding-language-v1]
+jobs:
+  count:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const geo=JSON.parse(fs.readFileSync('data/world/regions.geo.json','utf8'));
+          const meta=JSON.parse(fs.readFileSync('data/world/regions.meta.json','utf8'));
+          const seas=JSON.parse(fs.readFileSync('data/world/seaRegions.meta.json','utf8'));
+          console.log('LAND_GEO='+geo.features.length);
+          console.log('LAND_META='+meta.regions.length);
+          console.log('SEA_META='+seas.seaRegions.length);
+          console.log('TOTAL_MAP_AREAS='+(geo.features.length+seas.seaRegions.length));
+          const names=geo.features.map(f=>f.properties?.name).filter(Boolean);
+          console.log('LAST_30='+JSON.stringify(names.slice(-30)));
+          NODE
