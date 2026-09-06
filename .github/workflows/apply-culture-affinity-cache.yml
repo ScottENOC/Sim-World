@@ -1,0 +1,120 @@
+name: Apply culture affinity cache
+on:
+  push:
+    branches: [culture-identity-v1]
+    paths: ['.github/workflows/apply-culture-affinity-cache.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache culture affinity between annual changes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('js/society/culture.js')
+          s=p.read_text()
+          s=s.replace("const identities = new Map();\n", "const identities = new Map();\nlet cultureRevision = 1;\n", 1)
+          old="""export function initialiseRegionCulture(region) {
+  if (!region) return null;"""
+          new="""export function initialiseRegionCulture(region) {
+  if (!region) return null;"""
+          if old not in s: raise SystemExit('initialise anchor missing')
+          # no-op anchor check, then patch the tail uniquely
+          old="""  region.cultureFamiliarity = {};
+  return region.cultureGroups;
+}
+
+function ensureRegionCulture(region) {
+  if (!Array.isArray(region.cultureGroups)"""
+          new="""  region.cultureFamiliarity = {};
+  region._cultureReady = true;
+  region._cultureRevision = cultureRevision++;
+  region._cultureAffinityCache = {};
+  return region.cultureGroups;
+}
+
+function ensureRegionCulture(region) {
+  if (region?._cultureReady && Array.isArray(region.cultureGroups) && region.cultureGroups.length > 0) return region.cultureGroups;
+  if (!Array.isArray(region.cultureGroups)"""
+          if old not in s: raise SystemExit('initialise tail missing')
+          s=s.replace(old,new,1)
+          old="""  normaliseGroups(region);
+  return region.cultureGroups;
+}
+
+function normaliseGroups(region)"""
+          new="""  normaliseGroups(region);
+  region._cultureReady = true;
+  region._cultureRevision = cultureRevision++;
+  region._cultureAffinityCache = {};
+  return region.cultureGroups;
+}
+
+function normaliseGroups(region)"""
+          if old not in s: raise SystemExit('ensure tail missing')
+          s=s.replace(old,new,1)
+          old="""export function cultureAffinity(regionA, regionB) {
+  if (!regionA || !regionB) return 0.5;
+  const groupsA = ensureRegionCulture(regionA);
+  const groupsB = ensureRegionCulture(regionB);
+  let affinity = 0;
+  for (const a of groupsA) for (const b of groupsB) affinity += a.share * b.share * groupSimilarity(a, b);
+  return clamp01(affinity);
+}"""
+          new="""export function cultureAffinity(regionA, regionB) {
+  if (!regionA || !regionB) return 0.5;
+  const groupsA = ensureRegionCulture(regionA);
+  const groupsB = ensureRegionCulture(regionB);
+  regionA._cultureAffinityCache ||= {};
+  const cached = regionA._cultureAffinityCache[regionB.id];
+  if (cached && cached.aRevision === regionA._cultureRevision && cached.bRevision === regionB._cultureRevision) {
+    return cached.value;
+  }
+  let affinity = 0;
+  for (const a of groupsA) for (const b of groupsB) affinity += a.share * b.share * groupSimilarity(a, b);
+  affinity = clamp01(affinity);
+  regionA._cultureAffinityCache[regionB.id] = {
+    aRevision: regionA._cultureRevision,
+    bRevision: regionB._cultureRevision,
+    value: affinity,
+  };
+  return affinity;
+}"""
+          if old not in s: raise SystemExit('affinity block missing')
+          s=s.replace(old,new,1)
+          old="""  normaliseGroups(destination);
+}
+
+export function tickCulture"""
+          new="""  normaliseGroups(destination);
+  destination._cultureRevision = cultureRevision++;
+  destination._cultureAffinityCache = {};
+}
+
+export function tickCulture"""
+          if old not in s: raise SystemExit('migration tail missing')
+          s=s.replace(old,new,1)
+          old="""    maybePolityAffiliation(region, yearsReady, calendarYear, regionsById);
+    strengthenIdentities(region, yearsReady, calendarYear);
+  }"""
+          new="""    maybePolityAffiliation(region, yearsReady, calendarYear, regionsById);
+    strengthenIdentities(region, yearsReady, calendarYear);
+    region._cultureRevision = cultureRevision++;
+    region._cultureAffinityCache = {};
+  }"""
+          if old not in s: raise SystemExit('annual tail missing')
+          s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+          node --check js/society/culture.js
+          node tools/test-culture.mjs
+      - name: Commit cache
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/society/culture.js
+          git commit -m 'Cache cultural affinity between annual changes'
+          git push
