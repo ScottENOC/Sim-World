@@ -1,0 +1,369 @@
+name: Apply collapse trade patch
+
+on:
+  push:
+    branches: [collapse-trade-raiding-language-v1]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !startsWith(github.event.head_commit.message, 'Apply collapse trade and raiding mechanics') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: collapse-trade-raiding-language-v1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Patch simulation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          trade = Path('js/economy/trade.js')
+          s = trade.read_text()
+          s = s.replace("import { maritimeSkillMultiplier, MARITIME_SKILLS } from '../technology/seamanship.js?v=20260906-maritime1';",
+                        "import { maritimeSkillMultiplier, MARITIME_SKILLS } from '../technology/seamanship.js?v=20260906-maritime1';\nimport { ensureLanguage, tradeCommunicationMultiplier, recordTradeLanguageContact, decayTradeLanguageFamiliarity } from '../society/language.js?v=20260906-language1';")
+          s = s.replace('const MAX_OPPORTUNITIES_PER_REGION = 48;', 'const MAX_OPPORTUNITIES_PER_REGION = 16;')
+          s = s.replace('const MERCHANT_RECRUITMENT_RATE = 0.04;', 'const MERCHANT_RECRUITMENT_RATE = 0.015;')
+          s = s.replace('const BROAD_SEARCH_INTERVAL = 26;', 'const BROAD_SEARCH_INTERVAL = 52;')
+          s = s.replace('const HUB_CHECK_INTERVAL = 4;', 'const HUB_CHECK_INTERVAL = 13;')
+          s = s.replace('const IMITATION_INTERVAL = 8;', 'const IMITATION_INTERVAL = 26;')
+          s = s.replace('const FRESH_REPORT_WEEKS = 8;', 'const FRESH_REPORT_WEEKS = 13;')
+          s = s.replace('const ROUTE_HABIT_DECAY = 0.85;', 'const ROUTE_HABIT_DECAY = 0.96;')
+          s = s.replace('const CRISIS_SEARCH_PRESSURE = 3;', "const CRISIS_SEARCH_PRESSURE = 3;\nconst MAX_CANDIDATE_MARKETS = 14;\nconst MAX_EXPLORATION_MARKETS = 8;\nconst MAX_NEW_RESOURCES_PER_DESTINATION = 3;\nconst HUB_CACHE_WEEKS = 13;")
+
+          marker = 'function finishTradeWeek(region) {'
+          insertion = '''function ageTradeMemory(region) {
+  const economy = ensureTradeEconomy(region);
+  ensureLanguage(region);
+  const years = Math.max(0.01, Number(region._elapsedWeeks) || 1) / 52;
+  decayTradeLanguageFamiliarity(region, years);
+  const archive = clamp01(region.education?.archiveLevel || 0);
+  const scoreHalfLife = 7 + archive * 18;
+  const familiarityHalfLife = 14 + archive * 26;
+  const scoreRetention = Math.pow(0.5, years / scoreHalfLife);
+  const familiarityRetention = Math.pow(0.5, years / familiarityHalfLife);
+  for (const [key, habit] of Object.entries(economy.routeHabits)) {
+    habit.score = Math.max(0, (habit.score || 0) * scoreRetention);
+    habit.familiarity = clamp01((habit.familiarity ?? Math.min(1, Math.log1p(habit.score || 0) / 6)) * familiarityRetention);
+    if (habit.score < 0.005 && habit.familiarity < 0.02) delete economy.routeHabits[key];
+  }
+}
+
+'''
+          if insertion not in s:
+              s = s.replace(marker, insertion + marker)
+          s = s.replace('    beginTradeWeek(region);', '    ageTradeMemory(region);\n    beginTradeWeek(region);')
+
+          start = s.index('function findOpportunities(')
+          end = s.index('\nfunction recordRouteHabit(', start)
+          s = s[:start] + '''function priceSnapshot(region, pricesByRegion) {
+  let snapshot = pricesByRegion.get(region.id);
+  if (!snapshot) {
+    snapshot = {};
+    pricesByRegion.set(region.id, snapshot);
+  }
+  return snapshot;
+}
+
+function cachedPrice(region, resource, pricesByRegion) {
+  const snapshot = priceSnapshot(region, pricesByRegion);
+  if (!Number.isFinite(snapshot[resource])) snapshot[resource] = localPrice(region, resource);
+  return snapshot[resource];
+}
+
+function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByRegion, regionsById, currentTick) {
+  const opportunities = [];
+  const stockedResources = TRADABLE_RESOURCES.filter((resource) =>
+    (region.stockpile[resource] || 0) > 0.01);
+  if (!stockedResources.length) return opportunities;
+
+  const economy = ensureTradeEconomy(region);
+  const habits = economy.routeHabits;
+  const habitsByDest = new Map();
+  for (const habit of Object.values(habits)) {
+    if (!habitsByDest.has(habit.destId)) habitsByDest.set(habit.destId, []);
+    habitsByDest.get(habit.destId).push(habit);
+  }
+
+  for (const dest of candidateRegions) {
+    if (dest.id === region.id) continue;
+    let reverseKnowledge = knownIdsByRegion.get(dest.id);
+    if (!reverseKnowledge) {
+      reverseKnowledge = knownRegionIds(dest);
+      knownIdsByRegion.set(dest.id, reverseKnowledge);
+    }
+    if (!reverseKnowledge.has(region.id)) continue;
+    const route = ventureRouteProfile(region, dest, regionsById);
+    if (!route) continue;
+
+    const destHabits = habitsByDest.get(dest.id) || [];
+    const habitualResources = destHabits
+      .filter((habit) => (region.stockpile[habit.resource] || 0) > 0.01)
+      .sort((a, b) => (b.score || 0) - (a.score || 0))
+      .map((habit) => habit.resource);
+    const resources = habitualResources.length
+      ? [...new Set(habitualResources)]
+      : stockedResources.slice(0, MAX_NEW_RESOURCES_PER_DESTINATION);
+    const communication = tradeCommunicationMultiplier(region, dest);
+
+    for (const resource of resources) {
+      if (!tradeAllowed(region, dest, resource)) continue;
+      const key = `${dest.id}|${resource}`;
+      const habit = habits[key];
+      const priceHere = cachedPrice(region, resource, pricesByRegion);
+      const perceivedPriceThere = habit?.expectedPrice > 0
+        ? habit.expectedPrice
+        : cachedPrice(dest, resource, pricesByRegion);
+      const perceivedReliability = habit?.perceivedReliability !== undefined
+        ? clamp01(habit.perceivedReliability * 0.7 + route.reliability * 0.3)
+        : route.reliability * communication;
+      if (perceivedReliability <= 0.001) continue;
+      const cost = route.cost + (1 - perceivedReliability) * 0.1;
+      const gap = perceivedPriceThere - priceHere - cost;
+      if (gap <= MIN_PROFIT_THRESHOLD) continue;
+      const stockAvailable = Math.max(0, (region.stockpile[resource] || 0) * MAX_EXPORT_FRACTION_PER_TICK);
+      if (stockAvailable <= 0) continue;
+
+      const familiarity = habit ? clamp01(habit.familiarity ?? 0.2) : communication * 0.35;
+      const weeksSinceSuccess = habit?.lastSuccessTick != null && Number.isFinite(currentTick)
+        ? Math.max(0, currentTick - habit.lastSuccessTick) : 0;
+      const restartPenalty = habit && weeksSinceSuccess > 104
+        ? Math.max(0.18, familiarity * Math.pow(0.5, (weeksSinceSuccess - 104) / 260))
+        : (habit ? 0.65 + familiarity * 0.35 : communication * 0.55);
+      const habitBoost = habit ? 1 + Math.min(0.4, Math.log1p(Math.max(0, habit.score || 0)) * 0.04) : 1;
+      const score = (gap * habitBoost * restartPenalty * perceivedReliability) /
+        Math.max(1, route.roundTripDays / 7);
+      opportunities.push({
+        resource, dest, gap, score, stockAvailable,
+        expectedPrice: perceivedPriceThere,
+        originPrice: priceHere,
+        route: { ...route, reliability: perceivedReliability },
+      });
+    }
+  }
+  opportunities.sort((a, b) => b.score - a.score);
+  return opportunities.slice(0, MAX_OPPORTUNITIES_PER_REGION);
+}
+''' + s[end:]
+
+          start = s.index('function recordRouteHabit(')
+          end = s.index('\nfunction activeMerchants(', start)
+          s = s[:start] + '''function recordRouteHabit(region, venture, payment, currentTick, profitable) {
+  const economy = ensureTradeEconomy(region);
+  const key = `${venture.destId}|${venture.resource}`;
+  const old = economy.routeHabits[key];
+  const oldScore = old?.score || 0;
+  const observedPrice = Number.isFinite(venture.observedPrice) ? venture.observedPrice : venture.expectedPrice;
+  const expectedPrice = old?.expectedPrice > 0
+    ? old.expectedPrice * 0.72 + observedPrice * 0.28
+    : observedPrice;
+  const observedReliability = clamp01(venture.actualReliability ?? venture.reliability ?? 0);
+  const perceivedReliability = old?.perceivedReliability !== undefined
+    ? old.perceivedReliability * 0.7 + observedReliability * 0.3
+    : observedReliability;
+  const oldFamiliarity = clamp01(old?.familiarity || 0);
+  const familiarity = clamp01(oldFamiliarity + (profitable ? 0.11 : -0.055));
+  economy.routeHabits[key] = {
+    destId: venture.destId,
+    resource: venture.resource,
+    score: Math.max(0, oldScore * ROUTE_HABIT_DECAY + (profitable ? payment : -Math.max(1, oldScore * 0.15))),
+    familiarity,
+    expectedPrice,
+    perceivedReliability,
+    lastSuccessTick: profitable && Number.isFinite(currentTick) ? currentTick : (old?.lastSuccessTick ?? null),
+    lastAttemptTick: Number.isFinite(currentTick) ? currentTick : (old?.lastAttemptTick ?? null),
+  };
+  const habits = Object.entries(economy.routeHabits);
+  if (habits.length > MAX_ROUTE_HABITS) {
+    habits.sort((a, b) => (b[1].score || 0) - (a[1].score || 0));
+    economy.routeHabits = Object.fromEntries(habits.slice(0, MAX_ROUTE_HABITS));
+  }
+}
+''' + s[end:]
+
+          s = s.replace("        const destinationPrice = localPrice(dest, venture.resource);\n        const price = Math.max(0.001, destinationPrice);",
+                        "        const destinationPrice = localPrice(dest, venture.resource);\n        venture.observedPrice = destinationPrice;\n        venture.actualReliability = routeReliability(origin, dest);\n        const price = Math.max(0.001, destinationPrice);")
+          s = s.replace('    recordRouteHabit(origin, venture, payment, currentTick, profitable);\n    recordDirectTrade(origin, dest, venture.soldVolume, currentTick);',
+                        '    recordRouteHabit(origin, venture, payment, currentTick, profitable);\n    recordTradeLanguageContact(origin, dest, profitable ? 1.25 : 0.6);\n    recordDirectTrade(origin, dest, venture.soldVolume, currentTick);')
+
+          # Cache global hub discovery rather than sorting all regions every monthly tick.
+          start = s.index('function majorTradeHubIds(')
+          end = s.index('\nfunction imitatedDestinationIds(', start)
+          s = s[:start] + '''let cachedHubIds = [];
+let cachedHubBucket = null;
+function majorTradeHubIds(regions, currentTick) {
+  const bucket = Number.isFinite(currentTick) ? Math.floor(currentTick / HUB_CACHE_WEEKS) : null;
+  if (bucket !== null && cachedHubBucket === bucket) return cachedHubIds;
+  cachedHubIds = regions
+    .map((region) => {
+      const economy = ensureTradeEconomy(region);
+      const partners = activePartnerCount(region, currentTick);
+      const throughput = economy.exportIncomeEma + economy.importSpendEma;
+      return { id: region.id, partners, score: partners * 4 + Math.log1p(Math.max(0, throughput)) };
+    })
+    .filter((entry) => entry.partners >= HUB_MIN_ACTIVE_PARTNERS)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, MAX_MAJOR_HUBS)
+    .map((entry) => entry.id);
+  cachedHubBucket = bucket;
+  return cachedHubIds;
+}
+''' + s[end:]
+
+          start = s.index('function candidateMarketIds(')
+          end = s.index('\nexport function tickTrade(', start)
+          s = s[:start] + '''function candidateMarketIds(region, regionsById, knownIds, hubIds, currentTick) {
+  const economy = ensureTradeEconomy(region);
+  const candidateIds = new Set(habitDestinationIds(region).slice(0, MAX_CANDIDATE_MARKETS));
+  for (const id of freshTradeLeadIds(region, currentTick).slice(0, 4)) candidateIds.add(id);
+  const noHabitsYet = Object.keys(economy.routeHabits).length === 0;
+  const crisis = economy.searchPressure >= CRISIS_SEARCH_PRESSURE;
+  const initialBroadSearch = noHabitsYet && !economy.initialBroadSearchCompleted;
+  const scheduledBroadSearch = staggeredDue(region, currentTick, BROAD_SEARCH_INTERVAL);
+  const broadSearch = initialBroadSearch || crisis || scheduledBroadSearch;
+
+  // Exploration is deliberately sampled. Ancient merchants do not recompute
+  // every known market; they try a handful of leads, then repeat what works.
+  if (broadSearch) {
+    economy.initialBroadSearchCompleted = true;
+    let added = 0;
+    for (const id of knownIds) {
+      if (id === region.id) continue;
+      candidateIds.add(id);
+      added += 1;
+      if (added >= MAX_EXPLORATION_MARKETS) break;
+    }
+    for (const id of nearbyMarketIds(region, regionsById, 16)) {
+      if (knownIds.has(id)) candidateIds.add(id);
+      if (candidateIds.size >= MAX_CANDIDATE_MARKETS) break;
+    }
+  }
+  if (staggeredDue(region, currentTick, HUB_CHECK_INTERVAL)) {
+    for (const id of hubIds) if (knownIds.has(id)) candidateIds.add(id);
+  }
+  if (staggeredDue(region, currentTick, IMITATION_INTERVAL)) {
+    for (const id of imitatedDestinationIds(region, regionsById).slice(0, 4)) if (knownIds.has(id)) candidateIds.add(id);
+  }
+  candidateIds.delete(region.id);
+  return new Set([...candidateIds].slice(0, MAX_CANDIDATE_MARKETS));
+}
+''' + s[end:]
+
+          # Lazily calculate both knowledge sets and prices only for routes actually considered.
+          old = '''  const knownIdsByRegion = new Map(regions.map((region) => [region.id, knownRegionIds(region)]));
+  const hubIds = majorTradeHubIds(regions, currentTick);
+  const pricesByRegion = new Map(regions.map((region) => [region.id,
+    Object.fromEntries(TRADABLE_RESOURCES.map((resource) => [resource, localPrice(region, resource)]))
+  ]));
+
+  for (const region of regions) {
+    const economy = ensureTradeEconomy(region);
+    const idle = Math.max(0, economy.merchantPopulation - activeMerchants(region));
+    if (idle < 1) continue;
+    const knownIds = knownIdsByRegion.get(region.id);
+    const candidateIds = candidateMarketIds(region, regionsById, knownIds, hubIds, currentTick);
+    const candidates = [...candidateIds].map((id) => regionsById.get(id)).filter(Boolean);
+    if (!candidates.length) continue;
+    const opportunities = findOpportunities(region, candidates, knownIdsByRegion, pricesByRegion, regionsById);
+    launchVentures(region, opportunities, currentTick, time);
+  }'''
+          new = '''  const knownIdsByRegion = new Map();
+  const pricesByRegion = new Map();
+  const hubIds = majorTradeHubIds(regions, currentTick);
+
+  for (const region of regions) {
+    const economy = ensureTradeEconomy(region);
+    const idle = Math.max(0, economy.merchantPopulation - activeMerchants(region));
+    if (idle < 1) continue;
+    let knownIds = knownIdsByRegion.get(region.id);
+    if (!knownIds) {
+      knownIds = knownRegionIds(region);
+      knownIdsByRegion.set(region.id, knownIds);
+    }
+    const candidateIds = candidateMarketIds(region, regionsById, knownIds, hubIds, currentTick);
+    const candidates = [...candidateIds].map((id) => regionsById.get(id)).filter(Boolean);
+    if (!candidates.length) continue;
+    const opportunities = findOpportunities(region, candidates, knownIdsByRegion, pricesByRegion, regionsById, currentTick);
+    launchVentures(region, opportunities, currentTick, time);
+  }'''
+          if old not in s:
+              raise SystemExit('trade tick replacement anchor not found')
+          s = s.replace(old, new)
+          trade.write_text(s)
+
+          ai = Path('js/ai/nationAi.js')
+          s = ai.read_text()
+          s = s.replace('const RAID_CONSIDERATION_CHANCE_PER_WEEK = 0.005;', 'const RAID_CONSIDERATION_CHANCE_PER_WEEK = 0.004;')
+          s = s.replace('const MIN_SAFETY_TO_CONSIDER_RAIDING = 0.3;\n', '')
+          s = s.replace('const MIN_ADVANTAGE_TO_RAID = 1.5;', 'const MIN_ADVANTAGE_TO_RAID = 1.15;')
+          s = s.replace('    maybeRaid(region, regionsById, activeRaids, polities, religiousWorld, currentTick, toolTypes, rng, chance(RAID_CONSIDERATION_CHANCE_PER_WEEK));',
+                        '    maybeRaid(region, regionsById, activeRaids, polities, religiousWorld, currentTick, toolTypes, rng, chance(raidConsiderationRate(region)));')
+          anchor = '''function clamp01(v) {
+  return Math.max(0, Math.min(1, v));
+}
+'''
+          addition = anchor + '''
+function raidConsiderationRate(region) {
+  const stabilityDistress = 1 - clamp01(region.stability ?? 1);
+  const payFailure = 1 - clamp01(region.militaryFinance?.payRatio ?? 1);
+  const arrears = Math.min(1, Math.max(0, region.militaryFinance?.arrearsWeeks || 0) / 12);
+  const launched = Math.max(0, region.raidEconomy?.raidsLaunched || 0);
+  const success = launched > 0 ? clamp01((region.raidEconomy?.raidsWon || 0) / launched) : 0;
+  const commerce = Math.max(0, region.tradeEconomy?.exportIncomeEma || 0) + Math.max(0, region.tradeEconomy?.importSpendEma || 0);
+  const commercePerCapita = commerce / Math.max(1, region.population || 1);
+  const commercialFailure = clamp01((0.03 - commercePerCapita) / 0.03);
+  // Collapse should create raiders rather than suppress them: unpaid warriors,
+  // failed commerce and prior successful raiding all make predation attractive.
+  return Math.min(0.05, RAID_CONSIDERATION_CHANCE_PER_WEEK +
+    stabilityDistress * 0.012 + payFailure * 0.014 + arrears * 0.012 +
+    commercialFailure * 0.009 + success * 0.012);
+}
+'''
+          if anchor not in s:
+              raise SystemExit('AI clamp anchor not found')
+          s = s.replace(anchor, addition, 1)
+          s = s.replace('  if (region.safetyRating < MIN_SAFETY_TO_CONSIDER_RAIDING) return;\n', '')
+          s = s.replace('    const advantage = ownPower / (targetPower + 1);\n    if (advantage < MIN_ADVANTAGE_TO_RAID) continue;',
+                        '''    const launched = Math.max(0, region.raidEconomy?.raidsLaunched || 0);
+    const raidSuccess = launched > 0 ? clamp01((region.raidEconomy?.raidsWon || 0) / launched) : 0;
+    const distress = 1 - clamp01(region.stability ?? 1);
+    const minimumAdvantage = Math.max(MIN_ADVANTAGE_TO_RAID, 1.38 - distress * 0.18 - raidSuccess * 0.12);
+    const advantage = ownPower / (targetPower + 1);
+    if (advantage < minimumAdvantage) continue;''')
+          s = s.replace('    if (attitude > 0.65 && advantage < MIN_ADVANTAGE_TO_RAID * 2) continue;',
+                        '    if (attitude > 0.65 && advantage < 2.2) continue;')
+          s = s.replace("    const knownWealth = knowsDetailed\n      ? target.wallet + (target.stockpile.bronze || 0) * 5 + (target.stockpile.gold || 0) * 15",
+                        "    const knownWealth = knowsDetailed\n      ? (target.wallet || 0) + (target.treasury || 0) + (target.stockpile.food || 0) * 0.2 +\n        (target.stockpile.bronze || 0) * 5 + (target.stockpile.copper || 0) +\n        (target.stockpile.tin || 0) * 2 + (target.stockpile.gold || 0) * 15")
+          s = s.replace('    const score = advantage * (knownWealth + 1) * hostilityMultiplier * religiousPressure;',
+                        '''    const raidingLegacy = 1 + (region.raidEconomy?.raidsWon || 0) * 0.08;
+    const distressMotive = 1 + (1 - clamp01(region.stability ?? 1)) * 0.8 +
+      (1 - clamp01(region.militaryFinance?.payRatio ?? 1)) * 0.7;
+    const score = advantage * (knownWealth + 1) * hostilityMultiplier * religiousPressure * raidingLegacy * distressMotive;''')
+          ai.write_text(s)
+
+          # Add a few extra calibration fields so historical runs tell us whether
+          # pre-iron societies are actually losing productive metal capital.
+          cal = Path('tools/calibrate.mjs')
+          s = cal.read_text()
+          s = s.replace('    farmerToolCoveragePct: Math.min(100, pct(farmerTools, farmers)),',
+                        '''    farmerToolCoveragePct: Math.min(100, pct(farmerTools, farmers)),
+    averageFarmerToolMultiplier: +(total(regions, (r) => toolEfficiencyMultiplier(r, 'farmer', toolTypes.farmer, r.unlockedTechIds)) / regions.length).toFixed(3),''')
+          # Ensure helper is imported by the calibration runner.
+          s = s.replace("import { tickEconomy } from '../js/economy/labor.js';",
+                        "import { tickEconomy } from '../js/economy/labor.js';\nimport { toolEfficiencyMultiplier } from '../js/economy/tools.js';")
+          cal.write_text(s)
+          PY
+      - name: Syntax check
+        run: find js tools -type f \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check
+      - name: Commit patch
+        run: |
+          git config user.name "sim-world-bot"
+          git config user.email "sim-world-bot@users.noreply.github.com"
+          git add js/economy/trade.js js/ai/nationAi.js tools/calibrate.mjs
+          git commit -m "Apply collapse trade and raiding mechanics"
+          git push origin HEAD:collapse-trade-raiding-language-v1
