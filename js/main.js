@@ -55,7 +55,7 @@ async function main() {
   const bus = new EventBus();
   const clock = new Clock();
   const regions = await loadWorld();
-  console.log(`Western Europe map loaded: ${regions.length} permanent land regions`);
+  console.log(`Simulation map loaded: ${regions.length} permanent land regions`);
   seedCensus(regions);
   const religiousWorld = initialiseReligions(regions, createReligiousWorld());
   const polities = initialisePolities(regions);
@@ -374,6 +374,20 @@ function showRegionPicker(regions, onChosen) {
       'IMN': { continent: 'Europe', country: 'Isle of Man' },
       'JEY': { continent: 'Europe', country: 'Jersey' },
       'GGY': { continent: 'Europe', country: 'Guernsey' },
+      'ITA': { continent: 'Europe', country: 'Italy' },
+      'GRC': { continent: 'Europe', country: 'Greece' },
+      'TUR': { continent: 'Asia', country: 'Anatolia' },
+      'CYP': { continent: 'Asia', country: 'Cyprus' },
+      'SYR': { continent: 'Asia', country: 'Syria' },
+      'LBN': { continent: 'Asia', country: 'Levant' },
+      'ISR': { continent: 'Asia', country: 'Southern Levant' },
+      'PSE': { continent: 'Asia', country: 'Southern Levant' },
+      'JOR': { continent: 'Asia', country: 'Transjordan' },
+      'IRQ': { continent: 'Asia', country: 'Mesopotamia' },
+      'IRN': { continent: 'Asia', country: 'Western Iran' },
+      'EGY': { continent: 'Africa', country: 'Egypt' },
+      'LBY': { continent: 'Africa', country: 'Libya' },
+      'TUN': { continent: 'Africa', country: 'Tunisia' },
     };
 
     return groups[sourceGroup] || { continent: 'Other', country: sourceGroup || 'Other' };
