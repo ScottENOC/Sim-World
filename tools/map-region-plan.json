@@ -1,0 +1,215 @@
+{
+  "version": 1,
+  "purpose": "Gameplay geography for the first Bronze/Iron Age playthrough expansion. Source administrative units are geometry ingredients, not claims about ancient political borders.",
+  "targetExistingRegionCount": 283,
+  "countries": [
+    {
+      "iso": "ITA",
+      "displayCountry": "Italy",
+      "mode": "one-per-source",
+      "notes": "Use the 20 Italian regional polygons directly as durable geographic game regions. Ancient polities may cross these borders."
+    },
+    {
+      "iso": "GRC",
+      "displayCountry": "Greece",
+      "mode": "one-per-source",
+      "rename": {
+        "Agion Oros": "Mount Athos",
+        "Anatolikis Makedonias kai Thr*": "Eastern Macedonia & Thrace",
+        "Attikis": "Attica",
+        "Dytikis Elladas": "Western Greece",
+        "Dytikis Makedonias": "Western Macedonia",
+        "Ionion Nison": "Ionian Islands",
+        "Ipeiroy": "Epirus",
+        "Kentrikis Makedonias": "Central Macedonia",
+        "Kritis": "Crete",
+        "Notioy Aigaioy": "South Aegean",
+        "Peloponnisoy": "Peloponnese",
+        "Stereas Elladas": "Central Greece",
+        "Thessalias": "Thessaly",
+        "Voreioy Aigaioy": "North Aegean"
+      }
+    },
+    {
+      "iso": "TUR",
+      "displayCountry": "Anatolia",
+      "mode": "merge",
+      "requireAllSourceUnits": true,
+      "regions": [
+        {"name":"Thrace","units":["Edirne","Kırklareli","Tekirdağ","İstanbul"]},
+        {"name":"Troad","units":["Çanakkale"]},
+        {"name":"Mysia","units":["Balıkesir"]},
+        {"name":"Bithynia","units":["Bursa","Yalova","Kocaeli","Sakarya","Düzce","Bolu"]},
+        {"name":"Ionia","units":["İzmir"]},
+        {"name":"Lydia","units":["Manisa","Uşak","Denizli"]},
+        {"name":"Caria","units":["Aydın","Muğla"]},
+        {"name":"Lycia & Pamphylia","units":["Antalya","Burdur","Isparta"]},
+        {"name":"Phrygia","units":["Afyonkarahisar","Kütahya","Eskişehir","Bilecik"]},
+        {"name":"Central Anatolia","units":["Ankara","Kırıkkale","Kırşehir","Aksaray","Konya","Karaman"]},
+        {"name":"Cappadocia","units":["Nevşehir","Kayseri","Niğde","Yozgat"]},
+        {"name":"Cilicia","units":["Mersin","Adana","Osmaniye","Hatay"]},
+        {"name":"North Anatolia","units":["Çankırı","Çorum","Amasya","Tokat","Samsun","Sinop","Kastamonu","Karabük","Bartın","Zonguldak"]},
+        {"name":"Pontus","units":["Ordu","Giresun","Trabzon","Rize","Gümüşhane","Artvin"]},
+        {"name":"Upper Euphrates","units":["Sivas","Malatya","Elazığ","Tunceli","Erzincan"]},
+        {"name":"Upper Mesopotamian Fringe","units":["Kahramanmaraş","Adıyaman","Gaziantep","Kilis","Şanlıurfa","Diyarbakır","Mardin"]},
+        {"name":"Armenian Highlands","units":["Erzurum","Kars","Ardahan","Ağrı","Iğdır","Bayburt"]},
+        {"name":"Lake Van Highlands","units":["Van","Bitlis","Muş","Bingöl","Batman","Siirt","Şırnak","Hakkâri"]}
+      ]
+    },
+    {
+      "iso": "CYP",
+      "displayCountry": "Cyprus",
+      "mode": "merge",
+      "requireAllSourceUnits": true,
+      "regions": [
+        {"name":"Western Cyprus","units":["Paphos","Limassol"]},
+        {"name":"Central Cyprus","units":["Nicosia","Kyrenia"]},
+        {"name":"Eastern Cyprus","units":["Larnaca","Famagusta"]}
+      ]
+    },
+    {
+      "iso": "SYR",
+      "displayCountry": "Syria",
+      "mode": "merge",
+      "requireAllSourceUnits": true,
+      "regions": [
+        {"name":"Ugarit Coast","units":["Lattakia","Tartous"]},
+        {"name":"Aleppo & Idlib","units":["Aleppo","Idleb"]},
+        {"name":"Orontes Valley","units":["Hama","Homs"]},
+        {"name":"Damascus & Hauran","units":["Damascus","Rural Damascus","Quneitra","Dar'a","As-Sweida"]},
+        {"name":"Middle Euphrates","units":["Ar-Raqqa","Deir-ez-Zor"]},
+        {"name":"Upper Khabur","units":["Al-Hasakeh"]}
+      ]
+    },
+    {
+      "iso": "LBN",
+      "displayCountry": "Levant",
+      "mode": "merge",
+      "requireAllSourceUnits": true,
+      "regions": [
+        {"name":"Northern Phoenician Coast","units":["Aakkâr","Liban-Nord","Keserwan-Jbeil"]},
+        {"name":"Central Phoenician Coast","units":["Beyrouth","Mont-Liban"]},
+        {"name":"Southern Phoenician Coast","units":["Liban-Sud","Nabatîyé"]},
+        {"name":"Beqaa Valley","units":["Béqaa","Baalbek-Hermel"]}
+      ]
+    },
+    {
+      "iso": "ISR",
+      "displayCountry": "Southern Levant",
+      "mode": "merge",
+      "requireAllSourceUnits": true,
+      "regions": [
+        {"name":"Upper Galilee","units":["Akko","Zefat","Kinneret"]},
+        {"name":"Jezreel","units":["Yizre'el"]},
+        {"name":"Carmel Coast","units":["Haifa","Hadera"]},
+        {"name":"Sharon Plain","units":["HaSharon","Petah Tiqwa","Tel Aviv"]},
+        {"name":"Central Canaan","units":["Ramla","Rehovot"]},
+        {"name":"Jerusalem Hills","units":["Jerusalem"]},
+        {"name":"Philistia","units":["Ashqelon"]},
+        {"name":"Negev","units":["Be'er Sheva"]},
+        {"name":"Golan","units":["Golan"]}
+      ]
+    },
+    {
+      "iso": "PSE",
+      "displayCountry": "Southern Levant",
+      "mode": "merge",
+      "requireAllSourceUnits": true,
+      "regions": [
+        {"name":"Northern Highlands","units":["Jenin","Tubas","Nablus"]},
+        {"name":"Central Highlands","units":["Tulkarm","Qalqiliya","Salfit","Ramallah & Al Bireh"]},
+        {"name":"Bethlehem & Jerusalem","units":["Bethlehem","Jerusalem"]},
+        {"name":"Hebron Hills","units":["Hebron"]},
+        {"name":"Jordan Valley","units":["Jericho & Al Aghwar"]},
+        {"name":"Gaza Coast","units":["North Gaza","Gaza","Deir Al Balah","Khan Yunis","Rafah"]}
+      ]
+    },
+    {
+      "iso": "JOR",
+      "displayCountry": "Transjordan",
+      "mode": "merge",
+      "requireAllSourceUnits": true,
+      "regions": [
+        {"name":"Northern Transjordan","units":["Irbid","Ajloun","Jerash"]},
+        {"name":"Central Transjordan","units":["Amman","Balqa","Madaba","Zarqa"]},
+        {"name":"Moab & Edom","units":["Karak","Tafilah","Ma'an","Aqaba"]},
+        {"name":"Eastern Desert","units":["Mafraq"]}
+      ]
+    },
+    {
+      "iso": "EGY",
+      "displayCountry": "Egypt",
+      "mode": "merge",
+      "requireAllSourceUnits": true,
+      "regions": [
+        {"name":"Western Nile Delta","units":["Alexandria Governorate","Beheira Governorate","Kafr el-Sheikh Governorate"]},
+        {"name":"Central Nile Delta","units":["Gharbiyya Governorate","Monufia Governorate","Qalyubia Governorate"]},
+        {"name":"Eastern Nile Delta","units":["Dakahlia Governorate","Damietta Governorate","Al Sharqia Governorate","Port Said Governorate","Ismailia Governorate"]},
+        {"name":"Memphis & Cairo","units":["Cairo Governorate","Giza Governorate"]},
+        {"name":"Faiyum & Beni Suef","units":["Faiyum Governorate","Beni Suef Governorate"]},
+        {"name":"Middle Egypt","units":["Minya Governate","Asyut Governorate"]},
+        {"name":"Upper Egypt","units":["Sohag Governorate","Qena Governorate","Luxor Governate"]},
+        {"name":"Aswan","units":["Aswan Governorate"]},
+        {"name":"Sinai & Suez","units":["North Sinai Governorate","South Sinai Governorate","Suez Governorate"]},
+        {"name":"Egyptian Deserts","units":["Matrouh Governorate","New Valley Governorate","Red Sea Governorate"]}
+      ]
+    },
+    {
+      "iso": "IRQ",
+      "displayCountry": "Mesopotamia",
+      "mode": "merge",
+      "requireAllSourceUnits": true,
+      "regions": [
+        {"name":"Upper Tigris","units":["Dohuk","Ninawa"]},
+        {"name":"Assyria","units":["Erbil","Kirkuk","Salah al-Din"]},
+        {"name":"Zagros Foothills","units":["Al-Sulaimaniyah","Diyala"]},
+        {"name":"Babylon","units":["Baghdad","Babil","Karbala"]},
+        {"name":"Middle Euphrates","units":["Al-Anbar","An-Najaf"]},
+        {"name":"Sumer","units":["Al-Qadisiyah","Dhi Qar"]},
+        {"name":"Lower Tigris","units":["Wasit","Maysan"]},
+        {"name":"Basra & Southern Desert","units":["Al-Basrah","Al-Muthanna"]}
+      ]
+    },
+    {
+      "iso": "IRN",
+      "displayCountry": "Western Iran",
+      "mode": "merge",
+      "requireAllSourceUnits": false,
+      "notes": "Only the western/southwestern fringe is included in this playthrough. The source layer has a known province-count anomaly, so excluded eastern units are intentionally ignored.",
+      "regions": [
+        {"name":"Elam","units":["Khuzestan","Ilam"]},
+        {"name":"Northern Zagros","units":["Kermanshah","Kurdistan","Hamadan"]},
+        {"name":"Southern Zagros","units":["Lorestan","Chaharmahal and Bakhtiari","Kohgiluyeh and Boyer-Ahmad"]},
+        {"name":"Persian Gulf Fringe","units":["Bushehr","Fars"]}
+      ]
+    },
+    {
+      "iso": "LBY",
+      "displayCountry": "Libya",
+      "mode": "merge",
+      "requireAllSourceUnits": true,
+      "regions": [
+        {"name":"Tripolitania","units":["Tajura' wa an Nawahi al Arba","Al Jifarah","Az Zawiyah","An Nuqat al Khams","Al Marqab","Misratah"]},
+        {"name":"Gulf of Sidra","units":["Surt","Ajdabiya"]},
+        {"name":"Cyrenaica","units":["Benghazi","Al Marj","Al Jabal al Akhdar","Al Qubbah","Al Butnan"]},
+        {"name":"Fezzan","units":["Sabha","Murzuq","Wadi al Hayaa","Ash Shati'"]},
+        {"name":"Western Libyan Desert","units":["Ghadamis","Ghat","Mizdah"]},
+        {"name":"Eastern Libyan Desert","units":["Al Jufrah","Al Kufrah"]}
+      ]
+    },
+    {
+      "iso": "TUN",
+      "displayCountry": "Tunisia",
+      "mode": "merge",
+      "requireAllSourceUnits": true,
+      "regions": [
+        {"name":"Northern Tunisia","units":["Bizerte","Tunis","Ariana","Manouba","Ben Arous"]},
+        {"name":"Cap Bon","units":["Nabeul","Zaghouan"]},
+        {"name":"Tunisian Sahel","units":["Sousse","Monastir","Mahdia","Sfax"]},
+        {"name":"Northwestern Tunisia","units":["Jendouba","Béja","El Kef","Siliana"]},
+        {"name":"Central Tunisia","units":["Kairouan","Kasserine","Sidi Bouzid","Gafsa"]},
+        {"name":"Southern Tunisia","units":["Gabès","Médenine","Tataouine","Kébili","Tozeur"]}
+      ]
+    }
+  ]
+}
