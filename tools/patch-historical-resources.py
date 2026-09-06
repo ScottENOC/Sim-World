@@ -150,10 +150,3 @@ export const SURFACE_TIN_STOCK_MULTIPLIER = 1;
 export const SURFACE_COPPER_STOCK_MULTIPLIER = 1;
 ''')
 extraction.write_text(et)
-
-workflow = Path('.github/workflows/build-map-expansion-preview.yml')
-wt = workflow.read_text()
-needle = "      - 'tools/map-region-plan.json'\n"
-if "tools/map-resource-plan.json" not in wt:
-    wt = wt.replace(needle, needle + "      - 'tools/map-resource-plan.json'\n")
-workflow.write_text(wt)
