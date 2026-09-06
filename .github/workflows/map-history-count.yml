@@ -1,0 +1,25 @@
+name: Map history count
+on:
+  push:
+    branches: [collapse-trade-raiding-language-v1]
+jobs:
+  count:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Count recent map versions
+        run: |
+          python - <<'PY'
+          import json, subprocess
+          commits=subprocess.check_output(['git','log','--format=%H|%ad|%s','--date=short','--','data/world/regions.meta.json'], text=True).splitlines()[:20]
+          for row in commits:
+            sha,date,msg=row.split('|',2)
+            try:
+              raw=subprocess.check_output(['git','show',f'{sha}:data/world/regions.meta.json'])
+              n=len(json.loads(raw)['regions'])
+              print(f'MAP_HISTORY {date} {sha[:8]} {n} {msg}')
+            except Exception as e:
+              print(f'MAP_HISTORY_ERROR {sha[:8]} {e}')
+          PY
