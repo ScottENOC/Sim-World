@@ -102,6 +102,42 @@ export const CONSTRUCTION_TYPES = Object.freeze({
     materials: { stone: 350, wood: 900, bronze: 20 }, wagePerWorkerWeek: 0.002,
     maintenanceRate: 0.03,
   },
+  monumental_tomb: {
+    id: 'monumental_tomb', name: 'Monumental royal tomb', requiredTechId: null, monumental: true,
+    minPopulation: 7000,
+    description: 'A deliberately overwhelming royal burial complex. It creates no resources; its value is social: demonstrating that the ruler can command labour, stone and ritual on a scale ordinary households cannot.',
+    workRequired: 32000, defaultWorkers: 420, minWorkers: 120, maxWorkers: 1800,
+    materials: { stone: 4200, wood: 900, pottery: 350, bronze: 45 }, wagePerWorkerWeek: 0.002,
+    maintenanceRate: 0.008,
+    prestige: { authority: 0.22, religious: 0.08, foreign: 0.16, legacy: 0.95, tourismPotential: 0.9 },
+  },
+  great_temple: {
+    id: 'great_temple', name: 'Great temple complex', requiredTechId: null, monumental: true,
+    minPopulation: 8000,
+    description: 'A major sanctuary, ceremonial precinct and storehouse complex. Its political effect comes from public ritual, priestly organisation and visible patronage rather than a magical yield bonus.',
+    workRequired: 28000, defaultWorkers: 380, minWorkers: 110, maxWorkers: 1500,
+    materials: { stone: 3000, wood: 1300, pottery: 650, bronze: 55 }, wagePerWorkerWeek: 0.002,
+    maintenanceRate: 0.014,
+    prestige: { authority: 0.14, religious: 0.24, foreign: 0.11, legacy: 0.8, tourismPotential: 0.75 },
+  },
+  ceremonial_complex: {
+    id: 'ceremonial_complex', name: 'Ceremonial and assembly complex', requiredTechId: null, monumental: true,
+    minPopulation: 6000,
+    description: 'Processional spaces, courts, halls and monuments designed for assemblies and state ceremony. It can make distant rule feel more credible, but only while people continue to use and maintain it.',
+    workRequired: 22000, defaultWorkers: 300, minWorkers: 90, maxWorkers: 1200,
+    materials: { stone: 2200, wood: 1500, pottery: 450, bronze: 30 }, wagePerWorkerWeek: 0.002,
+    maintenanceRate: 0.018,
+    prestige: { authority: 0.18, religious: 0.07, foreign: 0.12, legacy: 0.6, tourismPotential: 0.55 },
+  },
+  monumental_statue: {
+    id: 'monumental_statue', name: 'Colossal monument', requiredTechId: null, monumental: true,
+    minPopulation: 5000,
+    description: 'An exceptional statue, stele or commemorative monument whose main output is reputation: proof of skilled craft, surplus and political ambition. Other states remain free to imitate or surpass it.',
+    workRequired: 17000, defaultWorkers: 240, minWorkers: 70, maxWorkers: 900,
+    materials: { stone: 1700, wood: 500, pottery: 150, bronze: 90 }, wagePerWorkerWeek: 0.002,
+    maintenanceRate: 0.01,
+    prestige: { authority: 0.1, religious: 0.03, foreign: 0.2, legacy: 0.72, tourismPotential: 0.7 },
+  },
   hill_fort: {
     id: 'hill_fort', name: 'Hill fort', requiredTechId: HILL_FORT_TECH_ID,
     description: 'A fortified refuge and defended seat of power on commanding ground.',
@@ -221,7 +257,7 @@ function completeProject(region, project, type, currentTick) {
       constructionType: { ...type, name: `${type.name} repairs` } };
   }
   state.completed[type.id] = (state.completed[type.id] || 0) + 1;
-  state.assets.push({ id: `${project.id}-${type.id}`, typeId: type.id, condition: 1 });
+  state.assets.push({ id: `${project.id}-${type.id}`, typeId: type.id, condition: 1, completedTick: currentTick });
   if (!region.infrastructure) region.infrastructure = {};
   if (type.id === 'hill_fort') region.infrastructure.hillForts = (region.infrastructure.hillForts || 0) + 1;
   if (type.id === 'public_granary') region.infrastructure.publicGranaries = (region.infrastructure.publicGranaries || 0) + 1;
@@ -305,6 +341,30 @@ export function assetEffectiveness(asset) {
   return condition <= 0.2 ? 0 : Math.min(1, (condition - 0.2) / 0.6);
 }
 
+// Monumental projects are not Civ-style global uniques. Their effects are
+// entirely social and condition-scaled. Multiple tombs or temples can coexist;
+// repeated examples of the same form have diminishing signalling value rather
+// than being prohibited. This preserves imitation, regional traditions and
+// long-running building programmes without a global "someone else got it" race.
+export function monumentalPrestige(region) {
+  const assets = ensureConstruction(region).assets.filter((asset) => CONSTRUCTION_TYPES[asset.typeId]?.monumental);
+  const profile = { authority: 0, religious: 0, foreign: 0, legacy: 0, tourismPotential: 0, count: assets.length };
+  const seen = new Map();
+  for (const asset of assets) {
+    const type = CONSTRUCTION_TYPES[asset.typeId];
+    const effect = assetEffectiveness(asset);
+    const previous = seen.get(type.id) || 0;
+    // The first great pyramid-like project is a stronger signal than the sixth,
+    // but later copies are still useful and can be larger/better maintained.
+    const repetition = 1 / Math.sqrt(1 + previous * 0.75);
+    seen.set(type.id, previous + 1);
+    for (const key of ['authority', 'religious', 'foreign', 'legacy', 'tourismPotential']) {
+      profile[key] += (type.prestige?.[key] || 0) * effect * repetition;
+    }
+  }
+  return profile;
+}
+
 export function effectiveInfrastructureCount(region, typeId) {
   return ensureConstruction(region).assets.filter((asset) => asset.typeId === typeId)
     .reduce((sum, asset) => sum + assetEffectiveness(asset), 0);
@@ -359,6 +419,7 @@ export function tickInfrastructureMaintenance(regions, elapsedDays = 7) {
       asset.condition = clamp(asset.condition + ratio * 0.00015 * weekScale - (1 - ratio) * 0.002 * weekScale, 0, 1);
       asset.maintenanceRatio = ratio;
     }
+    region.monumentalPrestige = monumentalPrestige(region);
   }
 }
 
@@ -401,7 +462,11 @@ export function chooseAiConstruction(region, currentTick, rng = Math.random) {
       ['royal_arsenal', (region.army?.personnel || 0) > 250 ? 6 : 2],
       ['administrative_centre', (region.population || 0) > 12000 ? 6 : 2],
       ['canal', (region.population || 0) > 20000 ? 5 : 1],
-    ].filter(([id]) => available.has(id)).sort((a, b) => b[1] - a[1]);
+      ['monumental_tomb', (region.population || 0) > 25000 && (region.stability || 0) > 0.7 ? 3 : 0],
+      ['great_temple', (region.population || 0) > 22000 && (region.religion?.stateReligionId || null) ? 4 : 1],
+      ['ceremonial_complex', (region.population || 0) > 18000 && (region.stability || 0) > 0.65 ? 3 : 1],
+      ['monumental_statue', (region.population || 0) > 15000 && (region.tradeEconomy?.weeklyExports || 0) > 80 ? 2 : 1],
+    ].filter(([id, score]) => score > 0 && available.has(id)).sort((a, b) => b[1] - a[1]);
     const chosen = candidates.find(([id]) => Object.entries(CONSTRUCTION_TYPES[id].materials)
       .every(([resource, amount]) => (region.stockpile?.[resource] || 0) >= amount * 0.5));
     if (chosen) return startConstruction(region, chosen[0], CONSTRUCTION_TYPES[chosen[0]].defaultWorkers, currentTick);
