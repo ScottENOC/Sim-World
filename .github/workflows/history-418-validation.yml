@@ -1,0 +1,29 @@
+name: 418-world history validation
+on:
+  push:
+    branches: [history-418-20260906]
+    paths: ['.github/workflows/history-418-validation.yml']
+jobs:
+  history:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [305419896, 2959855665]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run 160 year history
+        run: node tools/calibrate.mjs --years 160 --seeds 1 --base-seed ${{ matrix.seed }} --snapshot-years 20 --days-per-tick 30 --regional-detail true --output history.json
+      - name: Print history summary
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const r=JSON.parse(fs.readFileSync('history.json','utf8'));
+          console.log('ACTUAL_REGIONS='+r.configuration.actualRegions);
+          for (const s of r.runs[0].timeline) console.log('SNAPSHOT '+JSON.stringify({year:s.year,pop:s.populationPct,trade:s.smoothedWeeklyTrade,foodImports:s.smoothedWeeklyFoodImports,tin:s.surfaceTinPct,copper:s.surfaceCopperPct,distressed:s.distressedRegions,bandits:s.bandits,raids:s.raidWindow,bronze:s.weeklyBronzeOutput,bronzeStock:s.bronzeStock,iron:s.ironRegions,toolCoverage:s.farmerToolCoveragePct,toolMultiplier:s.averageFarmerToolMultiplier,readiness:s.averageMilitaryReadinessPct,foodDependent:s.foodDependentRegions}));
+          console.log('ELAPSED='+r.elapsedSeconds);
+          NODE
