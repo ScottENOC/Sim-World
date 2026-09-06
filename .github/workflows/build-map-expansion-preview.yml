@@ -35,10 +35,20 @@ jobs:
           geo=json.loads((p/'regions.geo.json').read_text())
           meta=json.loads((p/'regions.meta.json').read_text())
           resources=json.loads((p/'resources.initial.json').read_text())
+          plan=json.loads(Path('tools/map-region-plan.json').read_text())
+          expected_new=0
+          inventory=json.loads(Path('tools/map-source-inventory.json').read_text())
+          by_iso={c['iso']:c for c in inventory['countries']}
+          for c in plan['countries']:
+              excluded=set(c.get('excludedSourceUnits') or [])
+              if c['mode']=='one-per-source': expected_new += len([u for u in by_iso[c['iso']]['units'] if u not in excluded])
+              else: expected_new += len(c.get('regions', []))
+          expected=plan['targetExistingRegionCount']+expected_new
           print('PREVIEW_GEO_FEATURES='+str(len(geo['features'])))
           print('PREVIEW_META_REGIONS='+str(len(meta['regions'])))
           print('PREVIEW_RESOURCE_REGIONS='+str(len(resources)))
-          assert len(geo['features']) == len(meta['regions']) == len(resources) == 401
+          print('PREVIEW_EXPECTED_REGIONS='+str(expected))
+          assert len(geo['features']) == len(meta['regions']) == len(resources) == expected
           ids=[f['properties']['id'] for f in geo['features']]
           assert len(ids)==len(set(ids))
           print('PREVIEW_SCHEMA_OK=true')
