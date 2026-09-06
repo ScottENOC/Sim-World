@@ -14,35 +14,21 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          p=Path('js/economy/trade.js')
-          s=p.read_text()
-          replacements=[
-            ("const BROAD_SEARCH_INTERVAL = 52;", "const BROAD_SEARCH_INTERVAL = 26;"),
-            ("""    const resources = habitualResources.length
-      ? [...new Set(habitualResources)]
-      : stockedResources.slice(0, MAX_NEW_RESOURCES_PER_DESTINATION);""",
-             """    // Familiar routes get first look, but never monopolise the product list.
-    // A merchant who knows a destination should still occasionally notice a
-    // different cargo becoming attractive there as relative prices change.
-    const exploratoryResources = stockedResources
-      .filter((resource) => !habitualResources.includes(resource))
-      .slice(0, 1);
-    const resources = habitualResources.length
-      ? [...new Set([...habitualResources, ...exploratoryResources])]
-      : stockedResources.slice(0, MAX_NEW_RESOURCES_PER_DESTINATION);"""),
-            ("""  } else if (economy.merchantConfidence < -0.25 && idle > 0) {""",
-             """  } else if (economy.weeklyReturns > 0 && economy.merchantConfidence < -0.25 && idle > 0) {"""),
-            ("""  const candidateIds = new Set(habitDestinationIds(region).slice(0, MAX_CANDIDATE_MARKETS));""",
-             """  // Reserve candidate slots for genuinely new markets. Previously, once a
-  // region had MAX_CANDIDATE_MARKETS habitual destinations, appending broad-
-  // search leads and then slicing back to the cap discarded every new lead.
-  const habitualSlots = Math.max(4, MAX_CANDIDATE_MARKETS - MAX_EXPLORATION_MARKETS);
-  const candidateIds = new Set(habitDestinationIds(region).slice(0, habitualSlots));"""),
-          ]
-          for old,new in replacements:
-            if old not in s:
-              raise SystemExit('target not found: '+old[:80])
-            s=s.replace(old,new,1)
+          p = Path('js/economy/trade.js')
+          s = p.read_text()
+          pairs = []
+          pairs.append(('const BROAD_SEARCH_INTERVAL = 52;', 'const BROAD_SEARCH_INTERVAL = 26;'))
+          old_resources = "    const resources = habitualResources.length\n      ? [...new Set(habitualResources)]\n      : stockedResources.slice(0, MAX_NEW_RESOURCES_PER_DESTINATION);"
+          new_resources = "    // Familiar routes get first look, but never monopolise the product list.\n    // A merchant who knows a destination should still occasionally notice a\n    // different cargo becoming attractive there as relative prices change.\n    const exploratoryResources = stockedResources\n      .filter((resource) => !habitualResources.includes(resource))\n      .slice(0, 1);\n    const resources = habitualResources.length\n      ? [...new Set([...habitualResources, ...exploratoryResources])]\n      : stockedResources.slice(0, MAX_NEW_RESOURCES_PER_DESTINATION);"
+          pairs.append((old_resources, new_resources))
+          pairs.append(('  } else if (economy.merchantConfidence < -0.25 && idle > 0) {', '  } else if (economy.weeklyReturns > 0 && economy.merchantConfidence < -0.25 && idle > 0) {'))
+          old_candidates = '  const candidateIds = new Set(habitDestinationIds(region).slice(0, MAX_CANDIDATE_MARKETS));'
+          new_candidates = "  // Reserve candidate slots for genuinely new markets. Previously, once a\n  // region had MAX_CANDIDATE_MARKETS habitual destinations, appending broad-\n  // search leads and then slicing back to the cap discarded every new lead.\n  const habitualSlots = Math.max(4, MAX_CANDIDATE_MARKETS - MAX_EXPLORATION_MARKETS);\n  const candidateIds = new Set(habitDestinationIds(region).slice(0, habitualSlots));"
+          pairs.append((old_candidates, new_candidates))
+          for old, new in pairs:
+              if old not in s:
+                  raise SystemExit('target not found: ' + old[:80])
+              s = s.replace(old, new, 1)
           p.write_text(s)
           PY
           node --check js/economy/trade.js
