@@ -5,6 +5,7 @@
 import { FOOD_PER_PERSON_PER_WEEK } from '../economy/labor.js?v=20260904-weather1';
 import { chooseEmigrationDestinations } from './migration.js?v=20260904-weather1';
 import { migrateReligion } from './religion.js?v=20260905-religion1';
+import { tickEducation } from './education.js?v=20260906-education1';
 import { DAYS_PER_YEAR, annualFractionRate, elapsedWeeks } from '../core/simTime.js?v=20260905-time1';
 
 const CHILD_BAND_YEARS = 14;
@@ -22,6 +23,10 @@ const FAMINE_BANDIT_SHARE = 0.25;
 function clamp01(v) { return Math.max(0, Math.min(1, v)); }
 
 export function tickDemographics(regions, religiousWorld = null, elapsedDays = 7) {
+  // Specialist education advances on the same historical clock as population.
+  // It lives here rather than in the render/game loop so accelerated monthly
+  // simulation still produces the same seven-year scribal training pipeline.
+  tickEducation(regions, null, elapsedDays);
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   for (const region of regions) applyBaselineDemographics(region, elapsedDays);
   for (const region of regions) applyFamineResponse(region, regionsById, religiousWorld, elapsedDays);
