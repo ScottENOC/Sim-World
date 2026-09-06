@@ -61,10 +61,13 @@ export const CULTURE_SEEDS = Object.freeze([
   { id: 'north_gaul_lba', label: 'Northern Gaul Late Bronze Age traditions', familyId: 'northwest_europe_lba', kind: 'tradition', confidence: 0.45,
     test: (r) => inBox(r, -1, 8.5, 49, 55.5) },
 
-  { id: 'british_atlantic_lba', label: 'British Atlantic Late Bronze Age traditions', familyId: 'atlantic_lba', kind: 'tradition', confidence: 0.5,
-    test: (r) => inBox(r, -6.8, 2, 49.5, 59.5) },
+  // Ireland overlaps Britain's longitude range in the east, so Irish must be
+  // evaluated first. These broad Atlantic labels intentionally avoid imposing
+  // later Celtic ethnic terminology on 1300 BCE populations.
   { id: 'irish_atlantic_lba', label: 'Irish Atlantic Late Bronze Age traditions', familyId: 'atlantic_lba', kind: 'tradition', confidence: 0.55,
     test: (r) => inBox(r, -11, -5, 51, 56) },
+  { id: 'british_atlantic_lba', label: 'British Atlantic Late Bronze Age traditions', familyId: 'atlantic_lba', kind: 'tradition', confidence: 0.5,
+    test: (r) => inBox(r, -6.8, 2, 49.5, 59.5) },
 ]);
 
 function inBox(region, minLon, maxLon, minLat, maxLat) {
