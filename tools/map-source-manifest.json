@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "purpose": "Source inventory for the first eastern Mediterranean / Near East map expansion.",
   "defaultSource": {
     "provider": "geoBoundaries",
@@ -16,7 +16,7 @@
     "github": "https://github.com/nvkelso/natural-earth-vector"
   },
   "countries": [
-    {"iso":"ITA","name":"Italy","tier":"core","preferred":"natural-earth","level":"ADM1","notes":"geoBoundaries ADM1 currently exposes only 5 macro-units; use Natural Earth admin-1 as the main geometry source."},
+    {"iso":"ITA","name":"Italy","tier":"core","preferred":"geoboundaries","level":"ADM2","notes":"ADM2 exposes Italy's 20 regions, which is good gameplay-scale raw geometry and avoids a one-off Natural Earth import."},
     {"iso":"GRC","name":"Greece","tier":"core","preferred":"geoboundaries","level":"ADM2","notes":"ADM2 gives 14 useful raw units; retain high detail around Attica, central Greece, Peloponnese, Macedonia, Crete and Aegean islands."},
     {"iso":"TUR","name":"Turkey / Anatolia","tier":"core","preferred":"geoboundaries","level":"ADM1","notes":"81 modern provinces are raw pieces only; merge into historical/game-geographic Anatolian regions."},
     {"iso":"CYP","name":"Cyprus","tier":"core","preferred":"geoboundaries","level":"ADM1","notes":"Major copper source; likely merge six districts into 2-4 game regions."},
