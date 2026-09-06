@@ -53,6 +53,7 @@ function ensureCultureState(region) {
   region.cultureState.fusionIds ||= [];
   region.cultureState.branchIds ||= [];
   region.cultureState.identityArchive ||= [];
+  region.cultureState.persecutionMemory ||= {};
   return region.cultureState;
 }
 
@@ -218,30 +219,73 @@ export function cultureDiplomaticBias(regionA, regionB) {
   return Math.max(-0.08, Math.min(0.12, (affinity - 0.45) * 0.16 + familiarity * 0.035));
 }
 
-function chronologicalIdentityFloor(calendarYear) {
-  if (calendarYear <= 1500) return 0;
-  const t = clamp01((calendarYear - 1500) / 526);
-  return 0.18 * t * t * t;
+function culturalMemory(region) {
+  const education = clamp01(region.educationLevel || 0);
+  const archives = clamp01(region.education?.archiveLevel || 0);
+  const techs = region.unlockedTechIds instanceof Set ? region.unlockedTechIds : new Set(region.unlockedTechIds || []);
+  const writing = techs.has('writing') || region.education?.writingTradition ? 0.18 : 0;
+  const print = techs.has('printing_press') ? 0.16 : 0;
+  const massSchooling = techs.has('mass_schooling') ? 0.22 : 0;
+  return clamp01(education * 0.14 + archives * 0.28 + writing + print + massSchooling);
+}
+
+function massCommunication(region) {
+  const techs = region.unlockedTechIds instanceof Set ? region.unlockedTechIds : new Set(region.unlockedTechIds || []);
+  return clamp01((techs.has('newspapers') ? 0.12 : 0) + (techs.has('radio') ? 0.2 : 0) +
+    (techs.has('television') ? 0.22 : 0) + (techs.has('internet') ? 0.28 : 0));
+}
+
+function rightsAndRuleOfLaw(region) {
+  const gov = region.governance || {};
+  const explicit = clamp01(region.society?.ruleOfLaw ?? region.ruleOfLaw ?? 0);
+  const minorityRights = clamp01(region.society?.minorityRights ?? 0);
+  const legalConstraint = clamp01(region.society?.legalConstraintOnState ?? 0);
+  const admin = clamp01(gov.administrativeControl || 0) * 0.12;
+  return clamp01(explicit * 0.38 + minorityRights * 0.34 + legalConstraint * 0.22 + admin);
+}
+
+function persecutionMemory(region, group) {
+  const state = ensureCultureState(region);
+  state.persecutionMemory ||= {};
+  return clamp01(state.persecutionMemory[group?.identityId] || 0);
+}
+
+export function recordCulturalPersecution(region, identityId, severity = 0.1, witnessedShare = 0) {
+  if (!region || !identityId) return;
+  const state = ensureCultureState(region);
+  state.persecutionMemory ||= {};
+  const media = massCommunication(region);
+  const witnessed = clamp01(witnessedShare);
+  const gain = clamp01(severity) * (0.35 + 0.4 * witnessed + 0.25 * media);
+  state.persecutionMemory[identityId] = clamp01((state.persecutionMemory[identityId] || 0) + gain);
+  const group = ensureRegionCulture(region).find((g) => g.identityId === identityId);
+  if (group) group.identityStrength = clamp01(group.identityStrength + gain * 0.2);
+  invalidateCulture(region);
+}
+
+export function coerciveCultureConstraint(region) {
+  const society = region?.society || {};
+  const rights = rightsAndRuleOfLaw(region);
+  const internationalNorm = clamp01(society.internationalAtrocityNorm || 0);
+  const treatyLaw = clamp01(society.internationalLawConstraint || 0);
+  const publicAwareness = massCommunication(region);
+  const externalEnforcement = clamp01(society.externalEnforcementRisk || 0);
+  return clamp01(rights * 0.34 + internationalNorm * (0.18 + publicAwareness * 0.12) + treatyLaw * 0.2 + externalEnforcement * 0.16);
 }
 
 function institutionalisation(region) {
-  const education = clamp01(region.educationLevel || 0);
-  const archives = clamp01(region.education?.archiveLevel || 0);
-  const state = clamp01((region.governance?.integration || 0) + (region.governance?.relationship === 'core' ? 0.15 : 0));
-  const techs = region.unlockedTechIds instanceof Set ? region.unlockedTechIds : new Set(region.unlockedTechIds || []);
-  const massSchooling = techs.has('mass_schooling') ? 0.25 : 0;
-  const print = techs.has('printing_press') ? 0.12 : 0;
-  const massMedia = techs.has('radio') || techs.has('television') ? 0.18 : 0;
-  const internet = techs.has('internet') ? 0.12 : 0;
-  return clamp01(education * 0.25 + archives * 0.18 + state * 0.12 + massSchooling + print + massMedia + internet);
+  return clamp01(culturalMemory(region) * 0.52 + massCommunication(region) * 0.3 + rightsAndRuleOfLaw(region) * 0.18);
 }
 
 export function assimilationResistance(region, group, calendarYear = START_YEAR) {
+  // The calendar itself contributes nothing. Identity age is retained because
+  // actual persistence is historical state, not an era bonus.
   const identity = culturalIdentity(group?.identityId);
-  const age = Math.max(0, calendarYear - (identity?.createdYear ?? START_YEAR));
-  const ageMemory = Math.min(0.12, age / 5000 * 0.12);
-  const resistance = 0.07 + clamp01(group?.identityStrength ?? 0.25) * 0.25 +
-    institutionalisation(region) * 0.48 + ageMemory + chronologicalIdentityFloor(calendarYear);
+  const age = Math.max(0, calendarYear - (identity?.createdYear ?? calendarYear));
+  const ageMemory = Math.min(0.08, age / 5000 * 0.08);
+  const resistance = 0.07 + clamp01(group?.identityStrength ?? 0.25) * 0.26 +
+    culturalMemory(region) * 0.34 + massCommunication(region) * 0.12 +
+    rightsAndRuleOfLaw(region) * 0.08 + persecutionMemory(region, group) * 0.22 + ageMemory;
   return Math.max(0.05, Math.min(0.96, resistance));
 }
 
@@ -358,7 +402,7 @@ function maybePolityAffiliation(region, years, calendarYear, regionsById) {
 function strengthenIdentities(region, years, calendarYear) {
   const institutions = institutionalisation(region);
   for (const group of ensureRegionCulture(region)) {
-    const pressure = 0.0006 + institutions * 0.0014 + chronologicalIdentityFloor(calendarYear) * 0.001;
+    const pressure = 0.0006 + institutions * 0.0016 + persecutionMemory(region, group) * 0.0008;
     group.identityStrength = clamp01(group.identityStrength + pressure * years * (1 - group.identityStrength));
   }
 }
