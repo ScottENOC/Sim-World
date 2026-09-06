@@ -472,7 +472,13 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng, elapsedDays 
   const maxFoodOutput = region.areaSqKm * region.landQuality * FOOD_YIELD_PER_KM2 * noise *
     (1 - horseReport.pastureFraction) * seasonalMultiplier * weatherMultiplier * droughtProtection *
     toolYieldMultiplier * resourceAccess * waterYieldMultiplier;
-  const kLabor = region.areaSqKm * FARM_LABOR_SATURATION_PER_KM2;
+  // landQuality is an area-weighted productive-land index. On marginal or
+  // partly desert regions the productive acreage is only a fraction of the
+  // polygon, so farmers should saturate that usable acreage rather than being
+  // diluted across every square kilometre of desert/mountain. Fertile quality
+  // above 1 remains a yield advantage, not more than 100% usable land.
+  const productiveAcreageFactor = Math.min(1, Math.max(0.03, region.landQuality));
+  const kLabor = region.areaSqKm * productiveAcreageFactor * FARM_LABOR_SATURATION_PER_KM2;
   const humanFoodNeeded = totalPop * FOOD_PER_PERSON_PER_WEEK * weekScale;
   const foodNeeded = humanFoodNeeded + horseReport.fodderNeeded;
   const foodPlan = plannedFoodProduction(region, foodNeeded);
