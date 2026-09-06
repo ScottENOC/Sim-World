@@ -1,0 +1,115 @@
+name: Expanded world simulation
+on:
+  push:
+    paths:
+      - '.github/workflows/expanded-world-simulation.yml'
+  workflow_dispatch:
+
+jobs:
+  performance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build expanded world
+        run: |
+          python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2
+          rm -rf /tmp/expanded-world
+          python tools/build-map-expansion.py --fail-on-overlap --output-dir /tmp/expanded-world
+          python tools/build-sea-expansion.py --land-geo /tmp/expanded-world/regions.geo.json --output-dir /tmp/expanded-world
+          cp /tmp/expanded-world/regions.geo.json data/world/regions.geo.json
+          cp /tmp/expanded-world/regions.meta.json data/world/regions.meta.json
+          cp /tmp/expanded-world/resources.initial.json data/world/resources.initial.json
+          cp /tmp/expanded-world/seaRegions.geo.json data/world/seaRegions.geo.json
+          cp /tmp/expanded-world/seaRegions.meta.json data/world/seaRegions.meta.json
+      - name: Expanded world benchmark
+        shell: bash
+        run: |
+          start=$(date +%s%N)
+          node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --system-timing true --output perf-418.json
+          end=$(date +%s%N)
+          elapsed_ms=$(( (end - start) / 1000000 ))
+          echo "EXPANDED_418_TOTAL_MS=$elapsed_ms"
+          echo "EXPANDED_418_MS_PER_TICK=$(awk -v ms="$elapsed_ms" 'BEGIN { printf "%.2f", ms / 13 }')"
+          node -e "const r=require('./perf-418.json'); console.log('REGIONS='+r.configuration.actualRegions); console.log('SYSTEM='+JSON.stringify(r.runs[0].systemTimingMsPerTick))"
+      - name: Fixed 2830-region benchmark
+        shell: bash
+        run: |
+          start=$(date +%s%N)
+          node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --target-regions 2830 --system-timing true --output perf-2830.json
+          end=$(date +%s%N)
+          elapsed_ms=$(( (end - start) / 1000000 ))
+          echo "FIXED_2830_TOTAL_MS=$elapsed_ms"
+          echo "FIXED_2830_MS_PER_TICK=$(awk -v ms="$elapsed_ms" 'BEGIN { printf "%.2f", ms / 13 }')"
+          node -e "const r=require('./perf-2830.json'); console.log('REGIONS='+r.configuration.actualRegions); console.log('EFFECTIVE_MULTIPLIER='+(r.configuration.actualRegions/418).toFixed(3)); console.log('SYSTEM='+JSON.stringify(r.runs[0].systemTimingMsPerTick))"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: expanded-world-performance
+          path: perf-*.json
+          retention-days: 7
+
+  history:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: A
+            seed: 305419896
+          - label: B
+            seed: 2959855665
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build expanded world
+        run: |
+          python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2
+          rm -rf /tmp/expanded-world
+          python tools/build-map-expansion.py --fail-on-overlap --output-dir /tmp/expanded-world
+          python tools/build-sea-expansion.py --land-geo /tmp/expanded-world/regions.geo.json --output-dir /tmp/expanded-world
+          cp /tmp/expanded-world/regions.geo.json data/world/regions.geo.json
+          cp /tmp/expanded-world/regions.meta.json data/world/regions.meta.json
+          cp /tmp/expanded-world/resources.initial.json data/world/resources.initial.json
+          cp /tmp/expanded-world/seaRegions.geo.json data/world/seaRegions.geo.json
+          cp /tmp/expanded-world/seaRegions.meta.json data/world/seaRegions.meta.json
+      - name: Run 160-year history seed ${{ matrix.label }}
+        run: |
+          node tools/calibrate.mjs --years 160 --seeds 1 --base-seed ${{ matrix.seed }} --snapshot-years 20 --days-per-tick 30 --regional-detail true --output history-${{ matrix.label }}.json
+      - name: Print historical summary
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const file = fs.readdirSync('.').find(f => f.startsWith('history-') && f.endsWith('.json'));
+          const report = JSON.parse(fs.readFileSync(file, 'utf8'));
+          console.log('ELAPSED_SECONDS='+report.elapsedSeconds);
+          for (const s of report.runs[0].timeline) {
+            console.log('SNAPSHOT '+JSON.stringify({elapsedYears:s.year, calendarYearBCE:Math.round(1300-s.year), populationPct:s.populationPct,
+              trade:s.smoothedWeeklyTrade, foodImports:s.smoothedWeeklyFoodImports, tinPct:s.surfaceTinPct, copperPct:s.surfaceCopperPct,
+              distressed:s.distressedRegions, bandits:s.bandits, bronzeOutput:s.weeklyBronzeOutput, ironRegions:s.ironRegions,
+              kingdoms:s.politics.kingdoms, subjects:s.politics.subjectRegions, writing:s.politics.writingPolities}));
+          }
+          const final=report.runs[0].timeline.at(-1);
+          const names=['Central Cyprus','Cappadocia','Northern Zagros','Sumer','Assyria','Babylon','Western Nile Delta','Upper Egypt','Crete','Attica','Peloponnese','Ugarit Coast','Cilicia','Thrace'];
+          for (const name of names) {
+            const r=final.regional.find(x=>x.name===name);
+            if(r) console.log('REGION '+JSON.stringify(r));
+          }
+          console.log('SPECIALITIES '+JSON.stringify(final.specialities));
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: expanded-history-${{ matrix.label }}
+          path: history-${{ matrix.label }}.json
+          retention-days: 7
