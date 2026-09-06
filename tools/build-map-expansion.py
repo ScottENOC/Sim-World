@@ -19,7 +19,7 @@ BASE_GEO = ROOT / 'data' / 'world' / 'regions.geo.json'
 BASE_META = ROOT / 'data' / 'world' / 'regions.meta.json'
 BASE_RESOURCES = ROOT / 'data' / 'world' / 'resources.initial.json'
 GEOD = Geod(ellps='WGS84')
-USER_AGENT = 'Sim-World Bronze Age map builder/1.1'
+USER_AGENT = 'Sim-World Bronze Age map builder/1.2'
 ADJACENCY_TOLERANCE_DEG = 0.025
 SIGNIFICANT_OVERLAP_SQKM = 20.0
 COUNTRY_CODE_KEYS = ('ADM0_A3', 'ISO_A3', 'SOV_A3', 'SU_A3', 'GU_A3', 'BRK_A3', 'ADM0_A3_IS')
@@ -32,12 +32,19 @@ def fetch_json(url):
         return json.load(resp)
 
 
-def clean_geom(geom):
+def repair_geom(geom):
     if geom.is_empty:
         return geom
     if not geom.is_valid:
         geom = geom.buffer(0)
-    return geom.simplify(0.01, preserve_topology=True)
+    return geom
+
+
+def clean_source_geom(geom):
+    geom = repair_geom(geom)
+    if geom.is_empty:
+        return geom
+    return repair_geom(geom.simplify(0.01, preserve_topology=True))
 
 
 def area_sqkm(geom):
@@ -72,7 +79,7 @@ def load_country_masks(plan):
     for feature in geo.get('features', []):
         props = feature.get('properties') or {}
         codes = {str(props.get(key, '')).upper() for key in COUNTRY_CODE_KEYS if props.get(key)}
-        geom = clean_geom(shape(feature['geometry']))
+        geom = repair_geom(shape(feature['geometry']))
         for iso in requested:
             accepted = {iso} | COUNTRY_CODE_ALIASES.get(iso, set())
             if codes & accepted:
@@ -81,7 +88,7 @@ def load_country_masks(plan):
     for iso, parts in masks.items():
         if not parts:
             raise RuntimeError(f'{iso}: no country mask found in common border dataset')
-        result[iso] = clean_geom(unary_union(parts))
+        result[iso] = repair_geom(unary_union(parts))
     return result
 
 
@@ -96,9 +103,9 @@ def source_features(country, inventory_row, country_mask=None):
         name = props.get('shapeName') or props.get('name') or props.get('NAME_1')
         if not name:
             continue
-        geom = clean_geom(shape(feature['geometry']))
+        geom = clean_source_geom(shape(feature['geometry']))
         if country_mask is not None:
-            geom = clean_geom(geom.intersection(country_mask))
+            geom = repair_geom(geom.intersection(country_mask))
         by_name.setdefault(str(name), []).append(geom)
     return by_name
 
@@ -110,7 +117,7 @@ def merged_from_units(unit_names, by_name, iso, region_name):
         if not matches:
             raise RuntimeError(f'{iso}/{region_name}: source unit not found after border clipping: {unit}')
         parts.extend(matches)
-    geom = clean_geom(unary_union(parts))
+    geom = repair_geom(unary_union(parts))
     if geom.is_empty:
         raise RuntimeError(f'{iso}/{region_name}: merged geometry is empty')
     return geom
@@ -124,14 +131,14 @@ def partition_internal_overlaps(regions):
         if occupied is not None and geom.intersects(occupied):
             overlap = geom.intersection(occupied)
             removed_sqkm += area_sqkm(overlap)
-            geom = clean_geom(geom.difference(occupied))
+            geom = repair_geom(geom.difference(occupied))
             if geom.is_empty:
                 raise RuntimeError(f"{region['sourceGroup']}/{region['name']}: empty after internal-overlap cleanup")
             region['geometry'] = geom
             centroid = geom.centroid
             region['centroid'] = [centroid.x, centroid.y]
             region['areaSqKm'] = area_sqkm(geom)
-        occupied = geom if occupied is None else clean_geom(unary_union([occupied, geom]))
+        occupied = geom if occupied is None else repair_geom(unary_union([occupied, geom]))
     return removed_sqkm
 
 
@@ -204,7 +211,7 @@ def pairwise_overlap_warnings(regions):
 
 
 def add_land_adjacency(base_features, base_meta, new_regions):
-    base_geom_by_id = {f['properties']['id']: clean_geom(shape(f['geometry'])) for f in base_features}
+    base_geom_by_id = {f['properties']['id']: repair_geom(shape(f['geometry'])) for f in base_features}
     meta_by_id = {m['id']: m for m in base_meta}
     new_geoms = [r['geometry'] for r in new_regions]
     for i, region in enumerate(new_regions):
