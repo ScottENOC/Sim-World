@@ -222,3 +222,19 @@ export function tickEducation(regions, currentTick, elapsedDays = 7) {
     region.education.lastTick = currentTick;
   }
 }
+
+// education.js is already loaded by demographics before the simulation starts.
+// Attach the cross-system effects as soon as main.js exposes the live world, so
+// the player does not need to open a panel before scribes begin affecting it.
+if (typeof window !== 'undefined' && typeof requestAnimationFrame === 'function') {
+  const attachWhenReady = () => {
+    if (window.__worldsim) {
+      import('./educationIntegration.js?v=20260906-education2')
+        .then(({ attachEducationIntegration }) => attachEducationIntegration(window.__worldsim))
+        .catch((error) => console.error('Could not attach education integration', error));
+      return;
+    }
+    requestAnimationFrame(attachWhenReady);
+  };
+  requestAnimationFrame(attachWhenReady);
+}
