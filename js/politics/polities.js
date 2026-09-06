@@ -2,6 +2,7 @@ import { centroidDistanceKm } from '../world/distance.js?v=20260904-kingdom1';
 import { effectivePower } from '../military/army.js?v=20260904-kingdom1';
 import { attitudeToward, changeAttitude } from '../diplomacy/relations.js?v=20260904-save1';
 import { learnAbout } from '../core/knowledge.js?v=20260904-kingdom1';
+import { monumentalPrestige } from '../economy/construction.js?v=20260906-prestige1';
 
 const EXPERIENCE_SCALE = {
   recordKeeping: 1200,
@@ -114,9 +115,16 @@ export function canDemandVassalage(overlord, target, polities, toolTypes) {
   if (!overlordPolity || overlordPolity.capitalRegionId !== overlord.id) return { possible: false, reason: 'not_capital' };
   const ownPower = effectivePower(overlord, toolTypes) + overlord.population * 0.001 + 1;
   const targetPower = effectivePower(target, toolTypes) + target.population * 0.001 + 1;
-  const ratio = ownPower / targetPower;
-  if (ratio < 1.8) return { possible: false, reason: 'insufficient_power', ratio };
-  return { possible: true, ratio };
+  const ownPrestige = monumentalPrestige(overlord);
+  const targetPrestige = monumentalPrestige(target);
+  // Monumental display does not make a state militarily stronger. It can,
+  // however, make claims of kingship and hierarchy more credible to another
+  // court. Cap the effect so armies and population remain decisive.
+  const ownSymbolicPower = 1 + Math.min(0.15, ownPrestige.foreign * 0.45);
+  const targetSymbolicPower = 1 + Math.min(0.1, targetPrestige.foreign * 0.3);
+  const ratio = ownPower * ownSymbolicPower / (targetPower * targetSymbolicPower);
+  if (ratio < 1.8) return { possible: false, reason: 'insufficient_power', ratio, symbolicPrestige: ownPrestige.foreign };
+  return { possible: true, ratio, symbolicPrestige: ownPrestige.foreign };
 }
 
 export function demandVassalage(overlord, target, polities, toolTypes, currentTick, regions = []) {
@@ -239,6 +247,7 @@ function updateCapabilities(polity, capital, subjects) {
   const trade = Math.max(0, capital.tradeEconomy?.weeklyExports || 0);
   const revenue = Math.max(0, capital.militaryFinance?.weeklyTaxRevenue || 0) +
     Math.max(0, polity.report.tributeReceived || 0);
+  const prestige = monumentalPrestige(capital);
   exp.recordKeeping += 0.2 + Math.log1p(trade + revenue) * 0.06 + subjects.length * 0.08;
   exp.accounting += 0.12 + Math.log1p(revenue) * 0.08 + subjects.length * 0.05;
   exp.communications += 0.1 + Math.log1p(capital.tradeEconomy?.weeklyImports || 0) * 0.04 + subjects.length * 0.1;
@@ -247,8 +256,12 @@ function updateCapabilities(polity, capital, subjects) {
   exp.delegation += subjects.reduce((sum, region) => sum + region.governance.autonomy, 0) * 0.25;
 
   for (const key of Object.keys(EXPERIENCE_SCALE)) admin[key] = capability(exp[key], EXPERIENCE_SCALE[key]);
+  // Prestige is a weak, slow legitimacy signal. It never replaces functioning
+  // administration or stability, and ruins lose the effect automatically as
+  // their condition falls.
+  const monumentLegitimacy = Math.min(0.0007, prestige.authority * 0.0015);
   admin.legitimacy = clamp(admin.legitimacy * 0.995 + capital.stability * 0.003 +
-    Math.min(0.002, subjects.length * 0.0003));
+    Math.min(0.002, subjects.length * 0.0003) + monumentLegitimacy);
 
   if (admin.accounting >= 0.2) admin.breakthroughs.add('standard_measures');
   if (admin.communications >= 0.25) admin.breakthroughs.add('regular_messengers');
@@ -267,9 +280,14 @@ function desiredAdministrativeControl(region, capital, admin, subjectCount) {
   const distance = centroidDistanceKm(capital, region) || 100;
   const writingBonus = admin.breakthroughs.has('writing') ? 0.2 : 0;
   const archiveBonus = admin.breakthroughs.has('palace_archives') ? 0.15 : 0;
+  // Monumental authority is a symbolic communications technology: reports,
+  // emissaries and local rulers can invoke a ruler's visible power beyond the
+  // distance at which the ruler is personally present. It helps at the margin;
+  // roads, records, governors and local consent remain much more important.
+  const authorityBonus = Math.min(0.1, monumentalPrestige(capital).authority * 0.25);
   const institutional = admin.recordKeeping * 0.2 + admin.accounting * 0.18 +
     admin.communications * 0.2 + admin.officialdom * 0.18 + admin.delegation * 0.12 +
-    admin.legitimacy * 0.12 + writingBonus + archiveBonus;
+    admin.legitimacy * 0.12 + writingBonus + archiveBonus + authorityBonus;
   const distanceBurden = 1 + distance / (220 + admin.communications * 700);
   const scaleBurden = 1 + Math.max(0, subjectCount - 1) * (0.25 - admin.delegation * 0.15);
   const resistance = 1 + Math.max(0, -attitudeToward(region, capital.id)) * 0.8;
