@@ -4,9 +4,9 @@ on:
     branches: [calibrate-418-trade-raiding]
 
 jobs:
-  validate:
+  early:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -33,6 +33,15 @@ jobs:
           console.log('WORST_REGIONS');
           for(const r of rows.slice(0,30)) console.log(JSON.stringify({id:r.base,name:r.name,popPct:r.pct,start:r.start,pop:r.population,loss:r.loss,stability:r.stability,foodImports:r.weeklyFoodImports,foodDependence:r.foodImportDependence,area:Math.round(r.area),landQuality:r.landQuality}));
           NODE
+
+  history:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - name: Run 100-year calibration
         run: node tools/calibrate.mjs --years 100 --seeds 1 --base-seed 2959855665 --snapshot-years 20 --days-per-tick 30 --regional-detail false --system-timing true --output history.json
       - name: Print calibration summary
