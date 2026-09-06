@@ -92,6 +92,45 @@
     </div>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
-  <script type="module" src="js/main.js?v=20260905-religion1"></script>
+  <script type="module" src="js/main.js?v=20260906-prestige2"></script>
+  <script>
+    // The Steward's existing construction control uses builder count to set a
+    // monumental project's physical scope when it is commissioned. Keep that
+    // distinction visible without changing the active-project workforce control.
+    (() => {
+      const monumentalIds = new Set(['monumental_tomb', 'great_temple', 'ceremonial_complex', 'monumental_statue']);
+      const defaultWorkers = { monumental_tomb: 420, great_temple: 380, ceremonial_complex: 300, monumental_statue: 240 };
+      const refresh = () => {
+        const typeSelect = document.getElementById('construction-type');
+        const slider = document.getElementById('new-construction-workers');
+        const count = document.getElementById('new-builder-count-label');
+        const estimate = document.getElementById('construction-estimate');
+        if (!typeSelect || !slider || !count || !estimate) return;
+        const label = slider.closest('label')?.querySelector('span');
+        const id = typeSelect.value;
+        if (!monumentalIds.has(id)) {
+          if (label) label.childNodes[0].textContent = 'Assigned builders ';
+          return;
+        }
+        const baseline = defaultWorkers[id] || Number(slider.value) || 1;
+        const scale = Math.max(0.5, Math.min(4, (Number(slider.value) || baseline) / baseline));
+        if (label) label.childNodes[0].textContent = 'Commissioned ambition ';
+        count.textContent = `${Math.round(Number(slider.value) || baseline).toLocaleString()} builders · ${scale.toFixed(2)}× scale`;
+        const old = estimate.textContent || '';
+        const split = old.indexOf(' Doubling labour halves time');
+        const base = split >= 0 ? old.slice(0, split) : old;
+        estimate.textContent = `${base} For monumental projects this initial commitment sets physical scope: more ambition means a larger structure, more materials, more worker-weeks and greater upkeep. Once commissioned, changing the active workforce changes construction speed, not the monument's planned size.`;
+      };
+      const observer = new MutationObserver(refresh);
+      const council = document.getElementById('advisor-content');
+      if (council) observer.observe(council, { childList: true, subtree: true });
+      document.addEventListener('input', (event) => {
+        if (event.target?.id === 'new-construction-workers') queueMicrotask(refresh);
+      });
+      document.addEventListener('change', (event) => {
+        if (event.target?.id === 'construction-type') queueMicrotask(refresh);
+      });
+    })();
+  </script>
 </body>
 </html>

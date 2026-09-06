@@ -102,6 +102,42 @@ export const CONSTRUCTION_TYPES = Object.freeze({
     materials: { stone: 350, wood: 900, bronze: 20 }, wagePerWorkerWeek: 0.002,
     maintenanceRate: 0.03,
   },
+  monumental_tomb: {
+    id: 'monumental_tomb', name: 'Monumental royal tomb', requiredTechId: null, monumental: true,
+    minPopulation: 7000,
+    description: 'A deliberately overwhelming royal burial complex. It creates no resources; its value is social: demonstrating that the ruler can command labour, stone and ritual on a scale ordinary households cannot.',
+    workRequired: 32000, defaultWorkers: 420, minWorkers: 120, maxWorkers: 1800,
+    materials: { stone: 4200, wood: 900, pottery: 350, bronze: 45 }, wagePerWorkerWeek: 0.002,
+    maintenanceRate: 0.008,
+    prestige: { authority: 0.22, religious: 0.08, foreign: 0.16, legacy: 0.95, tourismPotential: 0.9 },
+  },
+  great_temple: {
+    id: 'great_temple', name: 'Great temple complex', requiredTechId: null, monumental: true,
+    minPopulation: 8000,
+    description: 'A major sanctuary, ceremonial precinct and storehouse complex. Its political effect comes from public ritual, priestly organisation and visible patronage rather than a magical yield bonus.',
+    workRequired: 28000, defaultWorkers: 380, minWorkers: 110, maxWorkers: 1500,
+    materials: { stone: 3000, wood: 1300, pottery: 650, bronze: 55 }, wagePerWorkerWeek: 0.002,
+    maintenanceRate: 0.014,
+    prestige: { authority: 0.14, religious: 0.24, foreign: 0.11, legacy: 0.8, tourismPotential: 0.75 },
+  },
+  ceremonial_complex: {
+    id: 'ceremonial_complex', name: 'Ceremonial and assembly complex', requiredTechId: null, monumental: true,
+    minPopulation: 6000,
+    description: 'Processional spaces, courts, halls and monuments designed for assemblies and state ceremony. It can make distant rule feel more credible, but only while people continue to use and maintain it.',
+    workRequired: 22000, defaultWorkers: 300, minWorkers: 90, maxWorkers: 1200,
+    materials: { stone: 2200, wood: 1500, pottery: 450, bronze: 30 }, wagePerWorkerWeek: 0.002,
+    maintenanceRate: 0.018,
+    prestige: { authority: 0.18, religious: 0.07, foreign: 0.12, legacy: 0.6, tourismPotential: 0.55 },
+  },
+  monumental_statue: {
+    id: 'monumental_statue', name: 'Colossal monument', requiredTechId: null, monumental: true,
+    minPopulation: 5000,
+    description: 'An exceptional statue, stele or commemorative monument whose main output is reputation: proof of skilled craft, surplus and political ambition. Other states remain free to imitate or surpass it.',
+    workRequired: 17000, defaultWorkers: 240, minWorkers: 70, maxWorkers: 900,
+    materials: { stone: 1700, wood: 500, pottery: 150, bronze: 90 }, wagePerWorkerWeek: 0.002,
+    maintenanceRate: 0.01,
+    prestige: { authority: 0.1, religious: 0.03, foreign: 0.2, legacy: 0.72, tourismPotential: 0.7 },
+  },
   hill_fort: {
     id: 'hill_fort', name: 'Hill fort', requiredTechId: HILL_FORT_TECH_ID,
     description: 'A fortified refuge and defended seat of power on commanding ground.',
@@ -114,6 +150,24 @@ export const CONSTRUCTION_TYPES = Object.freeze({
 let nextProjectId = 1;
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 
+function projectScale(type, workers) {
+  if (!type?.monumental) return 1;
+  return clamp((Number(workers) || type.defaultWorkers) / type.defaultWorkers, 0.5, 4);
+}
+
+function scaledProjectSpec(type, workers) {
+  const scale = projectScale(type, workers);
+  const workScale = type.monumental ? Math.pow(scale, 1.15) : 1;
+  const materialScale = type.monumental ? scale : 1;
+  return {
+    scale,
+    workScale,
+    workRequired: type.workRequired * workScale,
+    materialsRequired: Object.fromEntries(Object.entries(type.materials)
+      .map(([resource, amount]) => [resource, amount * materialScale])),
+  };
+}
+
 export function ensureConstruction(region) {
   if (!region.construction) region.construction = { projects: [], completed: {}, workersReserved: 0, lastWeek: null };
   if (!Array.isArray(region.construction.projects)) region.construction.projects = [];
@@ -121,9 +175,10 @@ export function ensureConstruction(region) {
   if (!Array.isArray(region.construction.assets)) {
     region.construction.assets = [];
     for (const [typeId, count] of Object.entries(region.construction.completed)) {
-      for (let i = 0; i < (Number(count) || 0); i++) region.construction.assets.push({ id: `legacy-${typeId}-${i}`, typeId, condition: 1 });
+      for (let i = 0; i < (Number(count) || 0); i++) region.construction.assets.push({ id: `legacy-${typeId}-${i}`, typeId, condition: 1, scale: 1 });
     }
   }
+  for (const asset of region.construction.assets) if (!Number.isFinite(asset.scale)) asset.scale = 1;
   if (!Number.isFinite(region.construction.maintenanceWorkersReserved)) region.construction.maintenanceWorkersReserved = 0;
   return region.construction;
 }
@@ -156,11 +211,13 @@ export function startConstruction(region, typeId, requestedWorkers, currentTick)
   if (type.unique && state.assets.some((asset) => asset.typeId === type.id)) return null;
   if (state.projects.some((project) => project.typeId === typeId && project.status === 'active')) return null;
   const workers = Math.round(clamp(Number(requestedWorkers) || type.defaultWorkers, type.minWorkers, type.maxWorkers));
+  const spec = scaledProjectSpec(type, workers);
   const project = {
     id: nextProjectId++, typeId, status: 'active', startedTick: currentTick,
     targetWorkers: workers, workersThisWeek: 0, workDone: 0,
-    workRequired: type.workRequired, materialsRequired: { ...type.materials }, kind: 'build',
-    materialsUsed: Object.fromEntries(Object.keys(type.materials).map((key) => [key, 0])),
+    scale: spec.scale, workRequired: spec.workRequired, materialsRequired: spec.materialsRequired, kind: 'build',
+    dedicatedReligionId: type.monumental ? (region.religion?.stateReligionId || null) : null,
+    materialsUsed: Object.fromEntries(Object.keys(spec.materialsRequired).map((key) => [key, 0])),
     wagesPaid: 0, suppliesPaid: 0, stalledReason: null, completedTick: null,
   };
   state.projects.push(project);
@@ -191,7 +248,8 @@ export function prepareConstructionLabor(regions) {
     const project = state.projects.find((item) => item.status === 'active');
     const maintenanceNeed = state.assets.reduce((sum, asset) => {
       const type = CONSTRUCTION_TYPES[asset.typeId];
-      return sum + (type ? type.workRequired * (type.maintenanceRate || 0.02) / 52 / 20 : 0);
+      const scale = Number(asset.scale) || 1;
+      return sum + (type ? type.workRequired * scale * (type.maintenanceRate || 0.02) / 52 / 20 : 0);
     }, 0);
     state.maintenanceWorkersReserved = Math.min(Math.ceil(maintenanceNeed), Math.floor(Math.max(0, availableWorkers(region)) * 0.05));
     if (!project) { state.workersReserved = 0; continue; }
@@ -204,11 +262,13 @@ export function constructionEstimate(region, typeId, workers) {
   const type = CONSTRUCTION_TYPES[typeId];
   if (!type) return null;
   const assigned = clamp(Number(workers) || type.defaultWorkers, type.minWorkers, type.maxWorkers);
-  const weeks = Math.ceil(type.workRequired / assigned);
-  const wages = type.workRequired * type.wagePerWorkerWeek;
-  const supplies = Object.entries(type.materials).reduce((sum, [resource, amount]) =>
+  const spec = scaledProjectSpec(type, assigned);
+  const weeks = Math.ceil(spec.workRequired / assigned);
+  const wages = spec.workRequired * type.wagePerWorkerWeek;
+  const supplies = Object.entries(spec.materialsRequired).reduce((sum, [resource, amount]) =>
     sum + amount * localPrice(region, resource), 0);
-  return { workers: assigned, weeks, wages, supplies, totalCost: wages + supplies, materials: { ...type.materials } };
+  return { workers: assigned, weeks, wages, supplies, totalCost: wages + supplies,
+    materials: { ...spec.materialsRequired }, scale: spec.scale, monumental: Boolean(type.monumental) };
 }
 
 function completeProject(region, project, type, currentTick) {
@@ -221,7 +281,8 @@ function completeProject(region, project, type, currentTick) {
       constructionType: { ...type, name: `${type.name} repairs` } };
   }
   state.completed[type.id] = (state.completed[type.id] || 0) + 1;
-  state.assets.push({ id: `${project.id}-${type.id}`, typeId: type.id, condition: 1 });
+  state.assets.push({ id: `${project.id}-${type.id}`, typeId: type.id, condition: 1,
+    completedTick: currentTick, scale: project.scale || 1, dedicatedReligionId: project.dedicatedReligionId || null });
   if (!region.infrastructure) region.infrastructure = {};
   if (type.id === 'hill_fort') region.infrastructure.hillForts = (region.infrastructure.hillForts || 0) + 1;
   if (type.id === 'public_granary') region.infrastructure.publicGranaries = (region.infrastructure.publicGranaries || 0) + 1;
@@ -305,6 +366,45 @@ export function assetEffectiveness(asset) {
   return condition <= 0.2 ? 0 : Math.min(1, (condition - 0.2) / 0.6);
 }
 
+function monumentalAssetSignal(asset, type, key) {
+  const effect = assetEffectiveness(asset);
+  const scaleSignal = Math.pow(Math.max(0.5, Number(asset.scale) || 1), 0.7);
+  return (type.prestige?.[key] || 0) * effect * scaleSignal;
+}
+
+// Monumental projects are not Civ-style global uniques. Their effects are
+// entirely social and condition-scaled. Multiple tombs or temples can coexist;
+// repeated examples of the same form have diminishing signalling value rather
+// than being prohibited. Large projects remain more impressive, but prestige
+// rises sub-linearly with physical scale so four times the material never means
+// four times the political authority.
+export function monumentalPrestige(region) {
+  const assets = ensureConstruction(region).assets.filter((asset) => CONSTRUCTION_TYPES[asset.typeId]?.monumental);
+  const profile = { authority: 0, religious: 0, foreign: 0, legacy: 0, tourismPotential: 0, count: assets.length };
+  const seen = new Map();
+  for (const asset of assets) {
+    const type = CONSTRUCTION_TYPES[asset.typeId];
+    const previous = seen.get(type.id) || 0;
+    const repetition = 1 / Math.sqrt(1 + previous * 0.75);
+    seen.set(type.id, previous + 1);
+    for (const key of ['authority', 'religious', 'foreign', 'legacy', 'tourismPotential']) {
+      profile[key] += monumentalAssetSignal(asset, type, key) * repetition;
+    }
+  }
+  return profile;
+}
+
+export function religiousMonumentPrestige(region) {
+  const byReligion = {};
+  for (const asset of ensureConstruction(region).assets) {
+    const type = CONSTRUCTION_TYPES[asset.typeId];
+    if (!type?.monumental || !asset.dedicatedReligionId) continue;
+    const value = monumentalAssetSignal(asset, type, 'religious');
+    byReligion[asset.dedicatedReligionId] = (byReligion[asset.dedicatedReligionId] || 0) + value;
+  }
+  return byReligion;
+}
+
 export function effectiveInfrastructureCount(region, typeId) {
   return ensureConstruction(region).assets.filter((asset) => asset.typeId === typeId)
     .reduce((sum, asset) => sum + assetEffectiveness(asset), 0);
@@ -321,11 +421,12 @@ export function startRepair(region, assetId, requestedWorkers, currentTick) {
   if (!asset || !type || asset.condition >= 0.999 || state.projects.some((item) => item.status === 'active')) return null;
   const damage = 1 - asset.condition;
   const workers = Math.round(clamp(Number(requestedWorkers) || type.defaultWorkers, type.minWorkers, type.maxWorkers));
+  const scale = Number(asset.scale) || 1;
   const project = {
     id: nextProjectId++, typeId: type.id, kind: 'repair', repairAssetId: asset.id, status: 'active',
     startedTick: currentTick, targetWorkers: workers, workersThisWeek: 0, workDone: 0,
-    workRequired: Math.max(type.minWorkers, type.workRequired * damage * 0.6),
-    materialsRequired: Object.fromEntries(Object.entries(type.materials).map(([key, amount]) => [key, amount * damage * 0.7])),
+    workRequired: Math.max(type.minWorkers, type.workRequired * scale * damage * 0.6),
+    materialsRequired: Object.fromEntries(Object.entries(type.materials).map(([key, amount]) => [key, amount * scale * damage * 0.7])),
     materialsUsed: Object.fromEntries(Object.keys(type.materials).map((key) => [key, 0])),
     wagesPaid: 0, suppliesPaid: 0, stalledReason: null, completedTick: null,
   };
@@ -341,10 +442,11 @@ export function tickInfrastructureMaintenance(regions, elapsedDays = 7) {
     for (const asset of state.assets) {
       const type = CONSTRUCTION_TYPES[asset.typeId];
       if (!type) continue;
+      const scale = Number(asset.scale) || 1;
       const rate = type.maintenanceRate || 0.02;
-      const workerNeed = type.workRequired * rate / 52 / 20;
+      const workerNeed = type.workRequired * scale * rate / 52 / 20;
       const workerRatio = Math.min(1, workers / Math.max(0.001, workerNeed));
-      const materialNeeds = Object.fromEntries(Object.entries(type.materials).map(([key, amount]) => [key, amount * rate / 52 * weekScale]));
+      const materialNeeds = Object.fromEntries(Object.entries(type.materials).map(([key, amount]) => [key, amount * scale * rate / 52 * weekScale]));
       let materialRatio = 1;
       let cost = workerNeed * type.wagePerWorkerWeek * weekScale;
       for (const [resource, amount] of Object.entries(materialNeeds)) {
@@ -359,6 +461,8 @@ export function tickInfrastructureMaintenance(regions, elapsedDays = 7) {
       asset.condition = clamp(asset.condition + ratio * 0.00015 * weekScale - (1 - ratio) * 0.002 * weekScale, 0, 1);
       asset.maintenanceRatio = ratio;
     }
+    region.monumentalPrestige = monumentalPrestige(region);
+    region.religiousMonumentPrestige = religiousMonumentPrestige(region);
   }
 }
 
@@ -401,10 +505,23 @@ export function chooseAiConstruction(region, currentTick, rng = Math.random) {
       ['royal_arsenal', (region.army?.personnel || 0) > 250 ? 6 : 2],
       ['administrative_centre', (region.population || 0) > 12000 ? 6 : 2],
       ['canal', (region.population || 0) > 20000 ? 5 : 1],
-    ].filter(([id]) => available.has(id)).sort((a, b) => b[1] - a[1]);
+      ['monumental_tomb', (region.population || 0) > 25000 && (region.stability || 0) > 0.7 ? 3 : 0],
+      ['great_temple', (region.population || 0) > 22000 && (region.religion?.stateReligionId || null) ? 4 : 1],
+      ['ceremonial_complex', (region.population || 0) > 18000 && (region.stability || 0) > 0.65 ? 3 : 1],
+      ['monumental_statue', (region.population || 0) > 15000 && (region.tradeEconomy?.weeklyExports || 0) > 80 ? 2 : 1],
+    ].filter(([id, score]) => score > 0 && available.has(id)).sort((a, b) => b[1] - a[1]);
     const chosen = candidates.find(([id]) => Object.entries(CONSTRUCTION_TYPES[id].materials)
       .every(([resource, amount]) => (region.stockpile?.[resource] || 0) >= amount * 0.5));
-    if (chosen) return startConstruction(region, chosen[0], CONSTRUCTION_TYPES[chosen[0]].defaultWorkers, currentTick);
+    if (chosen) {
+      const type = CONSTRUCTION_TYPES[chosen[0]];
+      // Wealthier AI states occasionally commission unusually ambitious
+      // monuments. Because scale also raises material and maintenance burdens,
+      // this is a genuine long-run choice rather than a free prestige roll.
+      const ambition = type.monumental && (region.treasury || 0) > 50
+        ? 0.8 + Math.min(1.4, Math.log10((region.treasury || 0) + 1) * 0.35) * rng()
+        : 1;
+      return startConstruction(region, chosen[0], type.defaultWorkers * ambition, currentTick);
+    }
   }
   if (!region.unlockedTechIds.has(HILL_FORT_TECH_ID) || rng() > 0.003) return null;
   const threatened = (region.safetyRating || 0) < 0.72 || (region.conflictPressure || 0) > 0;
