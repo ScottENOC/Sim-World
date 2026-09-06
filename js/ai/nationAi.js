@@ -29,10 +29,9 @@ const BASE_NAVY_PER_POPULATION = 50000;
 // military advantage still gate the attempt after this roll; roughly 0.5% per
 // week gives viable states about a one-in-four annual chance to even consider
 // a raid, while repeated winners can still become observed raiding economies.
-const RAID_CONSIDERATION_CHANCE_PER_WEEK = 0.005;
+const RAID_CONSIDERATION_CHANCE_PER_WEEK = 0.004;
 const MIN_HOME_ARMY_TO_CONSIDER_RAIDING = 30;
-const MIN_SAFETY_TO_CONSIDER_RAIDING = 0.3;
-const MIN_ADVANTAGE_TO_RAID = 1.5;
+const MIN_ADVANTAGE_TO_RAID = 1.15;
 const DEFENDER_HOME_ADVANTAGE = 1.3;
 const DIPLOMACY_CONSIDERATION_CHANCE_PER_WEEK = 0.0015;
 const CAMPAIGN_CONSIDERATION_CHANCE_PER_WEEK = 0.0007;
@@ -41,6 +40,20 @@ const STRATEGIC_REVIEW_INTERVAL = 13;
 
 function clamp01(v) {
   return Math.max(0, Math.min(1, v));
+}
+
+function raidConsiderationRate(region) {
+  const stabilityDistress = 1 - clamp01(region.stability ?? 1);
+  const payFailure = 1 - clamp01(region.militaryFinance?.payRatio ?? 1);
+  const arrears = Math.min(1, Math.max(0, region.militaryFinance?.arrearsWeeks || 0) / 12);
+  const launched = Math.max(0, region.raidEconomy?.raidsLaunched || 0);
+  const success = launched > 0 ? clamp01((region.raidEconomy?.raidsWon || 0) / launched) : 0;
+  const commerce = Math.max(0, region.tradeEconomy?.exportIncomeEma || 0) + Math.max(0, region.tradeEconomy?.importSpendEma || 0);
+  const commercePerCapita = commerce / Math.max(1, region.population || 1);
+  const commercialFailure = clamp01((0.03 - commercePerCapita) / 0.03);
+  return Math.min(0.05, RAID_CONSIDERATION_CHANCE_PER_WEEK +
+    stabilityDistress * 0.012 + payFailure * 0.014 + arrears * 0.012 +
+    commercialFailure * 0.009 + success * 0.012);
 }
 
 export function tickNationAi(regions, playerRegionId, activeRaids, activeCampaigns, agreements, polities, religiousWorld, currentTick, toolTypes, rng, elapsedDays = 7) {
@@ -66,7 +79,7 @@ export function tickNationAi(regions, playerRegionId, activeRaids, activeCampaig
     maybeScout(region, regionsById, currentTick, rng);
     maybeMakeAgreement(region, regionsById, playerRegionId, agreements, polities, currentTick, toolTypes, rng, chance(DIPLOMACY_CONSIDERATION_CHANCE_PER_WEEK));
     maybeCampaign(region, regionsById, activeCampaigns, polities, religiousWorld, currentTick, toolTypes, rng, chance(CAMPAIGN_CONSIDERATION_CHANCE_PER_WEEK));
-    maybeRaid(region, regionsById, activeRaids, polities, religiousWorld, currentTick, toolTypes, rng, chance(RAID_CONSIDERATION_CHANCE_PER_WEEK));
+    maybeRaid(region, regionsById, activeRaids, polities, religiousWorld, currentTick, toolTypes, rng, chance(raidConsiderationRate(region)));
   }
 }
 
@@ -230,7 +243,6 @@ function setMilitaryTargets(region) {
 function maybeRaid(region, regionsById, activeRaids, polities, religiousWorld, currentTick, toolTypes, rng, considerationChance = RAID_CONSIDERATION_CHANCE_PER_WEEK) {
   if (region.army.away > 0) return;
   if (region.army.personnel < MIN_HOME_ARMY_TO_CONSIDER_RAIDING) return;
-  if (region.safetyRating < MIN_SAFETY_TO_CONSIDER_RAIDING) return;
   if (rng() > considerationChance) return;
 
   const ownEquip = toolEfficiencyMultiplier(region, 'soldier', toolTypes.soldier, region.unlockedTechIds);
@@ -260,23 +272,32 @@ function maybeRaid(region, regionsById, activeRaids, polities, religiousWorld, c
       ? toolEfficiencyMultiplier(target, 'soldier', toolTypes.soldier, target.unlockedTechIds)
       : 1;
     const targetPower = estimatedArmy * targetEquip * DEFENDER_HOME_ADVANTAGE;
+    const launched = Math.max(0, region.raidEconomy?.raidsLaunched || 0);
+    const raidSuccess = launched > 0 ? clamp01((region.raidEconomy?.raidsWon || 0) / launched) : 0;
+    const distress = 1 - clamp01(region.stability ?? 1);
+    const minimumAdvantage = Math.max(MIN_ADVANTAGE_TO_RAID, 1.38 - distress * 0.18 - raidSuccess * 0.12);
     const advantage = ownPower / (targetPower + 1);
-    if (advantage < MIN_ADVANTAGE_TO_RAID) continue;
+    if (advantage < minimumAdvantage) continue;
 
     const attitude = attitudeToward(region, target.id);
     // Friendly cultures are rarely selected merely because they are rich;
     // grudges make an otherwise marginal target more attractive.
-    if (attitude > 0.65 && advantage < MIN_ADVANTAGE_TO_RAID * 2) continue;
+    if (attitude > 0.65 && advantage < 2.2) continue;
 
     const knownWealth = knowsDetailed
-      ? target.wallet + (target.stockpile.bronze || 0) * 5 + (target.stockpile.gold || 0) * 15
+      ? (target.wallet || 0) + (target.treasury || 0) + (target.stockpile.food || 0) * 0.2 +
+        (target.stockpile.bronze || 0) * 5 + (target.stockpile.copper || 0) +
+        (target.stockpile.tin || 0) * 2 + (target.stockpile.gold || 0) * 15
       : knowsPopulation
         ? target.population * 0.1
         : 1;
     const hostilityMultiplier = Math.max(0.2, 1 - attitude * 0.8);
     const religiousPressure = religiousWarModifier(region, target, religiousWorld, currentTick);
     if (religiousPressure < 0.5 && attitude > -0.7) continue;
-    const score = advantage * (knownWealth + 1) * hostilityMultiplier * religiousPressure;
+    const raidingLegacy = 1 + (region.raidEconomy?.raidsWon || 0) * 0.08;
+    const distressMotive = 1 + (1 - clamp01(region.stability ?? 1)) * 0.8 +
+      (1 - clamp01(region.militaryFinance?.payRatio ?? 1)) * 0.7;
+    const score = advantage * (knownWealth + 1) * hostilityMultiplier * religiousPressure * raidingLegacy * distressMotive;
     if (score > bestScore) {
       bestScore = score;
       best = { target, viaSea: reach.viaSea };

@@ -9,6 +9,7 @@ import { horseTransportMultiplier } from './horses.js?v=20260904-weather1';
 import { recordDiplomaticTrade, tradeRelationMultiplier } from '../diplomacy/relations.js?v=20260904-save1';
 import { navalMissionProfile, postureProfile } from '../military/policies.js?v=20260904-policy1';
 import { maritimeSkillMultiplier, MARITIME_SKILLS } from '../technology/seamanship.js?v=20260906-maritime1';
+import { ensureLanguage, tradeCommunicationMultiplier, recordTradeLanguageContact, decayTradeLanguageFamiliarity } from '../society/language.js?v=20260906-language1';
 
 const LAND_ADJACENT_COST = 0.02;
 const SEA_COST_PER_KM = 0.0002;
@@ -19,7 +20,7 @@ const CREDIT_WEEKS_OF_EXPORT_INCOME = 2;
 const CREDIT_PER_CAPITA_CAP = 0.002;
 const CREDIT_REPAYMENT_SHARE_OF_EXPORTS = 0.25;
 const ARREARS_STABILITY_LOSS = 0.001;
-const MAX_OPPORTUNITIES_PER_REGION = 48;
+const MAX_OPPORTUNITIES_PER_REGION = 16;
 const BASIC_SEA_RANGE_KM = 600;
 const ADVANCED_SEA_RANGE_KM = 1800;
 
@@ -29,7 +30,7 @@ const ADVANCED_SEA_RANGE_KM = 1800;
 // returning home.
 const INITIAL_MERCHANT_SHARE = 0.0005;
 const MAX_MERCHANT_SHARE = 0.02;
-const MERCHANT_RECRUITMENT_RATE = 0.04;
+const MERCHANT_RECRUITMENT_RATE = 0.015;
 const MERCHANT_RETIREMENT_RATE = 0.06;
 const MAX_NEW_VENTURES_PER_WEEK = 3;
 const LAND_KM_PER_WEEK = 90;
@@ -41,15 +42,19 @@ const MARKET_TURNAROUND_DAYS = 7;
 
 // Merchants are habitual. Most returned merchants reconsider only places where
 // they already have successful routes, plus unusually salient new information.
-const BROAD_SEARCH_INTERVAL = 26;
-const HUB_CHECK_INTERVAL = 4;
-const IMITATION_INTERVAL = 8;
-const FRESH_REPORT_WEEKS = 8;
+const BROAD_SEARCH_INTERVAL = 52;
+const HUB_CHECK_INTERVAL = 13;
+const IMITATION_INTERVAL = 26;
+const FRESH_REPORT_WEEKS = 13;
 const MAX_ROUTE_HABITS = 16;
 const MAX_MAJOR_HUBS = 6;
 const HUB_MIN_ACTIVE_PARTNERS = 4;
-const ROUTE_HABIT_DECAY = 0.85;
+const ROUTE_HABIT_DECAY = 0.96;
 const CRISIS_SEARCH_PRESSURE = 3;
+const MAX_CANDIDATE_MARKETS = 14;
+const MAX_EXPLORATION_MARKETS = 8;
+const MAX_NEW_RESOURCES_PER_DESTINATION = 3;
+const HUB_CACHE_WEEKS = 13;
 const TRADE_RELEVANT_REPORT_TOPICS = new Set([
   'food', 'mining', 'metallurgy', 'trade', 'economy', 'resources',
 ]);
@@ -271,6 +276,23 @@ function beginTradeWeek(region) {
   }
 }
 
+function ageTradeMemory(region) {
+  const economy = ensureTradeEconomy(region);
+  ensureLanguage(region);
+  const years = Math.max(0.01, Number(region._elapsedWeeks) || 1) / 52;
+  decayTradeLanguageFamiliarity(region, years);
+  const archive = clamp01(region.education?.archiveLevel || 0);
+  const scoreHalfLife = 7 + archive * 18;
+  const familiarityHalfLife = 14 + archive * 26;
+  const scoreRetention = Math.pow(0.5, years / scoreHalfLife);
+  const familiarityRetention = Math.pow(0.5, years / familiarityHalfLife);
+  for (const [key, habit] of Object.entries(economy.routeHabits)) {
+    habit.score = Math.max(0, (habit.score || 0) * scoreRetention);
+    habit.familiarity = clamp01((habit.familiarity ?? Math.min(1, Math.log1p(habit.score || 0) / 6)) * familiarityRetention);
+    if (habit.score < 0.005 && habit.familiarity < 0.02) delete economy.routeHabits[key];
+  }
+}
+
 function finishTradeWeek(region) {
   const economy = ensureTradeEconomy(region);
   const ema = (oldValue, currentValue) => oldValue + (currentValue - oldValue) * TRADE_HISTORY_ALPHA;
@@ -338,36 +360,88 @@ function ventureRouteProfile(origin, dest, regionsById) {
   };
 }
 
-function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByRegion, regionsById) {
+function priceSnapshot(region, pricesByRegion) {
+  let snapshot = pricesByRegion.get(region.id);
+  if (!snapshot) {
+    snapshot = {};
+    pricesByRegion.set(region.id, snapshot);
+  }
+  return snapshot;
+}
+
+function cachedPrice(region, resource, pricesByRegion) {
+  const snapshot = priceSnapshot(region, pricesByRegion);
+  if (!Number.isFinite(snapshot[resource])) snapshot[resource] = localPrice(region, resource);
+  return snapshot[resource];
+}
+
+function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByRegion, regionsById, currentTick) {
   const opportunities = [];
-  const pricesHere = pricesByRegion.get(region.id);
   const stockedResources = TRADABLE_RESOURCES.filter((resource) =>
     (region.stockpile[resource] || 0) > 0.01);
+  if (!stockedResources.length) return opportunities;
 
-  const habits = ensureTradeEconomy(region).routeHabits;
+  const economy = ensureTradeEconomy(region);
+  const habits = economy.routeHabits;
+  const habitsByDest = new Map();
+  for (const habit of Object.values(habits)) {
+    if (!habitsByDest.has(habit.destId)) habitsByDest.set(habit.destId, []);
+    habitsByDest.get(habit.destId).push(habit);
+  }
+
   for (const dest of candidateRegions) {
     if (dest.id === region.id) continue;
-    if (!knownIdsByRegion.get(dest.id)?.has(region.id)) continue;
+    let reverseKnowledge = knownIdsByRegion.get(dest.id);
+    if (!reverseKnowledge) {
+      reverseKnowledge = knownRegionIds(dest);
+      knownIdsByRegion.set(dest.id, reverseKnowledge);
+    }
+    if (!reverseKnowledge.has(region.id)) continue;
     const route = ventureRouteProfile(region, dest, regionsById);
-    if (!route || route.reliability <= 0.001) continue;
-    const cost = route.cost + (1 - route.reliability) * 0.1;
-    const pricesThere = pricesByRegion.get(dest.id);
-    for (const resource of stockedResources) {
+    if (!route) continue;
+
+    const destHabits = habitsByDest.get(dest.id) || [];
+    const habitualResources = destHabits
+      .filter((habit) => (region.stockpile[habit.resource] || 0) > 0.01)
+      .sort((a, b) => (b.score || 0) - (a.score || 0))
+      .map((habit) => habit.resource);
+    const resources = habitualResources.length
+      ? [...new Set(habitualResources)]
+      : stockedResources.slice(0, MAX_NEW_RESOURCES_PER_DESTINATION);
+    const communication = tradeCommunicationMultiplier(region, dest);
+
+    for (const resource of resources) {
       if (!tradeAllowed(region, dest, resource)) continue;
-      const priceHere = pricesHere[resource];
-      const priceThere = pricesThere[resource];
-      const gap = priceThere - priceHere - cost;
+      const key = `${dest.id}|${resource}`;
+      const habit = habits[key];
+      const priceHere = cachedPrice(region, resource, pricesByRegion);
+      const perceivedPriceThere = habit?.expectedPrice > 0
+        ? habit.expectedPrice
+        : cachedPrice(dest, resource, pricesByRegion);
+      const perceivedReliability = habit?.perceivedReliability !== undefined
+        ? clamp01(habit.perceivedReliability * 0.7 + route.reliability * 0.3)
+        : route.reliability * communication;
+      if (perceivedReliability <= 0.001) continue;
+      const cost = route.cost + (1 - perceivedReliability) * 0.1;
+      const gap = perceivedPriceThere - priceHere - cost;
       if (gap <= MIN_PROFIT_THRESHOLD) continue;
       const stockAvailable = Math.max(0, (region.stockpile[resource] || 0) * MAX_EXPORT_FRACTION_PER_TICK);
       if (stockAvailable <= 0) continue;
-      const habit = habits[`${dest.id}|${resource}`];
-      const habitBoost = habit ? 1 + Math.min(0.35, Math.log1p(Math.max(0, habit.score || 0)) * 0.03) : 1;
-      const score = (gap * habitBoost) / Math.max(1, route.roundTripDays / 7);
+
+      const familiarity = habit ? clamp01(habit.familiarity ?? 0.2) : communication * 0.35;
+      const weeksSinceSuccess = habit?.lastSuccessTick != null && Number.isFinite(currentTick)
+        ? Math.max(0, currentTick - habit.lastSuccessTick) : 0;
+      const restartPenalty = habit && weeksSinceSuccess > 104
+        ? Math.max(0.18, familiarity * Math.pow(0.5, (weeksSinceSuccess - 104) / 260))
+        : (habit ? 0.65 + familiarity * 0.35 : communication * 0.55);
+      const habitBoost = habit ? 1 + Math.min(0.4, Math.log1p(Math.max(0, habit.score || 0)) * 0.04) : 1;
+      const score = (gap * habitBoost * restartPenalty * perceivedReliability) /
+        Math.max(1, route.roundTripDays / 7);
       opportunities.push({
         resource, dest, gap, score, stockAvailable,
-        expectedPrice: (priceHere + priceThere) / 2,
+        expectedPrice: perceivedPriceThere,
         originPrice: priceHere,
-        route,
+        route: { ...route, reliability: perceivedReliability },
       });
     }
   }
@@ -380,10 +454,23 @@ function recordRouteHabit(region, venture, payment, currentTick, profitable) {
   const key = `${venture.destId}|${venture.resource}`;
   const old = economy.routeHabits[key];
   const oldScore = old?.score || 0;
+  const observedPrice = Number.isFinite(venture.observedPrice) ? venture.observedPrice : venture.expectedPrice;
+  const expectedPrice = old?.expectedPrice > 0
+    ? old.expectedPrice * 0.72 + observedPrice * 0.28
+    : observedPrice;
+  const observedReliability = clamp01(venture.actualReliability ?? venture.reliability ?? 0);
+  const perceivedReliability = old?.perceivedReliability !== undefined
+    ? old.perceivedReliability * 0.7 + observedReliability * 0.3
+    : observedReliability;
+  const oldFamiliarity = clamp01(old?.familiarity || 0);
+  const familiarity = clamp01(oldFamiliarity + (profitable ? 0.11 : -0.055));
   economy.routeHabits[key] = {
     destId: venture.destId,
     resource: venture.resource,
     score: Math.max(0, oldScore * ROUTE_HABIT_DECAY + (profitable ? payment : -Math.max(1, oldScore * 0.15))),
+    familiarity,
+    expectedPrice,
+    perceivedReliability,
     lastSuccessTick: profitable && Number.isFinite(currentTick) ? currentTick : (old?.lastSuccessTick ?? null),
     lastAttemptTick: Number.isFinite(currentTick) ? currentTick : (old?.lastAttemptTick ?? null),
   };
@@ -458,6 +545,7 @@ function settleReturnedVenture(origin, dest, venture, currentTick) {
     origin.recentTradePartners.set(dest.id, currentTick);
     dest.recentTradePartners.set(origin.id, currentTick);
     recordRouteHabit(origin, venture, payment, currentTick, profitable);
+    recordTradeLanguageContact(origin, dest, profitable ? 1.25 : 0.6);
     recordDirectTrade(origin, dest, venture.soldVolume, currentTick);
     recordDiplomaticTrade(origin, dest, payment, currentTick);
   } else {
@@ -488,6 +576,8 @@ function processVentures(regions, regionsById, currentTick, time) {
         }
         const buyerEconomy = ensureTradeEconomy(dest);
         const destinationPrice = localPrice(dest, venture.resource);
+        venture.observedPrice = destinationPrice;
+        venture.actualReliability = routeReliability(origin, dest);
         const price = Math.max(0.001, destinationPrice);
         const creditAvailable = Math.max(0, buyerEconomy.creditLimit - buyerEconomy.debt);
         const purchasingPower = Math.max(0, dest.wallet || 0) + creditAvailable;
@@ -620,8 +710,12 @@ function activePartnerCount(region, currentTick) {
   return count;
 }
 
+let cachedHubIds = [];
+let cachedHubBucket = null;
 function majorTradeHubIds(regions, currentTick) {
-  return regions
+  const bucket = Number.isFinite(currentTick) ? Math.floor(currentTick / HUB_CACHE_WEEKS) : null;
+  if (bucket !== null && cachedHubBucket === bucket) return cachedHubIds;
+  cachedHubIds = regions
     .map((region) => {
       const economy = ensureTradeEconomy(region);
       const partners = activePartnerCount(region, currentTick);
@@ -632,6 +726,8 @@ function majorTradeHubIds(regions, currentTick) {
     .sort((a, b) => b.score - a.score)
     .slice(0, MAX_MAJOR_HUBS)
     .map((entry) => entry.id);
+  cachedHubBucket = bucket;
+  return cachedHubIds;
 }
 
 function imitatedDestinationIds(region, regionsById) {
@@ -655,38 +751,41 @@ function imitatedDestinationIds(region, regionsById) {
 
 function candidateMarketIds(region, regionsById, knownIds, hubIds, currentTick) {
   const economy = ensureTradeEconomy(region);
-  const candidateIds = new Set(habitDestinationIds(region));
-  for (const id of freshTradeLeadIds(region, currentTick)) candidateIds.add(id);
+  const candidateIds = new Set(habitDestinationIds(region).slice(0, MAX_CANDIDATE_MARKETS));
+  for (const id of freshTradeLeadIds(region, currentTick).slice(0, 4)) candidateIds.add(id);
   const noHabitsYet = Object.keys(economy.routeHabits).length === 0;
   const crisis = economy.searchPressure >= CRISIS_SEARCH_PRESSURE;
-  // A merchant community that found nothing on its first survey should not
-  // re-scan the entire known world every month forever. Give every region one
-  // initial broad search, then fall back to the normal half-year cadence unless
-  // failed ventures create crisis search pressure. Fresh reports and direct
-  // contacts are still considered every tick outside that broad search.
   const initialBroadSearch = noHabitsYet && !economy.initialBroadSearchCompleted;
   const scheduledBroadSearch = staggeredDue(region, currentTick, BROAD_SEARCH_INTERVAL);
   const broadSearch = initialBroadSearch || crisis || scheduledBroadSearch;
   if (broadSearch) {
     economy.initialBroadSearchCompleted = true;
-    for (const id of knownIds) candidateIds.add(id);
-    for (const id of nearbyMarketIds(region, regionsById)) if (knownIds.has(id)) candidateIds.add(id);
-  } else {
-    for (const id of directContactIds(region)) candidateIds.add(id);
+    let added = 0;
+    for (const id of knownIds) {
+      if (id === region.id) continue;
+      candidateIds.add(id);
+      added += 1;
+      if (added >= MAX_EXPLORATION_MARKETS) break;
+    }
+    for (const id of nearbyMarketIds(region, regionsById, 16)) {
+      if (knownIds.has(id)) candidateIds.add(id);
+      if (candidateIds.size >= MAX_CANDIDATE_MARKETS) break;
+    }
   }
   if (staggeredDue(region, currentTick, HUB_CHECK_INTERVAL)) {
     for (const id of hubIds) if (knownIds.has(id)) candidateIds.add(id);
   }
   if (staggeredDue(region, currentTick, IMITATION_INTERVAL)) {
-    for (const id of imitatedDestinationIds(region, regionsById)) if (knownIds.has(id)) candidateIds.add(id);
+    for (const id of imitatedDestinationIds(region, regionsById).slice(0, 4)) if (knownIds.has(id)) candidateIds.add(id);
   }
   candidateIds.delete(region.id);
-  return candidateIds;
+  return new Set([...candidateIds].slice(0, MAX_CANDIDATE_MARKETS));
 }
 
 export function tickTrade(regions, currentTick = null, time = null) {
   for (const region of regions) {
     region.tradeLinks = new Map();
+    ageTradeMemory(region);
     beginTradeWeek(region);
     // Security is region-local and cannot change during this trade pass, so
     // compute it once rather than once for every candidate route.
@@ -696,21 +795,23 @@ export function tickTrade(regions, currentTick = null, time = null) {
   processVentures(regions, regionsById, currentTick, time);
   for (const region of regions) reconcileMerchantOccupation(region);
 
-  const knownIdsByRegion = new Map(regions.map((region) => [region.id, knownRegionIds(region)]));
+  const knownIdsByRegion = new Map();
+  const pricesByRegion = new Map();
   const hubIds = majorTradeHubIds(regions, currentTick);
-  const pricesByRegion = new Map(regions.map((region) => [region.id,
-    Object.fromEntries(TRADABLE_RESOURCES.map((resource) => [resource, localPrice(region, resource)]))
-  ]));
 
   for (const region of regions) {
     const economy = ensureTradeEconomy(region);
     const idle = Math.max(0, economy.merchantPopulation - activeMerchants(region));
     if (idle < 1) continue;
-    const knownIds = knownIdsByRegion.get(region.id);
+    let knownIds = knownIdsByRegion.get(region.id);
+    if (!knownIds) {
+      knownIds = knownRegionIds(region);
+      knownIdsByRegion.set(region.id, knownIds);
+    }
     const candidateIds = candidateMarketIds(region, regionsById, knownIds, hubIds, currentTick);
     const candidates = [...candidateIds].map((id) => regionsById.get(id)).filter(Boolean);
     if (!candidates.length) continue;
-    const opportunities = findOpportunities(region, candidates, knownIdsByRegion, pricesByRegion, regionsById);
+    const opportunities = findOpportunities(region, candidates, knownIdsByRegion, pricesByRegion, regionsById, currentTick);
     launchVentures(region, opportunities, currentTick, time);
   }
 

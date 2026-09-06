@@ -8,6 +8,7 @@ import { Region } from '../js/world/region.js';
 import { SeaRegion, linkSeaAdjacency } from '../js/world/seaRegion.js';
 import { seedCensus } from '../js/society/census.js';
 import { tickEconomy } from '../js/economy/labor.js';
+import { toolEfficiencyMultiplier } from '../js/economy/tools.js';
 import { tickTrade } from '../js/economy/trade.js';
 import { tickStateFinance } from '../js/economy/stateFinance.js';
 import { tickDemographics } from '../js/society/demographics.js';
@@ -186,6 +187,7 @@ function snapshot(regions, initial, year, window, polities = [], includeRegional
     surfaceTinPct: pct(surfaceTin, initial.surfaceTin),
     surfaceCopperPct: pct(surfaceCopper, initial.surfaceCopper),
     farmerToolCoveragePct: Math.min(100, pct(farmerTools, farmers)),
+    averageFarmerToolMultiplier: +(total(regions, (r) => toolEfficiencyMultiplier(r, 'farmer', toolTypes.farmer, r.unlockedTechIds)) / regions.length).toFixed(3),
     foodDependentRegions: regions.filter((r) => (r.foodImportDependence || 0) >= 0.1).length,
     distressedRegions: regions.filter((r) => r.stability < 0.5).length,
     bandits: Math.round(total(regions, (r) => r.banditPopulation)),
