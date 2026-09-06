@@ -5,7 +5,7 @@ import urllib.request
 from pathlib import Path
 
 from pyproj import Geod
-from shapely.geometry import box, mapping, shape
+from shapely.geometry import Polygon, box, mapping, shape
 from shapely.ops import unary_union
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,7 +14,7 @@ BASE_SEA_GEO = ROOT / 'data' / 'world' / 'seaRegions.geo.json'
 BASE_SEA_META = ROOT / 'data' / 'world' / 'seaRegions.meta.json'
 WORLD_LAND_URL = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries_iso.geojson'
 GEOD = Geod(ellps='WGS84')
-USER_AGENT = 'Sim-World sea map builder/1.0'
+USER_AGENT = 'Sim-World sea map builder/1.1'
 
 
 def fetch_json(url):
@@ -36,6 +36,12 @@ def area_sqkm(geom):
     return abs(area) / 1_000_000.0
 
 
+def candidate_geometry(spec):
+    if spec.get('polygon'):
+        return repair(Polygon(spec['polygon']))
+    return box(*spec['bbox'])
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--land-geo', required=True)
@@ -50,8 +56,12 @@ def main():
 
     global_land = repair(unary_union([repair(shape(f['geometry'])) for f in world_land.get('features', [])]))
     simulated_land = []
+    by_key = {}
     for f in land_geo.get('features', []):
-        simulated_land.append((f['properties']['id'], f['properties'].get('name', ''), repair(shape(f['geometry']))))
+        props = f['properties']
+        item = (props['id'], props.get('name', ''), props.get('sourceGroup', ''), repair(shape(f['geometry'])))
+        simulated_land.append(item)
+        by_key[(item[2], item[1])] = item
 
     occupied_sea = repair(unary_union([repair(shape(f['geometry'])) for f in base_geo.get('features', [])]))
     tolerance = float(plan.get('coastalToleranceDegrees', 0.06))
@@ -59,7 +69,7 @@ def main():
     new_meta = []
 
     for spec in plan['regions']:
-        candidate = box(*spec['bbox'])
+        candidate = candidate_geometry(spec)
         water = repair(candidate.difference(global_land))
         if not occupied_sea.is_empty:
             water = repair(water.difference(occupied_sea))
@@ -70,10 +80,20 @@ def main():
         centroid = water.centroid
         adjacent = []
         adjacent_names = []
-        for land_id, land_name, geom in simulated_land:
-            if geom.distance(water) <= tolerance:
-                adjacent.append(land_id)
-                adjacent_names.append(land_name)
+        curated = spec.get('coastalRegions')
+        if curated:
+            for ref in curated:
+                key = (ref['sourceGroup'], ref['name'])
+                item = by_key.get(key)
+                if item is None:
+                    raise RuntimeError(f"{spec['id']}: curated coastal region not found: {key[0]}:{key[1]}")
+                adjacent.append(item[0])
+                adjacent_names.append(f"{item[2]}:{item[1]}")
+        else:
+            for land_id, land_name, source_group, geom in simulated_land:
+                if geom.distance(water) <= tolerance:
+                    adjacent.append(land_id)
+                    adjacent_names.append(f"{source_group}:{land_name}")
         adjacent = sorted(set(adjacent))
         adjacent_names = sorted(set(adjacent_names), key=str.casefold)
 
