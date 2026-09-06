@@ -2,7 +2,7 @@ name: Apply causal culture resilience
 on:
   push:
     branches: [culture-causal-resilience-v1]
-    paths: ['tools/apply-culture-causal-resilience.mjs']
+    paths: ['tools/apply-culture-causal-resilience.mjs', '.github/workflows/apply-culture-causal-resilience.yml']
 permissions:
   contents: write
 jobs:
