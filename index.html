@@ -132,5 +132,49 @@
       });
     })();
   </script>
+  <script type="module">
+    import { ensureEducation, setScribalStudentTarget, educatedSpecialists } from './js/society/education.js?v=20260906-education1';
+
+    const renderEducationControls = () => {
+      const sim = window.__worldsim;
+      const controls = document.getElementById('region-controls');
+      if (!sim || !controls || document.getElementById('education-controls')) return;
+      const selectedId = sim.map?.selectedId;
+      const playerId = sim.fogOfWar?.playerRegionId;
+      if (!selectedId || selectedId !== playerId) return;
+      const region = sim.regions.find((candidate) => candidate.id === selectedId);
+      if (!region) return;
+      const education = ensureEducation(region);
+      const section = document.createElement('div');
+      section.id = 'education-controls';
+      section.className = 'raid-section';
+      const literate = Boolean(education.writingSystem);
+      const specialists = educatedSpecialists(region);
+      const recordedActivities = Object.keys(education.recordedExperience || {}).filter((key) => education.recordedExperience[key] > 1);
+      section.innerHTML = `
+        <strong>Scribes, writing and archives</strong>
+        <div class="raid-status">
+          ${literate ? `Writing tradition: ${education.writingSystem}` : 'No local writing tradition'}<br>
+          Students ${Math.round(education.students).toLocaleString()} · junior scribes ${Math.round(education.juniorScribes).toLocaleString()} · experienced ${Math.round(education.experiencedScribes).toLocaleString()} · masters ${Math.round(education.masterScribes).toLocaleString()}<br>
+          Archive maturity ${(education.archiveLevel * 100).toFixed(0)}% · educated specialists ${Math.round(specialists).toLocaleString()}${recordedActivities.length ? `<br>Recorded practical fields: ${recordedActivities.join(', ')}` : ''}
+          ${!literate && education.adoptionProgress > 0 ? `<br>Foreign writing exposure: ${(education.adoptionProgress * 100).toFixed(0)}% toward local adoption` : ''}
+        </div>
+        <label class="control-row">Target scribal students
+          <input id="input-scribal-students" type="number" min="0" step="1" value="${Math.round(education.targetStudents)}" ${literate ? '' : 'disabled'}>
+        </label>
+        <div class="raid-status">${literate
+          ? 'Training takes years. More students only become useful administrators and scholars as cohorts mature, and teaching capacity limits rapid expansion.'
+          : 'An oral society cannot train local scribes yet. Writing is normally adopted through sustained contact with literate neighbours or trading partners.'}</div>
+      `;
+      controls.appendChild(section);
+      const input = section.querySelector('#input-scribal-students');
+      input?.addEventListener('change', () => setScribalStudentTarget(region, input.value));
+    };
+
+    const regionControls = document.getElementById('region-controls');
+    if (regionControls) new MutationObserver(() => queueMicrotask(renderEducationControls))
+      .observe(regionControls, { childList: true, subtree: false });
+    document.getElementById('region-sheet')?.addEventListener('click', () => queueMicrotask(renderEducationControls));
+  </script>
 </body>
 </html>
