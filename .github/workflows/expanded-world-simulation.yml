@@ -1,14 +1,5 @@
 name: Expanded world simulation
 on:
-  push:
-    paths:
-      - '.github/workflows/expanded-world-simulation.yml'
-      - 'tools/build-map-expansion.py'
-      - 'tools/build-sea-expansion.py'
-      - 'tools/map-region-plan.json'
-      - 'tools/map-resource-plan.json'
-      - 'tools/sea-region-expansion-plan.json'
-      - 'tools/calibrate.mjs'
   workflow_dispatch:
 
 jobs:
