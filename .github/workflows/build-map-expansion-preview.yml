@@ -1,0 +1,51 @@
+name: Build map expansion preview
+on:
+  push:
+    paths:
+      - '.github/workflows/build-map-expansion-preview.yml'
+      - 'tools/build-map-expansion.py'
+      - 'tools/map-region-plan.json'
+      - 'tools/map-source-inventory.json'
+      - 'data/world/regions.geo.json'
+      - 'data/world/regions.meta.json'
+      - 'data/world/resources.initial.json'
+  workflow_dispatch:
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install geometry dependencies
+        run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2
+      - name: Validate source plan
+        run: python tools/validate-map-region-plan.py
+      - name: Build expanded land map preview
+        run: |
+          rm -rf /tmp/simworld-map-expansion
+          python tools/build-map-expansion.py --output-dir /tmp/simworld-map-expansion
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('/tmp/simworld-map-expansion')
+          geo=json.loads((p/'regions.geo.json').read_text())
+          meta=json.loads((p/'regions.meta.json').read_text())
+          resources=json.loads((p/'resources.initial.json').read_text())
+          print('PREVIEW_GEO_FEATURES='+str(len(geo['features'])))
+          print('PREVIEW_META_REGIONS='+str(len(meta['regions'])))
+          print('PREVIEW_RESOURCE_REGIONS='+str(len(resources)))
+          assert len(geo['features']) == len(meta['regions']) == len(resources) == 401
+          ids=[f['properties']['id'] for f in geo['features']]
+          assert len(ids)==len(set(ids))
+          print('PREVIEW_SCHEMA_OK=true')
+          PY
+      - name: Upload preview data
+        uses: actions/upload-artifact@v4
+        with:
+          name: bronze-age-map-expansion-preview
+          path: /tmp/simworld-map-expansion/
+          retention-days: 7
