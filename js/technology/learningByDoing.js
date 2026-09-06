@@ -1,10 +1,14 @@
 // Bronze Age technology isn't a tree of discrete unlocks yet — mostly it's
 // tacit knowledge that accumulates from actually doing the work: soil
-// reading, timing, ore sense, hammer control, seamanship and navigation. The
-// more cumulative worker-effort a region has put into an activity, the better
-// it gets at it — same saturating-curve shape used everywhere else in this sim
-// (fast early gains, tapering toward a ceiling). Genuine technological leaps
-// (such as iron smelting or advanced boatbuilding) remain separate breakthroughs.
+// reading, timing, ore sense and hammer control. The more cumulative
+// worker-effort a region has put into an activity, the better it gets at it —
+// same saturating-curve shape used everywhere else in this sim (fast early
+// gains, tapering toward a ceiling). Genuine technological leaps (such as iron
+// smelting or advanced boatbuilding) remain separate breakthroughs.
+//
+// Maritime practice uses its own related-skill family in seamanship.js because
+// fishing, trading, exploration and naval combat share techniques without
+// being the same profession.
 
 const CEILING = {
   farming: 0.50,
@@ -17,13 +21,8 @@ const CEILING = {
   textiles: 0.30,
   boatbuilding: 0.45,
   horseHusbandry: 0.40,
-  seamanship: 0.55, // navigation, weather-reading, coastal piloting, sail handling and fleet coordination
 };
 
-// Cumulative worker-ticks to reach ~63% of the ceiling (1 - 1/e). Scaled
-// against each activity's typical workforce. Seamanship deliberately takes
-// generations of repeated maritime activity to approach its ceiling: a few
-// successful expeditions help, but do not create an instant naval superpower.
 const EXPERIENCE_HALFLIFE = {
   farming: 700_000_000,
   gathering: 400_000_000,
@@ -35,7 +34,6 @@ const EXPERIENCE_HALFLIFE = {
   textiles: 300_000,
   boatbuilding: 120_000,
   horseHusbandry: 100_000,
-  seamanship: 300_000,
 };
 
 export const LEARNABLE_ACTIVITIES = Object.keys(CEILING);
