@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - '.github/workflows/apply-historical-resources.yml'
+      - 'tools/patch-historical-resources.py'
 permissions:
   contents: write
 jobs:
@@ -27,7 +28,7 @@ jobs:
           git diff --check
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add tools/build-map-expansion.py js/world/resources/extraction.js .github/workflows/build-map-expansion-preview.yml
+          git add tools/build-map-expansion.py js/world/resources/extraction.js
           git commit -m "Use historical resources for map expansion"
           git pull --rebase
           git push
