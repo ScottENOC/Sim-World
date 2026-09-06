@@ -1,0 +1,27 @@
+name: Culture identity validation
+on:
+  push:
+    branches: [culture-identity-v1]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check
+        run: find js tools -name '*.js' -o -name '*.mjs' | while read f; do node --check "$f"; done
+      - name: Culture tests
+        run: node tools/test-culture.mjs
+      - name: Short headless integration
+        run: |
+          node tools/calibrate.mjs --years 2 --seeds 1 --base-seed 305419896 --snapshot-years 2 --days-per-tick 30 --regional-detail false --system-timing true --output culture-smoke.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const r=JSON.parse(fs.readFileSync('culture-smoke.json','utf8'));
+          console.log('SMOKE_TIMINGS', r.runs[0].systemTimingMsPerTick);
+          console.log('SMOKE_ELAPSED_SECONDS', r.elapsedSeconds);
+          NODE

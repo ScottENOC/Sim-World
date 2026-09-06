@@ -6,9 +6,9 @@
 // "how good is this land" number rather than two independent guesses.
 
 import { seedHorseHerd } from '../economy/horses.js?v=20260904-weather1';
+import { initialiseRegionCulture } from './culture.js?v=20260907-culture1';
 
 const BASE_DENSITY_PER_KM2 = 3; // rough Bronze Age agrarian average
-const STARTING_IDENTITY_STRENGTH = 0.3; // low: young, easily-assimilated cultures
 
 export function seedCensus(regions, rng = Math.random) {
   for (const region of regions) {
@@ -51,16 +51,7 @@ export function seedCensus(regions, rng = Math.random) {
     region.stockpile.food = region.population * 12;
     seedHorseHerd(region, rng);
 
-    region.cultureGroups = [
-      {
-        id: `${region.id}_culture`,
-        ancestryId: `${region.id}_ancestry`,
-        cultureId: `${region.id}_culture`,
-        religionId: `${region.id}_religion`,
-        share: 1.0,
-        identityStrength: STARTING_IDENTITY_STRENGTH,
-      },
-    ];
+    initialiseRegionCulture(region);
   }
   return regions;
 }

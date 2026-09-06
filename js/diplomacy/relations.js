@@ -1,9 +1,11 @@
 import { hasDirectContact } from '../core/knowledge.js?v=20260904-diplomacy1';
 import { effectivePower } from '../military/army.js?v=20260904-diplomacy1';
+import { cultureDiplomaticBias, cultureTradeMultiplier, recordCulturalContact } from '../society/culture.js?v=20260907-culture1';
 
 const ATTITUDE_DECAY_PER_WEEK = 0.0015;
 const TRADE_WARMING_PER_VALUE = 0.000002;
 const MAX_TRADE_WARMING_PER_WEEK = 0.025;
+const CULTURE_BIAS_ADJUSTMENT_PER_WEEK = 0.0008;
 const TRIBUTE_RATE = 0.00035;
 const RESOURCE_ACCESS_RATE = 0.0025;
 const SUPPORT_UPKEEP_PER_SOLDIER = 0.015;
@@ -64,11 +66,15 @@ export function powerRatio(demander, target, toolTypes) {
 
 export function tradeRelationMultiplier(a, b) {
   const mutual = (attitudeToward(a, b.id) + attitudeToward(b, a.id)) / 2;
-  return clamp(1 + mutual * 0.45, 0.45, 1.35);
+  const diplomatic = clamp(1 + mutual * 0.45, 0.45, 1.35);
+  // Culture is a modest entry/trust friction, never a trade prohibition.
+  // Repeated commerce builds cultural familiarity and largely erases the gap.
+  return diplomatic * cultureTradeMultiplier(a, b);
 }
 
 export function recordDiplomaticTrade(a, b, value, currentTick) {
   const warming = Math.min(MAX_TRADE_WARMING_PER_WEEK, Math.max(0, value) * TRADE_WARMING_PER_VALUE);
+  recordCulturalContact(a, b, warming > 0.005 ? 1.25 : 0.6);
   if (warming <= 0) return;
   changeAttitude(a, b.id, warming, 'trade', currentTick);
   changeAttitude(b, a.id, warming, 'trade', currentTick);
@@ -158,12 +164,19 @@ function transferFunds(payer, receiver, amount) {
 export function tickDiplomacy(regions, agreements, toolTypes, currentTick, elapsedDays = 7) {
   const weekScale = Math.max(0.01, elapsedDays / 7);
   const attitudeRetention = Math.pow(1 - ATTITUDE_DECAY_PER_WEEK, weekScale);
+  const cultureAdjustment = 1 - Math.pow(1 - CULTURE_BIAS_ADJUSTMENT_PER_WEEK, weekScale);
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   for (const region of regions) {
     ensureDiplomacy(region);
     region.diplomacyReport = { paid: 0, received: 0, woodTaken: 0, support: 0 };
-    for (const relation of region.relations.values()) {
+    for (const [otherId, relation] of region.relations.entries()) {
       relation.attitude *= attitudeRetention;
+      const other = regionsById.get(otherId);
+      if (other) {
+        const bias = cultureDiplomaticBias(region, other);
+        relation.attitude += (bias - relation.attitude) * cultureAdjustment;
+        relation.attitude = clamp(relation.attitude, -1, 1);
+      }
     }
   }
 

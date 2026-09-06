@@ -5,6 +5,7 @@
 import { FOOD_PER_PERSON_PER_WEEK } from '../economy/labor.js?v=20260904-weather1';
 import { chooseEmigrationDestinations } from './migration.js?v=20260904-weather1';
 import { migrateReligion } from './religion.js?v=20260905-religion1';
+import { migrateCulture, tickCulture } from './culture.js?v=20260907-culture1';
 import { tickEducation } from './education.js?v=20260906-education1';
 import { DAYS_PER_YEAR, annualFractionRate, elapsedWeeks } from '../core/simTime.js?v=20260905-time1';
 
@@ -30,6 +31,9 @@ export function tickDemographics(regions, religiousWorld = null, elapsedDays = 7
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   for (const region of regions) applyBaselineDemographics(region, elapsedDays);
   for (const region of regions) applyFamineResponse(region, regionsById, religiousWorld, elapsedDays);
+  // Cultural identities evolve on an internally annual cadence, so this call
+  // remains cheap even when population is being ticked daily or monthly.
+  tickCulture(regions, elapsedDays);
 }
 
 function applyBaselineDemographics(region, elapsedDays) {
@@ -79,6 +83,10 @@ function applyFamineResponse(region, regionsById, religiousWorld, elapsedDays) {
   for (const { dest, count } of destinations) {
     migrateReligion(region, dest, count, religiousWorld);
     addToBands(dest, count);
+    // Identity moves with people. The origin's proportional culture mix is
+    // unchanged because famine emigration is sampled across its population;
+    // the destination receives those identities and their ancestry records.
+    migrateCulture(region, dest, count);
     if (region.unlockedTechIds.has('iron_smelting')) {
       const sourceReadiness = Math.max(0.05, region.ironWorkingReadiness || 0);
       dest.ironWorkingExposure = Math.min(10,
