@@ -10,11 +10,23 @@ import { seedHorseHerd } from '../economy/horses.js?v=20260904-weather1';
 const BASE_DENSITY_PER_KM2 = 3; // rough Bronze Age agrarian average
 const STARTING_IDENTITY_STRENGTH = 0.3; // low: young, easily-assimilated cultures
 
+// Marginal land supports disproportionately fewer permanent residents than a
+// linear "area × average quality" rule implies. That matters enormously for
+// very large desert/steppe administrative polygons: 700,000 km² of mostly
+// desert should not acquire a six-figure population just because its average
+// productive-land index is 0.08. Keep average and fertile regions unchanged,
+// but square sub-average quality so settlement concentrates in the genuinely
+// habitable/productive parts of marginal regions.
+function settlementDensityFactor(landQuality) {
+  const quality = Math.max(0, Number(landQuality) || 0);
+  return quality >= 1 ? quality : quality * quality;
+}
+
 export function seedCensus(regions, rng = Math.random) {
   for (const region of regions) {
     // +/-15% region-to-region noise so it doesn't look like a bare formula.
     const noise = 0.85 + rng() * 0.3;
-    const density = BASE_DENSITY_PER_KM2 * region.landQuality * noise;
+    const density = BASE_DENSITY_PER_KM2 * settlementDensityFactor(region.landQuality) * noise;
 
     region.population = Math.round(region.areaSqKm * density);
 
