@@ -5,6 +5,7 @@ on:
       - '.github/workflows/build-map-expansion-preview.yml'
       - 'tools/build-map-expansion.py'
       - 'tools/map-region-plan.json'
+      - 'tools/map-resource-plan.json'
       - 'tools/map-source-inventory.json'
       - 'data/world/regions.geo.json'
       - 'data/world/regions.meta.json'
@@ -23,10 +24,11 @@ jobs:
       - name: Install geometry dependencies
         run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2
       - name: Validate source plan
-        run: python tools/validate-map-region-plan.py
+        run: |
+          python tools/validate-map-region-plan.py
+          python -m json.tool tools/map-resource-plan.json >/dev/null
       - name: Build expanded land map preview
         run: |
-          # Build from the current source inventory and gameplay-region plan.
           rm -rf /tmp/simworld-map-expansion
           python tools/build-map-expansion.py --fail-on-overlap --output-dir /tmp/simworld-map-expansion
           python - <<'PY'
@@ -37,9 +39,9 @@ jobs:
           meta=json.loads((p/'regions.meta.json').read_text())
           resources=json.loads((p/'resources.initial.json').read_text())
           plan=json.loads(Path('tools/map-region-plan.json').read_text())
-          expected_new=0
           inventory=json.loads(Path('tools/map-source-inventory.json').read_text())
           by_iso={c['iso']:c for c in inventory['countries']}
+          expected_new=0
           for c in plan['countries']:
               excluded=set(c.get('excludedSourceUnits') or [])
               if c['mode']=='one-per-source': expected_new += len([u for u in by_iso[c['iso']]['units'] if u not in excluded])
@@ -52,6 +54,14 @@ jobs:
           assert len(geo['features']) == len(meta['regions']) == len(resources) == expected
           ids=[f['properties']['id'] for f in geo['features']]
           assert len(ids)==len(set(ids))
+          by_name={f['properties']['name']:f['properties']['id'] for f in geo['features'][plan['targetExistingRegionCount']:]}
+          def deps(name): return set(resources[by_name[name]]['deposits'])
+          assert 'copper' in deps('Central Cyprus')
+          assert 'tin' in deps('Cappadocia')
+          assert 'tin' in deps('Northern Zagros')
+          assert deps('Sumer') == set()
+          assert resources[by_name['Egyptian Deserts']]['forestFraction'] <= 0.02
+          print('RESOURCE_SANITY_OK=true')
           print('PREVIEW_SCHEMA_OK=true')
           PY
       - name: Upload preview data
