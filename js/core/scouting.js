@@ -1,4 +1,5 @@
 import { hasDirectContact, knownRegionIds, recordScoutContact } from './knowledge.js?v=20260906-scouting1';
+import { maritimeSkillMultiplier, MARITIME_SKILLS } from '../technology/seamanship.js?v=20260906-maritime1';
 
 const MAX_BASIC_NAVAL_SEARCH_KM = 450;
 const MAX_ADVANCED_NAVAL_SEARCH_KM = 900;
@@ -43,13 +44,18 @@ function sharedSeaIds(a, b) {
 }
 
 function navalRangeKm(region) {
-  return (region?.navy?.advancedBoats || 0) > 0
+  const hullRange = (region?.navy?.advancedBoats || 0) > 0
     ? MAX_ADVANCED_NAVAL_SEARCH_KM
     : MAX_BASIC_NAVAL_SEARCH_KM;
+  const skillBonus = maritimeSkillMultiplier(region, MARITIME_SKILLS.SCOUTING) - 1;
+  return hullRange * (1 + skillBonus * 0.8);
 }
 
-function missionWeeks(viaSea, km) {
-  if (viaSea) return Math.max(3, 2 + Math.ceil(km / 80) * 2);
+function missionWeeks(viaSea, km, region = null) {
+  if (viaSea) {
+    const skill = maritimeSkillMultiplier(region, MARITIME_SKILLS.SCOUTING);
+    return Math.max(3, Math.ceil((2 + Math.ceil(km / 80) * 2) / skill));
+  }
   return Math.max(4, 2 + Math.ceil(km / 35) * 2);
 }
 
@@ -62,7 +68,8 @@ function missionSuccessChance(choice, region) {
     ? 0.58 * Math.pow(distanceFraction, 1.25)
     : 0.32 * Math.pow(Math.min(1, km / 250), 1.15);
   const rumourBonus = choice.reason?.includes('rumour') ? 0.08 : 0;
-  return Math.max(0.18, Math.min(0.98, base - distancePenalty + rumourBonus));
+  const skillBonus = choice.viaSea ? (maritimeSkillMultiplier(region, MARITIME_SKILLS.SCOUTING) - 1) * 0.35 : 0;
+  return Math.max(0.18, Math.min(0.98, base - distancePenalty + rumourBonus + skillBonus));
 }
 
 function normaliseHeading(heading) {
@@ -174,7 +181,7 @@ export function startScoutingMission(region, regions, currentTick, rng = Math.ra
   const navyCommitted = choice.viaSea ? 1 : 0;
   if (navyCommitted && (region.navy?.boats || 0) - (region.navy?.scoutingBoats || 0) < navyCommitted) return null;
 
-  const durationWeeks = missionWeeks(choice.viaSea, choice.distanceKm);
+  const durationWeeks = missionWeeks(choice.viaSea, choice.distanceKm, region);
   const successChance = choice.target ? missionSuccessChance(choice, region) : 0;
   region.army.away = Math.max(0, region.army.away || 0) + armyCommitted;
   region.navy.scoutingBoats = Math.max(0, region.navy.scoutingBoats || 0) + navyCommitted;

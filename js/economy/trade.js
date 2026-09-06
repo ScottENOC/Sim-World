@@ -8,6 +8,7 @@ import { effectiveInfrastructureCount, operationalInfrastructure, overlandInfras
 import { horseTransportMultiplier } from './horses.js?v=20260904-weather1';
 import { recordDiplomaticTrade, tradeRelationMultiplier } from '../diplomacy/relations.js?v=20260904-save1';
 import { navalMissionProfile, postureProfile } from '../military/policies.js?v=20260904-policy1';
+import { maritimeSkillMultiplier, MARITIME_SKILLS } from '../technology/seamanship.js?v=20260906-maritime1';
 
 const LAND_ADJACENT_COST = 0.02;
 const SEA_COST_PER_KM = 0.0002;
@@ -93,12 +94,14 @@ function seaTransportProfile(regionA, regionB) {
     : 0;
   const legacyShare = Math.max(advancedMaritimeShare(regionA), advancedMaritimeShare(regionB));
   const advancedShare = canDockAdvanced ? Math.max(merchantShare, legacyShare) : 0;
+  const sailingSkill = maritimeSkillMultiplier(regionA, MARITIME_SKILLS.TRADE);
+  const skillBonus = sailingSkill - 1;
   return {
     advancedShare,
-    rangeKm: BASIC_SEA_RANGE_KM + (ADVANCED_SEA_RANGE_KM - BASIC_SEA_RANGE_KM) * advancedShare,
-    capacityMultiplier: 1 + advancedShare * 1.5,
-    costMultiplier: 1 - advancedShare * 0.45,
-    speedMultiplier: 1 + advancedShare * 0.9,
+    rangeKm: (BASIC_SEA_RANGE_KM + (ADVANCED_SEA_RANGE_KM - BASIC_SEA_RANGE_KM) * advancedShare) * (1 + skillBonus * 0.45),
+    capacityMultiplier: (1 + advancedShare * 1.5) * (1 + skillBonus * 0.35),
+    costMultiplier: (1 - advancedShare * 0.45) * (1 - skillBonus * 0.35),
+    speedMultiplier: (1 + advancedShare * 0.9) * sailingSkill,
   };
 }
 

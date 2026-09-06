@@ -25,6 +25,7 @@ import { syncNextCampaignId, tickCampaigns } from './military/campaigns.js?v=202
 import { prepareConstructionLabor, syncNextProjectId, tickConstruction, tickInfrastructureMaintenance } from './economy/construction.js?v=20260905-projects1';
 import { prepareSiegeWorkforce, tickSiegeEquipment } from './military/siegeEquipment.js?v=20260905-projects1';
 import { createReligiousWorld, initialiseReligions, tickReligion } from './society/religion.js?v=20260905-religion1';
+import { tickMaritimeExperience } from './technology/seamanship.js?v=20260906-maritime1';
 
 const START_YEAR = -1300; // target: roughly eighty prosperous years before a c.1220 BCE collapse
 const LAYERS = {
@@ -205,6 +206,7 @@ async function main() {
     tickFishingKnowledge(fishingContactPairs, calendarWeek);
     tickScouting(regions, calendarWeek, Math.random);
     tickTrade(regions, calendarWeek, time);
+    tickMaritimeExperience(regions, activeRaids, time.elapsedDays);
     tickStateFinance(regions, time.elapsedDays);
     tickInfrastructureMaintenance(regions, time.elapsedDays);
     const constructionEvents = tickConstruction(regions, calendarWeek, time.elapsedDays);

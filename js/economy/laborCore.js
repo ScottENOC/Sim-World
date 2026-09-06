@@ -10,6 +10,7 @@ import { navalMissionProfile } from '../military/policies.js?v=20260904-policy1'
 import { conflictResourceAccess } from '../military/campaigns.js?v=20260905-infra1';
 import { effectiveInfrastructureCount, operationalInfrastructure } from './construction.js?v=20260905-projects1';
 import { elapsedWeeks } from '../core/simTime.js?v=20260905-time1';
+import { maritimeSkillMultiplier, MARITIME_SKILLS } from '../technology/seamanship.js?v=20260906-maritime1';
 
 // --- Tunable constants -----------------------------------------------------
 // All placeholders, calibrated so a "typical" region can just about feed
@@ -566,7 +567,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng, elapsedDays 
         Math.max(1, region.population * 0.005));
       const fisheryProtection = 1 + Math.max(0, navalMission.fishing - 1) * fisheryPatrolCoverage;
       const boatYieldPerWorker = BOAT_FISH_YIELD_PER_WORKER_BASE * weekScale * (1 + advancedShare * 0.5) *
-        stockFraction * fishingSkill * fisheryProtection;
+        stockFraction * fishingSkill * maritimeSkillMultiplier(region, MARITIME_SKILLS.FISHING) * fisheryProtection;
       const boatCapacityTotal = Math.round(sea.fish.K / BOAT_FISH_CAPACITY_DIVISOR);
       const boatCapacityShare = Math.round(boatCapacityTotal / Math.max(1, sea.adjacentLand.length));
       const effectiveFishingBoats = Math.max(0, region.fishingBoats - (region.advancedFishingBoats || 0)) +

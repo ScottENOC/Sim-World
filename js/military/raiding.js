@@ -9,6 +9,7 @@ import { changeAttitude } from '../diplomacy/relations.js?v=20260904-save1';
 import { hillFortDefenceMultiplier, overlandInfrastructureMultiplier, settlementDefenceMultiplier } from '../economy/construction.js?v=20260905-projects1';
 import { findLandStagingRegion, recordContingentReturns } from '../politics/polities.js?v=20260904-kingdom1';
 import { armyCohesionMultiplier, navalMissionProfile, postureProfile } from './policies.js?v=20260904-policy1';
+import { maritimeSkillMultiplier, MARITIME_SKILLS } from '../technology/seamanship.js?v=20260906-maritime1';
 
 const LAND_SPEED_KM_PER_WEEK = 120;
 const SEA_SPEED_KM_PER_WEEK = 200;
@@ -140,9 +141,11 @@ function resolveCombat(attacker, defender, raidingPersonnel, toolTypes, rng, via
   const attackerEquip = toolEfficiencyMultiplier(attacker, 'soldier', toolTypes.soldier, attacker.unlockedTechIds);
   const defenderEquip = toolEfficiencyMultiplier(defender, 'soldier', toolTypes.soldier, defender.unlockedTechIds);
   const maritimeAssaultBonus = viaSea ? 1 + advancedNavyShare(attacker) * 0.5 : 1;
-  const attackerPower = raidingPersonnel * attackerEquip * maritimeAssaultBonus * militaryReadiness(attacker) *
+  const attackerSeaSkill = viaSea ? maritimeSkillMultiplier(attacker, MARITIME_SKILLS.COMBAT) : 1;
+  const defenderSeaSkill = viaSea ? 1 + (maritimeSkillMultiplier(defender, MARITIME_SKILLS.COMBAT) - 1) * 0.5 : 1;
+  const attackerPower = raidingPersonnel * attackerEquip * maritimeAssaultBonus * attackerSeaSkill * militaryReadiness(attacker) *
     armyCohesionMultiplier(attacker) * (viaSea ? 1 : horseMilitaryMultiplier(attacker));
-  const defenderPower = defender.army.personnel * defenderEquip * DEFENDER_HOME_ADVANTAGE *
+  const defenderPower = defender.army.personnel * defenderEquip * DEFENDER_HOME_ADVANTAGE * defenderSeaSkill *
     postureProfile(defender).raidDefence * militaryReadiness(defender) *
     armyCohesionMultiplier(defender) * horseMilitaryMultiplier(defender) * hillFortDefenceMultiplier(defender) *
     settlementDefenceMultiplier(defender);
