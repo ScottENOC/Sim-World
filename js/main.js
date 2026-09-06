@@ -736,6 +736,13 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
           ${region.isCoastal ? '<option value="sea">naval expedition</option>' : ''}
         </select>
       </label>
+      ${region.isCoastal ? `<label class="control-row">Naval heading
+        <select id="scouting-heading">
+          <option value="">unspecified</option>
+          <option value="N">north</option><option value="NE">north-east</option><option value="E">east</option><option value="SE">south-east</option>
+          <option value="S">south</option><option value="SW">south-west</option><option value="W">west</option><option value="NW">north-west</option>
+        </select>
+      </label>` : ''}
       <button id="btn-scout-launch" ${region.scouting?.active ? 'disabled' : ''}>Send scouting expedition</button>
     </div>
     ${polity ? `<div class="raid-status"><strong>${polity.name}</strong> · ${polity.report.subjectCount || 0} subject region(s) · legitimacy ${(polity.administration.legitimacy * 100).toFixed(0)}%<br>
@@ -811,14 +818,15 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
   const scoutButton = document.getElementById('btn-scout-launch');
   scoutButton?.addEventListener('click', () => {
     const mode = document.getElementById('scouting-mode')?.value || 'auto';
+    const heading = document.getElementById('scouting-heading')?.value || null;
     const currentWeek = calendarWeekIndex(clock.elapsedDays || 0);
-    const mission = startScoutingMission(region, regions, currentWeek, Math.random, mode);
+    const mission = startScoutingMission(region, regions, currentWeek, Math.random, mode, heading);
     const status = document.getElementById('scouting-control-status');
     if (!mission) {
       if (status) status.textContent = 'No viable scouting route or insufficient army/fleet capacity.';
       return;
     }
-    if (status) status.textContent = `${mission.mode === 'sea' ? 'Naval' : 'Land'} expedition dispatched · ${mission.armyCommitted} soldiers${mission.navyCommitted ? ' · 1 fleet boat' : ''}`;
+    if (status) status.textContent = `${mission.mode === 'sea' ? 'Naval' : 'Land'} expedition dispatched${mission.heading ? ` ${mission.heading}` : ''} · ${mission.armyCommitted} soldiers${mission.navyCommitted ? ' · 1 fleet boat' : ''} · expected return in ${Math.max(1, Math.round(mission.completeTick-currentWeek))} weeks`;
     scoutButton.disabled = true;
   });
 

@@ -18,7 +18,12 @@ export function basicNavyBoats(region) {
 }
 
 export function navyTransportCapacity(region) {
-  return basicNavyBoats(region) * 10 + usableAdvancedNavyBoats(region) * 18;
+  const committed = Math.max(0, region.navy?.scoutingBoats || 0);
+  const advanced = usableAdvancedNavyBoats(region);
+  const basic = Math.max(0, basicNavyBoats(region));
+  const committedAdvanced = Math.min(committed, advanced);
+  const committedBasic = Math.max(0, committed - committedAdvanced);
+  return Math.max(0, basic - committedBasic) * 10 + Math.max(0, advanced - committedAdvanced) * 18;
 }
 
 export function usableAdvancedNavyBoats(region) {
