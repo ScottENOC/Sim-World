@@ -1,3 +1,5 @@
+import { effectiveExperience } from './learningByDoing.js?v=20260906-education1';
+
 export const IRON_SMELTING_TECH_ID = 'iron_smelting';
 export const ADVANCED_BOATBUILDING_TECH_ID = 'advanced_boatbuilding';
 export const HILL_FORT_TECH_ID = 'hill_forts';
@@ -45,7 +47,7 @@ export function waterManagementChance(region, regionsById) {
 
 export function shaftMiningChance(region, regionsById) {
   if (region.unlockedTechIds.has(SHAFT_MINING_TECH_ID)) return 0;
-  const experience = Math.max(0, region.experience?.mining || 0);
+  const experience = Math.max(0, effectiveExperience(region, 'mining'));
   const hasOre = Object.keys(region.deposits || {}).some((key) => key !== 'clay' && key !== 'stone');
   const independent = hasOre ? (1 - Math.exp(-experience / 100_000)) * 0.000035 : 0;
   return 1 - (1 - independent) * (1 - neighbourDiffusion(region, regionsById, SHAFT_MINING_TECH_ID));
@@ -53,7 +55,7 @@ export function shaftMiningChance(region, regionsById) {
 
 export function mineDrainageChance(region, regionsById) {
   if (region.unlockedTechIds.has(MINE_DRAINAGE_TECH_ID) || !region.unlockedTechIds.has(SHAFT_MINING_TECH_ID)) return 0;
-  const experience = Math.max(0, region.experience?.mining || 0);
+  const experience = Math.max(0, effectiveExperience(region, 'mining'));
   const independent = (1 - Math.exp(-experience / 250_000)) * 0.000018;
   return 1 - (1 - independent) * (1 - neighbourDiffusion(region, regionsById, MINE_DRAINAGE_TECH_ID, 0.0008));
 }
@@ -74,8 +76,8 @@ export function hillFortChance(region, regionsById) {
 export function catapultChance(region, regionsById, currentTick) {
   if (region.unlockedTechIds.has(CATAPULT_TECH_ID) || currentTick < CATAPULT_EARLIEST_TICK) return 0;
   const siegeExperience = Math.max(0, region.siegeEquipment?.experience || 0);
-  const craftExperience = Math.max(0, region.experience?.smithing || 0) +
-    Math.max(0, region.experience?.boatbuilding || 0);
+  const craftExperience = Math.max(0, effectiveExperience(region, 'smithing')) +
+    Math.max(0, effectiveExperience(region, 'boatbuilding'));
   const hasRams = ((region.siegeEquipment?.inventory?.ram?.bronze || 0) +
     (region.siegeEquipment?.inventory?.ram?.iron || 0)) > 0;
   const independent = hasRams
@@ -88,12 +90,12 @@ export function catapultChance(region, regionsById, currentTick) {
 }
 
 function smithingKnowledge(region) {
-  const experience = region.experience?.smithing || 0;
+  const experience = effectiveExperience(region, 'smithing');
   return 1 - Math.exp(-experience / SMITHING_EXPERIENCE_SCALE);
 }
 
 function boatbuildingKnowledge(region) {
-  const experience = region.experience?.boatbuilding || 0;
+  const experience = effectiveExperience(region, 'boatbuilding');
   return 1 - Math.exp(-experience / BOATBUILDING_EXPERIENCE_SCALE);
 }
 
