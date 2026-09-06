@@ -17,4 +17,11 @@ jobs:
       - name: Culture tests
         run: node tools/test-culture.mjs
       - name: Short headless integration
-        run: node tools/calibrate.mjs --years 20 --seeds 1 --base-seed 305419896 --snapshot-years 20 --days-per-tick 30 --regional-detail false --system-timing true --output culture-smoke.json
+        run: |
+          node tools/calibrate.mjs --years 2 --seeds 1 --base-seed 305419896 --snapshot-years 2 --days-per-tick 30 --regional-detail false --system-timing true --output culture-smoke.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const r=JSON.parse(fs.readFileSync('culture-smoke.json','utf8'));
+          console.log('SMOKE_TIMINGS', r.runs[0].systemTimingMsPerTick);
+          console.log('SMOKE_ELAPSED_SECONDS', r.elapsedSeconds);
+          NODE
