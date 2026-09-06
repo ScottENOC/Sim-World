@@ -1,20 +1,106 @@
 {
-  "version": 1,
-  "purpose": "Candidate game-geographic sea partitions for the Bronze/Iron Age map expansion. Order is significant: narrow/specific seas claim water before broader basins.",
+  "version": 2,
+  "purpose": "Game-geographic sea partitions for the Bronze/Iron Age expansion. Polygon geometry controls sea area/visibility; explicit coastalRegions controls fishing, trade and naval access so broad geometry can never make inland regions coastal.",
   "coastalToleranceDegrees": 0.06,
   "regions": [
-    {"id":"sea_marmara","name":"Sea of Marmara","bbox":[26.0,39.4,30.2,41.3]},
-    {"id":"sea_gulf_aqaba","name":"Gulf of Aqaba","bbox":[33.9,27.7,35.9,30.1]},
-    {"id":"sea_adriatic","name":"Adriatic Sea","bbox":[11.5,39.0,20.5,46.5]},
-    {"id":"sea_aegean","name":"Aegean Sea","bbox":[21.5,34.2,30.2,41.5]},
-    {"id":"sea_tyrrhenian","name":"Tyrrhenian Sea","bbox":[8.0,37.0,16.2,44.4]},
-    {"id":"sea_ionian","name":"Ionian Sea","bbox":[14.0,33.8,23.5,41.0]},
-    {"id":"sea_gulf_sidra","name":"Gulf of Sidra","bbox":[15.0,29.0,24.0,35.0]},
-    {"id":"sea_nile_mediterranean","name":"Nile Mediterranean","bbox":[24.0,29.0,33.5,33.8]},
-    {"id":"sea_central_mediterranean","name":"Central Mediterranean","bbox":[7.5,30.0,19.0,39.2]},
-    {"id":"sea_levantine","name":"Levantine Sea","bbox":[27.0,30.0,37.0,37.7]},
-    {"id":"sea_black","name":"Black Sea","bbox":[26.0,40.5,42.5,47.2]},
-    {"id":"sea_northern_red","name":"Northern Red Sea","bbox":[31.5,22.0,44.5,30.6]},
-    {"id":"sea_persian_gulf","name":"Persian Gulf","bbox":[47.0,24.0,57.0,31.5]}
+    {
+      "id": "sea_marmara", "name": "Sea of Marmara",
+      "polygon": [[26.0,39.8],[27.3,39.8],[30.2,40.4],[30.1,41.25],[27.2,41.2],[26.0,40.5]],
+      "coastalRegions": [
+        {"sourceGroup":"TUR","name":"Thrace"},{"sourceGroup":"TUR","name":"Troad"},{"sourceGroup":"TUR","name":"Mysia"},{"sourceGroup":"TUR","name":"Bithynia"}
+      ]
+    },
+    {
+      "id": "sea_gulf_aqaba", "name": "Gulf of Aqaba",
+      "polygon": [[34.7,29.9],[35.1,29.9],[35.9,27.7],[34.3,27.7]],
+      "coastalRegions": [
+        {"sourceGroup":"JOR","name":"Moab & Edom"},{"sourceGroup":"ISR","name":"Negev"},{"sourceGroup":"EGY","name":"Sinai & Suez"}
+      ]
+    },
+    {
+      "id": "sea_adriatic", "name": "Adriatic Sea",
+      "polygon": [[12.0,45.9],[13.3,43.8],[15.0,41.5],[17.0,39.3],[20.3,39.0],[20.2,41.2],[18.2,43.2],[16.0,44.8],[13.5,46.2]],
+      "coastalRegions": [
+        {"sourceGroup":"ITA","name":"Friuli Venezia Giulia"},{"sourceGroup":"ITA","name":"Veneto"},{"sourceGroup":"ITA","name":"Emilia-Romagna"},{"sourceGroup":"ITA","name":"Marche"},{"sourceGroup":"ITA","name":"Abruzzo"},{"sourceGroup":"ITA","name":"Molise"},{"sourceGroup":"ITA","name":"Puglia"},
+        {"sourceGroup":"HRV","name":"Istria & Kvarner"},{"sourceGroup":"HRV","name":"Dalmatia"},{"sourceGroup":"BIH","name":"Bosnia & Herzegovina"},{"sourceGroup":"MNE","name":"Montenegro"},{"sourceGroup":"ALB","name":"Northern Albania"},{"sourceGroup":"ALB","name":"Central Albania"}
+      ]
+    },
+    {
+      "id": "sea_aegean", "name": "Aegean Sea",
+      "polygon": [[21.5,41.3],[26.5,41.3],[29.7,40.2],[29.6,36.0],[27.8,34.0],[23.0,34.0],[21.2,36.5]],
+      "coastalRegions": [
+        {"sourceGroup":"GRC","name":"Eastern Macedonia & Thrace"},{"sourceGroup":"GRC","name":"Central Macedonia"},{"sourceGroup":"GRC","name":"Mount Athos"},{"sourceGroup":"GRC","name":"Thessaly"},{"sourceGroup":"GRC","name":"Central Greece"},{"sourceGroup":"GRC","name":"Attica"},{"sourceGroup":"GRC","name":"Peloponnese"},{"sourceGroup":"GRC","name":"North Aegean"},{"sourceGroup":"GRC","name":"South Aegean"},{"sourceGroup":"GRC","name":"Crete"},
+        {"sourceGroup":"TUR","name":"Troad"},{"sourceGroup":"TUR","name":"Mysia"},{"sourceGroup":"TUR","name":"Ionia"},{"sourceGroup":"TUR","name":"Caria"}
+      ]
+    },
+    {
+      "id": "sea_tyrrhenian", "name": "Tyrrhenian Sea",
+      "polygon": [[7.2,44.2],[10.5,44.2],[14.8,41.8],[16.4,38.0],[12.8,36.8],[8.0,37.5]],
+      "coastalRegions": [
+        {"sourceGroup":"ITA","name":"Liguria"},{"sourceGroup":"ITA","name":"Toscana"},{"sourceGroup":"ITA","name":"Lazio"},{"sourceGroup":"ITA","name":"Campania"},{"sourceGroup":"ITA","name":"Calabria"},{"sourceGroup":"ITA","name":"Sicilia"},{"sourceGroup":"ITA","name":"Sardegna"}
+      ]
+    },
+    {
+      "id": "sea_ionian", "name": "Ionian Sea",
+      "polygon": [[13.8,41.0],[18.0,41.2],[22.5,39.0],[23.5,35.0],[20.5,33.8],[16.0,35.0],[13.8,37.5]],
+      "coastalRegions": [
+        {"sourceGroup":"ITA","name":"Puglia"},{"sourceGroup":"ITA","name":"Basilicata"},{"sourceGroup":"ITA","name":"Calabria"},{"sourceGroup":"ITA","name":"Sicilia"},
+        {"sourceGroup":"ALB","name":"Southern Albania"},{"sourceGroup":"GRC","name":"Epirus"},{"sourceGroup":"GRC","name":"Western Greece"},{"sourceGroup":"GRC","name":"Ionian Islands"},{"sourceGroup":"GRC","name":"Peloponnese"}
+      ]
+    },
+    {
+      "id": "sea_gulf_sidra", "name": "Gulf of Sidra",
+      "polygon": [[14.5,34.0],[19.0,35.2],[24.3,33.5],[24.0,29.0],[15.0,29.0]],
+      "coastalRegions": [
+        {"sourceGroup":"LBY","name":"Tripolitania"},{"sourceGroup":"LBY","name":"Gulf of Sidra"},{"sourceGroup":"LBY","name":"Cyrenaica"}
+      ]
+    },
+    {
+      "id": "sea_nile_mediterranean", "name": "Nile Mediterranean",
+      "polygon": [[23.0,34.0],[29.0,34.0],[34.0,32.5],[33.0,29.2],[24.0,29.2]],
+      "coastalRegions": [
+        {"sourceGroup":"LBY","name":"Cyrenaica"},{"sourceGroup":"EGY","name":"Egyptian Deserts"},{"sourceGroup":"EGY","name":"Western Nile Delta"},{"sourceGroup":"EGY","name":"Eastern Nile Delta"},{"sourceGroup":"EGY","name":"Sinai & Suez"}
+      ]
+    },
+    {
+      "id": "sea_central_mediterranean", "name": "Central Mediterranean",
+      "polygon": [[7.0,39.5],[12.0,39.5],[17.0,37.5],[19.5,34.0],[18.0,29.5],[8.0,29.5],[7.0,34.0]],
+      "coastalRegions": [
+        {"sourceGroup":"ITA","name":"Sicilia"},{"sourceGroup":"TUN","name":"Northern Tunisia"},{"sourceGroup":"TUN","name":"Cap Bon"},{"sourceGroup":"TUN","name":"Tunisian Sahel"},{"sourceGroup":"TUN","name":"Southern Tunisia"},{"sourceGroup":"LBY","name":"Tripolitania"}
+      ]
+    },
+    {
+      "id": "sea_levantine", "name": "Levantine Sea",
+      "polygon": [[26.5,37.8],[36.5,37.8],[36.5,30.0],[32.5,29.5],[27.0,30.0]],
+      "coastalRegions": [
+        {"sourceGroup":"TUR","name":"Lycia & Pamphylia"},{"sourceGroup":"TUR","name":"Cilicia"},
+        {"sourceGroup":"CYP","name":"Western Cyprus"},{"sourceGroup":"CYP","name":"Central Cyprus"},{"sourceGroup":"CYP","name":"Eastern Cyprus"},
+        {"sourceGroup":"SYR","name":"Ugarit Coast"},
+        {"sourceGroup":"LBN","name":"Northern Phoenician Coast"},{"sourceGroup":"LBN","name":"Central Phoenician Coast"},{"sourceGroup":"LBN","name":"Southern Phoenician Coast"},
+        {"sourceGroup":"ISR","name":"Upper Galilee"},{"sourceGroup":"ISR","name":"Carmel Coast"},{"sourceGroup":"ISR","name":"Sharon Plain"},{"sourceGroup":"ISR","name":"Central Canaan"},{"sourceGroup":"ISR","name":"Philistia"},
+        {"sourceGroup":"PSE","name":"Gaza Coast"},{"sourceGroup":"EGY","name":"Sinai & Suez"}
+      ]
+    },
+    {
+      "id": "sea_black", "name": "Black Sea",
+      "polygon": [[26.0,40.5],[42.5,40.5],[42.5,47.2],[26.0,47.2]],
+      "coastalRegions": [
+        {"sourceGroup":"TUR","name":"Thrace"},{"sourceGroup":"TUR","name":"Bithynia"},{"sourceGroup":"TUR","name":"North Anatolia"},{"sourceGroup":"TUR","name":"Pontus"},{"sourceGroup":"BGR","name":"Northern Bulgaria"}
+      ]
+    },
+    {
+      "id": "sea_northern_red", "name": "Northern Red Sea",
+      "polygon": [[31.5,30.5],[35.0,30.5],[44.0,22.0],[37.0,22.0],[33.0,26.0]],
+      "coastalRegions": [
+        {"sourceGroup":"EGY","name":"Egyptian Deserts"},{"sourceGroup":"EGY","name":"Sinai & Suez"}
+      ]
+    },
+    {
+      "id": "sea_persian_gulf", "name": "Persian Gulf",
+      "polygon": [[47.0,30.8],[51.0,30.5],[57.0,27.0],[56.0,24.0],[50.0,24.0],[47.0,28.0]],
+      "coastalRegions": [
+        {"sourceGroup":"IRQ","name":"Basra & Southern Desert"},{"sourceGroup":"IRN","name":"Elam"},{"sourceGroup":"IRN","name":"Persian Gulf Fringe"}
+      ]
+    }
   ]
 }
