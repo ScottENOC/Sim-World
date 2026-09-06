@@ -2,6 +2,7 @@ import { elapsedYears } from '../core/simTime.js?v=20260905-time1';
 import { startingCultureFor, START_YEAR } from './cultureSeeds.js?v=20260907-culture1';
 
 const identities = new Map();
+let cultureRevision = 1;
 const CULTURE_TICK_YEARS = 1;
 const BASE_ASSIMILATION_RATE = 0.012;
 const MIN_GROUP_SHARE = 0.0005;
@@ -37,17 +38,41 @@ function blendAncestry(a = {}, b = {}, weightA = 0.5) {
   return normaliseAncestry(out);
 }
 
-function registerIdentity(identity) {
+function ensureCultureState(region) {
+  if (!region.cultureState || typeof region.cultureState !== 'object') {
+    region.cultureState = {
+      elapsedYears: 0,
+      tickAccumulatorYears: 0,
+      isolationYears: 0,
+      polityYears: 0,
+      fusionIds: [],
+      branchIds: [],
+      identityArchive: [],
+    };
+  }
+  region.cultureState.fusionIds ||= [];
+  region.cultureState.branchIds ||= [];
+  region.cultureState.identityArchive ||= [];
+  return region.cultureState;
+}
+
+function registerIdentity(identity, originRegion = null) {
   if (!identity?.id) return null;
   if (!identities.has(identity.id)) identities.set(identity.id, { ...identity });
-  return identities.get(identity.id);
+  const stored = identities.get(identity.id);
+  if (originRegion) {
+    const state = ensureCultureState(originRegion);
+    if (!state.identityArchive.some((record) => record.id === stored.id)) state.identityArchive.push({ ...stored });
+  }
+  return stored;
 }
 
 export function culturalIdentity(identityId) {
   return identities.get(identityId) || null;
 }
 
-export function cultureHistory() {
+export function cultureHistory(regions = null) {
+  if (Array.isArray(regions)) for (const region of regions) ensureRegionCulture(region);
   return [...identities.values()].map((identity) => ({ ...identity }));
 }
 
@@ -63,15 +88,21 @@ function seedIdentity(region) {
     parentIds: [],
     parentWeights: {},
     originRegionId: region.id,
-  });
+  }, region);
+}
+
+function invalidateCulture(region) {
+  region._cultureRevision = cultureRevision++;
+  region._cultureAffinityCache = {};
 }
 
 export function initialiseRegionCulture(region) {
   if (!region) return null;
+  ensureCultureState(region);
   const identity = seedIdentity(region);
   region.cultureGroups = [{
     identityId: identity.id,
-    cultureId: identity.id, // backwards-compatible alias for older UI/save code
+    cultureId: identity.id,
     ancestryId: identity.id,
     ancestry: { [identity.id]: 1 },
     affiliations: [],
@@ -79,23 +110,25 @@ export function initialiseRegionCulture(region) {
     identityStrength: 0.25,
     cohabitationYears: 0,
   }];
-  region.cultureState = {
-    elapsedYears: 0,
-    tickAccumulatorYears: 0,
-    isolationYears: 0,
-    polityYears: 0,
-    fusionIds: [],
-    branchIds: [],
-  };
+  region.cultureState.elapsedYears = 0;
+  region.cultureState.tickAccumulatorYears = 0;
+  region.cultureState.isolationYears = 0;
+  region.cultureState.polityYears = 0;
+  region.cultureState.fusionIds = [];
+  region.cultureState.branchIds = [];
   region.cultureFamiliarity = {};
+  region._cultureReady = true;
+  invalidateCulture(region);
   return region.cultureGroups;
 }
 
 function ensureRegionCulture(region) {
+  if (region?._cultureReady && Array.isArray(region.cultureGroups) && region.cultureGroups.length > 0) return region.cultureGroups;
+  const state = ensureCultureState(region);
+  for (const record of state.identityArchive) registerIdentity(record);
   if (!Array.isArray(region.cultureGroups) || region.cultureGroups.length === 0 || !region.cultureGroups[0].identityId) {
-    initialiseRegionCulture(region);
+    return initialiseRegionCulture(region);
   }
-  if (!region.cultureState) region.cultureState = { elapsedYears: 0, tickAccumulatorYears: 0, isolationYears: 0, polityYears: 0, fusionIds: [], branchIds: [] };
   if (!region.cultureFamiliarity || typeof region.cultureFamiliarity !== 'object') region.cultureFamiliarity = {};
   for (const group of region.cultureGroups) {
     group.identityId ||= group.cultureId || group.ancestryId;
@@ -107,10 +140,12 @@ function ensureRegionCulture(region) {
     group.cohabitationYears = Math.max(0, Number(group.cohabitationYears) || 0);
     if (!identities.has(group.identityId)) {
       registerIdentity({ id: group.identityId, label: group.identityId, familyId: 'unknown', kind: 'recovered', confidence: 0.2,
-        createdYear: START_YEAR, parentIds: [], parentWeights: {}, originRegionId: region.id });
+        createdYear: START_YEAR, parentIds: [], parentWeights: {}, originRegionId: region.id }, region);
     }
   }
   normaliseGroups(region);
+  region._cultureReady = true;
+  invalidateCulture(region);
   return region.cultureGroups;
 }
 
@@ -148,9 +183,18 @@ export function cultureAffinity(regionA, regionB) {
   if (!regionA || !regionB) return 0.5;
   const groupsA = ensureRegionCulture(regionA);
   const groupsB = ensureRegionCulture(regionB);
+  regionA._cultureAffinityCache ||= {};
+  const cached = regionA._cultureAffinityCache[regionB.id];
+  if (cached && cached.aRevision === regionA._cultureRevision && cached.bRevision === regionB._cultureRevision) return cached.value;
   let affinity = 0;
   for (const a of groupsA) for (const b of groupsB) affinity += a.share * b.share * groupSimilarity(a, b);
-  return clamp01(affinity);
+  affinity = clamp01(affinity);
+  regionA._cultureAffinityCache[regionB.id] = {
+    aRevision: regionA._cultureRevision,
+    bRevision: regionB._cultureRevision,
+    value: affinity,
+  };
+  return affinity;
 }
 
 export function recordCulturalContact(regionA, regionB, weight = 1) {
@@ -175,9 +219,6 @@ export function cultureDiplomaticBias(regionA, regionB) {
 }
 
 function chronologicalIdentityFloor(calendarYear) {
-  // Tiny until the early-modern era, then rises smoothly. This is intentionally
-  // only a floor/stand-in: mass education, media and state institutions below
-  // are much more important than the date itself.
   if (calendarYear <= 1500) return 0;
   const t = clamp01((calendarYear - 1500) / 526);
   return 0.18 * t * t * t;
@@ -259,7 +300,7 @@ function maybeFusion(region, years, calendarYear) {
     parentIds: keyParents,
     parentWeights: { [a.identityId]: a.share / (a.share + b.share), [b.identityId]: b.share / (a.share + b.share) },
     originRegionId: region.id,
-  });
+  }, region);
   const seedShare = Math.min(0.03, a.share * 0.02 + b.share * 0.02);
   const wa = a.share / (a.share + b.share);
   a.share -= seedShare * wa;
@@ -290,7 +331,7 @@ function maybeBranch(region, years, calendarYear, regionsById) {
   const id = `branch_${region.id}_${Math.round(calendarYear)}_${group.identityId.slice(0, 10)}`;
   registerIdentity({ id, label: `${region.name} ${identity.label} branch`, familyId: identity.familyId,
     kind: 'branch', confidence: 1, createdYear: calendarYear, parentIds: [group.identityId],
-    parentWeights: { [group.identityId]: 1 }, originRegionId: region.id });
+    parentWeights: { [group.identityId]: 1 }, originRegionId: region.id }, region);
   group.identityId = id;
   group.cultureId = id;
   group.identityStrength = Math.max(0.25, group.identityStrength * 0.85);
@@ -308,7 +349,7 @@ function maybePolityAffiliation(region, years, calendarYear, regionsById) {
   const sovereign = regionsById.get(sovereignId);
   const id = `polity_identity_${sovereignId}`;
   if (!identities.has(id)) registerIdentity({ id, label: `${sovereign?.name || 'Polity'} common identity`, familyId: 'political',
-    kind: 'superidentity', confidence: 1, createdYear: calendarYear, parentIds: [], parentWeights: {}, originRegionId: sovereignId });
+    kind: 'superidentity', confidence: 1, createdYear: calendarYear, parentIds: [], parentWeights: {}, originRegionId: sovereignId }, sovereign || region);
   for (const group of ensureRegionCulture(region)) {
     if (!group.affiliations.includes(id)) group.affiliations.push(id);
   }
@@ -353,9 +394,11 @@ export function migrateCulture(origin, destination, count) {
     target.share += incomingShare;
   }
   normaliseGroups(destination);
+  invalidateCulture(destination);
 }
 
 export function tickCulture(regions, elapsedDays = 7) {
+  if (!Array.isArray(regions) || regions.length === 0) return [];
   const deltaYears = elapsedYears(elapsedDays);
   if (deltaYears <= 0) return [];
   const regionsById = new Map(regions.map((region) => [region.id, region]));
@@ -365,8 +408,6 @@ export function tickCulture(regions, elapsedDays = 7) {
     region.cultureState.elapsedYears += deltaYears;
     region.cultureState.tickAccumulatorYears += deltaYears;
   }
-  // Culture changes slowly: run the expensive graph/evolution pass annually,
-  // irrespective of whether the simulation itself is ticking daily or monthly.
   const yearsReady = Math.floor(Math.min(...regions.map((r) => r.cultureState.tickAccumulatorYears)) / CULTURE_TICK_YEARS) * CULTURE_TICK_YEARS;
   if (yearsReady < CULTURE_TICK_YEARS) return events;
   const calendarYear = START_YEAR + Math.max(...regions.map((r) => r.cultureState.elapsedYears));
@@ -378,6 +419,7 @@ export function tickCulture(regions, elapsedDays = 7) {
     maybeBranch(region, yearsReady, calendarYear, regionsById);
     maybePolityAffiliation(region, yearsReady, calendarYear, regionsById);
     strengthenIdentities(region, yearsReady, calendarYear);
+    invalidateCulture(region);
   }
   return events;
 }
