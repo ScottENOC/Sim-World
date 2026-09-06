@@ -15,6 +15,7 @@ from shapely.strtree import STRtree
 ROOT = Path(__file__).resolve().parents[1]
 INVENTORY = ROOT / 'tools' / 'map-source-inventory.json'
 PLAN = ROOT / 'tools' / 'map-region-plan.json'
+RESOURCE_PLAN = ROOT / 'tools' / 'map-resource-plan.json'
 BASE_GEO = ROOT / 'data' / 'world' / 'regions.geo.json'
 BASE_META = ROOT / 'data' / 'world' / 'regions.meta.json'
 BASE_RESOURCES = ROOT / 'data' / 'world' / 'resources.initial.json'
@@ -237,22 +238,96 @@ def add_land_adjacency(base_features, base_meta, new_regions):
         meta['neighbors'] = sorted(set(meta.get('neighbors', [])))
 
 
-def nearest_resource_template(centroid, base_meta, base_resources):
-    best = None
-    best_distance = float('inf')
-    for m in base_meta:
-        if m['id'] not in base_resources:
-            continue
-        d = haversine_km(centroid, m['centroid'])
-        if d < best_distance:
-            best_distance = d
-            best = base_resources[m['id']]
-    if best is None:
-        raise RuntimeError('No existing resource templates available')
-    return copy.deepcopy(best)
+DEPOSIT_CLASS_SPECS = {
+    'copper': {
+        'minor': (50000, 200000, 800000, 40, 120, 480),
+        'moderate': (180000, 720000, 2700000, 90, 300, 1600),
+        'major': (600000, 2400000, 9000000, 250, 800, 3500),
+        'very_major': (1500000, 6000000, 24000000, 600, 1800, 8000),
+    },
+    'tin': {
+        'trace': (5000, 20000, 80000, 12, 30, 100),
+        'minor': (15000, 60000, 240000, 20, 60, 200),
+        'moderate': (50000, 200000, 800000, 45, 140, 500),
+        'major': (140000, 560000, 2200000, 100, 300, 1100),
+        'very_major': (350000, 1400000, 5600000, 220, 700, 2500),
+    },
+    'gold': {
+        'minor': (15000, 30000, 60000, 25, 80, 180),
+        'moderate': (45000, 90000, 180000, 70, 180, 420),
+        'major': (120000, 240000, 600000, 160, 420, 1000),
+        'very_major': (300000, 600000, 1500000, 350, 900, 2200),
+    },
+    'ironOre': {
+        'minor': (2000000, 6000000, 20000000, 180, 700, 2500),
+        'moderate': (8000000, 24000000, 80000000, 650, 2500, 9000),
+        'major': (20000000, 60000000, 200000000, 1500, 6000, 22000),
+        'very_major': (50000000, 150000000, 500000000, 3500, 14000, 50000),
+    },
+    'stone': {
+        'minor': (20000000,),
+        'moderate': (90000000,),
+        'major': (250000000,),
+        'very_major': (700000000,),
+    },
+}
 
 
-def write_outputs(out_dir, base_geo, base_meta_doc, base_resources, new_regions):
+def make_deposit(resource_key, magnitude):
+    try:
+        spec = DEPOSIT_CLASS_SPECS[resource_key][magnitude]
+    except KeyError as exc:
+        raise RuntimeError(f'Unknown deposit class {resource_key}={magnitude!r}') from exc
+    if resource_key == 'stone':
+        return {'tiers': [{
+            'id': 'quarry', 'label': 'Quarrying', 'initialStock': spec[0],
+            'difficulty': 0.3, 'requiredTechId': None,
+            'maxWorkers': max(80, round(spec[0] / 37500)),
+        }]}
+    surface, shaft, deep, surface_workers, shaft_workers, deep_workers = spec
+    surface_label = {
+        'gold': 'Alluvial placer gold & shallow veins',
+        'ironOre': 'Surface outcrops & shallow iron workings',
+        'copper': 'Surface outcrops & shallow copper workings',
+        'tin': 'Cassiterite placers & shallow workings',
+    }[resource_key]
+    return {'tiers': [
+        {'id':'surface','label':surface_label,'initialStock':surface,'difficulty':0.45,
+         'requiredTechId':None,'maxWorkers':surface_workers},
+        {'id':'shaft','label':'Shaft mining','initialStock':shaft,'difficulty':0.60,
+         'requiredTechId':'shaft_mining','maxWorkers':shaft_workers},
+        {'id':'deep','label':'Deep mining (below water table)','initialStock':deep,'difficulty':0.75,
+         'requiredTechId':'mine_drainage','maxWorkers':deep_workers},
+    ]}
+
+
+def historical_resource_endowment(region, resource_plan):
+    iso = region['sourceGroup']
+    key = f"{iso}:{region['name']}"
+    default = resource_plan.get('defaultsByISO', {}).get(iso)
+    if default is None:
+        raise RuntimeError(f'{key}: no default historical resource profile for source group')
+    override = resource_plan.get('regions', {}).get(key, {})
+    profile = {**default, **{k: v for k, v in override.items() if k != 'deposits'}}
+    deposit_classes = override['deposits'] if 'deposits' in override else default.get('deposits', {})
+    for field in ('landQuality', 'forestFraction', 'forestStartCoverage'):
+        if field not in profile:
+            raise RuntimeError(f'{key}: historical resource profile missing {field}')
+    if profile['landQuality'] <= 0:
+        raise RuntimeError(f'{key}: landQuality must be positive')
+    if not 0 <= profile['forestFraction'] <= 1 or not 0 <= profile['forestStartCoverage'] <= 1:
+        raise RuntimeError(f'{key}: forest fractions must be between zero and one')
+    deposits = {resource: make_deposit(resource, magnitude)
+                for resource, magnitude in deposit_classes.items()}
+    return {
+        'landQuality': profile['landQuality'],
+        'forestFraction': profile['forestFraction'],
+        'forestStartCoverage': profile['forestStartCoverage'],
+        'deposits': deposits,
+    }
+
+
+def write_outputs(out_dir, base_geo, base_meta_doc, base_resources, new_regions, resource_plan):
     out_dir.mkdir(parents=True, exist_ok=True)
     base_ids = {f['properties']['id'] for f in base_geo['features']}
     new_ids = {r['id'] for r in new_regions}
@@ -262,7 +337,7 @@ def write_outputs(out_dir, base_geo, base_meta_doc, base_resources, new_regions)
     for r in new_regions:
         base_geo['features'].append({'type':'Feature','properties':{'id':r['id'],'name':r['name'],'sourceGroup':r['sourceGroup']},'geometry':mapping(r['geometry'])})
         base_meta_doc['regions'].append({'id':r['id'],'name':r['name'],'centroid':r['centroid'],'areaSqKm':r['areaSqKm'],'neighbors':r['neighbors']})
-        base_resources[r['id']] = nearest_resource_template(r['centroid'], base_meta_doc['regions'][:-1], base_resources)
+        base_resources[r['id']] = historical_resource_endowment(r, resource_plan)
     (out_dir / 'regions.geo.json').write_text(json.dumps(base_geo, ensure_ascii=False, separators=(',', ':')))
     (out_dir / 'regions.meta.json').write_text(json.dumps(base_meta_doc, ensure_ascii=False, separators=(',', ':')))
     (out_dir / 'resources.initial.json').write_text(json.dumps(base_resources, ensure_ascii=False, separators=(',', ':')))
@@ -278,6 +353,7 @@ def main():
     base_geo = json.loads(BASE_GEO.read_text())
     base_meta_doc = json.loads(BASE_META.read_text())
     base_resources = json.loads(BASE_RESOURCES.read_text())
+    resource_plan = json.loads(RESOURCE_PLAN.read_text())
     if len(base_geo.get('features', [])) != plan.get('targetExistingRegionCount'):
         raise RuntimeError(f"Base map has {len(base_geo.get('features', []))} regions; plan expected {plan.get('targetExistingRegionCount')}")
     new_regions = build_new_regions(plan, inventory)
@@ -287,7 +363,7 @@ def main():
     if args.fail_on_overlap and warnings:
         raise RuntimeError(f'{len(warnings)} significant overlaps among new game regions')
     add_land_adjacency(base_geo['features'], base_meta_doc['regions'], new_regions)
-    write_outputs(Path(args.output_dir), base_geo, base_meta_doc, base_resources, new_regions)
+    write_outputs(Path(args.output_dir), base_geo, base_meta_doc, base_resources, new_regions, resource_plan)
     isolated = [r['name'] for r in new_regions if not r['neighbors']]
     print(f'BASE_REGIONS={plan.get("targetExistingRegionCount")}')
     print(f'NEW_REGIONS={len(new_regions)}')

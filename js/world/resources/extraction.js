@@ -4,11 +4,11 @@
 // gets genuinely harder to work throttles fast). This never reaches into a
 // deeper tier on its own — that requires a tech unlock, handled by
 // selectActiveTier below, not by this formula getting "hard enough."
-// The static endowment file expresses relative geology. Calibration scales
-// accessible tin here so the same map data can support an approximately
-// eighty-year prosperous bronze economy before its shallow supply fails.
-export const SURFACE_TIN_STOCK_MULTIPLIER = 5.5;
-export const SURFACE_COPPER_STOCK_MULTIPLIER = 2;
+// Static endowments are the geology. Do not multiply deposits here to force
+// a desired boom/collapse duration; if realistic supply produces the wrong
+// macro-history, fix extraction, demand or trade rather than the map.
+export const SURFACE_TIN_STOCK_MULTIPLIER = 1;
+export const SURFACE_COPPER_STOCK_MULTIPLIER = 1;
 
 export function initialiseDeposit(resourceKey, deposit) {
   return {
