@@ -1,0 +1,27 @@
+name: Temporary historical benchmark
+on:
+  push:
+    branches: [benchmark-history-20260906]
+jobs:
+  history:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [305419896, 2959855665]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run 160-year calibration
+        run: node tools/calibrate.mjs --years 160 --seeds 1 --base-seed ${{ matrix.seed }} --snapshot-years 20 --days-per-tick 30 --regional-detail true --output history.json
+      - name: Print summary
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const r=JSON.parse(fs.readFileSync('history.json','utf8'));
+          for (const s of r.runs[0].timeline) console.log('SNAPSHOT '+JSON.stringify({year:s.year,pop:s.populationPct,trade:s.smoothedWeeklyTrade,foodImports:s.smoothedWeeklyFoodImports,tin:s.surfaceTinPct,copper:s.surfaceCopperPct,distressed:s.distressedRegions,bandits:s.bandits,raids:s.raidWindow,bronze:s.weeklyBronzeOutput,bronzeStock:s.bronzeStock,iron:s.ironRegions,readiness:s.averageMilitaryReadinessPct,foodDependent:s.foodDependentRegions,kingdoms:s.politics.kingdoms,subjects:s.politics.subjectRegions,writing:s.politics.writingPolities}));
+          console.log('ELAPSED='+r.elapsedSeconds);
+          NODE
