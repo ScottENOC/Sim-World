@@ -19,7 +19,7 @@ function baseLanguageFor(region) {
   // Sumerian remains important as a learned/liturgical language but is not treated
   // as the majority vernacular here.
   if ((lon >= 38 && lon <= 49 && lat >= 28 && lat <= 38) || ['sumer', 'babylon', 'assyria', 'zagros'].some((x) => name.includes(x))) {
-    return { id: 'akkadian', familyId: 'east-semitic', label: 'Akkadian and related East Semitic speech' };
+    return { id: 'akkadian', familyId: 'semitic', label: 'Akkadian and related East Semitic speech' };
   }
   // Levant
   if (lon >= 32 && lon < 38.5 && lat >= 29 && lat <= 38) {
