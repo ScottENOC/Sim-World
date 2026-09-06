@@ -26,16 +26,12 @@ jobs:
           function mulberry32(seed){let state=seed>>>0;return()=>{state|=0;state=state+0x6D2B79F5|0;let value=Math.imul(state^state>>>15,1|state);value=value+Math.imul(value^value>>>7,61|value)^value;return((value^value>>>14)>>>0)/4294967296;};}
           const rng=mulberry32(305419896);
           const initial=new Map();
-          for(const m of meta){const noise=0.85+rng()*0.3;const density=3*resources[m.id].landQuality*noise;initial.set(m.id,Math.round(m.areaSqKm*density));}
+          for(const m of meta){const noise=0.85+rng()*0.3;const q=Math.max(0,resources[m.id].landQuality||0);const density=3*(q>=1?q:q*q)*noise;initial.set(m.id,Math.round(m.areaSqKm*density));}
           const final=report.runs[0].timeline.at(-1).regional;
-          const rows=final.map(r=>{const base=r.id.replace(/__\d+$/,'');const start=initial.get(base)||1;return{...r,base,start,pct:+(100*r.population/start).toFixed(1),loss:start-r.population,group:base.split('_')[0],area:meta.find(m=>m.id===base)?.areaSqKm||0,landQuality:resources[base]?.landQuality||0};}).sort((a,b)=>a.pct-b.pct);
+          const rows=final.map(r=>{const base=r.id.replace(/__\d+$/,'');const start=initial.get(base)||1;return{...r,base,start,pct:+(100*r.population/start).toFixed(1),loss:start-r.population,area:meta.find(m=>m.id===base)?.areaSqKm||0,landQuality:resources[base]?.landQuality||0};}).sort((a,b)=>a.pct-b.pct);
           console.log('WORLD='+JSON.stringify({regions:report.configuration.actualRegions,popPct:report.runs[0].timeline.at(-1).populationPct,trade:report.runs[0].timeline.at(-1).smoothedWeeklyTrade,raids:report.runs[0].timeline.at(-1).raidWindow}));
           console.log('WORST_REGIONS');
           for(const r of rows.slice(0,30)) console.log(JSON.stringify({id:r.base,name:r.name,popPct:r.pct,start:r.start,pop:r.population,loss:r.loss,stability:r.stability,foodImports:r.weeklyFoodImports,foodDependence:r.foodImportDependence,area:Math.round(r.area),landQuality:r.landQuality}));
-          const groups=new Map();
-          for(const r of rows){const g=groups.get(r.group)||{start:0,end:0,count:0,weightedArea:0};g.start+=r.start;g.end+=r.population;g.count++;g.weightedArea+=r.area;groups.set(r.group,g);}
-          console.log('GROUPS');
-          for(const [group,g] of [...groups].sort((a,b)=>(a[1].end/a[1].start)-(b[1].end/b[1].start))) console.log(JSON.stringify({group,count:g.count,popPct:+(100*g.end/g.start).toFixed(1),start:g.start,end:g.end,area:Math.round(g.weightedArea)}));
           NODE
       - name: Run 100-year calibration
         run: node tools/calibrate.mjs --years 100 --seeds 1 --base-seed 2959855665 --snapshot-years 20 --days-per-tick 30 --regional-detail false --system-timing true --output history.json
@@ -45,6 +41,5 @@ jobs:
           import fs from 'node:fs';
           const r=JSON.parse(fs.readFileSync('history.json','utf8'));
           for(const s of r.runs[0].timeline) console.log('SNAPSHOT '+JSON.stringify({year:s.year,pop:s.populationPct,trade:s.smoothedWeeklyTrade,foodImports:s.smoothedWeeklyFoodImports,tin:s.surfaceTinPct,distressed:s.distressedRegions,bandits:s.bandits,raids:s.raidWindow,iron:s.ironRegions}));
-          console.log('TIMING '+JSON.stringify(r.runs[0].systemTiming||r.systemTiming||null));
           console.log('ELAPSED='+r.elapsedSeconds);
           NODE
