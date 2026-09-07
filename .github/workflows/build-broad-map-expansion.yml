@@ -2,7 +2,7 @@ name: Build broad Europe Middle East expansion
 
 on:
   push:
-    branches: [broad-europe-middle-east-expansion, cleanup-alpine-swiss-geography]
+    branches: [broad-europe-middle-east-expansion, cleanup-alpine-swiss-geography, cleanup-map-slivers-v1]
     paths:
       - '.github/workflows/build-broad-map-expansion.yml'
       - 'tools/build-map-expansion-v2.py'
@@ -63,29 +63,44 @@ jobs:
           res=json.load(open('data/world/resources.initial.json'))
           sea=json.load(open('data/world/seaRegions.meta.json'))['seaRegions']
           ids=[f['properties']['id'] for f in geo['features']]
+          idset=set(ids)
           mids=[m['id'] for m in meta]
+          by_id={m['id']:m for m in meta}
           sea_ids={m['id'] for m in sea}
-          assert len(ids)==len(set(ids)), 'duplicate land ids'
-          assert set(ids)==set(mids)==set(res), 'land/meta/resource ids differ'
-          assert len(ids)>598, 'expansion added no land beyond the live 598-region map'
+          assert len(ids)==627, f'expected polished 627-region map, got {len(ids)}'
+          assert len(ids)==len(idset), 'duplicate land ids'
+          assert idset==set(mids)==set(res), 'land/meta/resource ids differ'
+          for m in meta:
+              for n in m.get('neighbors',[]):
+                  assert n in idset, f'dead neighbour id {n} from {m["name"]}'
+                  assert m['id'] in by_id[n].get('neighbors',[]), f'non-reciprocal edge {m["name"]} -> {by_id[n]["name"]}'
           assert all(m.get('adjacentLand') for m in sea), 'sea without simulated coast'
+          assert all(set(m.get('adjacentLand',[])) <= idset for m in sea), 'sea references removed land region'
           assert 'sea_azov' in sea_ids, 'Sea of Azov was not generated'
           swiss=[f for f in geo['features'] if f.get('properties',{}).get('sourceGroup')=='CHE']
           assert len(swiss)==6, f'expected 6 Swiss gameplay regions, got {len(swiss)}'
-          names={m['id']:m['name'] for m in meta}
+          names={m['name'] for m in meta}
+          for keep in ('Oslo','Bahrain','Hiiu maakond','Saare maakond','Svalbard'):
+              assert keep in names, f'intentional small region lost: {keep}'
+          for gone in ('Poland','Belarus','Ukraine','Finland','Nord-Trøndelag','Sør-Trøndelag','Al Ahmadi','Al Jahrah','West Azarbaijan','Chukchi Autonomous Okrug'):
+              assert gone not in names, f'duplicate sliver survived: {gone}'
           haut=next(m for m in meta if m['name']=='Haut-Rhin')
-          assert all(names.get(n)!='Tirol hinterland' for n in haut['neighbors']), 'Haut-Rhin still falsely neighbours Tirol'
-          assert len(ids)==679, f'Alpine cleanup should add only 6 Swiss regions to 673; got {len(ids)} total'
+          assert all(by_id[n]['name']!='Tirol hinterland' for n in haut['neighbors']), 'Haut-Rhin still falsely neighbours Tirol'
+          azov=next(m for m in sea if m['id']=='sea_azov')
+          black=next(m for m in sea if m['id']=='sea_black')
+          assert len(azov['adjacentLand'])==5, f'unexpected Azov coastal count {len(azov["adjacentLand"])}'
           print('LAND_REGIONS='+str(len(ids)))
           print('SEA_REGIONS='+str(len(sea)))
           print('SWISS_REGIONS='+str(len(swiss)))
-          print('NEW_SWISS_REGIONS=6')
-          azov=next(m for m in sea if m['id']=='sea_azov')
-          black=next(m for m in sea if m['id']=='sea_black')
           print('AZOV_AREA_SQKM='+str(round(azov['areaSqKm'])))
           print('AZOV_COASTALS='+str(len(azov['adjacentLand'])))
           print('BLACK_SEA_AREA_SQKM='+str(round(black['areaSqKm'])))
+          small=[m for m in meta if str(m['id']).startswith('r2_') and m.get('areaSqKm',0)<2500]
+          print('SMALL_EXPANSION_REGIONS_AFTER='+str(len(small)))
+          for m in sorted(small,key=lambda x:x['areaSqKm']):
+              print(f'REMAINING_SMALL area={m["areaSqKm"]:.1f} name={m["name"]}')
           PY
+          grep -q 'SLIVER_COMPACTION removedRegions=0' /tmp/v2-land.log
           git diff --check
       - name: Commit generated map on expansion branch
         run: |
@@ -95,7 +110,7 @@ jobs:
           if git diff --cached --quiet; then
             echo 'Generated map already current'
           else
-            git commit -m 'Repair Alpine geography and add Switzerland'
+            git commit -m 'Polish residual map slivers'
             git pull --rebase
             git push
           fi
