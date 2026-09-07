@@ -20,7 +20,7 @@ import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFish
 import { startScoutingMission, tickScouting } from './core/scouting.js?v=20260906-scouting1';
 import { attitudeLabel, attitudeToward, canDiplomaticallyReach, endAgreement, proposeAgreement, syncNextAgreementId, tickDiplomacy } from './diplomacy/relations.js?v=20260904-save1';
 import { availableVassalLevies, changeGovernanceForm, demandVassalage, governanceFormAvailability, governanceLabel, initialisePolities, musterVassalLevies, polityById, setDelegatedPower, setGovernancePolicy, sovereignPolity, tickPolities } from './politics/polities.js?v=20260904-war1';
-import { SETTLEMENT_TYPES, acceptSettlementOffer, createConquestSettlementOffer, grantRegionalAutonomy, initialisePoliticalContinuity, plausibleGovernedRegions, rejectSettlementOffer, resolveNpcSettlement, tickPoliticalContinuity, transferRegion } from './politics/continuity.js?v=20260907-continuity1';
+import { SETTLEMENT_TYPES, acceptSettlementOffer, createConquestSettlementOffer, grantRegionalAutonomy, initialisePoliticalContinuity, lobbyForRestoration, plausibleGovernedRegions, rejectSettlementOffer, restorationBacking, resolveNpcSettlement, tickPoliticalContinuity, transferRegion } from './politics/continuity.js?v=20260907-continuity1';
 import { createGameSnapshot, readSave, restoreGameSnapshot, saveSummary, writeSave } from './core/saveGame.js?v=20260904-war1';
 import { syncNextCampaignId, tickCampaigns } from './military/campaigns.js?v=20260905-projects1';
 import { prepareConstructionLabor, syncNextProjectId, tickConstruction, tickInfrastructureMaintenance } from './economy/construction.js?v=20260905-projects1';
@@ -1080,20 +1080,43 @@ function renderSubjectRegionControls(region, regions, polities, clock, activeRai
 function renderExileGovernmentControls(hostRegion, regions, polities, playerPolity) {
   const state = playerPolity.continuity;
   const claims = plausibleGovernedRegions(playerPolity, regions, polities, 0.32).slice(0, 8);
+  const backing = restorationBacking(playerPolity);
+  const targets = polities.filter((candidate) => candidate.id !== playerPolity.id);
   document.getElementById('region-controls').innerHTML = `
     <div class="raid-status"><strong>Government in exile</strong><br>
       Your court is hosted in ${hostRegion.name}. You govern no local population here.<br>
       Exile community: ${Math.round(state.exilePopulation || 0).toLocaleString()} · legitimacy ${Math.round((state.legitimacy || 0) * 100)}%</div>
     <div class="raid-section"><strong>Restoration claims</strong>
       ${claims.length ? claims.map((item) => `<div class="raid-status">${item.region.name}: ${Math.round(item.score * 100)}% plausible restoration claim</div>`).join('') : '<div class="raid-status">No strong territorial claim remains.</div>'}
-      <div class="raid-status">Preserve legitimacy and cultivate allies. Rebellion, war or a negotiated liberation can restore territorial rule.</div>
+    </div>
+    <div class="raid-section"><strong>Diplomacy from exile</strong>
+      <label class="control-row">Lobby polity
+        <select id="exile-lobby-target">${targets.map((candidate) => `<option value="${candidate.id}">${candidate.name}</option>`).join('')}</select>
+      </label>
+      <button id="btn-exile-lobby">Seek recognition and restoration backing</button>
+      <div id="exile-lobby-status" class="raid-status">${backing.length ? backing.slice(0, 5).map((item) => `${polityById(polities, item.polityId)?.name || item.polityId}: ${Math.round(item.support * 100)}% backing`).join(' · ') : 'No foreign government has committed meaningful backing yet.'}</div>
+      <div class="raid-status">Backing does not create an army from nothing. It preserves diplomatic leverage for liberation, rebellion and restoration when a host or ally has the opportunity to act.</div>
     </div>`;
+  document.getElementById('btn-exile-lobby')?.addEventListener('click', () => {
+    const target = polityById(polities, document.getElementById('exile-lobby-target')?.value);
+    const result = lobbyForRestoration(playerPolity, target, regions);
+    const status = document.getElementById('exile-lobby-status');
+    if (status) status.textContent = result.success
+      ? `${target.name} restoration backing is now ${Math.round(result.support * 100)}%.`
+      : `Lobbying failed (${String(result.reason).replaceAll('_', ' ')}).`;
+  });
 }
 
 function showNextEvent(clock, eventQueue) {
   if (eventQueue.length === 0) return;
 
   const event = eventQueue.shift();
+  if (event.type === 'restoration_backing') {
+    document.getElementById('event-title').textContent = 'Foreign backing strengthens';
+    document.getElementById('event-body').textContent = `A host government now gives substantial backing to your restoration claim. This does not guarantee intervention, but makes future liberation or recognition much more plausible.`;
+    wireEventContinue(clock, eventQueue);
+    return;
+  }
   if (event.type === 'claimant_retreat') {
     document.getElementById('event-title').textContent = event.wasCapital ? 'The capital has fallen' : `${event.defenderName} is lost`;
     document.getElementById('event-body').textContent = event.defeatedPolityId === activePlayerPolityId

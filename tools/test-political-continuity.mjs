@@ -2,7 +2,7 @@
 import {
   initialisePoliticalContinuity, plausibleGovernanceScore, createConquestSettlementOffer,
   evaluateSettlementOffer, acceptSettlementOffer, rejectSettlementOffer,
-  transferRegion, grantRegionalAutonomy, canFactionContinue, resolvePartialConquest,
+  transferRegion, grantRegionalAutonomy, canFactionContinue, resolvePartialConquest, lobbyForRestoration, restorationBacking,
 } from '../js/politics/continuity.js';
 
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
@@ -65,6 +65,9 @@ const rejected = rejectSettlementOffer(rejectedOffer, polities, regions, 20, fal
 assert(rejected.exile && pHome.continuity.status === 'exile', 'Rejected settlement should preserve government in exile');
 assert(pHome.continuity.exilePopulation >= 25, 'Exile government should retain a small political community');
 assert(canFactionContinue(pHome, regions, polities), 'Loss of homeland must not immediately end faction');
+const lobby = lobbyForRestoration(pHome, pHost, regions);
+assert(lobby.success && lobby.support > 0, 'Exile government should be able to build foreign restoration support');
+assert(restorationBacking(pHome)[0]?.polityId === pHost.id, 'Restoration backing should persist by foreign polity');
 
 // Region can be liberated/returned to the exiled polity.
 const transfer = transferRegion(home, pConq, pHome, regions, polities, 30, 'liberation');

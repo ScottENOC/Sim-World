@@ -34,12 +34,14 @@ function ensureContinuity(polity) {
     historicalControl: {},
     acceptedSettlementIds: [],
     rejectedSettlementIds: [],
+    exileSupport: {},
     lastSettlementTick: null,
   };
   polity.continuity.claims ||= {};
   polity.continuity.historicalControl ||= {};
   polity.continuity.acceptedSettlementIds ||= [];
   polity.continuity.rejectedSettlementIds ||= [];
+  polity.continuity.exileSupport ||= {};
   return polity.continuity;
 }
 
@@ -302,6 +304,28 @@ export function grantRegionalAutonomy(region, amount = 0.1) {
   return { changed: true, previous, autonomy: region.governance.autonomy, relationship: region.governance.relationship };
 }
 
+export function lobbyForRestoration(exilePolity, targetPolity, regions) {
+  const state = ensureContinuity(exilePolity);
+  if (!state || state.status !== 'exile' || !targetPolity || targetPolity.id === exilePolity.id) return { success: false, reason: 'invalid_lobby' };
+  const anchor = culturalAnchor(exilePolity, regions);
+  const targetSeat = regions.find((r) => r.id === targetPolity.capitalRegionId);
+  if (!anchor || !targetSeat) return { success: false, reason: 'no_diplomatic_channel' };
+  const culture = cultureAffinity(anchor, targetSeat);
+  const attitude = clamp((attitudeToward(targetSeat, anchor.id) + 1) / 2);
+  const hostBonus = state.hostPolityId === targetPolity.id ? 0.08 : 0;
+  const gain = clamp(0.025 + culture * 0.055 + attitude * 0.045 + state.legitimacy * 0.04 + hostBonus, 0.02, 0.18);
+  state.exileSupport[targetPolity.id] = clamp((state.exileSupport[targetPolity.id] || 0) + gain);
+  state.legitimacy = clamp(state.legitimacy + gain * 0.015);
+  return { success: true, targetPolityId: targetPolity.id, gain, support: state.exileSupport[targetPolity.id] };
+}
+
+export function restorationBacking(exilePolity) {
+  const state = ensureContinuity(exilePolity);
+  return Object.entries(state.exileSupport || {})
+    .map(([polityId, support]) => ({ polityId, support: clamp(support) }))
+    .sort((a, b) => b.support - a.support);
+}
+
 export function tickPoliticalContinuity(polities, regions, elapsedYears = 0, currentTick = 0) {
   const events = [];
   for (const polity of polities) {
@@ -315,6 +339,15 @@ export function tickPoliticalContinuity(polities, regions, elapsedYears = 0, cur
       const support = hostSeat ? clamp((attitudeToward(hostSeat, state.seatRegionId || '') + 1) / 2) : 0;
       const yearlyDecay = host ? 0.004 : 0.014;
       state.legitimacy = clamp(state.legitimacy - yearlyDecay * elapsedYears + support * 0.002 * elapsedYears);
+      // NPC exile governments do not disappear into a passive timer: they use
+      // the same diplomatic support channel available to the player.
+      if (host && elapsedYears > 0) {
+        const gain = lobbyForRestoration(polity, host, regions);
+        if (gain.success && gain.support >= 0.7 && !state.restorationBackingAnnounced) {
+          state.restorationBackingAnnounced = true;
+          events.push({ type: 'restoration_backing', polityId: polity.id, hostPolityId: host.id, support: gain.support });
+        }
+      }
       state.exilePopulation = Math.max(5, Math.round(state.exilePopulation * Math.pow(host ? 0.995 : 0.97, elapsedYears)));
       if (sovereignRegions.length > 0) {
         state.status = 'claimant';
