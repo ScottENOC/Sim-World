@@ -2,7 +2,7 @@
 import {
   initialisePoliticalContinuity, plausibleGovernanceScore, createConquestSettlementOffer,
   evaluateSettlementOffer, acceptSettlementOffer, rejectSettlementOffer,
-  transferRegion, grantRegionalAutonomy, canFactionContinue,
+  transferRegion, grantRegionalAutonomy, canFactionContinue, resolvePartialConquest,
 } from '../js/politics/continuity.js';
 
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
@@ -35,6 +35,17 @@ pHome.continuity.claims[home.id] = 1; pHome.continuity.claims[refuge.id] = 0.95;
 pHome.continuity.legitimacy = 0.7;
 
 assert(plausibleGovernanceScore(pHome, home, regions, polities) > 0.7, 'Homeland should be strongly governable by former ruler');
+
+// Losing the capital while another sovereign region survives must move the court,
+// not vassalise or delete the whole polity.
+const partial = resolvePartialConquest(conquerorRegion, home, polities, regions, 5);
+assert(partial?.partial && partial.wasCapital, 'Capital loss should resolve as partial conquest');
+assert(pHome.continuity.status === 'claimant' && pHome.continuity.seatRegionId === refuge.id, 'Claimant court should retreat to surviving territory');
+assert(refuge.governance.sovereignPolityId === pHome.id, 'Surviving region must remain sovereign');
+assert(home.governance.sovereignPolityId === pConq.id, 'Lost capital should pass to conqueror');
+// Reset for last-region settlement tests.
+home.governance.sovereignPolityId = pHome.id; home.governance.relationship = 'core'; home.governance.localPolityId = pHome.id;
+pHome.capitalRegionId = home.id; pHome.rulerRegionId = home.id; pHome.continuity.status = 'sovereign'; pHome.continuity.seatRegionId = home.id;
 
 const offer = createConquestSettlementOffer(conquerorRegion, home, 'governor', polities, regions, 10);
 assert(offer && offer.defeatedPolityId === pHome.id, 'Conquest offer should identify defeated polity');

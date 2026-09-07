@@ -6,7 +6,7 @@ import { horseLandSpeedMultiplier, horseMilitaryMultiplier } from '../economy/ho
 import { advancedNavyShare, navyTransportCapacity } from './army.js?v=20260905-infra1';
 import { armyCohesionMultiplier, navalMissionProfile, postureProfile } from './policies.js?v=20260904-policy1';
 import { findLandStagingRegion, sovereignPolity } from '../politics/polities.js?v=20260904-war1';
-import { createConquestSettlementOffer, chooseNpcConquestOffer, resolveNpcSettlement } from '../politics/continuity.js?v=20260907-continuity1';
+import { createConquestSettlementOffer, chooseNpcConquestOffer, resolveNpcSettlement, resolvePartialConquest } from '../politics/continuity.js?v=20260907-continuity1';
 import { removeFromBands, syncPopulation } from '../society/demographics.js?v=20260904-weather1';
 import { effectiveInfrastructureCount, hillFortDefenceMultiplier, overlandInfrastructureMultiplier, settlementDefenceMultiplier } from '../economy/construction.js?v=20260905-projects1';
 import { returnSiegeTrain, survivingFortBenefit, takeSiegeTrain } from './siegeEquipment.js?v=20260905-siege1';
@@ -277,9 +277,17 @@ export function tickCampaigns(campaigns, regionsById, polities, currentTick, too
     if (campaign.phase === 'returning' && campaign.outcome === 'submission_pending' && !campaign.settlementResolved && !campaign.settlementQueued) {
       const attackerPolity = sovereignPolity(attacker, polities);
       const defenderPolity = sovereignPolity(defender, polities);
+      const partial = attackerPolity && defenderPolity
+        ? resolvePartialConquest(attacker, defender, polities, regionList, currentTick) : null;
+      if (partial) {
+        campaign.settlementResolved = true;
+        campaign.settlementQueued = true;
+        campaign.outcome = partial.wasCapital ? 'capital_lost' : 'region_lost';
+        events.push({ type: 'claimant_retreat', campaign, ...partial, attackerName: attacker.name, defenderName: defender.name });
+      }
       const playerPolityId = options.playerPolityId || null;
       const playerInvolved = playerPolityId && (attackerPolity?.id === playerPolityId || defenderPolity?.id === playerPolityId);
-      if (attackerPolity && defenderPolity && playerInvolved) {
+      if (!partial && attackerPolity && defenderPolity && playerInvolved) {
         const playerRole = attackerPolity.id === playerPolityId ? 'conqueror' : 'defeated';
         let offer = null;
         if (playerRole === 'defeated') {
@@ -290,7 +298,7 @@ export function tickCampaigns(campaigns, regionsById, polities, currentTick, too
         events.push({ type: 'settlement_required', campaign, attackerName: attacker.name, defenderName: defender.name,
           attackerId: attacker.id, defenderId: defender.id, attackerPolityId: attackerPolity.id,
           defenderPolityId: defenderPolity.id, playerRole, offer });
-      } else if (attackerPolity && defenderPolity) {
+      } else if (!partial && attackerPolity && defenderPolity) {
         const type = chooseNpcConquestOffer(attacker, defender, polities, regionList);
         const offer = createConquestSettlementOffer(attacker, defender, type, polities, regionList, currentTick);
         const result = resolveNpcSettlement(offer, polities, regionList, currentTick);

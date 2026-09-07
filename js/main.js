@@ -241,6 +241,13 @@ async function main() {
           attacker?.governance?.sovereignPolityId === playerPolityId ||
           defender?.governance?.sovereignPolityId === playerPolityId;
       });
+    for (const retreatEvent of campaignResult.events.filter((event) => event.type === 'claimant_retreat')) {
+      if (retreatEvent.defeatedPolityId === activePlayerPolityId && retreatEvent.newSeatRegionId) {
+        playerRegionId = retreatEvent.newSeatRegionId;
+        fogOfWar.setPlayerRegion(playerRegionId);
+        map.refreshLayer();
+      }
+    }
     for (const settlementEvent of campaignResult.events.filter((event) => event.type === 'settlement_required')) {
       const attacker = regionsById.get(settlementEvent.attackerId);
       const defender = regionsById.get(settlementEvent.defenderId);
@@ -284,6 +291,7 @@ async function main() {
       ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),
       ...campaignResult.events.filter((event) => {
         if (event.type === 'settlement_required') return event.attackerPolityId === activePlayerPolityId || event.defenderPolityId === activePlayerPolityId;
+        if (event.type === 'claimant_retreat') return event.conquerorPolityId === activePlayerPolityId || event.defeatedPolityId === activePlayerPolityId;
         const attacker = regionsById.get(event.campaign.attackerId);
         const defender = regionsById.get(event.campaign.defenderId);
         const playerPolity = activePlayerPolityId;
@@ -1086,6 +1094,16 @@ function showNextEvent(clock, eventQueue) {
   if (eventQueue.length === 0) return;
 
   const event = eventQueue.shift();
+  if (event.type === 'claimant_retreat') {
+    document.getElementById('event-title').textContent = event.wasCapital ? 'The capital has fallen' : `${event.defenderName} is lost`;
+    document.getElementById('event-body').textContent = event.defeatedPolityId === activePlayerPolityId
+      ? (event.wasCapital
+        ? `Your court and surviving claimant have retreated to another region under your control. ${event.defenderName} remains strongly claimed; losing the capital has changed your position, not ended the game.`
+        : `${event.defenderName} has been occupied, but your surviving polity continues elsewhere and retains a restoration claim.`)
+      : `${event.defenderName} has been occupied, but the defeated polity survives elsewhere as a claimant. The war has not erased it politically.`;
+    wireEventContinue(clock, eventQueue);
+    return;
+  }
   if (event.type === 'settlement_required') {
     const options = document.getElementById('event-options');
     const finish = (summary) => {
@@ -1135,6 +1153,8 @@ function showNextEvent(clock, eventQueue) {
       attacker_broke: 'Losses, poor supply and failing morale have broken the attacking army.',
       punitive_success: 'The punitive expedition has inflicted its intended damage and is withdrawing.',
       submission_pending: `${event.defenderName} has surrendered militarily; the political settlement is unresolved.`,
+      capital_lost: `${event.defenderName} has fallen, but the ruling faction has retreated to surviving territory.`,
+      region_lost: `${event.defenderName} has been occupied while the defending polity survives elsewhere.`,
       submission: `${event.defenderName} has surrendered and a political settlement has been reached.`,
       devastated: `${event.defenderName} has been devastated. The surviving attackers are withdrawing.`,
     };
