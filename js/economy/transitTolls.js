@@ -1,15 +1,18 @@
 import { CHOKEPOINTS } from '../world/chokepoints.js?v=20260907-chokepoints1';
 import { effectiveInfrastructureCount, operationalInfrastructure } from './construction.js?v=20260905-projects1';
-import { changeAttitude, relationToward } from '../diplomacy/relations.js?v=20260904-save1';
+import { attitudeToward, changeAttitude, relationToward } from '../diplomacy/relations.js?v=20260904-save1';
 import { tradeActorId } from './tradePolicy.js?v=20260905-policy1';
 
 const MAX_TOLL_RATE = 0.20;
 const MAX_TOTAL_ROUTE_TOLL_RATE = 0.30;
 const CONTROL_ONSET = 0.28;
 const CONTROL_MARGIN = 0.05;
+const STRONG_CONTROL = 0.55;
+const BLOCKADE_CONTROL = 0.78;
 const EXPERIENCE_YEARS = 3;
 const EXPERIENCE_DECAY_YEARS = 8;
 const TOLL_MEMORY_HALF_LIFE_WEEKS = 156;
+const ACCESS_MODES = new Set(['open', 'hostile', 'closed']);
 
 const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
 const clamp = (value, low, high) => Math.max(low, Math.min(high, Number(value) || 0));
@@ -29,7 +32,10 @@ function ensureTransitState(region) {
 
 function ensureChokepointPolicy(region, id) {
   const state = ensureTransitState(region);
-  if (!state.policies[id]) state.policies[id] = { rate: 0, alliesFree: true, exemptActorIds: [] };
+  if (!state.policies[id]) state.policies[id] = {
+    rate: 0, alliesFree: true, exemptActorIds: [], access: 'open',
+  };
+  if (!ACCESS_MODES.has(state.policies[id].access)) state.policies[id].access = 'open';
   return state.policies[id];
 }
 
@@ -77,7 +83,8 @@ export function tickTransitControl(regions, elapsedDays = 7) {
     const near = new Set(chokepointsNearRegion(region).map((item) => item.id));
     for (const definition of Object.values(CHOKEPOINTS)) {
       const local = state.chokepoints[definition.id] || { experience: 0, potential: 0 };
-      if (near.has(definition.id)) {
+      local.near = near.has(definition.id);
+      if (local.near) {
         const infrastructure = infrastructureSignal(region);
         const fleet = fleetSignal(region);
         const active = clamp01(infrastructure * 0.52 + fleet * 0.68);
@@ -86,7 +93,7 @@ export function tickTransitControl(regions, elapsedDays = 7) {
         local.experience += (active - local.experience) * (active > local.experience ? gain : decay);
         local.infrastructure = infrastructure;
         local.fleet = fleet;
-        local.potential = clamp01((infrastructure * 0.45 + fleet * 0.40 + local.experience * 0.15));
+        local.potential = clamp01(infrastructure * 0.45 + fleet * 0.40 + local.experience * 0.15);
       } else {
         const decay = 1 - Math.exp(-years / EXPERIENCE_DECAY_YEARS);
         local.experience += (0 - local.experience) * decay;
@@ -140,12 +147,15 @@ export function chokepointControlSnapshot(id, regions = []) {
   return { id, label: definition.label, controlled, controller: controlled ? leader : null, contenders };
 }
 
-export function setChokepointTollPolicy(region, id, { rate = 0, alliesFree = true, exemptActorIds = [] } = {}) {
+export function setChokepointTollPolicy(region, id, {
+  rate = 0, alliesFree = true, exemptActorIds = [], access = 'open',
+} = {}) {
   if (!CHOKEPOINTS[id]) return null;
   const policy = ensureChokepointPolicy(region, id);
   policy.rate = clamp(rate, 0, MAX_TOLL_RATE);
   policy.alliesFree = alliesFree !== false;
   policy.exemptActorIds = [...new Set((exemptActorIds || []).filter(Boolean))];
+  policy.access = ACCESS_MODES.has(access) ? access : 'open';
   return policy;
 }
 
@@ -193,12 +203,14 @@ function roadRateForTransit(origin, pathIds, regionsById, agreements) {
     charges.push({ kind: 'road', controllerRegionId: region.id, controllerActor, rate });
     total += rate;
   }
-  return { rate: Math.min(MAX_TOTAL_ROUTE_TOLL_RATE, total), charges };
+  return { rate: Math.min(MAX_TOTAL_ROUTE_TOLL_RATE, total), charges, reliabilityMultiplier: 1, blocked: false };
 }
 
 function seaRateForTransit(origin, passageIds, regions, regionsById, agreements) {
   const payerActor = tradeActorId(origin);
   let total = 0;
+  let reliabilityMultiplier = 1;
+  let blocked = false;
   const charges = [];
   for (const passageId of passageIds || []) {
     const snapshot = chokepointControlSnapshot(passageId, regions);
@@ -207,18 +219,31 @@ function seaRateForTransit(origin, passageIds, regions, regionsById, agreements)
     const controllerRegion = regionsById.get(controller.controllerRegionId);
     if (!controllerRegion) continue;
     const policy = chokepointTollPolicy(controllerRegion, passageId);
-    if (policyExempts(policy, payerActor, controller.actorId, agreements, regionsById)) continue;
-    const enforcement = clamp01((controller.score - CONTROL_ONSET) / (1 - CONTROL_ONSET) * 0.75 + 0.25);
-    const rate = policy.rate * enforcement;
-    if (rate <= 0) continue;
-    charges.push({ kind: 'chokepoint', passageId, controllerRegionId: controllerRegion.id, controllerActor: controller.actorId, rate });
-    total += rate;
+    const exempt = policyExempts(policy, payerActor, controller.actorId, agreements, regionsById);
+    if (!exempt) {
+      const enforcement = clamp01((controller.score - CONTROL_ONSET) / (1 - CONTROL_ONSET) * 0.75 + 0.25);
+      const rate = policy.rate * enforcement;
+      if (rate > 0) {
+        charges.push({ kind: 'chokepoint', passageId, controllerRegionId: controllerRegion.id, controllerActor: controller.actorId, rate });
+        total += rate;
+      }
+      const hostile = attitudeToward(controllerRegion, origin.id) <= -0.5;
+      const shouldInterdict = policy.access === 'closed' || (policy.access === 'hostile' && hostile);
+      if (shouldInterdict && controller.score >= STRONG_CONTROL) {
+        const interdiction = clamp01((controller.score - STRONG_CONTROL) / (1 - STRONG_CONTROL));
+        reliabilityMultiplier *= Math.max(0.18, 1 - interdiction * 0.72);
+        if (controller.score >= BLOCKADE_CONTROL && (policy.access === 'closed' || hostile)) blocked = true;
+      }
+    }
   }
-  return { rate: Math.min(MAX_TOTAL_ROUTE_TOLL_RATE, total), charges };
+  return {
+    rate: Math.min(MAX_TOTAL_ROUTE_TOLL_RATE, total), charges,
+    reliabilityMultiplier: clamp01(reliabilityMultiplier), blocked,
+  };
 }
 
 export function estimateTransitToll(origin, route, regions, regionsById, agreements = []) {
-  if (!route) return { rate: 0, charges: [] };
+  if (!route) return { rate: 0, charges: [], reliabilityMultiplier: 1, blocked: false };
   return route.mode === 'sea'
     ? seaRateForTransit(origin, route.passageIds || [], regions, regionsById, agreements)
     : roadRateForTransit(origin, route.pathIds || [], regionsById, agreements);
