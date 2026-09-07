@@ -33,26 +33,26 @@ Status meanings:
 | Feature | Status | Notes |
 | --- | --- | --- |
 | Seasonal/spatially correlated weather and food shocks | MERGED | Long-history calibration still ongoing. |
-| Persistent merchant ventures and route learning | BUILT/PREVIEW | Implemented on `collapse-trade-raiding-language-v1`; being ported onto the 418-region world for recalibration. |
+| Persistent merchant ventures and route learning | BUILT/PREVIEW | Implemented on `collapse-trade-raiding-language-v1`; being recalibrated on the 418-region world. |
 | Stale merchant price/reliability knowledge | BUILT/PREVIEW | Same branch; intended to stop omniscient weekly route switching. |
-| Merchant route habit/inertia | BUILT/PREVIEW | Same branch; first 283-region run made trade too sticky, so not yet merge-ready. |
-| Trade performance optimisation | MERGED | Trade remains the dominant subsystem at roughly half of the 418-world tick budget and needs another optimisation pass. |
-| Bronze/tin collapse trajectory | TESTED | 418-world runs show substantial tin depletion and bronze-output decline, but population distress begins too early; must recalibrate before calling this historical trajectory complete. |
+| Merchant route habit/inertia | BUILT/PREVIEW | Same branch; candidate-market starvation bug fixed in calibration work, but not yet merge-ready. |
+| Trade performance optimisation | MERGED | Trade remains the dominant subsystem and needs another optimisation pass. |
+| Bronze/tin collapse trajectory | TESTED | 418-world runs materially changed the trajectory; further trade/raiding calibration remains. |
 
 ## Society, culture and language
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Basic culture-group seed | MERGED | Legacy one-culture-per-region seed on `main`; superseded on `culture-identity-v1` by historically cautious 1300 BCE identities/traditions. |
-| Historical 1300 BCE culture families | BUILT/PREVIEW | `culture-identity-v1`: attested identities where defensible (Egyptian, Assyrian, Babylonian, Mycenaean, Hittite/Luwian, Canaanite etc.) and broad archaeological/regional traditions with confidence markers elsewhere. |
-| Dynamic branching / fusion / assimilation | BUILT/PREVIEW | `culture-identity-v1`: active identity is distinct from ancestry; cultures can branch, merge, assimilate and retain parentage/ancestry. Evolution runs annually rather than every simulation tick. |
-| Layered political/super-identities | BUILT/PREVIEW | `culture-identity-v1`: long-lived multi-region polities can add a shared affiliation without deleting local identities, enabling English+British-style identity layering later. |
-| Diaspora-aware migration | BUILT/PREVIEW | `culture-identity-v1`: famine migration now carries identity and ancestry into destination cohorts rather than moving anonymous population only. |
-| Culture effects on diplomacy/trade | BUILT/PREVIEW | `culture-identity-v1`: cultural affinity is a modest diplomatic/trade trust term; repeated trade builds familiarity and largely overcomes cultural distance. |
-| Era/institution-dependent assimilation resistance | BUILT/PREVIEW | `culture-identity-v1`: identity strength, identity age, education/archives/state institutions and future mass-schooling/print/media/internet capabilities progressively reduce assimilation; chronological floor is negligible before early modernity and satisfies Bronze Age < 1926 < 1976 < 2026. |
-| Recognition / integration / expulsion policy | DESIGNED | Still to implement as explicit government policy controls on top of the identity engine. |
-| Spoken-language families and trade communication | BUILT/PREVIEW | Implemented on `collapse-trade-raiding-language-v1`; being ported to the 418-world calibration branch. |
-| Historical starting maritime competence | DESIGNED | Seamanship learning-by-doing is live, but established maritime societies currently begin effectively at zero inherited maritime experience. Seed historically appropriate competence after geography calibration. |
+| Historical 1300 BCE culture families | MERGED | Attested identities where defensible (Egyptian, Assyrian, Babylonian, Mycenaean, Hittite/Luwian, Canaanite etc.) and broad archaeological/regional traditions with confidence markers elsewhere. |
+| Dynamic branching / fusion / assimilation | MERGED | Active identity is distinct from ancestry; cultures can branch, merge and assimilate while lineage/ancestry remains queryable. Evolution runs annually. |
+| Layered political/super-identities | MERGED | Long-lived multi-region polities can add shared affiliations without deleting local identities. |
+| Diaspora-aware migration | MERGED | Migration carries identity and ancestry into destination cohorts rather than moving anonymous population only. |
+| Culture effects on diplomacy/trade | MERGED | Cultural affinity is a modest diplomatic/trade trust term; repeated contact builds familiarity. |
+| Causal assimilation resistance | MERGED | No date-based modernity bonus. Resistance comes from cultural memory, writing/archives, education, mass communication, rights/rule-of-law institutions, genuine identity age and persecution memory. |
+| Coercive cultural-policy constraint | MERGED | Separate from assimilation resistance; domestic rights, international norms/law and external enforcement risk can constrain forced cultural policies. Historical norm-generation remains future work. |
+| Recognition / integration / expulsion policy | DESIGNED | Explicit government policy controls still need to be built on top of the culture engine. |
+| Spoken-language families and trade communication | BUILT/PREVIEW | Implemented on `collapse-trade-raiding-language-v1`; awaiting 418-world composition/calibration. |
+| Historical starting maritime competence | DESIGNED | Seamanship learning-by-doing is live, but established maritime societies still need historically inherited starting competence. |
 
 ## Religion
 
@@ -60,41 +60,49 @@ Status meanings:
 | --- | --- | --- |
 | Religion families, variants and spread modes | MERGED | Local, organised and missionary spread modes supported. |
 | State/organised religion and deliberate forks | MERGED | Organised centres and deliberate missionary variants supported. |
-| Education/writing integration with organised religion | BUILT/PREVIEW | Exists on the open education/scribes branch; requires performance/correctness review before merge. |
+| Education/writing integration with organised religion | MERGED | Scribal education/writing work was merged via PR #2. |
 
 ## Education, writing and administration
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Scribal education / writing / archives | BUILT/PREVIEW | Open PR #2. Includes student/scribe cohorts, writing diffusion, recorded practical knowledge and archive maturity. |
-| Scribal administration / advisor-information coupling | BUILT/PREVIEW | Open PR #2. Needs targeted performance and correctness tests before merge. |
-| Written commercial records / organised-religion literacy coupling | BUILT/PREVIEW | Open PR #2. Needs cleanup of some post-processing/monkeypatch integration before merge. |
+| Scribal education / writing / archives | MERGED | Student/scribe cohorts, writing diffusion, recorded practical knowledge and archive maturity are live. |
+| Scribal administration / advisor-information coupling | MERGED | Administrative writing/archives feed institutional capability. |
 | Ancient education economic cost / specialist allocation | DESIGNED | Students/scribes are not yet fully charged as labour/upkeep or explicitly allocated between government, temple, commerce and scholarship. |
 
 ## Politics, war and population movement
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Polities / occupation / administration | MERGED | Existing polity system live. |
+| Polities / occupation / administration | MERGED | Existing polity, vassal and provincial administration system live. |
+| Player political faction separate from current region/seat | TESTED | `political-continuity-v1`: player identity persists across capital loss, vassalage and exile; save files retain both player polity and current seat. |
+| Claimant retreat after partial conquest | TESTED | Losing a capital while another sovereign region survives moves the court/heir to a temporary capital; lost territory remains strongly claimed rather than ending the run. |
+| Negotiated post-conquest settlements | TESTED | Conqueror chooses terms; defeated polity separately accepts or rejects. Old ruler can remain a vassal/governor/reduced ruler, adding legitimacy to the conqueror, or refuse and continue as a claimant. NPCs use the same settlement evaluation. |
+| Governments in exile | TESTED | A landless faction can survive with a small exile community, host polity, territorial claims and legitimacy rather than disappearing when its last region falls. |
+| Exile diplomacy / restoration backing | TESTED | Player and NPC exile governments can build foreign recognition/restoration support. Support is persistent political capital; direct military intervention from backing is a future extension. |
+| Liberation / gifting of regions | TESTED | Sovereign rulers can transfer territory to another polity with a plausible historical/cultural claim; strong claims are treated as liberation. |
+| Gradual regional autonomy | TESTED | Rulers can increase subject autonomy; sufficiently autonomous provinces become delegated/vassal relationships. NPCs review strained subjects annually and can grant autonomy or liberate territory to a substantially stronger claimant. |
+| Faction extinction / true defeat | TESTED | Continuity model only marks a political faction extinct when it has no territorial continuation and legitimacy/support has collapsed. Final defeat UI is not yet implemented. |
 | Famine migration | MERGED | Destination choice responds to known regions, food price, stability, density and route cost. |
-| War-time displacement / migration | MERGED | Previous temporary migration patches were incorporated then cleaned up. |
-| Collapse-driven organised raiding | BUILT/PREVIEW | AI motivation changes exist on `collapse-trade-raiding-language-v1`, but calibration still produced effectively zero successful raids. Must fix before merge. |
-| Era-dependent assimilation difficulty | BUILT/PREVIEW | Implemented in the culture engine; explicit state assimilation/integration policies remain future work. |
+| War-time displacement / migration | MERGED | War displacement is live. |
+| Collapse-driven organised raiding | BUILT/PREVIEW | AI motivation changes exist on `collapse-trade-raiding-language-v1`; still needs calibration before merge. |
+| Flourishing / Golden Age / campaign retirement | DESIGNED | Intended eventual alternative to a conventional victory screen. World conquest should create an administration problem, not auto-victory. |
 
 ## Performance targets and latest measurements
 
 - Target simulation budget: approximately **150 ms per 30-day tick** on the calibration runner.
-- Current 418-region world: approximately **165 ms/tick** in the latest subsystem benchmark.
-- Trade remains the largest cost, around **78 ms/tick**; economy is the next largest at roughly **35 ms/tick**.
-- 2,830-region stress test: approximately **1.09 s/tick**.
-- Culture evolution is intentionally annual and uses cached cohort/affinity state; targeted performance tests live in `tools/test-culture.mjs` on the culture branch.
+- Current 418-region world benchmark before the newest political work: approximately **165 ms/tick**.
+- Trade remains the largest cost, followed by economy.
+- 2,830-region stress test: approximately **1.09 s/tick** in the last comparable run.
+- Culture evolution is annual and cached; political continuity is also slow-cadence rather than an every-region hot-path system.
 
 ## Current active work
 
-1. Validate `culture-identity-v1` on the 418-region world, including long-run identity proliferation, migration mixing, assimilation hardening and simulation performance.
-2. Rebase/compose the validated culture branch with the separately calibrated population/trade/language/raiding work rather than silently mixing experimental branches.
-3. Add explicit recognition/integration/assimilation policy controls after the identity engine is stable.
+1. Merge and exercise political continuity/vassal/exile gameplay if the tested branch remains clean.
+2. Compose the validated population/trade/language/raiding calibration work with current `main` rather than merging stale branch history blindly.
+3. Add explicit recognition/integration/assimilation cultural-policy controls.
 4. Seed historically inherited maritime competence once the base economy/geography is stable.
+5. Later: make foreign restoration backing capable of producing actual liberation interventions when military/diplomatic conditions allow, and add the optional flourishing/legacy retirement layer.
 
 ## Handover rule
 
