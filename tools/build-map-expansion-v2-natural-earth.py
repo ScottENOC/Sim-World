@@ -3,6 +3,8 @@
 
 A single admin-1 dataset is sufficient because modern subdivisions are only raw
 geometry ingredients. Existing Sim-World land is subtracted before clustering.
+The configured target count is a minimum baseline: after this expansion has
+already generated regions, rerunning the builder is safe and adds nothing twice.
 """
 import importlib.util
 import json
@@ -20,7 +22,7 @@ spec.loader.exec_module(map_v2)
 
 ADMIN1_URL = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_1_states_provinces.geojson'
 HOST_ISO = {'VAT':'ITA', 'SMR':'ITA', 'MCO':'FRA', 'LIE':'CHE'}
-ALIASES = {'KOS': {'KOS','XKX'}, 'PSE': {'PSE','PSX'}}
+ALIASES = {'KOS': {'KOS','XKX'}, 'PSE': {'PSE','PSX'}, 'ESH': {'ESH','SAH'}}
 _admin1_cache = None
 
 
@@ -43,6 +45,9 @@ def country_masks_with_hosts(admin0, wanted):
     for iso in list(wanted):
         if iso in HOST_ISO:
             expanded.add(HOST_ISO[iso])
+    # Natural Earth sometimes uses its own ADM0 code for special territories.
+    for iso in list(wanted):
+        expanded.update(ALIASES.get(iso, set()))
     return original_country_masks(admin0, expanded)
 
 
@@ -51,6 +56,12 @@ def absorb_microstates_hosted(base_geo, base_meta, masks, specs):
     for item in specs:
         iso = item['iso']
         micro = masks.get(iso)
+        # If the mask was indexed under a Natural Earth alias, recover it.
+        if micro is None:
+            for alias in ALIASES.get(iso, set()):
+                micro = masks.get(alias)
+                if micro is not None:
+                    break
         host = masks.get(HOST_ISO.get(iso))
         if micro is None or host is None or micro.is_empty or host.is_empty:
             print(f'MICROSTATE_WARN missing {iso} or host geometry')
@@ -100,8 +111,6 @@ def source_features_natural_earth(country, mask, existing_coverage):
     accepted = {iso} | ALIASES.get(iso, set())
 
     candidates = []
-    # Tiny countries and explicit ADM0 requests are best represented from the
-    # country polygon itself rather than trying to invent subnational detail.
     if country.get('level') == 'ADM0':
         if mask is not None:
             candidates = [(country['name'], mask)]
@@ -112,7 +121,6 @@ def source_features_natural_earth(country, mask, existing_coverage):
             p = f.get('properties') or {}
             name = str(p.get('name') or p.get('name_en') or p.get('gn_name') or country['name'])
             candidates.append((name, map_v2.clean(shape(f['geometry']))))
-        # Some micro/small countries have no admin-1 features in Natural Earth.
         if not candidates and mask is not None:
             candidates = [(country['name'], mask)]
 
@@ -133,6 +141,23 @@ def source_features_natural_earth(country, mask, existing_coverage):
     return pieces
 
 
+def make_runtime_plan_idempotent():
+    configured = json.loads(Path(map_v2.PLAN).read_text())
+    baseline = int(configured.get('targetExistingRegionCount', 0))
+    live_geo = json.loads(Path(map_v2.BASE_GEO).read_text())
+    current = len(live_geo.get('features', []))
+    if current < baseline:
+        raise RuntimeError(f'Base map has {current} regions; expansion requires at least {baseline}')
+    if current == baseline:
+        return
+    runtime = dict(configured)
+    runtime['targetExistingRegionCount'] = current
+    runtime_path = Path('/tmp/simworld-map-region-plan-v2-runtime.json')
+    runtime_path.write_text(json.dumps(runtime, ensure_ascii=False, indent=2) + '\n')
+    map_v2.PLAN = runtime_path
+    print(f'IDEMPOTENT_REBASE configured={baseline} current={current}')
+
+
 original_country_masks = map_v2.country_masks
 map_v2.fetch_json = fetch_json_retry
 map_v2.country_masks = country_masks_with_hosts
@@ -140,4 +165,5 @@ map_v2.absorb_microstates = absorb_microstates_hosted
 map_v2.source_features = source_features_natural_earth
 
 if __name__ == '__main__':
+    make_runtime_plan_idempotent()
     map_v2.main()
