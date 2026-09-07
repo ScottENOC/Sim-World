@@ -19,7 +19,10 @@ map_v2 = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(map_v2)
 
 PIN = '9469f09'
-DIRECT = ('https://raw.githubusercontent.com/wmgeolab/geoBoundaries/' + PIN +
+# Use github.com/.../raw rather than raw.githubusercontent.com. The repository
+# stores these geometries in Git LFS; this URL form resolves the LFS object,
+# matching the source URLs already recorded for the 418-region expansion.
+DIRECT = ('https://github.com/wmgeolab/geoBoundaries/raw/' + PIN +
           '/releaseData/gbOpen/{iso}/{level}/geoBoundaries-{iso}-{level}_simplified.geojson')
 HOST_ISO = {'VAT':'ITA', 'SMR':'ITA', 'MCO':'FRA', 'LIE':'CHE'}
 
