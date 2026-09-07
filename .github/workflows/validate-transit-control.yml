@@ -1,0 +1,56 @@
+name: Validate transit control
+
+on:
+  push:
+    branches: [chokepoint-control-v1]
+    paths:
+      - '.github/workflows/validate-transit-control.yml'
+      - 'tools/apply-transit-control-patch.py'
+      - 'tools/apply-chokepoint-trade-patch.py'
+      - 'js/economy/transitTolls.js'
+      - 'js/world/chokepoints.js'
+      - 'js/economy/trade.js'
+      - 'js/economy/construction.js'
+      - 'js/ai/nationAi.js'
+      - 'js/ui/advisors.js'
+      - 'js/main.js'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply source integration
+        run: |
+          python tools/apply-chokepoint-trade-patch.py
+          python tools/apply-transit-control-patch.py
+      - name: Validate JavaScript and patches
+        run: |
+          python -m py_compile tools/apply-chokepoint-trade-patch.py tools/apply-transit-control-patch.py
+          node --check js/world/chokepoints.js
+          node --check js/economy/transitTolls.js
+          node --check js/economy/trade.js
+          node --check js/economy/construction.js
+          node --check js/ai/nationAi.js
+          node --check js/ui/advisors.js
+          node --check js/main.js
+          git diff --check
+      - name: Commit materialised integration
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/economy/trade.js js/economy/construction.js js/ai/nationAi.js js/ui/advisors.js js/main.js
+          if git diff --cached --quiet; then
+            echo 'Transit integration already materialised'
+          else
+            git commit -m 'Wire chokepoint control and transit tolls into simulation'
+            git pull --rebase
+            git push
+          fi
