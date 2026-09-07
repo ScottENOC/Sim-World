@@ -140,7 +140,8 @@ export function urbanCapacity(region) {
   const market = effectiveInfrastructureCount(region, 'market_customs');
   const admin = effectiveInfrastructureCount(region, 'administrative_centre');
   const harbour = effectiveInfrastructureCount(region, 'harbour');
-  const waterCap = 1800 + wells * 4500 + irrigation * 2200 + canal * 7000 + aqueduct * 18000;
+  const leadPlumbingCoverage = clamp01(region.externalities?.adoption?.leadPlumbing?.coverage || 0);
+  const waterCap = 1800 + wells * 4500 + irrigation * 2200 + canal * 7000 + aqueduct * 18000 + leadPlumbingCoverage * 9000;
   const sanitationCap = 5000 + wells * 2500 + drainage * 18000 +
     (region.unlockedTechIds.has(URBAN_DRAINAGE_TECH_ID) ? 3500 : 0);
   const economyCap = 2500 + market * 7000 + admin * 9000 + harbour * 6500 + Math.sqrt(pop) * 45;
