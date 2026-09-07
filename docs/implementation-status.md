@@ -79,7 +79,7 @@ Status meanings:
 | Claimant retreat after partial conquest | TESTED | Losing a capital while another sovereign region survives moves the court/heir to a temporary capital; lost territory remains strongly claimed rather than ending the run. |
 | Negotiated post-conquest settlements | TESTED | Conqueror chooses terms; defeated polity separately accepts or rejects. Old ruler can remain a vassal/governor/reduced ruler, adding legitimacy to the conqueror, or refuse and continue as a claimant. NPCs use the same settlement evaluation. |
 | Governments in exile | TESTED | A landless faction can survive with a small exile community, host polity, territorial claims and legitimacy rather than disappearing when its last region falls. |
-| Exile diplomacy / restoration backing | TESTED | Player and NPC exile governments can build foreign recognition/restoration support. Support is persistent political capital; direct military intervention from backing is a future extension. |
+| Exile diplomacy / restoration backing | TESTED | Player and NPC exile governments can build foreign recognition/restoration support. At strong backing, a capable supporting polity can launch a liberation campaign against an occupied claimed region; victory restores the region to the claimant rather than annexing it. |
 | Liberation / gifting of regions | TESTED | Sovereign rulers can transfer territory to another polity with a plausible historical/cultural claim; strong claims are treated as liberation. |
 | Gradual regional autonomy | TESTED | Rulers can increase subject autonomy; sufficiently autonomous provinces become delegated/vassal relationships. NPCs review strained subjects annually and can grant autonomy or liberate territory to a substantially stronger claimant. |
 | Faction extinction / true defeat | TESTED | Continuity model only marks a political faction extinct when it has no territorial continuation and legitimacy/support has collapsed. Final defeat UI is not yet implemented. |
@@ -98,11 +98,11 @@ Status meanings:
 
 ## Current active work
 
-1. Merge and exercise political continuity/vassal/exile gameplay if the tested branch remains clean.
+1. Merge and exercise political continuity/vassal/exile/restoration gameplay if the tested branch remains clean.
 2. Compose the validated population/trade/language/raiding calibration work with current `main` rather than merging stale branch history blindly.
 3. Add explicit recognition/integration/assimilation cultural-policy controls.
 4. Seed historically inherited maritime competence once the base economy/geography is stable.
-5. Later: make foreign restoration backing capable of producing actual liberation interventions when military/diplomatic conditions allow, and add the optional flourishing/legacy retirement layer.
+5. Later: add the optional flourishing/legacy retirement layer and richer international norm-generation from observed atrocities.
 
 ## Handover rule
 
