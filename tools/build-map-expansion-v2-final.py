@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
-"""Final broad expansion wrapper with geography-first microstate absorption."""
+"""Final broad expansion runner with geography-first microstate absorption.
+
+Uses the fast spatial-index source path and deliberately avoids rebuilding a
+world-sized union after every country. Country masks are mutually exclusive;
+new land therefore only needs to be subtracted from the pre-existing simulated
+map, which the fast wrapper already indexes.
+"""
+import argparse
 import importlib.util
+import json
 from pathlib import Path
 
 from shapely.geometry import shape
@@ -42,8 +50,6 @@ def absorb_microstates_geographic(base_geo, base_meta, masks, specs):
             host_share = host_area / total_area
             d = g.distance(micro)
             shared = g.boundary.intersection(micro.boundary).length if d < 0.12 else 0
-            # Prefer the gameplay region that is most genuinely part of the
-            # surrounding host geography; use proximity/shared border second.
             candidates.append(((host_share, host_area, shared, -d), f, g))
         if not candidates:
             raise RuntimeError(f'{iso}: no gameplay region overlaps host geography')
@@ -58,8 +64,94 @@ def absorb_microstates_geographic(base_geo, base_meta, masks, specs):
         print(f"MICROSTATE_ABSORB {iso} -> {f['properties'].get('name')}")
 
 
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--output-dir', default='/tmp/simworld-map-expansion-v2')
+    args = parser.parse_args()
+
+    plan = json.loads(Path(map_v2.PLAN).read_text())
+    resource_plan = json.loads(Path(map_v2.RESOURCE_PLAN).read_text())
+    base_geo = json.loads(Path(map_v2.BASE_GEO).read_text())
+    base_meta_doc = json.loads(Path(map_v2.BASE_META).read_text())
+    base_resources = json.loads(Path(map_v2.BASE_RESOURCES).read_text())
+    expected = int(plan['targetExistingRegionCount'])
+    if len(base_geo.get('features', [])) != expected:
+        raise RuntimeError(f"Base map has {len(base_geo.get('features', []))} regions; expected {expected}")
+
+    wanted = {c['iso'] for c in plan['countries']} | {m['iso'] for m in plan.get('microstateAbsorption', [])}
+    admin0 = fast.fetch_json_retry(map_v2.ADMIN0_URL)
+    masks = fast.country_masks_with_hosts(admin0, wanted)
+    absorb_microstates_geographic(base_geo['features'], base_meta_doc['regions'], masks,
+                                  plan.get('microstateAbsorption', []))
+
+    # The fast source function ignores this parameter and uses its STRtree of
+    # the original map. Keeping None here makes it explicit that we are not
+    # growing/re-unioning a global geometry between countries.
+    all_new = []
+    for country in plan['countries']:
+        mask = masks.get(country['iso'])
+        pieces = fast.source_features_fast(country, mask, None)
+        if not pieces:
+            print(f"COUNTRY_SKIP {country['iso']} already covered or no substantial uncovered land")
+            continue
+        clusters = fast.cluster_regions_fast(pieces, country['targetRegions'])
+        regions = fast.make_game_regions_fast(country, clusters)
+        if not regions:
+            print(f"COUNTRY_SKIP {country['iso']} only duplicate source slivers remained")
+            continue
+        print(f"COUNTRY {country['iso']} sourcePieces={len(pieces)} gameRegions={len(regions)} "
+              f"uncoveredArea={sum(r['areaSqKm'] for r in regions):.0f}")
+        all_new.extend(regions)
+
+    map_v2.add_land_adjacency(base_geo['features'], base_meta_doc['regions'], all_new)
+    ids = {f['properties']['id'] for f in base_geo['features']}
+    accepted_new = []
+    for r in all_new:
+        if r['id'] in ids:
+            print(f"DUPLICATE_FINAL_SKIP {r['sourceGroup']} {r['name']}")
+            continue
+        ids.add(r['id'])
+        accepted_new.append(r)
+        base_geo['features'].append({
+            'type':'Feature',
+            'properties':{'id':r['id'],'name':r['name'],'sourceGroup':r['sourceGroup']},
+            'geometry':map_v2.mapping(r['geometry'])
+        })
+        base_meta_doc['regions'].append({
+            'id':r['id'],'name':r['name'],'centroid':r['centroid'],
+            'areaSqKm':r['areaSqKm'],'neighbors':r['neighbors']
+        })
+        base_resources[r['id']] = map_v2.resource_endowment(r, resource_plan)
+
+    out = Path(args.output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    (out/'regions.geo.json').write_text(json.dumps(base_geo, ensure_ascii=False, separators=(',',':')))
+    (out/'regions.meta.json').write_text(json.dumps(base_meta_doc, ensure_ascii=False, separators=(',',':')))
+    (out/'resources.initial.json').write_text(json.dumps(base_resources, ensure_ascii=False, separators=(',',':')))
+    review = [{
+        'id':r['id'],'name':r['name'],'sourceGroup':r['sourceGroup'],
+        'sourceUnits':r['sourceUnits'],'areaSqKm':round(r['areaSqKm'],1),
+        'neighbors':len(r['neighbors'])
+    } for r in accepted_new]
+    (out/'v2-region-review.json').write_text(json.dumps(review, ensure_ascii=False, indent=2)+'\n')
+
+    isolated = [r['name'] for r in accepted_new if not r['neighbors']]
+    print(f'BASE_REGIONS={expected}')
+    print(f'NEW_REGIONS={len(accepted_new)}')
+    print(f"TOTAL_REGIONS={len(base_geo['features'])}")
+    print(f'ISOLATED_NEW_REGIONS={len(isolated)}')
+    if isolated:
+        print('ISOLATED_NAMES=' + ', '.join(isolated))
+
+
+# Install fast hooks before preparing the runtime plan/index.
+map_v2.fetch_json = fast.fetch_json_retry
+map_v2.country_masks = fast.country_masks_with_hosts
 map_v2.absorb_microstates = absorb_microstates_geographic
+map_v2.source_features = fast.source_features_fast
+map_v2.cluster_regions = fast.cluster_regions_fast
+map_v2.make_game_regions = fast.make_game_regions_fast
 
 if __name__ == '__main__':
     fast.make_runtime_plan_idempotent()
-    map_v2.main()
+    main()
