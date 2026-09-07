@@ -9,6 +9,8 @@ import { horseTransportMultiplier } from './horses.js?v=20260904-weather1';
 import { recordDiplomaticTrade, tradeRelationMultiplier } from '../diplomacy/relations.js?v=20260904-save1';
 import { navalMissionProfile, postureProfile } from '../military/policies.js?v=20260904-policy1';
 import { maritimeSkillMultiplier, MARITIME_SKILLS } from '../technology/seamanship.js?v=20260906-maritime1';
+import { maritimeRouteBetween } from '../world/chokepoints.js?v=20260907-chokepoints1';
+import { collectTransitTolls, estimateTransitToll } from './transitTolls.js?v=20260907-transit1';
 
 const LAND_ADJACENT_COST = 0.02;
 const SEA_COST_PER_KM = 0.0002;
@@ -109,9 +111,12 @@ function routeGeometry(regionA, regionB) {
   if (!(regionA._routeGeometryCache instanceof Map)) regionA._routeGeometryCache = new Map();
   let geometry = regionA._routeGeometryCache.get(regionB.id);
   if (!geometry) {
+    const maritime = maritimeRouteBetween(regionA, regionB);
     geometry = {
       adjacent: (regionA.neighbors || []).includes(regionB.id),
-      sharedSea: sharesSea(regionA, regionB),
+      sharedSea: Boolean(maritime),
+      maritime,
+      chokepointCount: maritime?.passageIds?.length || 0,
       distanceKm: centroidDistanceKm(regionA, regionB) ?? 500,
     };
     regionA._routeGeometryCache.set(regionB.id, geometry);
@@ -295,7 +300,8 @@ export function routeCost(regionA, regionB) {
     horseTransportMultiplier(regionB) * overlandInfrastructureMultiplier(regionB));
   if (geometry.adjacent) return LAND_ADJACENT_COST / landTransport;
   if (geometry.sharedSea) {
-    return SEA_COST_PER_KM * geometry.distanceKm * seaTransportProfile(regionA, regionB).costMultiplier;
+    const passageFactor = 1 + (geometry.maritime?.physicalFriction || 0);
+    return SEA_COST_PER_KM * geometry.distanceKm * seaTransportProfile(regionA, regionB).costMultiplier * passageFactor;
   }
   return (LAND_ADJACENT_COST * 2 + SEA_COST_PER_KM * geometry.distanceKm * 0.25) / landTransport;
 }
@@ -306,15 +312,21 @@ function ventureRouteProfile(origin, dest, regionsById) {
   if (seaRoute) {
     const sea = seaTransportProfile(origin, dest);
     if (geometry.distanceKm > sea.rangeKm) return null;
-    const oneWayDays = Math.max(1, geometry.distanceKm / (SEA_KM_PER_WEEK * sea.speedMultiplier) * 7);
+    const physicalFriction = geometry.maritime?.physicalFriction || 0;
+    const passageCount = geometry.chokepointCount || 0;
+    const passageDelay = 1 + physicalFriction * 0.45;
+    const oneWayDays = Math.max(1,
+      geometry.distanceKm / (SEA_KM_PER_WEEK * sea.speedMultiplier) * 7 * passageDelay);
     return {
       mode: 'sea',
       oneWayDays,
       roundTripDays: oneWayDays * 2 + MARKET_TURNAROUND_DAYS,
       capacityKgPerMerchant: SEA_KG_PER_MERCHANT * sea.capacityMultiplier,
       transportMultiplier: sea.capacityMultiplier,
-      reliability: routeReliability(origin, dest),
-      cost: SEA_COST_PER_KM * geometry.distanceKm * sea.costMultiplier,
+      reliability: routeReliability(origin, dest) * Math.max(0.72, 1 - passageCount * 0.05),
+      cost: SEA_COST_PER_KM * geometry.distanceKm * sea.costMultiplier * (1 + physicalFriction),
+      seaIds: geometry.maritime?.seaIds || [],
+      passageIds: geometry.maritime?.passageIds || [],
     };
   }
   const land = landTransportProfile(origin, dest, regionsById);
@@ -338,7 +350,7 @@ function ventureRouteProfile(origin, dest, regionsById) {
   };
 }
 
-function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByRegion, regionsById) {
+function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByRegion, regionsById, regions, agreements) {
   const opportunities = [];
   const pricesHere = pricesByRegion.get(region.id);
   const stockedResources = TRADABLE_RESOURCES.filter((resource) =>
@@ -350,12 +362,17 @@ function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByR
     if (!knownIdsByRegion.get(dest.id)?.has(region.id)) continue;
     const route = ventureRouteProfile(region, dest, regionsById);
     if (!route || route.reliability <= 0.001) continue;
-    const cost = route.cost + (1 - route.reliability) * 0.1;
+    const transit = estimateTransitToll(region, route, regions, regionsById, agreements);
+    if (transit.blocked) continue;
+    const effectiveReliability = route.reliability * (transit.reliabilityMultiplier ?? 1);
+    if (effectiveReliability <= 0.001) continue;
+    const baseCost = route.cost + (1 - effectiveReliability) * 0.1;
     const pricesThere = pricesByRegion.get(dest.id);
     for (const resource of stockedResources) {
       if (!tradeAllowed(region, dest, resource)) continue;
       const priceHere = pricesHere[resource];
       const priceThere = pricesThere[resource];
+      const cost = baseCost + priceHere * transit.rate;
       const gap = priceThere - priceHere - cost;
       if (gap <= MIN_PROFIT_THRESHOLD) continue;
       const stockAvailable = Math.max(0, (region.stockpile[resource] || 0) * MAX_EXPORT_FRACTION_PER_TICK);
@@ -367,7 +384,7 @@ function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByR
         resource, dest, gap, score, stockAvailable,
         expectedPrice: (priceHere + priceThere) / 2,
         originPrice: priceHere,
-        route,
+        route: { ...route, cost, transit, reliability: effectiveReliability },
       });
     }
   }
@@ -517,7 +534,7 @@ function processVentures(regions, regionsById, currentTick, time) {
   }
 }
 
-function launchVentures(region, opportunities, currentTick, time) {
+function launchVentures(region, opportunities, currentTick, time, regionsById) {
   const departureDay = Number.isFinite(time?.endDay) ? time.endDay : currentTick * 7;
   const economy = ensureTradeEconomy(region);
   let idle = Math.max(0, economy.merchantPopulation - activeMerchants(region));
@@ -541,6 +558,7 @@ function launchVentures(region, opportunities, currentTick, time) {
     if (cargo <= 0.01) continue;
     region.stockpile[opp.resource] -= cargo;
     exportRemaining[opp.resource] -= cargo;
+    const tollsPaid = collectTransitTolls(region, opp.route.transit, cargo * opp.originPrice, regionsById, currentTick);
     economy.ventures.push({
       id: `${region.id}:venture:${economy.nextVentureId++}`,
       destId: opp.dest.id,
@@ -550,9 +568,12 @@ function launchVentures(region, opportunities, currentTick, time) {
       originPrice: opp.originPrice,
       expectedPrice: opp.expectedPrice,
       routeCost: opp.route.cost,
+      tollsPaid,
       reliability: opp.route.reliability,
       transportMode: opp.route.mode,
       pathIds: opp.route.pathIds || null,
+      seaIds: opp.route.seaIds || null,
+      passageIds: opp.route.passageIds || null,
       departureTick: currentTick,
       departureDay,
       arrivalDay: departureDay + opp.route.oneWayDays,
@@ -684,7 +705,7 @@ function candidateMarketIds(region, regionsById, knownIds, hubIds, currentTick) 
   return candidateIds;
 }
 
-export function tickTrade(regions, currentTick = null, time = null) {
+export function tickTrade(regions, currentTick = null, time = null, agreements = []) {
   for (const region of regions) {
     region.tradeLinks = new Map();
     beginTradeWeek(region);
@@ -710,8 +731,8 @@ export function tickTrade(regions, currentTick = null, time = null) {
     const candidateIds = candidateMarketIds(region, regionsById, knownIds, hubIds, currentTick);
     const candidates = [...candidateIds].map((id) => regionsById.get(id)).filter(Boolean);
     if (!candidates.length) continue;
-    const opportunities = findOpportunities(region, candidates, knownIdsByRegion, pricesByRegion, regionsById);
-    launchVentures(region, opportunities, currentTick, time);
+    const opportunities = findOpportunities(region, candidates, knownIdsByRegion, pricesByRegion, regionsById, regions, agreements);
+    launchVentures(region, opportunities, currentTick, time, regionsById);
   }
 
   for (const region of regions) {

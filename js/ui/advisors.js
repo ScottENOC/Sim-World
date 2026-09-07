@@ -10,6 +10,7 @@ import { dominantReligion, establishReligiousCentre, forkReligion, influenceReli
   religionById, setReligiousTolerance, setStateReligion } from '../society/religion.js?v=20260905-religion1';
 import { TRADE_GOODS } from '../economy/tradeGoods.js?v=20260905-goods2';
 import { activeTradeRestrictions, removeTradeRestriction, setTradeRestriction, tradeActorId } from '../economy/tradePolicy.js?v=20260905-policy1';
+import { setChokepointTollPolicy, setRoadTollPolicy, transitPolicySummary } from '../economy/transitTolls.js?v=20260907-transit1';
 
 const ADVISORS = [
   { id: 'marshal', icon: '\u2694', name: 'Marshal', brief: 'Forces & raids' },
@@ -235,6 +236,7 @@ export class AdvisorCouncil {
     const contacts = this.regions.filter((region) => region.id !== player.id && this.fogOfWar.isVisible(region));
     const actors = [...new Map(contacts.map((region) => [tradeActorId(region), region])).values()];
     const goods = Object.entries(TRADE_GOODS);
+    const transit = transitPolicySummary(player, this.regions);
     const ruleLabel = (rule) => {
       const direction = rule.direction === 'trade' ? 'All trade' : rule.direction === 'import' ? 'Imports' : 'Exports';
       const goodText = rule.goods?.length ? rule.goods.map((id) => TRADE_GOODS[id]?.label || id).join(', ') : 'all goods';
@@ -244,6 +246,15 @@ export class AdvisorCouncil {
     return `<p class="advisor-voice">“Coin is stored labour, Majesty. I count where it comes from, and which promises are consuming it.”</p>
       ${section('Treasury', row('Treasury', number(player.treasury)) + row('Household wealth', number(player.wallet)) + row('Revenue this week', revenue.toFixed(1)) + row('Military payroll paid', percent(finance.payRatio ?? 1), (finance.payRatio ?? 1) < .9 ? 'warning' : '') + row('Administration capacity', percent(finance.stateCapacity ?? 1)))}
       ${section('Trade', row('Exports this week', number(trade.weeklyExports)) + row('Imports this week', number(trade.weeklyImports)) + row('Trade debt', `${number(trade.debt)} / ${number(trade.creditLimit)}`) + row('Known partners', number(player.tradePartnerIds?.size)))}
+      ${section('Transit tolls', `
+        ${row('Toll revenue this tick', (transit.tollRevenueThisTick || 0).toFixed(1))}
+        <label class="advisor-field advisor-slider"><span>Road transit toll <b id="road-toll-label">${Math.round((transit.roadPolicy.rate || 0) * 100)}%</b></span><input id="road-toll-rate" type="range" min="0" max="20" value="${Math.round((transit.roadPolicy.rate || 0) * 100)}"></label>
+        <label class="advisor-field"><span>Military-support allies</span><select id="road-allies-free"><option value="yes" ${transit.roadPolicy.alliesFree !== false ? 'selected' : ''}>Travel toll-free</option><option value="no" ${transit.roadPolicy.alliesFree === false ? 'selected' : ''}>Pay normal tolls</option></select></label>
+        <p class="advisor-note">Road tolls apply only to merchants crossing an intermediate region with an operational road network. Repeated tolling creates bounded resentment based on the burden; it does not subtract relations forever.</p>
+        ${transit.nearby.length ? transit.nearby.map((entry) => `<div class="advisor-report-row"><span>${entry.label}</span><strong>${entry.controlledByUs ? `control ${percent(entry.control)}` : 'not under our effective control'}</strong></div>
+          <label class="advisor-field advisor-slider"><span>${entry.label} toll <b id="cp-toll-label-${entry.id}">${Math.round((entry.policy.rate || 0) * 100)}%</b></span><input data-cp-toll="${entry.id}" type="range" min="0" max="20" value="${Math.round((entry.policy.rate || 0) * 100)}" ${entry.controlledByUs ? '' : 'disabled'}></label>
+          <label class="advisor-field"><span>${entry.label}: military-support allies</span><select data-cp-allies="${entry.id}" ${entry.controlledByUs ? '' : 'disabled'}><option value="yes" ${entry.policy.alliesFree !== false ? 'selected' : ''}>Travel toll-free</option><option value="no" ${entry.policy.alliesFree === false ? 'selected' : ''}>Pay normal tolls</option></select></label>
+          <label class="advisor-field"><span>${entry.label}: passage policy</span><select data-cp-access="${entry.id}" ${entry.controlledByUs ? '' : 'disabled'}><option value="open" ${entry.policy.access === 'open' ? 'selected' : ''}>Open passage</option><option value="hostile" ${entry.policy.access === 'hostile' ? 'selected' : ''}>Interdict hostile traffic</option><option value="closed" ${entry.policy.access === 'closed' ? 'selected' : ''}>Attempt closure</option></select></label>`).join('') : '<p class="advisor-note">This region is not close enough to a major mapped maritime chokepoint to enforce passage tolls.</p>'}`)}
       ${section('Trade restrictions', `
         <p class="advisor-note">Imports are open by default. Civilian exports are open by default; military goods are closed by default. Embargoes can cover imports, exports or both. The diplomatic reaction depends on how much the restriction is expected to hurt the other realm.</p>
         <label class="advisor-field"><span>Direction</span><select id="trade-rule-direction"><option value="trade">All trade</option><option value="export">Exports only</option><option value="import">Imports only</option></select></label>
@@ -360,6 +371,33 @@ export class AdvisorCouncil {
     document.querySelector('[data-open-construction]')?.addEventListener('click', () => {
       this.activeAdvisor = 'steward'; this.render();
     });
+    const roadToll = document.getElementById('road-toll-rate');
+    const roadAllies = document.getElementById('road-allies-free');
+    const updateRoadToll = () => {
+      if (!roadToll) return;
+      setRoadTollPolicy(player, { rate: Number(roadToll.value) / 100, alliesFree: roadAllies?.value !== 'no' });
+      const label = document.getElementById('road-toll-label'); if (label) label.textContent = `${roadToll.value}%`;
+    };
+    roadToll?.addEventListener('input', updateRoadToll); roadAllies?.addEventListener('change', updateRoadToll);
+    document.querySelectorAll('[data-cp-toll]').forEach((input) => input.addEventListener('input', () => {
+      const id = input.dataset.cpToll;
+      const allies = document.querySelector(`[data-cp-allies="${id}"]`);
+      const access = document.querySelector(`[data-cp-access="${id}"]`);
+      setChokepointTollPolicy(player, id, { rate: Number(input.value) / 100, alliesFree: allies?.value !== 'no', access: access?.value || 'open' });
+      const label = document.getElementById(`cp-toll-label-${id}`); if (label) label.textContent = `${input.value}%`;
+    }));
+    document.querySelectorAll('[data-cp-allies]').forEach((select) => select.addEventListener('change', () => {
+      const id = select.dataset.cpAllies;
+      const input = document.querySelector(`[data-cp-toll="${id}"]`);
+      const access = document.querySelector(`[data-cp-access="${id}"]`);
+      setChokepointTollPolicy(player, id, { rate: Number(input?.value || 0) / 100, alliesFree: select.value !== 'no', access: access?.value || 'open' });
+    }));
+    document.querySelectorAll('[data-cp-access]').forEach((select) => select.addEventListener('change', () => {
+      const id = select.dataset.cpAccess;
+      const input = document.querySelector(`[data-cp-toll="${id}"]`);
+      const allies = document.querySelector(`[data-cp-allies="${id}"]`);
+      setChokepointTollPolicy(player, id, { rate: Number(input?.value || 0) / 100, alliesFree: allies?.value !== 'no', access: select.value });
+    }));
     document.getElementById('add-trade-embargo')?.addEventListener('click', () => {
       const direction = document.getElementById('trade-rule-direction')?.value || 'trade';
       const good = document.getElementById('trade-rule-good')?.value || '*';
