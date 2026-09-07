@@ -68,7 +68,7 @@ function infrastructureSignal(region) {
 }
 
 function fleetSignal(region) {
-  const boats = Math.max(0, region.navy?.boats || 0);
+  const boats = Math.max(0, Number.isFinite(region.navalDeployedBoats) ? region.navalDeployedBoats : (region.navy?.boats || 0));
   const advanced = Math.max(0, region.navy?.advancedBoats || 0);
   const personnel = Math.max(0, region.navy?.personnel || 0);
   const force = boats * 3 + advanced * 7 + personnel / 12;

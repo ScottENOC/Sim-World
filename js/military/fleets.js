@@ -588,6 +588,7 @@ function aiContactChoice(observer, target, contact, regionsById) {
 function battleEvent(attacker, defender, result, contact = null) {
   return {
     type: 'fleet_battle',
+    attackerName: attacker.name, defenderName: defender.name,
     attackerFleetId: attacker.id,
     defenderFleetId: defender.id,
     attackerOwnerRegionId: attacker.ownerRegionId,
@@ -627,7 +628,17 @@ export function resolveFleetContact(contact, choice, fleets, regionsById, curren
 }
 
 function applyBlockades(fleets, regionsById) {
-  for (const region of regionsById.values()) region.navalBlockadePressure = 0;
+  for (const region of regionsById.values()) {
+    region.navalBlockadePressure = 0;
+    region.fleetPatrolCoverage = 0;
+    region.navalDeployedBoats = 0;
+  }
+  for (const fleet of fleets) {
+    if (fleet.locationType !== 'sea' || !fleet.ships.length) continue;
+    const owner = regionsById.get(fleet.ownerRegionId);
+    if (!owner) continue;
+    regionPresence(owner, fleet);
+  }
   for (const fleet of fleets) {
     if (fleet.locationType !== 'sea' || fleet.mission !== FLEET_MISSIONS.BLOCKADE || !fleet.missionTargetId) continue;
     const target = regionsById.get(fleet.missionTargetId);
@@ -636,6 +647,49 @@ function applyBlockades(fleets, regionsById) {
     const harbour = operationalInfrastructure(target, 'harbour') ? 1.15 : 1;
     target.navalBlockadePressure = clamp(Math.max(target.navalBlockadePressure || 0,
       (1 - Math.exp(-blockader / 18)) / harbour));
+  }
+}
+
+function regionPresence(owner, fleet) {
+  owner.navalDeployedBoats = (owner.navalDeployedBoats || 0) + fleet.ships.length;
+  if (fleet.mission === FLEET_MISSIONS.PATROL || fleet.mission === FLEET_MISSIONS.INTERCEPT || fleet.mission === FLEET_MISSIONS.ESCORT) {
+    const total = Math.max(1, owner.navy?.boats || fleet.ships.length);
+    owner.fleetPatrolCoverage = clamp((owner.fleetPatrolCoverage || 0) + fleet.ships.length / total);
+  }
+}
+
+function chooseAiFleetOrders(fleets, regionsById, seaRegionsById, playerActorId, rng, weeks) {
+  for (const fleet of fleets) {
+    if (!fleet.ships.length || fleet.ownerActorId === playerActorId) continue;
+    const owner = regionsById.get(fleet.ownerRegionId);
+    if (!owner) continue;
+    if (fleet.locationType === 'sea' && (fleet.supply < 0.32 || fleet.condition < 0.62 || fleet.fatigue > 0.72)) {
+      const home = regionsById.get(fleet.homePortRegionId);
+      if (home) {
+        fleet.locationType = 'port'; fleet.portRegionId = home.id; fleet.seaRegionId = null;
+        fleet.mission = FLEET_MISSIONS.RETURN_REFIT; fleet.missionTargetId = null;
+      }
+      continue;
+    }
+    if (fleet.locationType !== 'port' || fleet.supply < 0.88 || fleet.condition < 0.82 || fleet.fatigue > 0.2) continue;
+    const chance = 1 - Math.pow(1 - 0.035, Math.max(0.25, weeks));
+    if (rng() > chance) continue;
+    const port = regionsById.get(fleet.portRegionId);
+    const seas = (port?.adjacentSeaIds || []).filter((id) => seaRegionsById.has(id));
+    if (!seas.length) continue;
+    const seaId = seas[Math.floor(rng() * seas.length)];
+    const sea = seaRegionsById.get(seaId);
+    const hostile = (sea?.adjacentLand || []).map((id) => regionsById.get(id)).filter((r) => r && actorId(r) !== fleet.ownerActorId && attitudeToward(owner, r.id) <= -0.55);
+    const priority = owner.militaryPolicy?.navalPriority || 'trade';
+    let mission = priority === 'war' ? FLEET_MISSIONS.INTERCEPT : FLEET_MISSIONS.PATROL;
+    let targetId = null;
+    if (priority === 'war' && hostile.length && fleet.ships.length >= 3) {
+      const target = hostile[Math.floor(rng() * hostile.length)];
+      targetId = target.id;
+      mission = fleet.ships.length >= 6 && rng() < 0.08 ? FLEET_MISSIONS.PORT_ASSAULT : FLEET_MISSIONS.BLOCKADE;
+    }
+    deployFleet(fleet, seaId, regionsById, seaRegionsById);
+    fleet.mission = mission; fleet.missionTargetId = targetId;
   }
 }
 
@@ -669,10 +723,11 @@ export function dockFleet(fleet, portRegionId, regionsById, agreements = []) {
   return { docked: true, access };
 }
 
-export function deployFleet(fleet, seaRegionId, ownerRegion, seaRegionsById) {
+export function deployFleet(fleet, seaRegionId, regionsById, seaRegionsById) {
   if (!seaRegionsById.has(seaRegionId)) return false;
   const fromPort = fleet.locationType === 'port' ? fleet.portRegionId : null;
-  if (fromPort && !(ownerRegion?.adjacentSeaIds || []).includes(seaRegionId) && fleet.homePortRegionId === ownerRegion?.id) return false;
+  const portRegion = fromPort ? regionsById.get(fromPort) : null;
+  if (fromPort && !(portRegion?.adjacentSeaIds || []).includes(seaRegionId)) return false;
   fleet.locationType = 'sea';
   fleet.portRegionId = null;
   fleet.seaRegionId = seaRegionId;
@@ -702,6 +757,7 @@ export function tickFleets(fleets, regions, seaRegions, agreements, currentTick,
     }
   }
 
+  chooseAiFleetOrders(fleets, regionsById, seaRegionsById, options.playerActorId || null, rng, weeks);
   applyBlockades(fleets, regionsById);
 
   const bySea = new Map();

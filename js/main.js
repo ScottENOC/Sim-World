@@ -27,6 +27,7 @@ import { prepareConstructionLabor, syncNextProjectId, tickConstruction, tickInfr
 import { prepareSiegeWorkforce, tickSiegeEquipment } from './military/siegeEquipment.js?v=20260905-projects1';
 import { createReligiousWorld, initialiseReligions, tickReligion } from './society/religion.js?v=20260905-religion1';
 import { tickMaritimeExperience } from './technology/seamanship.js?v=20260906-maritime1';
+import { deployFleet, dockFleet, fleetEventInvolvesActor, formatShipOutcome, initialiseFleets, resolveFleetContact, setFleetFlag, setFleetMission, syncNextFleetIds, syncRegionalNavyLedger, tickFleets } from './military/fleets.js?v=20260908-fleets1';
 import { tickTransitControl } from './economy/transitTolls.js?v=20260907-transit1';
 
 const START_YEAR = -1300; // target: roughly eighty prosperous years before a c.1220 BCE collapse
@@ -87,6 +88,7 @@ async function main() {
   const seaRegionsById = new Map(seaRegions.map((s) => [s.id, s]));
   let activeRaids = [];
   let activeCampaigns = [];
+  let fleets = initialiseFleets(regions);
   const agreements = [];
   const eventQueue = [];
   let council;
@@ -153,12 +155,15 @@ async function main() {
   const loadSavedGame = () => {
     const snapshot = readSave();
     if (!snapshot) throw new Error('No saved game was found.');
-    const restored = restoreGameSnapshot(snapshot, { regions, seaRegions, polities, religiousWorld, agreements, activeRaids, activeCampaigns, clock, fogOfWar });
+    const restored = restoreGameSnapshot(snapshot, { regions, seaRegions, polities, religiousWorld, agreements, activeRaids, activeCampaigns, fleets, clock, fogOfWar });
+    if (!restored.fleetsRestored) fleets.splice(0, fleets.length, ...initialiseFleets(regions, []));
     playerRegionId = restored.playerRegionId;
     activePlayerPolityId = restored.playerPolityId || regionsById.get(playerRegionId)?.polityId || null;
     syncNextRaidId(activeRaids);
     syncNextAgreementId(agreements);
     syncNextCampaignId(activeCampaigns);
+    syncNextFleetIds(fleets);
+    syncRegionalNavyLedger(regions, fleets);
     syncNextProjectId(regions);
     eventQueue.length = 0;
     document.getElementById('event-modal').classList.add('hidden');
@@ -211,6 +216,15 @@ async function main() {
     pruneKnowledge(regions, calendarWeek);
     tickFishingKnowledge(fishingContactPairs, calendarWeek);
     tickScouting(regions, calendarWeek, Math.random);
+    const fleetResult = tickFleets(fleets, regions, seaRegions, agreements, calendarWeek, time.elapsedDays, Math.random, { playerActorId: activePlayerPolityId });
+    for (const fleetEvent of fleetResult.events) {
+      if (fleetEvent.type !== 'fleet_contact' || !fleetEventInvolvesActor(fleetEvent, activePlayerPolityId, fleets)) continue;
+      fleetEvent.resolveDecision = (choice) => {
+        const generated = resolveFleetContact(fleetEvent, choice, fleets, regionsById, calendarWeek, Math.random);
+        syncRegionalNavyLedger(regions, fleets);
+        return generated;
+      };
+    }
     tickTransitControl(regions, time.elapsedDays);
     tickTrade(regions, calendarWeek, time, agreements);
     tickMaritimeExperience(regions, activeRaids, time.elapsedDays);
@@ -291,6 +305,7 @@ async function main() {
       ...diplomacyEvents.filter((event) => event.agreement.fromId === playerRegionId || event.agreement.toId === playerRegionId),
       ...polityEvents.filter((event) => event.regionId === playerRegionId),
       ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),
+      ...fleetResult.events.filter((event) => fleetEventInvolvesActor(event, activePlayerPolityId, fleets)),
       ...campaignResult.events.filter((event) => {
         if (event.type === 'settlement_required') return event.attackerPolityId === activePlayerPolityId || event.defenderPolityId === activePlayerPolityId;
         if (event.type === 'claimant_retreat') return event.conquerorPolityId === activePlayerPolityId || event.defeatedPolityId === activePlayerPolityId;
@@ -353,6 +368,9 @@ async function main() {
     seaRegions,
     get activeRaids() { return activeRaids; },
     get activeCampaigns() { return activeCampaigns; },
+    get fleets() { return fleets; },
+    get activePlayerPolityId() { return activePlayerPolityId; },
+    fleetApi: { deployFleet, dockFleet, setFleetFlag, setFleetMission, syncRegionalNavyLedger },
     agreements,
     religiousWorld,
     polities,
@@ -1113,6 +1131,40 @@ function showNextEvent(clock, eventQueue) {
   if (eventQueue.length === 0) return;
 
   const event = eventQueue.shift();
+  if (event.type === 'fleet_contact') {
+    document.getElementById('event-title').textContent = 'Fleet sighted';
+    document.getElementById('event-body').textContent = event.description;
+    const options = document.getElementById('event-options');
+    options.innerHTML = event.choices.map((choice) => `<button data-fleet-choice="${choice}">${choice[0].toUpperCase() + choice.slice(1)}</button>`).join(' ');
+    document.getElementById('event-modal').classList.remove('hidden');
+    options.querySelectorAll('[data-fleet-choice]').forEach((button) => button.addEventListener('click', () => {
+      const generated = event.resolveDecision ? event.resolveDecision(button.dataset.fleetChoice) : [];
+      document.getElementById('event-modal').classList.add('hidden');
+      if (generated?.length) eventQueue.unshift(...generated);
+      if (eventQueue.length) showNextEvent(clock, eventQueue); else clock.releaseAutoPause();
+    }));
+    return;
+  }
+  if (event.type === 'fleet_battle' || event.type === 'fleet_port_assault') {
+    const r = event.result;
+    document.getElementById('event-title').textContent = event.type === 'fleet_port_assault' ? 'Fleet attacked in port' : 'Naval battle';
+    document.getElementById('event-body').innerHTML = `${event.attackerName} fought ${event.defenderName}.<br><br>` +
+      `${event.attackerName} sunk: ${formatShipOutcome(r.attackerLost)}; captured by enemy: ${formatShipOutcome(r.attackerCapturedByDefender)}; damaged: ${formatShipOutcome(r.attackerDamaged)}.<br>` +
+      `${event.defenderName} sunk: ${formatShipOutcome(r.defenderLost)}; captured: ${formatShipOutcome(r.defenderCapturedByAttacker)}; damaged: ${formatShipOutcome(r.defenderDamaged)}.` +
+      `${r.portDamage?.length ? `<br>Port infrastructure damaged: ${r.portDamage.map((d) => d.typeId.replaceAll('_', ' ')).join(', ')}.` : ''}`;
+    wireEventContinue(clock, eventQueue);
+    return;
+  }
+  if (event.type === 'fleet_escaped') {
+    document.getElementById('event-title').textContent = 'Fleet escapes';
+    document.getElementById('event-body').textContent = 'The target fleet refused battle and escaped the pursuit.';
+    wireEventContinue(clock, eventQueue); return;
+  }
+  if (event.type === 'fleet_hail') {
+    document.getElementById('event-title').textContent = 'Fleet hailed';
+    document.getElementById('event-body').textContent = event.targetResponded ? 'The other fleet answered the hail. Your observers gained a closer look at its ships and flag.' : 'The other fleet ignored the hail and kept its distance.';
+    wireEventContinue(clock, eventQueue); return;
+  }
   if (event.type === 'restoration_backing') {
     document.getElementById('event-title').textContent = 'Foreign backing strengthens';
     document.getElementById('event-body').textContent = `A host government now gives substantial backing to your restoration claim. This does not guarantee intervention, but makes future liberation or recognition much more plausible.`;
