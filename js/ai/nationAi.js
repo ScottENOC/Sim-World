@@ -18,6 +18,7 @@ import { chooseAiReligion, religiousWarModifier } from '../society/religion.js?v
 import { activeTradeRestrictions, setTradeRestriction, tradeActorId } from '../economy/tradePolicy.js?v=20260905-policy1';
 import { startScoutingMission } from '../core/scouting.js?v=20260906-scouting1';
 import { applyMemoryDrivenNpcPolicy, npcMemorySignals } from './memoryDrivenAi.js?v=20260907-memory-ai1';
+import { setChokepointTollPolicy, setRoadTollPolicy, transitPolicySummary } from '../economy/transitTolls.js?v=20260907-transit1';
 
 // A one-percent peacetime levy is supportable while trade and taxation are
 // healthy. Threatened states still expand this through the safety multiplier;
@@ -64,6 +65,7 @@ export function tickNationAi(regions, playerRegionId, activeRaids, activeCampaig
     chooseAiConstruction(region, currentTick, rng);
     chooseAiSiegeTargets(region);
     chooseAiReligion(region, religiousWorld, currentTick, rng, strategicWeeks);
+    maybeManageTransitTolls(region, regions, rng);
     maybeAdjustTradeEmbargo(region, regionsById, currentTick);
     maybeScout(region, regionsById, currentTick, rng);
     maybeMakeAgreement(region, regionsById, playerRegionId, agreements, polities, currentTick, toolTypes, rng, chance(DIPLOMACY_CONSIDERATION_CHANCE_PER_WEEK));
@@ -87,6 +89,27 @@ function strategicReviewWeeks(region, currentTick, fallbackWeeks) {
   region._lastStrategicAiTick = currentTick;
   region._lastStrategicAiBucket = bucket;
   return elapsed;
+}
+
+function maybeManageTransitTolls(region, regions, rng) {
+  const summary = transitPolicySummary(region, regions);
+  const trade = region.tradeEconomy || {};
+  const throughput = Math.max(0, (trade.exportIncomeEma || 0) + (trade.importSpendEma || 0));
+  const treasuryPressure = (region.treasury || 0) < Math.max(20, (region.population || 0) * 0.002);
+  const hasRoadAdministration = (region.construction?.assets || []).some((asset) => asset.typeId === 'road_network' && (asset.condition || 0) > 0.5) &&
+    (region.construction?.assets || []).some((asset) => asset.typeId === 'market_customs' && (asset.condition || 0) > 0.5);
+  if (hasRoadAdministration) {
+    const desired = treasuryPressure ? 0.035 : throughput > 80 ? 0.018 : 0.01;
+    setRoadTollPolicy(region, { rate: desired, alliesFree: true });
+  }
+  for (const entry of summary.nearby) {
+    if (!entry.controlledByUs || entry.control < 0.30) continue;
+    const customs = (region.construction?.assets || []).some((asset) => asset.typeId === 'market_customs' && (asset.condition || 0) > 0.5);
+    if (!customs) continue;
+    const desired = treasuryPressure ? 0.055 : throughput > 100 ? 0.03 : 0.018;
+    // Small variation stops every AI from converging on the exact same nominal rate.
+    setChokepointTollPolicy(region, entry.id, { rate: desired * (0.9 + rng() * 0.2), alliesFree: true });
+  }
 }
 
 function maybeAdjustTradeEmbargo(region, regionsById, currentTick) {
