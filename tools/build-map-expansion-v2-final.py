@@ -50,9 +50,9 @@ def absorb_microstates_geographic(base_geo, base_meta, masks, specs):
             host_share = host_area / total_area
             d = g.distance(micro)
             shared = g.boundary.intersection(micro.boundary).length if d < 0.12 else 0
-            # Physical adjacency/proximity to the enclave is decisive. Host
-            # overlap is a constraint/tiebreaker, not a reason to assign an
-            # enclave to a distant but more purely modern-country region.
+            # Adjacency/proximity to the enclave is decisive. Host overlap is
+            # only a constraint/tiebreaker; modern borders do not define the
+            # gameplay region itself.
             candidates.append(((shared > 0, shared, -d, host_share, host_area), f, g))
         if not candidates:
             raise RuntimeError(f'{iso}: no gameplay region overlaps host geography')
@@ -71,7 +71,6 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output-dir', default='/tmp/simworld-map-expansion-v2')
     args = parser.parse_args()
-
     plan = json.loads(Path(map_v2.PLAN).read_text())
     resource_plan = json.loads(Path(map_v2.RESOURCE_PLAN).read_text())
     base_geo = json.loads(Path(map_v2.BASE_GEO).read_text())
@@ -112,15 +111,8 @@ def main():
             continue
         ids.add(r['id'])
         accepted_new.append(r)
-        base_geo['features'].append({
-            'type':'Feature',
-            'properties':{'id':r['id'],'name':r['name'],'sourceGroup':r['sourceGroup']},
-            'geometry':map_v2.mapping(r['geometry'])
-        })
-        base_meta_doc['regions'].append({
-            'id':r['id'],'name':r['name'],'centroid':r['centroid'],
-            'areaSqKm':r['areaSqKm'],'neighbors':r['neighbors']
-        })
+        base_geo['features'].append({'type':'Feature','properties':{'id':r['id'],'name':r['name'],'sourceGroup':r['sourceGroup']},'geometry':map_v2.mapping(r['geometry'])})
+        base_meta_doc['regions'].append({'id':r['id'],'name':r['name'],'centroid':r['centroid'],'areaSqKm':r['areaSqKm'],'neighbors':r['neighbors']})
         base_resources[r['id']] = map_v2.resource_endowment(r, resource_plan)
 
     out = Path(args.output_dir)
@@ -128,13 +120,8 @@ def main():
     (out/'regions.geo.json').write_text(json.dumps(base_geo, ensure_ascii=False, separators=(',',':')))
     (out/'regions.meta.json').write_text(json.dumps(base_meta_doc, ensure_ascii=False, separators=(',',':')))
     (out/'resources.initial.json').write_text(json.dumps(base_resources, ensure_ascii=False, separators=(',',':')))
-    review = [{
-        'id':r['id'],'name':r['name'],'sourceGroup':r['sourceGroup'],
-        'sourceUnits':r['sourceUnits'],'areaSqKm':round(r['areaSqKm'],1),
-        'neighbors':len(r['neighbors'])
-    } for r in accepted_new]
+    review = [{'id':r['id'],'name':r['name'],'sourceGroup':r['sourceGroup'],'sourceUnits':r['sourceUnits'],'areaSqKm':round(r['areaSqKm'],1),'neighbors':len(r['neighbors'])} for r in accepted_new]
     (out/'v2-region-review.json').write_text(json.dumps(review, ensure_ascii=False, indent=2)+'\n')
-
     isolated = [r['name'] for r in accepted_new if not r['neighbors']]
     print(f'BASE_REGIONS={expected}')
     print(f'NEW_REGIONS={len(accepted_new)}')
