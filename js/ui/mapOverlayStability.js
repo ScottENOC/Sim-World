@@ -44,11 +44,39 @@ function robustDomain(regions, valueFn, label) {
   const values = regions.map((region) => finite(valueFn(region), NaN)).filter(Number.isFinite).sort((a, b) => a - b);
   if (!values.length) return [0, 1];
 
-  // Most economic/military overlays are zero-heavy with a long tail. Anchoring
-  // at zero and the 95th percentile keeps ordinary regions distinguishable and
-  // prevents one giant polity from flattening every other colour.
+  // Economic/military overlays are usually zero-heavy with a long tail. The
+  // 95th percentile makes the ordinary range readable while extreme values
+  // simply saturate at the strongest colour.
   const upper = Math.max(1e-9, percentile(values, 0.95), values[Math.min(values.length - 1, 3)] || 0);
   return [0, upper];
+}
+
+function syncLegend(map) {
+  const info = map?.getLegendInfo?.();
+  if (!info) return;
+  const label = document.getElementById('legend-label');
+  const gradient = document.getElementById('legend-gradient');
+  const categorical = document.getElementById('legend-categorical');
+  const bar = document.getElementById('legend-bar');
+  if (label) label.textContent = info.label;
+
+  if (info.type === 'categorical') {
+    gradient?.classList.add('hidden');
+    categorical?.classList.remove('hidden');
+    if (categorical) {
+      categorical.innerHTML = info.entries.map((entry) =>
+        `<div class="legend-swatch-row"><span class="legend-swatch" style="background:${entry.color}"></span>${entry.key}</div>`).join('');
+    }
+    return;
+  }
+
+  categorical?.classList.add('hidden');
+  gradient?.classList.remove('hidden');
+  const minEl = document.getElementById('legend-min');
+  const maxEl = document.getElementById('legend-max');
+  if (minEl) minEl.textContent = info.min;
+  if (maxEl) maxEl.textContent = info.max;
+  if (bar) bar.style.background = `linear-gradient(to right, ${info.colorLow}, ${info.colorHigh})`;
 }
 
 function install() {
@@ -72,40 +100,52 @@ function install() {
       };
       this._syncAnimationLoop();
       this.draw();
+      syncLegend(this);
       return;
     }
 
-    const safeValueFn = (region) => finite(config.valueFn(region), 0);
+    const rawValueFn = (region) => finite(config.valueFn(region), 0);
     const key = config.scaleKey || config.label || 'unnamed-gradient';
     if (!this._overlayDomains.has(key)) {
-      this._overlayDomains.set(key, robustDomain(this.regions, safeValueFn, config.label));
+      this._overlayDomains.set(key, robustDomain(this.regions, rawValueFn, config.label));
     }
-    const [min, max] = this._overlayDomains.get(key);
+    const [domainMin, domainMax] = this._overlayDomains.get(key);
+    const min = finite(domainMin, 0);
+    const max = Math.max(finite(domainMax, 1), min + 1e-9);
+    const paintedValueFn = (region) => Math.max(min, Math.min(max, rawValueFn(region)));
+
     this.layerConfig = config;
     this.layer = {
       type: 'gradient',
-      valueFn: safeValueFn,
+      valueFn: paintedValueFn,
       label: config.label,
       format: config.format || ((value) => Math.round(value).toLocaleString()),
       colorLow: config.colorLow || '#28352b',
       colorHigh: config.colorHigh || '#c08a4e',
-      min: finite(min, 0),
-      max: Math.max(finite(max, 1), finite(min, 0) + 1e-9),
+      min,
+      max,
       visualOverlay: config.visualOverlay || null,
     };
     this._syncAnimationLoop();
     this.draw();
+    syncLegend(this);
   };
 
-  // refreshLayer should update the painted values, not choose a new scale.
+  // refreshLayer should update painted values, not choose a new scale.
   map.refreshLayer = function refreshStableLayer() {
     this._visualProfileCache?.clear();
     if (this.layerConfig) this.setLayer(this.layerConfig);
     else this.draw();
   };
 
-  // Re-apply the currently active layer once so the initial population legend
-  // immediately becomes the stable 0.0–8.0 people/km² scale.
+  // All layer buttons share the same legend widget; sync it after their own
+  // click handlers have switched the active layer.
+  document.querySelector('.layer-toggle')?.addEventListener('click', () => {
+    queueMicrotask(() => syncLegend(map));
+  }, { capture: true });
+
+  // Re-apply the current population layer immediately. Its legend becomes a
+  // meaningful 0.0–8.0 people/km² range instead of 0.0–0.0.
   if (map.layerConfig) map.setLayer(map.layerConfig);
   return true;
 }
