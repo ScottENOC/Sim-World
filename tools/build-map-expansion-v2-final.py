@@ -39,8 +39,12 @@ def absorb_microstates_geographic(base_geo, base_meta, masks, specs):
 
         candidates = []
         host_env = host.envelope
+        all_regions = []
         for f in base_geo:
             g = map_v2.repair(shape(f['geometry']))
+            d = g.distance(micro)
+            shared = g.boundary.intersection(micro.boundary).length if d < 0.12 else 0
+            all_regions.append(((shared > 0, shared, -d), f, g, d))
             if not g.envelope.intersects(host_env):
                 continue
             total_area = max(1.0, map_v2.area_sqkm(g))
@@ -48,15 +52,25 @@ def absorb_microstates_geographic(base_geo, base_meta, masks, specs):
             if host_area <= 0.25:
                 continue
             host_share = host_area / total_area
-            d = g.distance(micro)
-            shared = g.boundary.intersection(micro.boundary).length if d < 0.12 else 0
-            # Adjacency/proximity to the enclave is decisive. Host overlap is
-            # only a constraint/tiebreaker; modern borders do not define the
-            # gameplay region itself.
-            candidates.append(((shared > 0, shared, -d, host_share, host_area), f, g))
+            # Prefer a nearby region that genuinely overlaps the nominal host.
+            candidates.append(((shared > 0, shared, -d, host_share, host_area), f, g, d))
+
         if not candidates:
             raise RuntimeError(f'{iso}: no gameplay region overlaps host geography')
-        _, f, g = max(candidates, key=lambda item: item[0])
+
+        _, f, g, chosen_distance = max(candidates, key=lambda item: item[0])
+
+        # Some gameplay regions deliberately cross modern borders. If the best
+        # host-overlap candidate is still geographically remote, do not attach
+        # the microstate to a distant region merely to satisfy a modern-country
+        # label. Use the physically nearest existing gameplay region instead.
+        # 0.35 degrees is roughly 30–40 km at European latitudes.
+        if chosen_distance > 0.35:
+            _, nearest_f, nearest_g, nearest_distance = max(all_regions, key=lambda item: item[0])
+            if nearest_distance < chosen_distance:
+                print(f"MICROSTATE_NEAREST_FALLBACK {iso} hostDistance={chosen_distance:.3f} nearestDistance={nearest_distance:.3f}")
+                f, g = nearest_f, nearest_g
+
         merged = map_v2.repair(unary_union([g, micro]))
         f['geometry'] = map_v2.mapping(merged)
         meta = meta_by_id.get(f['properties']['id'])
