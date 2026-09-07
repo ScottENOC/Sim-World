@@ -11,6 +11,7 @@ import { removeFromBands, syncPopulation } from '../society/demographics.js?v=20
 import { recordCampaignMemories } from '../society/culturalMemory.js?v=20260907-memory1';
 import { effectiveInfrastructureCount, hillFortDefenceMultiplier, overlandInfrastructureMultiplier, settlementDefenceMultiplier } from '../economy/construction.js?v=20260905-projects1';
 import { returnSiegeTrain, survivingFortBenefit, takeSiegeTrain } from './siegeEquipment.js?v=20260905-siege1';
+import { chooseBattlefield, recordCombatExperience, terrainCombatMultiplier } from './terrain.js?v=20260908-terrain1';
 
 export const CAMPAIGN_OBJECTIVES = Object.freeze({
   devastation: { label: 'Destroy the region', pressureRate: 0.8, damageRate: 1.8 },
@@ -26,6 +27,11 @@ const MIN_CAMPAIGN_FORCE = 25;
 let nextCampaignId = 1;
 
 const clamp = (value, low = 0, high = 1) => Math.max(low, Math.min(high, value));
+
+function campaignMobility(region) {
+  const movement = horseLandSpeedMultiplier(region) * overlandInfrastructureMultiplier(region);
+  return clamp((movement - 0.8) / 1.15);
+}
 
 export function syncNextCampaignId(campaigns = []) {
   nextCampaignId = Math.max(1, ...campaigns.map((campaign) => (Number(campaign.id) || 0) + 1));
@@ -82,6 +88,7 @@ export function launchCampaign(attacker, defender, objective, requestedPersonnel
     pressure: 0, damage: 0, attackerMorale: 1, defenderMorale: 1, supply: 1,
     attackerCasualties: 0, defenderCasualties: 0, civilianDeaths: 0,
     weeksEngaged: 0, stage: 'marching', lastWeek: null, history: [], outcome: null,
+    battlefield: null,
   };
 }
 
@@ -111,7 +118,7 @@ export function conflictResourceAccess(region) {
   return clamp(1 - pressure * 0.65 - militiaShare * 1.8, 0.15, 1);
 }
 
-function combatPower(region, personnel, toolTypes, role, supply = 1, morale = 1, siegeTrain = null) {
+function combatPower(region, personnel, toolTypes, role, supply = 1, morale = 1, siegeTrain = null, terrain = null) {
   const equipment = toolEfficiencyMultiplier(region, 'soldier', toolTypes.soldier, region.unlockedTechIds);
   const fortCount = effectiveInfrastructureCount(region, 'hill_fort') +
     effectiveInfrastructureCount(region, 'settlement_walls') * 1.5;
@@ -120,8 +127,10 @@ function combatPower(region, personnel, toolTypes, role, supply = 1, morale = 1,
     ? 1 + (fullFortMultiplier - 1) * survivingFortBenefit(siegeTrain, fortCount) : 1;
   const homeAdvantage = role === 'defender'
     ? DEFENDER_HOME_ADVANTAGE * postureProfile(region).raidDefence * fortMultiplier : 1;
+  const terrainMultiplier = terrain ? terrainCombatMultiplier(region, terrain) : 1;
   return personnel * equipment * militaryReadiness(region) * armyCohesionMultiplier(region) *
-    horseMilitaryMultiplier(region) * homeAdvantage * (0.55 + 0.45 * supply) * (0.65 + 0.35 * morale);
+    horseMilitaryMultiplier(region) * terrainMultiplier * homeAdvantage *
+    (0.55 + 0.45 * supply) * (0.65 + 0.35 * morale);
 }
 
 function navalControl(attacker, defender) {
@@ -176,8 +185,11 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   campaign.supply = clamp(campaign.supply + supplySuccess * 0.035 - supplyDrain - campaign.pressure * 0.008);
   campaign.defenderMorale = clamp(campaign.defenderMorale + defenderWater);
 
-  const attackerPower = combatPower(attacker, campaign.personnel, toolTypes, 'attacker', campaign.supply, campaign.attackerMorale);
-  const defenderArmyPower = combatPower(defender, defender.army.personnel, toolTypes, 'defender', 1, campaign.defenderMorale, campaign.siegeEquipment);
+  const terrain = campaign.battlefield?.terrain || 'plains';
+  const attackerPower = combatPower(attacker, campaign.personnel, toolTypes, 'attacker', campaign.supply,
+    campaign.attackerMorale, null, terrain);
+  const defenderArmyPower = combatPower(defender, defender.army.personnel, toolTypes, 'defender', 1,
+    campaign.defenderMorale, campaign.siegeEquipment, terrain);
   const militiaPower = campaign.militia * 0.24 * postureProfile(defender).raidDefence;
   const defenderPower = defenderArmyPower + militiaPower;
   const totalPower = Math.max(1, attackerPower + defenderPower);
@@ -212,6 +224,17 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   campaign.attackerCasualties += attackerLosses;
   campaign.defenderCasualties += defenderLosses + militiaLosses;
 
+  recordCombatExperience(attacker, currentTick, {
+    intensity,
+    casualtyShare: attackerLosses / Math.max(1, campaign.initialPersonnel),
+    defender: false,
+  });
+  recordCombatExperience(defender, currentTick, {
+    intensity,
+    casualtyShare: (defenderLosses + militiaLosses) / Math.max(1, defender.army.personnel + defenderLosses + campaign.militia + militiaLosses),
+    defender: true,
+  });
+
   const lossShock = attackerLosses / Math.max(1, campaign.initialPersonnel);
   campaign.attackerMorale = clamp(campaign.attackerMorale - lossShock * 2.2 -
     (1 - campaign.supply) * 0.035 + Math.max(0, pressureDelta) * 0.08 - (pressureDelta <= 0 ? 0.01 : 0));
@@ -219,7 +242,7 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
     (defenderLosses + militiaLosses) / Math.max(1, defender.population) * 4);
   const civilianDeaths = applyCivilianDamage(campaign, defender, Math.max(0, pressureDelta), attackerShare);
   defender.conflictPressure = campaign.pressure;
-  const week = { tick: currentTick, stage: campaign.stage, pressureDelta, pressure: campaign.pressure,
+  const week = { tick: currentTick, stage: campaign.stage, terrain, pressureDelta, pressure: campaign.pressure,
     attackerLosses, defenderLosses, militiaLosses, civilianDeaths, attackerMorale: campaign.attackerMorale,
     defenderMorale: campaign.defenderMorale, supply: campaign.supply, strengthRatio, navalControl: control };
   campaign.lastWeek = week;
@@ -279,7 +302,15 @@ export function tickCampaigns(campaigns, regionsById, polities, currentTick, too
     if (campaign.phase === 'travelling' && currentTick >= campaign.arriveTick) {
       campaign.phase = 'engaged'; campaign.stage = 'skirmishing';
       campaign.lastProcessedTick = Math.max(campaign.lastProcessedTick, campaign.arriveTick - 1);
-      events.push({ type: 'campaign_arrived', campaign, attackerName: attacker.name, defenderName: defender.name });
+      campaign.battlefield ||= chooseBattlefield({
+        attacker,
+        defender,
+        currentTick: campaign.arriveTick,
+        attackerMobility: campaignMobility(attacker),
+        defenderMobility: campaignMobility(defender),
+      }, rng);
+      events.push({ type: 'campaign_arrived', campaign, attackerName: attacker.name, defenderName: defender.name,
+        terrain: campaign.battlefield.terrain });
     }
     while (campaign.phase === 'engaged' && campaign.lastProcessedTick < currentTick) {
       const combatWeek = campaign.lastProcessedTick + 1;

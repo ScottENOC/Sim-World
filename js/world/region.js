@@ -13,9 +13,10 @@ export class Region {
     this.scouting = { active: false, lastResult: null };
     this.militaryPolicy = { armyPermanence: 0.5, defensivePosture: 'settlements',
       raiderTreatment: 'reintegrate', navalPriority: 'trade', warHorseAllocation: 0.5 };
+    this.militaryExperience = { combat: 0, lastTick: 0, engagementWeeks: 0 };
     this.isCoastal = false; this.adjacentSeaIds = []; this.fishingBoats = 0;
     this.advancedFishingBoats = 0; this.targetFishingBoats = 0;
-    this.landQuality = null; this.forest = null; this.deposits = null; this.stockpile = {};
+    this.landQuality = null; this.forest = null; this.terrain = null; this.deposits = null; this.stockpile = {};
     this.occupations = {}; this.report = {}; this.equipment = {}; this.militaryBronzeDemand = 0;
     this.wallet = 0; this.treasury = 0; this.unlockedTechIds = new Set();
     this.construction = { projects: [], completed: {}, assets: [], workersReserved: 0,
@@ -77,11 +78,13 @@ export class Region {
 }
 
 export async function loadWorld() {
-  const [geoRes, metaRes, resourcesRes] = await Promise.all([
+  const [geoRes, metaRes, resourcesRes, terrainRes] = await Promise.all([
     fetch('data/world/regions.geo.json'), fetch('data/world/regions.meta.json'),
     fetch('data/world/resources.initial.json?v=20260904-weather1'),
+    fetch('data/world/terrain.initial.json?v=20260908-terrain1'),
   ]);
   const geo = await geoRes.json(); const meta = await metaRes.json(); const resources = await resourcesRes.json();
+  const terrain = await terrainRes.json();
   const metaById = new Map(meta.regions.map((r) => [r.id, r]));
   const regions = geo.features.map((feature) => {
     const id = feature.properties.id; const m = metaById.get(id);
@@ -89,6 +92,8 @@ export async function loadWorld() {
       areaSqKm: m.areaSqKm, neighbors: m.neighbors });
     const endowment = resources[id];
     if (!endowment) throw new Error(`Missing resource endowment for region ${id} (${region.name})`);
+    if (!terrain[id]) throw new Error(`Missing terrain composition for region ${id} (${region.name})`);
+    region.terrain = terrain[id];
     region.landQuality = endowment.landQuality;
     const K = region.areaSqKm * endowment.forestFraction;
     region.forest = { currentStock: K * endowment.forestStartCoverage, K };

@@ -1,0 +1,96 @@
+name: Terrain calibration
+
+on:
+  push:
+    branches: [terrain-battlefield-selection-v1]
+    paths:
+      - '.github/workflows/terrain-calibration.yml'
+      - 'tools/build-terrain.py'
+      - 'tools/test-battlefield-terrain.mjs'
+      - 'js/military/terrain.js'
+      - 'js/military/campaigns.js'
+      - 'js/world/region.js'
+      - 'js/core/saveGame.js'
+      - 'data/world/regions.geo.json'
+      - 'data/world/resources.initial.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install terrain build dependencies
+        run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyshp==2.3.1
+      - name: Syntax checks
+        run: |
+          python -m py_compile tools/build-terrain.py
+          node --check js/military/terrain.js
+          node --check js/military/campaigns.js
+          node --check js/world/region.js
+          node --check js/core/saveGame.js
+      - name: Build static terrain composition
+        run: python tools/build-terrain.py --output data/world/terrain.initial.json | tee /tmp/terrain-build.log
+      - name: Validate terrain data
+        run: |
+          python - <<'PY'
+          import json
+          geo=json.load(open('data/world/regions.geo.json'))
+          terrain=json.load(open('data/world/terrain.initial.json'))
+          ids={f['properties']['id'] for f in geo['features']}
+          assert len(ids)==627, f'expected 627 land regions, got {len(ids)}'
+          assert set(terrain)==ids, 'terrain IDs differ from land IDs'
+          keys=('plains','hills','mountains','forest','wetland')
+          for rid,t in terrain.items():
+              total=sum(t[k] for k in keys)
+              assert abs(total-1)<1e-5, (rid,total)
+              assert all(0<=t[k]<=1 for k in keys), rid
+              assert 0<=t['ruggedness']<=1, rid
+          names={f['properties']['name']:terrain[f['properties']['id']] for f in geo['features']}
+          if 'Rhaetian Alps' in names:
+              assert names['Rhaetian Alps']['mountains'] > names['Rhaetian Alps']['plains'], names['Rhaetian Alps']
+          if 'Swiss Plateau & Upper Rhine' in names:
+              assert names['Swiss Plateau & Upper Rhine']['plains'] > names['Swiss Plateau & Upper Rhine']['mountains'], names['Swiss Plateau & Upper Rhine']
+          print('TERRAIN_REGIONS='+str(len(terrain)))
+          print('TERRAIN_BYTES='+str(__import__('os').path.getsize('data/world/terrain.initial.json')))
+          PY
+      - name: Battlefield behaviour tests
+        run: node tools/test-battlefield-terrain.mjs
+      - name: Battlefield lookup microbenchmark
+        run: |
+          node --input-type=module - <<'NODE'
+          import { battlefieldWeights } from './js/military/terrain.js';
+          const make = () => ({
+            terrain:{plains:.45,hills:.28,mountains:.1,forest:.14,wetland:.03,forestPotential:.28},
+            forest:{currentStock:.5,K:1}, unlockedTechIds:new Set(), horseEconomy:{war:0},
+            chariotry:{chariots:0,condition:1}, army:{personnel:1000,away:0},
+            militaryExperience:{combat:.2,lastTick:100,engagementWeeks:0}
+          });
+          const a=make(), d=make();
+          const start=performance.now();
+          for(let i=0;i<50000;i++) battlefieldWeights({attacker:a,defender:d,currentTick:100,attackerMobility:.4,defenderMobility:.4});
+          const elapsed=performance.now()-start;
+          console.log(`BATTLEFIELD_50000_MS=${elapsed.toFixed(2)}`);
+          if(elapsed>3000) throw new Error(`Battlefield lookup unexpectedly slow: ${elapsed}ms`);
+          NODE
+      - name: Commit generated terrain
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add data/world/terrain.initial.json
+          if git diff --cached --quiet; then
+            echo 'Terrain data already current'
+          else
+            git commit -m 'Generate static terrain composition'
+            git pull --rebase
+            git push
+          fi
