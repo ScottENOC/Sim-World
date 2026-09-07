@@ -101,7 +101,10 @@ function workMatchesMemory(work, memory) {
   if (!work || work.lost) return 0;
   let match = 0;
   if (memory.theme === 'victory' && work.subject === 'victory') match += 0.7;
-  if (memory.theme === 'defeat' && work.subject === 'mourning') match += 0.6;
+  if ((memory.theme === 'defeat' || memory.theme === 'famine' || memory.theme === 'political_loss') && work.subject === 'mourning') match += 0.6;
+  if (memory.theme === 'religion' && work.subject === 'religion') match += 0.72;
+  if ((memory.theme === 'rulership' || memory.theme === 'political_settlement') && work.subject === 'ruler') match += 0.58;
+  if (memory.theme === 'achievement' && work.subject === 'city') match += 0.55;
   if (work.subject === 'ancestors') match += 0.25;
   if (memory.motif === 'chariot' && /chariot/i.test(`${work.title || ''} ${work.subject || ''}`)) match += 0.6;
   if (memory.motif === 'cavalry' && /horse|cavalry/i.test(`${work.title || ''} ${work.subject || ''}`)) match += 0.5;
@@ -115,6 +118,14 @@ function materialRelevance(region, memory) {
     return clamp01(0.35 + chariotCoverage(region) * 0.45 + cavalry * 0.2);
   }
   if (memory.motif === 'cavalry') return region.unlockedTechIds?.has('mounted_cavalry') ? 1 : 0.2;
+  if (memory.theme === 'famine') {
+    const currentShortfall = Math.max(0, Number(region.report?.foodPlan?.shortfall) || 0);
+    const granaries = Math.max(0, Number(region.infrastructure?.publicGranaries) || 0);
+    return clamp01(0.35 + Math.min(0.4, currentShortfall / Math.max(1, region.population || 1) * 20) + Math.max(0, 0.25 - granaries * 0.05));
+  }
+  if (memory.theme === 'religion') return region.religion?.stateReligionId ? 0.8 : 0.45;
+  if (memory.theme === 'political_loss' || memory.theme === 'political_settlement') return 0.65;
+  if (memory.theme === 'rulership') return 0.6;
   return 0.5;
 }
 
@@ -137,11 +148,9 @@ export function tickCulturalMemory(region, elapsedDays = 7) {
 
     const relevanceTarget = materialRelevance(region, memory);
     memory.practicalRelevance = clamp01(memory.practicalRelevance + (relevanceTarget - memory.practicalRelevance) * (1 - Math.exp(-years / 25)));
-    // Symbolic legacy can outlive practical relevance by many centuries.
     const legacyGain = memory.strength * (0.012 + memory.artReinforcement * 0.025) * years;
     const legacyFade = Math.exp(-years / 1400);
     memory.symbolicLegacy = clamp01(memory.symbolicLegacy * legacyFade + legacyGain * (1 - memory.symbolicLegacy));
-    // Retelling simplifies and mythologises without instantly becoming fiction.
     memory.historicalAccuracy = clamp01(memory.historicalAccuracy - years * memory.strength * 0.00018 +
       (region.educationLevel || 0) * years * 0.00004);
   }
@@ -156,11 +165,16 @@ export function tickCulturalMemory(region, elapsedDays = 7) {
 export function culturalMemoryEffects(region) {
   const state = ensure(region);
   let chariot = 0, cavalry = 0, martial = 0, symbolic = 0, tourism = 0;
+  let foodSecurity = 0, religiousIdentity = 0, politicalTradition = 0, monumentalTradition = 0;
   for (const m of state.memories) {
     const active = m.strength * (0.35 + m.practicalRelevance * 0.65);
     if (m.motif === 'chariot') chariot += active;
     if (m.motif === 'cavalry') cavalry += active;
-    if (m.theme === 'victory' || m.theme === 'defeat') martial += active * 0.5;
+    if (m.theme === 'victory' || m.theme === 'defeat' || m.theme === 'military_tradition') martial += active * 0.5;
+    if (m.theme === 'famine') foodSecurity += active;
+    if (m.theme === 'religion') religiousIdentity += active;
+    if (m.theme === 'political_loss' || m.theme === 'political_settlement' || m.theme === 'rulership') politicalTradition += active;
+    if (m.theme === 'achievement' || m.sourceType === 'monument') monumentalTradition += active;
     symbolic += m.symbolicLegacy * m.strength;
     tourism += m.symbolicLegacy * (0.35 + m.artReinforcement * 0.65);
   }
@@ -168,6 +182,10 @@ export function culturalMemoryEffects(region) {
     chariotPrestige: clamp01(chariot / 2.2),
     cavalryPrestige: clamp01(cavalry / 2.2),
     martialTradition: clamp01(martial / 2.8),
+    foodSecurityTradition: clamp01(foodSecurity / 1.8),
+    religiousIdentity: clamp01(religiousIdentity / 1.8),
+    politicalTradition: clamp01(politicalTradition / 2.2),
+    monumentalTradition: clamp01(monumentalTradition / 2.2),
     symbolicLegacy: clamp01(symbolic / 3.5),
     tourismPotential: clamp01(tourism / 3.0),
   };
