@@ -61,6 +61,14 @@ function clearFocus(sim) {
   }
 }
 
+function clearLegacySelectionWithoutLosingFocus(sim) {
+  const selected = sim?.regions?.find((region) => region.id === sim?.map?.selectedId) || null;
+  const close = document.getElementById('btn-close-sheet');
+  if (!close) return;
+  close.click(); // main.js clears its internal selectedRegion here.
+  if (selected) showFocus(selected, sim);
+}
+
 function installRuntimePatch() {
   const sim = window.__worldsim;
   if (!sim?.map) return false;
@@ -76,11 +84,38 @@ function installRuntimePatch() {
   const selected = sim.regions?.find((region) => region.id === sim.map.selectedId) || playerRegion;
   if (selected && document.getElementById('picker-modal')?.classList.contains('hidden')) showFocus(selected, sim);
 
+  // main.js keeps a legacy selectedRegion variable and rebuilds its hidden
+  // report every tick while that variable is non-null. Triggering the existing
+  // close handler clears it safely, then we restore only the lightweight focus.
+  if (document.getElementById('picker-modal')?.classList.contains('hidden')) {
+    clearLegacySelectionWithoutLosingFocus(sim);
+  } else {
+    const pickerObserver = new MutationObserver(() => {
+      if (document.getElementById('picker-modal')?.classList.contains('hidden')) {
+        pickerObserver.disconnect();
+        setTimeout(() => clearLegacySelectionWithoutLosingFocus(sim), 0);
+      }
+    });
+    pickerObserver.observe(document.getElementById('picker-modal'), { attributes: true, attributeFilter: ['class'] });
+  }
+
+  // Some old advisor shortcuts still call main.js's openRegion callback, which
+  // rebuilds the sheet and re-populates that legacy selectedRegion. Convert any
+  // such attempt immediately back into map focus and clear the legacy state.
+  const sheet = document.getElementById('region-sheet');
+  if (sheet) {
+    new MutationObserver(() => {
+      if (sheet.classList.contains('hidden')) return;
+      const region = sim.regions?.find((candidate) => candidate.id === sim.map.selectedId);
+      clearLegacySelectionWithoutLosingFocus(sim);
+      if (region) showFocus(region, sim);
+    }).observe(sheet, { attributes: true, attributeFilter: ['class'] });
+  }
+
   document.getElementById('map-focus-close')?.addEventListener('click', () => clearFocus(sim));
   document.getElementById('btn-council')?.setAttribute('title', 'Advisors, reports and orders');
 
-  // Advisor-only extensions hold controls that used to live in the region sheet.
-  import('./advisorMapFirst.js?v=20260907-mapfirst2').catch((error) =>
+  import('./advisorMapFirst.js?v=20260907-mapfirst3').catch((error) =>
     console.error('Could not install map-first advisor extensions', error));
   return true;
 }
