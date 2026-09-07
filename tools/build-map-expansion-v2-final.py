@@ -4,8 +4,8 @@
 Uses the fast spatial-index source path and deliberately avoids rebuilding a
 world-sized union after every country. Country masks are mutually exclusive;
 new land therefore only needs to be subtracted from the pre-existing simulated
-map, which the fast wrapper already indexes. This entry point is also the clean
-regeneration target used by the broad-map workflow.
+map, which the fast wrapper already indexes. This entry point is the clean
+detailed regeneration target used by the broad-map workflow.
 """
 import argparse
 import importlib.util
