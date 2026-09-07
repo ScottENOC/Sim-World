@@ -22,6 +22,15 @@ fast = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(fast)
 map_v2 = fast.map_v2
 
+SWISS_DISPLAY_NAMES = {
+    'Sankt Gallen hinterland': 'Swiss Plateau & Upper Rhine',
+    'Bern': 'Bernese Plateau & Alps',
+    'Graubünden': 'Rhaetian Alps',
+    'Vaud hinterland': 'Lake Geneva & Western Plateau',
+    'Ticino hinterland': 'Southern Swiss Alps',
+    'Valais': 'Upper Rhône & Valais',
+}
+
 
 def absorb_microstates_geographic(base_geo, base_meta, masks, specs):
     meta_by_id = {m['id']: m for m in base_meta}
@@ -75,34 +84,145 @@ def absorb_microstates_geographic(base_geo, base_meta, masks, specs):
         print(f"MICROSTATE_ABSORB {iso} -> {f['properties'].get('name')}")
 
 
+def clean_detached_liechtenstein_from_base():
+    """Undo the earlier bad absorption that attached Liechtenstein to Haut-Rhin."""
+    admin0 = fast.fetch_json_retry(map_v2.ADMIN0_URL)
+    masks = fast.country_masks_with_hosts(admin0, {'LIE', 'CHE'})
+    lie = masks.get('LIE')
+    if lie is None or lie.is_empty:
+        print('ALPINE_CLEANUP_WARN Liechtenstein mask missing')
+        return
+
+    geo_doc = json.loads(Path(map_v2.BASE_GEO).read_text())
+    meta_doc = json.loads(Path(map_v2.BASE_META).read_text())
+    meta_by_id = {m['id']: m for m in meta_doc['regions']}
+    changed = False
+
+    for f in geo_doc.get('features', []):
+        if f.get('properties', {}).get('name') != 'Haut-Rhin':
+            continue
+        g = map_v2.repair(shape(f['geometry']))
+        overlap = map_v2.area_sqkm(g.intersection(lie))
+        if overlap < 50:
+            continue
+        cleaned = map_v2.repair(g.difference(lie.buffer(1e-7)))
+        if cleaned.is_empty:
+            raise RuntimeError('Alpine cleanup would remove all of Haut-Rhin')
+        f['geometry'] = map_v2.mapping(cleaned)
+        meta = meta_by_id.get(f['properties']['id'])
+        if meta:
+            c = cleaned.centroid
+            meta['centroid'] = [c.x, c.y]
+            meta['areaSqKm'] = map_v2.area_sqkm(cleaned)
+        print(f'ALPINE_CLEANUP removed {overlap:.1f}sqkm detached Liechtenstein component from Haut-Rhin')
+        changed = True
+
+    if not changed:
+        print('ALPINE_CLEANUP no detached Liechtenstein component found')
+        return
+
+    geo_path = Path('/tmp/simworld-clean-base-regions.geo.json')
+    meta_path = Path('/tmp/simworld-clean-base-regions.meta.json')
+    geo_path.write_text(json.dumps(geo_doc, ensure_ascii=False, separators=(',', ':')))
+    meta_path.write_text(json.dumps(meta_doc, ensure_ascii=False, separators=(',', ':')))
+    map_v2.BASE_GEO = geo_path
+    map_v2.BASE_META = meta_path
+    fast.prepare_existing_index(geo_doc.get('features', []))
+
+
+def prune_stale_base_adjacency(base_features, base_meta):
+    """Remove metadata neighbour edges that no longer exist in the geometry."""
+    geoms = {
+        f['properties']['id']: map_v2.repair(shape(f['geometry']))
+        for f in base_features
+    }
+    removed = 0
+    for m in base_meta:
+        mid = m['id']
+        mg = geoms.get(mid)
+        if mg is None:
+            continue
+        kept = []
+        for nid in m.get('neighbors', []):
+            ng = geoms.get(nid)
+            if ng is not None and mg.distance(ng) <= map_v2.ADJ_TOL:
+                kept.append(nid)
+            else:
+                removed += 1
+        m['neighbors'] = sorted(set(kept))
+    print(f'ADJACENCY_PRUNE removedDirectedEdges={removed}')
+
+
+def apply_swiss_display_names(regions):
+    """Use geographic Swiss labels without changing stable generated IDs."""
+    renamed = 0
+    for r in regions:
+        old = r['name']
+        new = SWISS_DISPLAY_NAMES.get(old)
+        if new:
+            r['name'] = new
+            print(f'SWISS_RENAME {old} -> {new} id={r["id"]}')
+            renamed += 1
+    if renamed != 6:
+        raise RuntimeError(f'Expected to rename 6 Swiss gameplay regions, renamed {renamed}')
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output-dir', default='/tmp/simworld-map-expansion-v2')
     args = parser.parse_args()
     plan = json.loads(Path(map_v2.PLAN).read_text())
+    configured_plan = json.loads((ROOT / 'tools' / 'map-region-plan-v2.json').read_text())
     resource_plan = json.loads(Path(map_v2.RESOURCE_PLAN).read_text())
     base_geo = json.loads(Path(map_v2.BASE_GEO).read_text())
     base_meta_doc = json.loads(Path(map_v2.BASE_META).read_text())
     base_resources = json.loads(Path(map_v2.BASE_RESOURCES).read_text())
     expected = int(plan['targetExistingRegionCount'])
+    configured_baseline = int(configured_plan['targetExistingRegionCount'])
+    rebased = expected > configured_baseline
+    append_only = set(configured_plan.get('appendOnlyCountriesWhenRebased', [])) if rebased else set()
+    if append_only:
+        print('IDEMPOTENT_APPEND_ONLY=' + ','.join(sorted(append_only)))
     if len(base_geo.get('features', [])) != expected:
         raise RuntimeError(f"Base map has {len(base_geo.get('features', []))} regions; expected {expected}")
 
     wanted = {c['iso'] for c in plan['countries']} | {m['iso'] for m in plan.get('microstateAbsorption', [])}
     admin0 = fast.fetch_json_retry(map_v2.ADMIN0_URL)
     masks = fast.country_masks_with_hosts(admin0, wanted)
-    absorb_microstates_geographic(base_geo['features'], base_meta_doc['regions'], masks,
-                                  plan.get('microstateAbsorption', []))
+
+    ordinary_microstates = [m for m in plan.get('microstateAbsorption', []) if m.get('iso') != 'LIE']
+    absorb_microstates_geographic(base_geo['features'], base_meta_doc['regions'], masks, ordinary_microstates)
+    prune_stale_base_adjacency(base_geo['features'], base_meta_doc['regions'])
 
     all_new = []
     for country in plan['countries']:
+        if append_only and country['iso'] not in append_only:
+            print(f"COUNTRY_REBASE_SKIP {country['iso']}")
+            continue
+
         mask = masks.get(country['iso'])
         pieces = fast.source_features_fast(country, mask, None)
+
+        if country['iso'] == 'CHE' and pieces:
+            lie = masks.get('LIE')
+            if lie is not None and not lie.is_empty:
+                lie_area = map_v2.area_sqkm(lie)
+                pieces.append({
+                    'geometry': lie,
+                    'names': ['Liechtenstein'],
+                    'anchor': 'Liechtenstein',
+                    'anchorArea': lie_area,
+                    'mergeArea': lie.area,
+                })
+                print(f'SWISS_CLUSTER added Liechtenstein source piece area={lie_area:.1f}sqkm')
+
         if not pieces:
             print(f"COUNTRY_SKIP {country['iso']} already covered or no substantial uncovered land")
             continue
         clusters = fast.cluster_regions_fast(pieces, country['targetRegions'])
         regions = fast.make_game_regions_fast(country, clusters)
+        if country['iso'] == 'CHE' and regions:
+            apply_swiss_display_names(regions)
         if not regions:
             print(f"COUNTRY_SKIP {country['iso']} only duplicate source slivers remained")
             continue
@@ -148,4 +268,5 @@ map_v2.make_game_regions = fast.make_game_regions_fast
 
 if __name__ == '__main__':
     fast.make_runtime_plan_idempotent()
+    clean_detached_liechtenstein_from_base()
     main()
