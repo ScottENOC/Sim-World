@@ -12,6 +12,7 @@ import { tickExternalities } from './externalities.js?v=20260907-classical1';
 import { tickUrbanisation } from '../technology/classicalTransition.js?v=20260907-art1';
 import { tickSettlements } from './settlements.js?v=20260907-art1';
 import { tickArts } from './arts.js?v=20260907-art1';
+import { tickArtistMigration, tickStatePatronage } from './statePatronage.js?v=20260907-art2';
 
 const CHILD_BAND_YEARS = 14;
 const WORKING_BAND_YEARS = 45;
@@ -37,9 +38,11 @@ export function tickDemographics(regions, religiousWorld = null, elapsedDays = 7
     tickUrbanisation(region, elapsedDays);
     tickSettlements(region);
     tickArts(region, regionsById, elapsedDays);
+    tickStatePatronage(region, elapsedDays);
     tickExternalities(region, elapsedDays);
     applyBaselineDemographics(region, elapsedDays);
   }
+  tickArtistMigration(regions, elapsedDays);
   for (const region of regions) applyFamineResponse(region, regionsById, religiousWorld, elapsedDays);
   // Cultural identities evolve on an internally annual cadence, so this call
   // remains cheap even when population is being ticked daily or monthly.
