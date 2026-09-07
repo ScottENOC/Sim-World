@@ -1,3 +1,5 @@
+import { operationalInfrastructure } from '../economy/construction.js?v=20260907-classical1';
+
 export const DEFENSIVE_POSTURES = Object.freeze(['settlements', 'trade_routes', 'borders']);
 export const RAIDER_TREATMENTS = Object.freeze(['reintegrate', 'recruit', 'punish']);
 export const NAVAL_PRIORITIES = Object.freeze(['fisheries', 'trade', 'war']);
@@ -39,7 +41,11 @@ export function mobilisedArmyTarget(region) {
 }
 
 export function armyCohesionMultiplier(region) {
-  return 0.82 + ensureMilitaryPolicy(region).armyPermanence * 0.28;
+  let multiplier = 0.82 + ensureMilitaryPolicy(region).armyPermanence * 0.28;
+  if (region.unlockedTechIds?.has('mass_heavy_infantry')) multiplier += 0.08;
+  if (region.unlockedTechIds?.has('military_drill')) multiplier += 0.08;
+  if (operationalInfrastructure(region, 'drill_ground')) multiplier += 0.07;
+  return multiplier;
 }
 
 export function postureProfile(region) {
@@ -51,9 +57,12 @@ export function postureProfile(region) {
 
 export function navalMissionProfile(region) {
   const priority = ensureMilitaryPolicy(region).navalPriority;
-  if (priority === 'fisheries') return { fishing: 1.2, trade: 1.0, war: 0.45 };
-  if (priority === 'war') return { fishing: 1.0, trade: 0.95, war: 1.0 };
-  return { fishing: 1.0, trade: 1.2, war: 0.6 };
+  const doctrine = region.unlockedTechIds?.has('naval_warfare') ? 1.12 : 1;
+  const base = priority === 'fisheries' ? { fishing: 1.2, trade: 1.0, war: 0.45 }
+    : priority === 'war' ? { fishing: 1.0, trade: 0.95, war: 1.0 }
+      : { fishing: 1.0, trade: 1.2, war: 0.6 };
+  const baseBonus = operationalInfrastructure(region, 'naval_base') ? 1.12 : 1;
+  return { ...base, war: base.war * doctrine * baseBonus };
 }
 
 function stableFraction(text) {
