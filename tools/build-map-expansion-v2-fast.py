@@ -23,7 +23,10 @@ spec = importlib.util.spec_from_file_location('map_v2', MODULE_PATH)
 map_v2 = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(map_v2)
 
-ADMIN1_URL = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_1_states_provinces.geojson'
+# 50m admin-1 geometry is ample for durable gameplay regions and dramatically
+# cheaper than 10m coastlines. Final adjacency/area calculations still use the
+# generated geometries and geodesic area calculation in build-map-expansion-v2.
+ADMIN1_URL = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_1_states_provinces.geojson'
 HOST_ISO = {'VAT':'ITA', 'SMR':'ITA', 'MCO':'FRA', 'LIE':'CHE'}
 ALIASES = {'KOS': {'KOS','XKX'}, 'PSE': {'PSE','PSX'}, 'ESH': {'ESH','SAH'}}
 _admin1_cache = None
@@ -69,11 +72,10 @@ def absorb_microstates_hosted(base_geo, base_meta, masks, specs):
             print(f'MICROSTATE_WARN missing {iso} or host geometry')
             continue
         best = None
+        host_env = host.envelope
         for f in base_geo:
             g = map_v2.repair(shape(f['geometry']))
-            # Bounding-box rejection avoids expensive host intersections for
-            # hundreds of obviously unrelated regions.
-            if not g.envelope.intersects(host.envelope):
+            if not g.envelope.intersects(host_env):
                 continue
             if map_v2.area_sqkm(g.intersection(host)) < 1:
                 continue
@@ -111,14 +113,11 @@ def natural_earth_admin1():
 
 def prepare_existing_index(base_features):
     global _existing_geoms, _existing_tree
-    # A 0.003-degree simplification is much finer than gameplay-region
-    # boundaries while removing thousands of coastline vertices from repeated
-    # difference operations.
     _existing_geoms = []
     for f in base_features:
         g = map_v2.repair(shape(f['geometry']))
         if not g.is_empty:
-            _existing_geoms.append(map_v2.repair(g.simplify(0.003, preserve_topology=True)))
+            _existing_geoms.append(map_v2.repair(g.simplify(0.005, preserve_topology=True)))
     _existing_tree = STRtree(_existing_geoms)
     print('EXISTING_SPATIAL_INDEX=' + str(len(_existing_geoms)))
 
@@ -126,9 +125,6 @@ def prepare_existing_index(base_features):
 def subtract_existing(g):
     if _existing_tree is None or g.is_empty:
         return g
-    # Shapely 2 STRtree returns integer indices. Only union geometries whose
-    # envelopes intersect this source piece; most pieces see a handful rather
-    # than all ~600 existing regions.
     indices = _existing_tree.query(g)
     nearby = [_existing_geoms[int(i)] for i in indices]
     if not nearby:
@@ -173,26 +169,20 @@ def source_features_fast(country, mask, _unused_existing_coverage):
         a = map_v2.area_sqkm(g)
         if a < min_area:
             continue
-        pieces.append({'geometry': g, 'names':[name], 'anchor':name, 'anchorArea':a})
+        pieces.append({'geometry': g, 'names':[name], 'anchor':name, 'anchorArea':a, 'mergeArea':g.area})
     return pieces
 
 
 def cluster_regions_fast(pieces, target):
-    """Merge nearest contiguous pieces without O(n^3) global rescans.
-
-    Natural Earth ADM1 counts are modest, but Russia can still make the old
-    all-pairs-rescan loop expensive. Rebuild a spatial tree each merge round and
-    choose the best touching/nearby candidate for the smallest cluster.
-    """
+    """Merge neighbouring administrative pieces without geodesic rescans."""
     clusters = list(pieces)
     target = max(1, min(int(target), len(clusters))) if clusters else 0
     while len(clusters) > target:
-        clusters.sort(key=lambda c: map_v2.area_sqkm(c['geometry']))
+        clusters.sort(key=lambda c: c.get('mergeArea', c['geometry'].area))
         geoms = [c['geometry'] for c in clusters]
         tree = STRtree(geoms)
         merged_pair = None
         for i, a in enumerate(clusters):
-            # Expand around this piece; country subdivisions normally touch.
             candidates = tree.query(a['geometry'].buffer(0.08))
             best = None
             for raw_j in candidates:
@@ -201,20 +191,20 @@ def cluster_regions_fast(pieces, target):
                     continue
                 b = clusters[j]
                 d = a['geometry'].distance(b['geometry'])
-                score = (0 if d <= 0.04 else 1, d,
-                         map_v2.area_sqkm(a['geometry']) + map_v2.area_sqkm(b['geometry']))
+                combined = a.get('mergeArea', a['geometry'].area) + b.get('mergeArea', b['geometry'].area)
+                score = (0 if d <= 0.04 else 1, d, combined)
                 if best is None or score < best[0]:
                     best = (score, j)
             if best is not None:
                 merged_pair = (i, best[1])
                 break
         if merged_pair is None:
-            # Rare island fallback: one full pair scan, not one per merge.
             best = None
             for i in range(len(clusters)):
                 for j in range(i + 1, len(clusters)):
                     d = clusters[i]['geometry'].distance(clusters[j]['geometry'])
-                    score = (d, map_v2.area_sqkm(clusters[i]['geometry']) + map_v2.area_sqkm(clusters[j]['geometry']))
+                    combined = clusters[i].get('mergeArea', clusters[i]['geometry'].area) + clusters[j].get('mergeArea', clusters[j]['geometry'].area)
+                    score = (d, combined)
                     if best is None or score < best[0]:
                         best = (score, i, j)
             _, i, j = best
@@ -225,9 +215,13 @@ def cluster_regions_fast(pieces, target):
         a, b = clusters[i], clusters[j]
         g = map_v2.repair(unary_union([a['geometry'], b['geometry']]))
         anchor = a if a['anchorArea'] >= b['anchorArea'] else b
-        merged = {'geometry':g,
-                  'names':sorted(set(a['names'] + b['names']), key=str.casefold),
-                  'anchor':anchor['anchor'], 'anchorArea':anchor['anchorArea']}
+        merged = {
+            'geometry':g,
+            'names':sorted(set(a['names'] + b['names']), key=str.casefold),
+            'anchor':anchor['anchor'],
+            'anchorArea':anchor['anchorArea'],
+            'mergeArea':a.get('mergeArea', a['geometry'].area) + b.get('mergeArea', b['geometry'].area),
+        }
         clusters.pop(j); clusters.pop(i); clusters.append(merged)
     return clusters
 
