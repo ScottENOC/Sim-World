@@ -15,7 +15,7 @@ jobs:
           - label: B
             seed: 2959855665
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,9 +23,9 @@ jobs:
           node-version: '22'
       - name: Syntax check
         run: find js tools -type f \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check
-      - name: Run 160-year history seed ${{ matrix.label }}
+      - name: Run 160-year macro-history seed ${{ matrix.label }}
         run: |
-          node tools/calibrate.mjs --years 160 --seeds 1 --base-seed ${{ matrix.seed }} --snapshot-years 20 --days-per-tick 30 --regional-detail true --output history-${{ matrix.label }}.json
+          node tools/calibrate.mjs --years 160 --seeds 1 --base-seed ${{ matrix.seed }} --snapshot-years 20 --days-per-tick 180 --regional-detail true --output history-${{ matrix.label }}.json
       - name: Print historical summary
         run: |
           node --input-type=module <<'NODE'
