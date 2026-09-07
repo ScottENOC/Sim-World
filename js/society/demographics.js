@@ -15,6 +15,7 @@ import { tickArts } from './arts.js?v=20260907-art1';
 import { tickArtistMigration, tickStatePatronage } from './statePatronage.js?v=20260907-art2';
 import { tickCulturalMemory } from './culturalMemory.js?v=20260907-memory1';
 import { recordFamineStress } from './societalMemoryEvents.js?v=20260907-memory2';
+import { tickMilitaryFormations } from '../military/formations.js?v=20260907-formations1';
 
 const CHILD_BAND_YEARS = 14;
 const WORKING_BAND_YEARS = 45;
@@ -39,6 +40,7 @@ export function tickDemographics(regions, religiousWorld = null, elapsedDays = 7
     tickArts(region, regionsById, elapsedDays);
     tickStatePatronage(region, elapsedDays);
     tickCulturalMemory(region, elapsedDays);
+    tickMilitaryFormations(region, elapsedDays);
     tickExternalities(region, elapsedDays);
     applyBaselineDemographics(region, elapsedDays);
   }
