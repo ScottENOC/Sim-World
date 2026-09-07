@@ -2,14 +2,16 @@
 // elapsed historical days, so changing the world cadence does not change the
 // underlying annual demography.
 
-import { FOOD_PER_PERSON_PER_WEEK } from '../economy/labor.js?v=20260904-weather1';
+import { FOOD_PER_PERSON_PER_WEEK } from '../economy/labor.js?v=20260907-art1';
 import { chooseEmigrationDestinations } from './migration.js?v=20260904-weather1';
 import { migrateReligion } from './religion.js?v=20260905-religion1';
 import { migrateCulture, tickCulture } from './culture.js?v=20260907-culture1';
 import { tickEducation } from './education.js?v=20260906-education1';
 import { DAYS_PER_YEAR, annualFractionRate, elapsedWeeks } from '../core/simTime.js?v=20260905-time1';
 import { tickExternalities } from './externalities.js?v=20260907-classical1';
-import { tickUrbanisation } from '../technology/classicalTransition.js?v=20260907-classical1';
+import { tickUrbanisation } from '../technology/classicalTransition.js?v=20260907-art1';
+import { tickSettlements } from './settlements.js?v=20260907-art1';
+import { tickArts } from './arts.js?v=20260907-art1';
 
 const CHILD_BAND_YEARS = 14;
 const WORKING_BAND_YEARS = 45;
@@ -33,6 +35,8 @@ export function tickDemographics(regions, religiousWorld = null, elapsedDays = 7
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   for (const region of regions) {
     tickUrbanisation(region, elapsedDays);
+    tickSettlements(region);
+    tickArts(region, regionsById, elapsedDays);
     tickExternalities(region, elapsedDays);
     applyBaselineDemographics(region, elapsedDays);
   }
