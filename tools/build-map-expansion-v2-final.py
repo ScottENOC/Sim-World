@@ -22,6 +22,15 @@ fast = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(fast)
 map_v2 = fast.map_v2
 
+SWISS_DISPLAY_NAMES = {
+    'Sankt Gallen hinterland': 'Swiss Plateau & Upper Rhine',
+    'Bern': 'Bernese Plateau & Alps',
+    'Graubünden': 'Rhaetian Alps',
+    'Vaud hinterland': 'Lake Geneva & Western Plateau',
+    'Ticino hinterland': 'Southern Swiss Alps',
+    'Valais': 'Upper Rhône & Valais',
+}
+
 
 def absorb_microstates_geographic(base_geo, base_meta, masks, specs):
     meta_by_id = {m['id']: m for m in base_meta}
@@ -122,12 +131,7 @@ def clean_detached_liechtenstein_from_base():
 
 
 def prune_stale_base_adjacency(base_features, base_meta):
-    """Remove metadata neighbour edges that no longer exist in the geometry.
-
-    This validates only already-recorded edges rather than doing a full O(n²)
-    adjacency rebuild. New Swiss edges are added immediately afterwards by the
-    normal additive adjacency routine.
-    """
+    """Remove metadata neighbour edges that no longer exist in the geometry."""
     geoms = {
         f['properties']['id']: map_v2.repair(shape(f['geometry']))
         for f in base_features
@@ -147,6 +151,20 @@ def prune_stale_base_adjacency(base_features, base_meta):
                 removed += 1
         m['neighbors'] = sorted(set(kept))
     print(f'ADJACENCY_PRUNE removedDirectedEdges={removed}')
+
+
+def apply_swiss_display_names(regions):
+    """Use geographic Swiss labels without changing stable generated IDs."""
+    renamed = 0
+    for r in regions:
+        old = r['name']
+        new = SWISS_DISPLAY_NAMES.get(old)
+        if new:
+            r['name'] = new
+            print(f'SWISS_RENAME {old} -> {new} id={r["id"]}')
+            renamed += 1
+    if renamed != 6:
+        raise RuntimeError(f'Expected to rename 6 Swiss gameplay regions, renamed {renamed}')
 
 
 def main():
@@ -203,6 +221,8 @@ def main():
             continue
         clusters = fast.cluster_regions_fast(pieces, country['targetRegions'])
         regions = fast.make_game_regions_fast(country, clusters)
+        if country['iso'] == 'CHE' and regions:
+            apply_swiss_display_names(regions)
         if not regions:
             print(f"COUNTRY_SKIP {country['iso']} only duplicate source slivers remained")
             continue
