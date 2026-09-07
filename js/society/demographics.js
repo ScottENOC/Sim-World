@@ -14,6 +14,7 @@ import { tickSettlements } from './settlements.js?v=20260907-art1';
 import { tickArts } from './arts.js?v=20260907-art1';
 import { tickArtistMigration, tickStatePatronage } from './statePatronage.js?v=20260907-art2';
 import { tickCulturalMemory } from './culturalMemory.js?v=20260907-memory1';
+import { recordFamineStress } from './societalMemoryEvents.js?v=20260907-memory2';
 
 const CHILD_BAND_YEARS = 14;
 const WORKING_BAND_YEARS = 45;
@@ -66,7 +67,8 @@ function applyBaselineDemographics(region, elapsedDays) {
 
   d.children = Math.max(0, d.children + births - childDeaths - childToWorking);
   d.workingAge = Math.max(0, d.workingAge + childToWorking - workingDeaths - workingToElderly);
-  d.elderly = Math.max(0, d.elderly + workingToElderly - elderlyDeaths);
+  d.elderly = Math.max(0, d.elderly + workingToElderly - workingDeaths - workingToElderly + workingDeaths);
+  d.elderly = Math.max(0, d.elderly - elderlyDeaths + workingToElderly);
 
   const militaryDeathFraction = annualFractionRate(ARMY_BASE_ANNUAL_DEATH_RATE, elapsedDays);
   region.army.personnel = Math.max(0, region.army.personnel * (1 - militaryDeathFraction));
@@ -82,11 +84,16 @@ function applyFamineResponse(region, regionsById, religiousWorld, elapsedDays) {
   region.stability = clamp01(region.stability - deficitRatio * STARVATION_STABILITY_PENALTY_PER_WEEK * weeks +
     (deficitRatio === 0 ? WELL_FED_STABILITY_RECOVERY_PER_WEEK * weeks : 0));
   region.stockpile.food = Math.max(0, region.stockpile.food || 0);
-  if (shortfall <= 0.5) return;
+  if (shortfall <= 0.5) {
+    recordFamineStress(region, 0, elapsedDays);
+    return;
+  }
 
   const humansPresent = Math.max(0, region.population + region.army.personnel + region.navy.personnel);
   const foodPerPersonThisTick = FOOD_PER_PERSON_PER_WEEK * Math.max(0.001, weeks);
   const distressed = Math.min(humansPresent, shortfall / foodPerPersonThisTick);
+  const distressShare = distressed / Math.max(1, humansPresent);
+  recordFamineStress(region, Math.max(deficitRatio, distressShare), elapsedDays);
   const deaths = distressed * FAMINE_DEATH_SHARE;
   const emigrants = distressed * FAMINE_EMIGRATE_SHARE;
   const banditsNew = distressed * FAMINE_BANDIT_SHARE;
