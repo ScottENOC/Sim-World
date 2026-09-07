@@ -6,6 +6,10 @@
   "ironOre": { "category": "extractive", "label": "Iron ore" },
   "clay":   { "category": "extractive", "label": "Clay" },
   "gold":   { "category": "extractive", "label": "Gold" },
+  "silver": { "category": "extractive", "label": "Silver" },
+  "lead":   { "category": "extractive", "label": "Lead" },
+  "salt":   { "category": "extractive", "label": "Salt" },
+  "fineStone": { "category": "extractive", "label": "Fine building stone" },
   "bronze": {
     "category": "crafted",
     "label": "Bronze",
