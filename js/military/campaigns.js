@@ -8,6 +8,7 @@ import { armyCohesionMultiplier, navalMissionProfile, postureProfile } from './p
 import { findLandStagingRegion, sovereignPolity } from '../politics/polities.js?v=20260904-war1';
 import { createConquestSettlementOffer, chooseNpcConquestOffer, resolveNpcSettlement, resolvePartialConquest, transferRegion } from '../politics/continuity.js?v=20260907-continuity1';
 import { removeFromBands, syncPopulation } from '../society/demographics.js?v=20260904-weather1';
+import { recordCampaignMemories } from '../society/culturalMemory.js?v=20260907-memory1';
 import { effectiveInfrastructureCount, hillFortDefenceMultiplier, overlandInfrastructureMultiplier, settlementDefenceMultiplier } from '../economy/construction.js?v=20260905-projects1';
 import { returnSiegeTrain, survivingFortBenefit, takeSiegeTrain } from './siegeEquipment.js?v=20260905-siege1';
 
@@ -251,8 +252,6 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
     return beginReturn(campaign, attacker, defender, currentTick, 'liberation_failed');
   }
   if (campaign.objective === 'subjugation' && (campaign.pressure >= 0.98 || campaign.defenderMorale <= 0.05)) {
-    // Military surrender begins a political settlement. The defeated ruler can
-    // accept terms or continue as a claimant/government in exile.
     return beginReturn(campaign, attacker, defender, currentTick, 'submission_pending');
   }
   if (campaign.objective === 'devastation' && (campaign.pressure >= 0.95 || campaign.damage >= 0.65)) {
@@ -282,9 +281,6 @@ export function tickCampaigns(campaigns, regionsById, polities, currentTick, too
       campaign.lastProcessedTick = Math.max(campaign.lastProcessedTick, campaign.arriveTick - 1);
       events.push({ type: 'campaign_arrived', campaign, attackerName: attacker.name, defenderName: defender.name });
     }
-    // A monthly scheduler may span four or five combat weeks. Resolve each
-    // historical week in order, but only for campaigns that are actually
-    // active; the rest of the world still receives one monthly update.
     while (campaign.phase === 'engaged' && campaign.lastProcessedTick < currentTick) {
       const combatWeek = campaign.lastProcessedTick + 1;
       resolveCampaignWeek(campaign, attacker, defender, polities, regionList, combatWeek, toolTypes, rng);
@@ -335,6 +331,7 @@ export function tickCampaigns(campaigns, regionsById, polities, currentTick, too
       attacker.army.away = Math.max(0, (attacker.army.away || 0) - campaign.personnel);
       returnSiegeTrain(attacker, campaign.siegeEquipment);
       campaign.completed = true; campaign.phase = 'completed';
+      recordCampaignMemories(campaign, attacker, defender, currentTick);
       events.push({ type: 'campaign_returned', campaign, attackerName: attacker.name, defenderName: defender.name });
     }
   }

@@ -1,6 +1,7 @@
 import { AdvisorCouncil } from './advisors.js?v=20260907-art1';
 import { settlementSummary } from '../society/settlements.js?v=20260907-art1';
 import { artistPopulation, ensureCulturalLife, notableWorks } from '../society/arts.js?v=20260907-art1';
+import { definingMemories } from '../society/culturalMemory.js?v=20260907-memory1';
 import {
   STATE_PATRONAGE_LEVELS, commissionGovernmentWork, closeArtSchool,
   ensureStatePatronage, foundArtSchool, setStatePatronagePolicy,
@@ -14,6 +15,23 @@ const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => 
 }[char]));
 let activePlayer = null;
 let activeCouncil = null;
+
+function memoryRows(player) {
+  const memories = definingMemories(player, 6).filter((m) => m.strength > 0.05 || m.symbolicLegacy > 0.08);
+  if (!memories.length) return '<p class="advisor-note">No event has yet become a defining shared story.</p>';
+  return memories.map((memory) => `
+    <article class="conflict-card">
+      <div class="conflict-detail" style="display:block">
+        <strong>${escapeHtml(memory.label)}</strong>
+        <p class="advisor-note">${escapeHtml(memory.theme)}${memory.motif ? ` · ${escapeHtml(memory.motif)}` : ''}${memory.defining ? ' · defining memory' : ''}</p>
+        <div class="advisor-report-row"><span>Story strength</span><strong>${percent(memory.strength)}</strong></div>
+        <div class="advisor-report-row"><span>Practical relevance</span><strong>${percent(memory.practicalRelevance)}</strong></div>
+        <div class="advisor-report-row"><span>Symbolic legacy</span><strong>${percent(memory.symbolicLegacy)}</strong></div>
+        <div class="advisor-report-row"><span>Reinforced by art</span><strong>${percent(memory.artReinforcement)}</strong></div>
+        <div class="advisor-report-row"><span>Historical accuracy</span><strong>${percent(memory.historicalAccuracy)}</strong></div>
+      </div>
+    </article>`).join('');
+}
 
 function culturalSection(player) {
   const settlement = settlementSummary(player);
@@ -64,12 +82,16 @@ function culturalSection(player) {
     <div class="advisor-report-row"><span>Professional artists</span><strong>${number(artistPopulation(player))}</strong></div>
     <div class="advisor-report-row"><span>Artistic reputation</span><strong>${percent(cultural.reputation || 0)}</strong></div>
     <div class="advisor-report-row"><span>Public artistic amenity</span><strong>${percent(cultural.publicAmenity || 0)}</strong></div>
-    <p class="advisor-note">Artists are sustained by real urban surplus and patronage. Their work does not generate abstract culture points: works can make a place pleasant or famous, reinforce the subject they depict, and later attract visitors.</p>
+    <p class="advisor-note">Artists are sustained by real urban surplus and patronage. Their work can reinforce particular stories; it still does not generate an abstract culture currency.</p>
+
+    <h4>Defining stories</h4>
+    <p class="advisor-note">Important events can become shared cultural memories. Practical consequences fade when the underlying practice becomes obsolete, while stories, symbols, surviving artworks and visitor interest can persist much longer.</p>
+    ${memoryRows(player)}
 
     <h4>State patronage</h4>
     <label class="advisor-field"><span>Patronage policy</span><select id="state-art-policy">${policyOptions}</select></label>
     <div class="advisor-report-row"><span>Recent state art spending</span><strong>${Number(policy.annualSpend || 0).toFixed(1)} coin</strong></div>
-    <p class="advisor-note">NPC governments use the same treasury-backed system. Once you choose a policy here, your realm keeps that policy until you change it; it is not silently overwritten by the AI.</p>
+    <p class="advisor-note">NPC governments use the same treasury-backed system. Once you choose a policy here, your realm keeps that policy until you change it.</p>
     <label class="advisor-field"><span>Commission</span><select id="state-art-discipline">
       <option value="sculpture">Sculpture</option><option value="painting">Painting</option><option value="music">Music</option><option value="poetry">Poetry</option>
     </select></label>

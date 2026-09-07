@@ -20,7 +20,16 @@ export function tickChariotry(region, elapsedDays = 7) {
   const weeks = Math.max(0.01, elapsedDays / 7);
   const warHorses = Math.max(0, region.horseEconomy?.war || 0);
   const army = Math.max(1, (region.army?.personnel || 0) + (region.army?.away || 0));
-  const desired = Math.min(warHorses / 2, Math.max(2, army * 0.08));
+  const memory = region.culturalMemory?.effects || {};
+  const chariotPrestige = clamp01(memory.chariotPrestige || 0);
+  const cavalryPrestige = clamp01(memory.cavalryPrestige || 0);
+  // Cultural prestige changes what elites choose to maintain, not the physics of
+  // the vehicle. A celebrated chariot tradition may stay oversized for a while,
+  // but effective cavalry and material scarcity still pull the system away.
+  const traditionDemand = 1 + chariotPrestige * 0.75 - cavalryPrestige * 0.2;
+  const cavalryCompetition = region.unlockedTechIds?.has(MOUNTED_CAVALRY_TECH_ID)
+    ? Math.max(0.45, 1 - cavalryPrestige * 0.3 - (1 - chariotPrestige) * 0.18) : 1;
+  const desired = Math.min(warHorses / 2, Math.max(2, army * 0.08 * traditionDemand * cavalryCompetition));
   const gap = Math.max(0, desired - c.chariots);
   if (gap > 0) {
     const buildCapacity = Math.max(0.05, Math.sqrt(Math.max(0, region.occupations?.smith || 0) + 1) * 0.025) * weeks;
@@ -37,8 +46,6 @@ export function tickChariotry(region, elapsedDays = 7) {
     }
   }
 
-  // Light vehicles are maintenance hungry. A stressed economy can keep the
-  // horses but slowly lose a usable chariot arm as frames, wheels and fittings fail.
   const maintenanceNeed = c.chariots * 0.02 * weeks;
   const woodAvailable = Math.max(0, region.stockpile?.wood || 0);
   const supplied = Math.min(maintenanceNeed, woodAvailable);
@@ -67,8 +74,6 @@ export function cavalryCoverage(region) {
 export function mountedDoctrineCombatBonus(region) {
   const chariot = chariotCoverage(region) * 0.32;
   const cavalry = cavalryCoverage(region) * 0.28;
-  // Once cavalry is effective, it competes for the same elite riders and horses;
-  // bonuses do not simply stack into a super-army.
   return Math.max(chariot, cavalry);
 }
 
