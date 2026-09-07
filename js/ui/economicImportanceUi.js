@@ -1,4 +1,4 @@
-import { perceivedEconomicImportance, importanceLabel } from '../economy/economicImportance.js?v=20260907-importance1';
+import { perceivedEconomicImportance, importanceLabel } from '../economy/economicImportance.js?v=20260907-importance2';
 
 function observer(sim) {
   const playerId = sim?.fogOfWar?.playerRegionId;
