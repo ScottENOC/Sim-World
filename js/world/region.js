@@ -13,7 +13,8 @@ export class Region {
     this.scouting = { active: false, lastResult: null };
     this.militaryPolicy = { armyPermanence: 0.5, defensivePosture: 'settlements',
       raiderTreatment: 'reintegrate', navalPriority: 'trade', warHorseAllocation: 0.5 };
-    this.militaryExperience = { combat: 0, lastTick: 0, engagementWeeks: 0 };
+    this.militaryExperience = { field: 0, institutional: 0, lastFieldTick: 0, engagementWeeks: 0, trainingYears: 0 };
+    this.militaryInstitutions = { officerSchoolProgress: 0, officerSchoolActive: false };
     this.isCoastal = false; this.adjacentSeaIds = []; this.fishingBoats = 0;
     this.advancedFishingBoats = 0; this.targetFishingBoats = 0;
     this.landQuality = null; this.forest = null; this.terrain = null; this.deposits = null; this.stockpile = {};

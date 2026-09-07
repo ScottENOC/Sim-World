@@ -1,4 +1,5 @@
 import { operationalInfrastructure } from '../economy/construction.js?v=20260907-classical1';
+import { militaryExperienceProfile } from './professionalisation.js?v=20260908-prof1';
 
 export const DEFENSIVE_POSTURES = Object.freeze(['settlements', 'trade_routes', 'borders']);
 export const RAIDER_TREATMENTS = Object.freeze(['reintegrate', 'recruit', 'punish']);
@@ -32,21 +33,26 @@ export function setMilitaryPolicy(region, key, value) {
 export function mobilisedArmyTarget(region) {
   const policy = ensureMilitaryPolicy(region);
   const threat = clamp01(1 - (region.safetyRating ?? 1));
-  const mobilisationShare = 0.2 + policy.armyPermanence * 0.8 +
-    threat * (1 - policy.armyPermanence) * 0.8;
+  const mobilisationShare = 0.2 + policy.armyPermanence * 0.8 + threat * (1 - policy.armyPermanence) * 0.8;
   return Math.max(0, region.targetArmySize || 0) * Math.min(1, mobilisationShare);
 }
 
 function emergentFormationCohesion(region) {
   const formations = region.militaryFormations?.traditions || [];
+  const specBonus = {
+    standardised_heavy_infantry: 0.10,
+    elite_chariot_formation: 0.05,
+    cavalry_corps: 0.06,
+    siege_engineer_corps: 0.04,
+    naval_infantry: 0.07,
+    professional_cohorts: 0.14,
+  };
   let bonus = 0;
   for (const formation of formations) {
     if (formation.status !== 'active') continue;
-    const coverage = clamp01(formation.coverage || 0);
-    const readiness = clamp01(formation.readiness || 0);
-    if (formation.archetypeId === 'standardised_heavy_infantry') bonus += 0.10 * coverage * readiness;
+    bonus += (specBonus[formation.archetypeId] || 0) * clamp01(formation.coverage) * clamp01(formation.readiness);
   }
-  return Math.min(0.12, bonus);
+  return Math.min(0.22, bonus);
 }
 
 export function armyCohesionMultiplier(region) {
@@ -54,6 +60,8 @@ export function armyCohesionMultiplier(region) {
   if (region.unlockedTechIds?.has('mass_heavy_infantry')) multiplier += 0.08;
   if (region.unlockedTechIds?.has('military_drill')) multiplier += 0.08;
   if (operationalInfrastructure(region, 'drill_ground')) multiplier += 0.07;
+  const professional = militaryExperienceProfile(region, null);
+  multiplier += professional.institutional * 0.10 + (professional.officerSchool ? 0.05 : 0);
   multiplier += emergentFormationCohesion(region);
   return multiplier;
 }

@@ -2,21 +2,51 @@ import { operationalInfrastructure } from '../economy/construction.js?v=20260907
 import { ensureMilitaryPolicy } from './policies.js?v=20260904-policy1';
 import { culturalMemoryEffects } from '../society/culturalMemory.js?v=20260907-memory1';
 import { recordSocietalMemory } from '../society/societalMemoryEvents.js?v=20260907-memory2';
+import {
+  militaryExperienceProfile,
+  officerSchoolStatus,
+  tickMilitaryProfessionalisation,
+} from './professionalisation.js?v=20260908-prof1';
 
 const DAYS_PER_YEAR = 365.2425;
 const clamp01 = (v) => Math.max(0, Math.min(1, Number(v) || 0));
 
 export const FORMATION_ARCHETYPES = Object.freeze({
   standardised_heavy_infantry: {
-    id: 'standardised_heavy_infantry',
-    label: 'Standardised heavy infantry',
-    minArmy: 300,
-    discoveryYears: 12,
-    maxCoverage: 0.42,
-    combatBonus: 0.13,
-    cohesionBonus: 0.10,
-    annualMetalPerSoldier: 0.004,
-    annualTreasuryPerSoldier: 0.0015,
+    id: 'standardised_heavy_infantry', label: 'Standardised heavy infantry', minArmy: 300,
+    discoveryYears: 12, maxCoverage: 0.42, combatBonus: 0.13, cohesionBonus: 0.10,
+    annualMetalPerSoldier: 0.004, annualTreasuryPerSoldier: 0.0015,
+    terrain: { plains: 1, hills: 1.02, mountains: 0.95, forest: 0.96, wetland: 0.88 },
+  },
+  elite_chariot_formation: {
+    id: 'elite_chariot_formation', label: 'Elite chariot formation', minArmy: 180,
+    discoveryYears: 10, maxCoverage: 0.22, combatBonus: 0.12, cohesionBonus: 0.05,
+    mobilityBonus: 0.05, annualMetalPerSoldier: 0.003, annualTreasuryPerSoldier: 0.0020,
+    terrain: { plains: 1.08, hills: 0.78, mountains: 0.35, forest: 0.48, wetland: 0.40 },
+  },
+  cavalry_corps: {
+    id: 'cavalry_corps', label: 'Organised cavalry corps', minArmy: 250,
+    discoveryYears: 14, maxCoverage: 0.30, combatBonus: 0.12, cohesionBonus: 0.06,
+    mobilityBonus: 0.09, annualMetalPerSoldier: 0.003, annualTreasuryPerSoldier: 0.0022,
+    terrain: { plains: 1.06, hills: 0.94, mountains: 0.70, forest: 0.76, wetland: 0.68 },
+  },
+  siege_engineer_corps: {
+    id: 'siege_engineer_corps', label: 'Siege engineer corps', minArmy: 350,
+    discoveryYears: 16, maxCoverage: 0.16, combatBonus: 0.04, cohesionBonus: 0.04,
+    siegeBonus: 0.35, annualMetalPerSoldier: 0.006, annualTreasuryPerSoldier: 0.0028,
+    terrain: { plains: 1, hills: 1, mountains: 0.95, forest: 0.92, wetland: 0.86 },
+  },
+  naval_infantry: {
+    id: 'naval_infantry', label: 'Naval infantry and marines', minArmy: 220,
+    discoveryYears: 13, maxCoverage: 0.22, combatBonus: 0.08, cohesionBonus: 0.07,
+    amphibiousBonus: 0.30, annualMetalPerSoldier: 0.003, annualTreasuryPerSoldier: 0.0021,
+    terrain: { plains: 1, hills: 1, mountains: 0.92, forest: 0.98, wetland: 0.98 },
+  },
+  professional_cohorts: {
+    id: 'professional_cohorts', label: 'Professional cohort organisation', minArmy: 800,
+    discoveryYears: 18, maxCoverage: 0.55, combatBonus: 0.12, cohesionBonus: 0.14,
+    mobilityBonus: 0.04, siegeBonus: 0.10, annualMetalPerSoldier: 0.0045, annualTreasuryPerSoldier: 0.0030,
+    terrain: { plains: 1.02, hills: 1.02, mountains: 0.98, forest: 0.99, wetland: 0.92 },
   },
 });
 
@@ -29,55 +59,89 @@ export function ensureMilitaryFormations(region) {
 }
 
 function hasTech(region, id) { return Boolean(region.unlockedTechIds?.has(id)); }
-
-function heavyInfantryConditions(region) {
-  const army = Math.max(0, (region.army?.personnel || 0) + (region.army?.away || 0));
-  const policy = ensureMilitaryPolicy(region);
-  const technology = hasTech(region, 'mass_heavy_infantry') && hasTech(region, 'military_drill') && hasTech(region, 'standard_weights');
-  const institutions = operationalInfrastructure(region, 'royal_arsenal') && operationalInfrastructure(region, 'drill_ground');
+function hasInfra(region, id) { return operationalInfrastructure(region, id); }
+function armySize(region) { return Math.max(0, (region.army?.personnel || 0) + (region.army?.away || 0)); }
+function metalAdequacy(region, army) {
   const metal = Math.max(0, region.stockpile?.iron || 0) + Math.max(0, region.stockpile?.bronze || 0);
-  const metalAdequacy = clamp01(metal / Math.max(8, army * 0.015));
+  return clamp01(metal / Math.max(8, army * 0.015));
+}
+function siegeInventory(region) {
+  const inventory = region.siegeEquipment?.inventory || {};
+  return Object.values(inventory).reduce((sum, byMetal) => sum + Object.values(byMetal || {}).reduce((a, b) => a + (Number(b) || 0), 0), 0);
+}
+
+function conditionsFor(region, archetypeId) {
+  const army = armySize(region);
+  const policy = ensureMilitaryPolicy(region);
   const permanence = clamp01(policy.armyPermanence || 0);
   const martialMemory = culturalMemoryEffects(region).martialTradition || 0;
-  return {
-    eligible: technology && institutions && army >= FORMATION_ARCHETYPES.standardised_heavy_infantry.minArmy,
-    army, permanence, metalAdequacy, martialMemory,
-    trainingSignal: clamp01(permanence * 0.5 + martialMemory * 0.2 + (institutions ? 0.3 : 0)),
+  const experience = militaryExperienceProfile(region, null);
+  const drill = hasInfra(region, 'drill_ground');
+  const arsenal = hasInfra(region, 'royal_arsenal');
+  const harbour = hasInfra(region, 'harbour');
+  const navalBase = hasInfra(region, 'naval_base');
+  const admin = hasInfra(region, 'administrative_centre');
+  const base = {
+    army, permanence, martialMemory, experience,
+    metalAdequacy: metalAdequacy(region, army),
+    trainingSignal: clamp01(permanence * 0.35 + martialMemory * 0.15 + experience.institutional * 0.32 + (drill ? 0.18 : 0)),
   };
+  if (archetypeId === 'standardised_heavy_infantry') {
+    return { ...base, eligible: hasTech(region, 'mass_heavy_infantry') && hasTech(region, 'military_drill') &&
+      hasTech(region, 'standard_weights') && arsenal && drill && army >= 300 };
+  }
+  if (archetypeId === 'elite_chariot_formation') {
+    return { ...base, eligible: hasTech(region, 'light_chariotry') && drill && arsenal &&
+      (region.chariotry?.chariots || 0) >= 8 && army >= 180 };
+  }
+  if (archetypeId === 'cavalry_corps') {
+    const warHorses = Math.max(0, region.horseEconomy?.war || 0);
+    return { ...base, eligible: hasTech(region, 'mounted_cavalry') && hasTech(region, 'military_drill') && drill &&
+      warHorses >= Math.max(35, army * 0.08) && army >= 250 };
+  }
+  if (archetypeId === 'siege_engineer_corps') {
+    return { ...base, eligible: hasTech(region, 'military_drill') && arsenal && drill && army >= 350 &&
+      ((region.siegeEquipment?.experience || 0) >= 0.15 || siegeInventory(region) >= 2) };
+  }
+  if (archetypeId === 'naval_infantry') {
+    return { ...base, eligible: hasTech(region, 'naval_warfare') && harbour && navalBase && drill &&
+      (region.navy?.personnel || 0) >= 100 && army >= 220 };
+  }
+  if (archetypeId === 'professional_cohorts') {
+    return { ...base, eligible: hasTech(region, 'mass_heavy_infantry') && hasTech(region, 'military_drill') &&
+      hasTech(region, 'standard_weights') && hasTech(region, 'formal_taxation') && arsenal && drill && admin &&
+      officerSchoolStatus(region).active && experience.institutional >= 0.42 && permanence >= 0.55 && army >= 800 };
+  }
+  return { ...base, eligible: false };
 }
 
-function formationName(region) {
+function formationName(region, archetypeId) {
   const place = region.settlements?.places?.find((p) => p.id === region.settlements?.principalId)?.name || region.name;
-  const strongest = [...(region.culturalMemory?.memories || [])]
-    .filter((m) => m.defining && (m.theme === 'victory' || m.theme === 'defeat'))
-    .sort((a, b) => (b.strength || 0) - (a.strength || 0))[0];
-  if (strongest?.motif === 'chariot') return `Shield Cohorts of the Charioteers`;
-  if (strongest?.theme === 'victory') return `Victory Cohorts of ${place}`;
-  return `${place} Heavy Cohorts`;
+  const names = {
+    standardised_heavy_infantry: `${place} Heavy Cohorts`,
+    elite_chariot_formation: `${place} Chariot Guard`,
+    cavalry_corps: `${place} Horse Corps`,
+    siege_engineer_corps: `${place} Siege Corps`,
+    naval_infantry: `${place} Sea Guard`,
+    professional_cohorts: `${place} Professional Cohorts`,
+  };
+  return names[archetypeId] || `${place} Formation`;
 }
 
-function createHeavyInfantryTradition(region) {
+function createTradition(region, spec) {
   const state = ensureMilitaryFormations(region);
-  const existing = state.traditions.find((f) => f.archetypeId === 'standardised_heavy_infantry' && f.status !== 'retired');
+  const existing = state.traditions.find((f) => f.archetypeId === spec.id && f.status !== 'retired');
   if (existing) return existing;
   const formation = {
     id: `${region.id}:formation:${state.traditions.length + state.retired.length + 1}`,
-    archetypeId: 'standardised_heavy_infantry',
-    name: formationName(region),
-    status: 'active',
-    ageYears: 0,
-    readiness: 0.55,
-    coverage: 0.08,
-    prestige: 0.18,
-    underfundedYears: 0,
-    originRegionId: region.id,
+    archetypeId: spec.id, name: formationName(region, spec.id), status: 'active', ageYears: 0,
+    readiness: 0.50, coverage: 0.06, prestige: 0.15, underfundedYears: 0, originRegionId: region.id,
   };
   state.traditions.push(formation);
   recordSocietalMemory(region, {
-    sourceType: 'formation', sourceId: formation.id,
-    label: `Founding of the ${formation.name}`,
-    theme: 'military_tradition', motif: 'heavy_infantry', valence: 1,
-    strength: 0.2, practicalRelevance: 1, symbolicLegacy: 0.07,
+    sourceType: 'formation', sourceId: formation.id, label: `Founding of the ${formation.name}`,
+    theme: 'military_tradition', motif: spec.id, valence: 1, strength: 0.2,
+    practicalRelevance: 1, symbolicLegacy: 0.07,
   });
   return formation;
 }
@@ -95,42 +159,46 @@ function payFormationUpkeep(region, formation, spec, years, army) {
   const moneyNeed = soldiers * spec.annualTreasuryPerSoldier * years;
   const moneyPaid = Math.min(Math.max(0, region.treasury || 0), moneyNeed);
   region.treasury = Math.max(0, (region.treasury || 0) - moneyPaid);
-  const materialRatio = metalNeed > 0 ? metalPaid / metalNeed : 1;
-  const moneyRatio = moneyNeed > 0 ? moneyPaid / moneyNeed : 1;
-  return Math.min(1, materialRatio, moneyRatio);
+  return Math.min(1, metalNeed > 0 ? metalPaid / metalNeed : 1, moneyNeed > 0 ? moneyPaid / moneyNeed : 1);
 }
 
 export function tickMilitaryFormations(region, elapsedDays = 7) {
   const years = Math.max(0, elapsedDays) / DAYS_PER_YEAR;
   const state = ensureMilitaryFormations(region);
   if (years <= 0) return state;
+  tickMilitaryProfessionalisation(region, elapsedDays);
 
-  const spec = FORMATION_ARCHETYPES.standardised_heavy_infantry;
-  const conditions = heavyInfantryConditions(region);
-  let progress = Number(state.progress[spec.id]) || 0;
-  if (conditions.eligible) {
-    const learning = 0.45 + conditions.trainingSignal * 0.35 + conditions.metalAdequacy * 0.2;
-    progress += years / spec.discoveryYears * learning;
-  } else {
-    progress = Math.max(0, progress - years / 35);
+  for (const spec of Object.values(FORMATION_ARCHETYPES)) {
+    const conditions = conditionsFor(region, spec.id);
+    let progress = Number(state.progress[spec.id]) || 0;
+    if (conditions.eligible) {
+      const learning = 0.35 + conditions.trainingSignal * 0.38 + conditions.metalAdequacy * 0.12 +
+        conditions.experience.field * 0.10 + conditions.experience.institutional * 0.18;
+      progress += years / spec.discoveryYears * learning;
+    } else {
+      progress = Math.max(0, progress - years / 40);
+    }
+    state.progress[spec.id] = clamp01(progress);
+    if (progress >= 1) createTradition(region, spec);
   }
-  state.progress[spec.id] = clamp01(progress);
-  if (progress >= 1) createHeavyInfantryTradition(region);
 
   for (const formation of state.traditions) {
     if (formation.status !== 'active') continue;
+    const spec = FORMATION_ARCHETYPES[formation.archetypeId];
+    if (!spec) continue;
     formation.ageYears += years;
-    const currentConditions = heavyInfantryConditions(region);
-    const upkeep = payFormationUpkeep(region, formation, spec, years, currentConditions.army);
-    const desiredCoverage = currentConditions.eligible
-      ? spec.maxCoverage * (0.5 + currentConditions.trainingSignal * 0.5) * (0.65 + upkeep * 0.35)
-      : 0.04;
+    const conditions = conditionsFor(region, spec.id);
+    const upkeep = payFormationUpkeep(region, formation, spec, years, conditions.army);
+    const desiredCoverage = conditions.eligible
+      ? spec.maxCoverage * (0.45 + conditions.trainingSignal * 0.40 + conditions.experience.institutional * 0.15) * (0.62 + upkeep * 0.38)
+      : 0.03;
     formation.coverage = clamp01(formation.coverage + (desiredCoverage - formation.coverage) * (1 - Math.exp(-years / 6)));
-    const readinessTarget = clamp01(0.28 + currentConditions.trainingSignal * 0.42 + upkeep * 0.30);
+    const readinessTarget = clamp01(0.24 + conditions.trainingSignal * 0.34 + conditions.experience.field * 0.14 +
+      conditions.experience.institutional * 0.12 + upkeep * 0.24);
     formation.readiness = clamp01(formation.readiness + (readinessTarget - formation.readiness) * (1 - Math.exp(-years / 4)));
     formation.prestige = clamp01(formation.prestige + (formation.readiness * formation.coverage - formation.prestige) * (1 - Math.exp(-years / 18)));
     formation.underfundedYears = upkeep < 0.55 ? formation.underfundedYears + years : Math.max(0, formation.underfundedYears - years * 0.5);
-    if ((!currentConditions.eligible && formation.coverage < 0.05) || formation.underfundedYears > 18) {
+    if ((!conditions.eligible && formation.coverage < 0.04) || formation.underfundedYears > 18) {
       formation.status = 'retired';
       state.retired.push({ ...formation });
     }
@@ -139,29 +207,35 @@ export function tickMilitaryFormations(region, elapsedDays = 7) {
   return state;
 }
 
-export function activeFormation(region, archetypeId = 'standardised_heavy_infantry') {
-  return ensureMilitaryFormations(region).traditions.find((f) => f.archetypeId === archetypeId && f.status === 'active') || null;
+export function activeFormation(region, archetypeId = null) {
+  const active = ensureMilitaryFormations(region).traditions.filter((f) => f.status === 'active');
+  return archetypeId ? active.find((f) => f.archetypeId === archetypeId) || null : active[0] || null;
 }
 
-export function formationCombatMultiplier(region) {
-  const formation = activeFormation(region);
-  if (!formation) return 1;
-  const spec = FORMATION_ARCHETYPES[formation.archetypeId];
-  return 1 + spec.combatBonus * formation.coverage * formation.readiness;
+function summedFormationEffect(region, key, terrain = null) {
+  let effect = 0;
+  for (const formation of ensureMilitaryFormations(region).traditions) {
+    if (formation.status !== 'active') continue;
+    const spec = FORMATION_ARCHETYPES[formation.archetypeId];
+    if (!spec) continue;
+    const terrainFit = terrain ? (spec.terrain?.[terrain] ?? 1) : 1;
+    effect += (spec[key] || 0) * clamp01(formation.coverage) * clamp01(formation.readiness) * terrainFit;
+  }
+  return effect;
 }
 
-export function formationCohesionBonus(region) {
-  const formation = activeFormation(region);
-  if (!formation) return 0;
-  const spec = FORMATION_ARCHETYPES[formation.archetypeId];
-  return spec.cohesionBonus * formation.coverage * formation.readiness;
+export function formationCombatMultiplier(region, terrain = null) {
+  return 1 + Math.min(0.34, summedFormationEffect(region, 'combatBonus', terrain));
 }
+export function formationCohesionBonus(region) { return Math.min(0.22, summedFormationEffect(region, 'cohesionBonus')); }
+export function formationMobilityBonus(region) { return Math.min(0.15, summedFormationEffect(region, 'mobilityBonus')); }
+export function formationSiegeBonus(region) { return Math.min(0.40, summedFormationEffect(region, 'siegeBonus')); }
+export function formationAmphibiousBonus(region) { return Math.min(0.35, summedFormationEffect(region, 'amphibiousBonus')); }
 
 export function formationSummary(region) {
   const state = ensureMilitaryFormations(region);
   return {
-    active: state.traditions.map((f) => ({ ...f })),
-    progress: { ...state.progress },
-    retired: state.retired.slice(-5).map((f) => ({ ...f })),
+    active: state.traditions.map((f) => ({ ...f })), progress: { ...state.progress },
+    retired: state.retired.slice(-8).map((f) => ({ ...f })),
   };
 }

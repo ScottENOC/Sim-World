@@ -1,4 +1,10 @@
 import { chariotCoverage, cavalryCoverage } from './chariotry.js?v=20260908-terrain1';
+import { formationCombatMultiplier } from './formations.js?v=20260908-prof1';
+import {
+  militaryExperienceProfile,
+  professionalCombatMultiplier,
+  recordBattleExperience,
+} from './professionalisation.js?v=20260908-prof1';
 
 export const TERRAIN_TYPES = Object.freeze(['plains', 'hills', 'mountains', 'forest', 'wetland']);
 
@@ -15,62 +21,23 @@ const CAVALRY_TERRAIN = Object.freeze({ plains: 1.00, hills: 0.82, mountains: 0.
 const INFANTRY_TERRAIN = Object.freeze({ plains: 1.00, hills: 1.03, mountains: 0.95, forest: 1.00, wetland: 0.85 });
 const DEFENSIVE_GROUND_VALUE = Object.freeze({ plains: -0.08, hills: 0.16, mountains: 0.28, forest: 0.24, wetland: 0.14 });
 const ATTACKER_OPEN_GROUND_VALUE = Object.freeze({ plains: 0.10, hills: 0.01, mountains: -0.08, forest: -0.07, wetland: -0.06 });
-
-const WEEKS_PER_YEAR = 365.2425 / 7;
-const EXPERIENCE_HALF_LIFE_YEARS = 30;
-const EXPERIENCE_HALF_LIFE_WEEKS = EXPERIENCE_HALF_LIFE_YEARS * WEEKS_PER_YEAR;
-
 const clamp = (value, low = 0, high = 1) => Math.max(low, Math.min(high, value));
 
-export function ensureMilitaryExperience(region) {
-  region.militaryExperience ||= {};
-  const state = region.militaryExperience;
-  if (!Number.isFinite(state.combat)) state.combat = 0;
-  if (!Number.isFinite(state.lastTick)) state.lastTick = 0;
-  if (!Number.isFinite(state.engagementWeeks)) state.engagementWeeks = 0;
-  return state;
-}
-
-function decayExperienceTo(region, currentTick) {
-  const state = ensureMilitaryExperience(region);
-  const elapsedWeeks = Math.max(0, (Number(currentTick) || 0) - state.lastTick);
-  if (elapsedWeeks > 0 && state.combat > 0) {
-    state.combat *= Math.pow(0.5, elapsedWeeks / EXPERIENCE_HALF_LIFE_WEEKS);
-  }
-  state.lastTick = Math.max(state.lastTick, Number(currentTick) || 0);
-  return state;
-}
-
-export function combatExperience(region, currentTick) {
-  return clamp(decayExperienceTo(region, currentTick).combat);
-}
-
-export function recordCombatExperience(region, currentTick, { intensity = 0.01, casualtyShare = 0, defender = false } = {}) {
-  const state = decayExperienceTo(region, currentTick);
-  // Experience is institutional and practical rather than a kill counter. Simply
-  // being exposed to an active campaign teaches something; hard fighting teaches
-  // more. Defenders get a small extra local-learning benefit from repeatedly
-  // operating on their own ground.
-  const gain = 0.0018 + clamp(intensity, 0, 0.05) * 0.11 + clamp(casualtyShare, 0, 0.25) * 0.045 + (defender ? 0.00035 : 0);
-  state.combat = clamp(state.combat + gain);
-  state.engagementWeeks += 1;
-  return state.combat;
+// Compatibility exports for campaigns/tests created by the first terrain pass.
+export function ensureMilitaryExperience(region) { return militaryExperienceProfile(region, null); }
+export function combatExperience(region, currentTick) { return militaryExperienceProfile(region, currentTick).effective; }
+export function recordCombatExperience(region, currentTick, details = {}) {
+  return recordBattleExperience(region, currentTick, details).effective;
 }
 
 export function currentTerrainMix(region) {
   const source = region?.terrain || {};
   const mix = Object.fromEntries(TERRAIN_TYPES.map((key) => [key, Math.max(0, Number(source[key]) || 0)]));
-
-  // Forest is the one terrain component already changed by simulation. The
-  // static map stores its initial area share plus forestPotential. At combat
-  // time we cheaply reflect clearing/regrowth without running a terrain system
-  // every tick.
   if (region?.forest && Number.isFinite(source.forestPotential) && region.forest.K > 0) {
     const liveForest = clamp(source.forestPotential * clamp(region.forest.currentStock / region.forest.K));
     const delta = liveForest - mix.forest;
     mix.forest = liveForest;
     if (delta < 0) {
-      // Cleared woodland becomes mostly open ground, with some underlying hills.
       mix.plains += -delta * 0.72;
       mix.hills += -delta * 0.28;
     } else if (delta > 0) {
@@ -80,7 +47,6 @@ export function currentTerrainMix(region) {
       mix.hills = Math.max(0, mix.hills - (delta - fromPlains));
     }
   }
-
   const total = TERRAIN_TYPES.reduce((sum, key) => sum + mix[key], 0);
   if (total <= 0) return { plains: 1, hills: 0, mountains: 0, forest: 0, wetland: 0 };
   for (const key of TERRAIN_TYPES) mix[key] /= total;
@@ -95,7 +61,6 @@ export function forceTerrainProfile(region) {
   const chariotWeight = chariotInfluence * scale;
   const cavalryWeight = cavalryInfluence * scale;
   const infantryWeight = 1 - chariotWeight - cavalryWeight;
-
   return Object.fromEntries(TERRAIN_TYPES.map((terrain) => [terrain,
     infantryWeight * INFANTRY_TERRAIN[terrain] +
     chariotWeight * CHARIOT_TERRAIN[terrain] +
@@ -104,7 +69,8 @@ export function forceTerrainProfile(region) {
 }
 
 export function terrainCombatMultiplier(region, terrain) {
-  return forceTerrainProfile(region)[terrain] ?? 1;
+  const terrainFit = forceTerrainProfile(region)[terrain] ?? 1;
+  return terrainFit * professionalCombatMultiplier(region) * formationCombatMultiplier(region, terrain);
 }
 
 export function battlefieldWeights({ attacker, defender, currentTick, attackerMobility = 0.5, defenderMobility = 0.5 }) {
@@ -113,12 +79,13 @@ export function battlefieldWeights({ attacker, defender, currentTick, attackerMo
   const defenderProfile = forceTerrainProfile(defender);
   const attackerExperience = combatExperience(attacker, currentTick);
   const defenderExperience = combatExperience(defender, currentTick);
+  const attackerInstitutional = militaryExperienceProfile(attacker, currentTick).institutional;
+  const defenderInstitutional = militaryExperienceProfile(defender, currentTick).institutional;
 
-  // Defenders begin with a genuine choice advantage: they know the local ground,
-  // can wait, prepare positions and ambush. Experience and mobility then let
-  // either side improve its ability to force or refuse an engagement.
-  const defenderSelection = clamp(0.34 + defenderExperience * 0.36 + clamp(defenderMobility) * 0.18);
-  const attackerSelection = clamp(0.10 + attackerExperience * 0.38 + clamp(attackerMobility) * 0.28);
+  // Defender advantage is real but not absolute. Experience, institutional command
+  // and mobility can let an attacker catch, turn or pin a defender on worse ground.
+  const defenderSelection = clamp(0.34 + defenderExperience * 0.31 + defenderInstitutional * 0.10 + clamp(defenderMobility) * 0.18);
+  const attackerSelection = clamp(0.10 + attackerExperience * 0.34 + attackerInstitutional * 0.11 + clamp(attackerMobility) * 0.28);
 
   const raw = {};
   for (const terrain of TERRAIN_TYPES) {
@@ -127,14 +94,12 @@ export function battlefieldWeights({ attacker, defender, currentTick, attackerMo
     const defenderPreference = relative + DEFENSIVE_GROUND_VALUE[terrain];
     const attackerPreference = -relative + ATTACKER_OPEN_GROUND_VALUE[terrain];
     const steering = defenderSelection * defenderPreference * 2.0 + attackerSelection * attackerPreference * 1.55;
-    // Natural availability remains dominant. Choice can strongly bias where a
-    // battle happens but cannot create terrain that is not present in the region.
     raw[terrain] = natural[terrain] * Math.exp(clamp(steering, -1.5, 1.5));
   }
   const total = TERRAIN_TYPES.reduce((sum, key) => sum + raw[key], 0) || 1;
   const weights = Object.fromEntries(TERRAIN_TYPES.map((key) => [key, raw[key] / total]));
   return { weights, natural, attackerProfile, defenderProfile, attackerExperience, defenderExperience,
-    attackerSelection, defenderSelection };
+    attackerInstitutional, defenderInstitutional, attackerSelection, defenderSelection };
 }
 
 export function chooseBattlefield(options, rng = Math.random) {
