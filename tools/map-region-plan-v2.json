@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "purpose": "Second-layer geographic expansion from the live 418-region map. Existing simulated land is subtracted before new regions are created, so already-covered countries are never duplicated.",
   "targetExistingRegionCount": 418,
   "principles": [
@@ -7,6 +7,7 @@
     "Absorb modern microstates unless physical geography independently justifies a standalone region.",
     "Keep Gibraltar and other strategic islands/peninsulas standalone where geography warrants it.",
     "Stop Russia at the Urals for this tranche; Siberia belongs to a later world expansion.",
+    "Give productive coasts, river basins, mountain corridors and chokepoints more detail than sparsely populated desert.",
     "Prefer a moderate number of durable geographic regions over reproducing every modern province."
   ],
   "microstateAbsorption": [
@@ -41,6 +42,10 @@
     {"iso":"DNK","name":"Denmark","level":"ADM1","targetRegions":3},
     {"iso":"ISL","name":"Iceland","level":"ADM1","targetRegions":4},
     {"iso":"AND","name":"Pyrenean Valleys","level":"ADM0","targetRegions":1,"minAreaSqKm":100},
+
+    {"iso":"MAR","name":"Morocco","level":"ADM1","targetRegions":8},
+    {"iso":"DZA","name":"Algeria","level":"ADM1","targetRegions":11},
+    {"iso":"ESH","name":"Atlantic Sahara","level":"ADM0","targetRegions":2,"minAreaSqKm":500},
 
     {"iso":"ARM","name":"Armenian Highlands","level":"ADM1","targetRegions":3},
     {"iso":"GEO","name":"Georgia","level":"ADM1","targetRegions":4},
