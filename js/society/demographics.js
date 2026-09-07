@@ -13,6 +13,7 @@ import { tickUrbanisation } from '../technology/classicalTransition.js?v=2026090
 import { tickSettlements } from './settlements.js?v=20260907-art1';
 import { tickArts } from './arts.js?v=20260907-art1';
 import { tickArtistMigration, tickStatePatronage } from './statePatronage.js?v=20260907-art2';
+import { tickCulturalMemory } from './culturalMemory.js?v=20260907-memory1';
 
 const CHILD_BAND_YEARS = 14;
 const WORKING_BAND_YEARS = 45;
@@ -29,9 +30,6 @@ const FAMINE_BANDIT_SHARE = 0.25;
 function clamp01(v) { return Math.max(0, Math.min(1, v)); }
 
 export function tickDemographics(regions, religiousWorld = null, elapsedDays = 7) {
-  // Specialist education advances on the same historical clock as population.
-  // It lives here rather than in the render/game loop so accelerated monthly
-  // simulation still produces the same seven-year scribal training pipeline.
   tickEducation(regions, null, elapsedDays);
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   for (const region of regions) {
@@ -39,13 +37,12 @@ export function tickDemographics(regions, religiousWorld = null, elapsedDays = 7
     tickSettlements(region);
     tickArts(region, regionsById, elapsedDays);
     tickStatePatronage(region, elapsedDays);
+    tickCulturalMemory(region, elapsedDays);
     tickExternalities(region, elapsedDays);
     applyBaselineDemographics(region, elapsedDays);
   }
   tickArtistMigration(regions, elapsedDays);
   for (const region of regions) applyFamineResponse(region, regionsById, religiousWorld, elapsedDays);
-  // Cultural identities evolve on an internally annual cadence, so this call
-  // remains cheap even when population is being ticked daily or monthly.
   tickCulture(regions, elapsedDays);
 }
 
@@ -101,9 +98,6 @@ function applyFamineResponse(region, regionsById, religiousWorld, elapsedDays) {
   for (const { dest, count } of destinations) {
     migrateReligion(region, dest, count, religiousWorld);
     addToBands(dest, count);
-    // Identity moves with people. The origin's proportional culture mix is
-    // unchanged because famine emigration is sampled across its population;
-    // the destination receives those identities and their ancestry records.
     migrateCulture(region, dest, count);
     if (region.unlockedTechIds.has('iron_smelting')) {
       const sourceReadiness = Math.max(0.05, region.ironWorkingReadiness || 0);
