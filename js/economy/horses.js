@@ -1,7 +1,7 @@
 import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260904-weather1';
 import { ensureMilitaryPolicy } from '../military/policies.js?v=20260904-policy1';
 import { elapsedWeeks } from '../core/simTime.js?v=20260905-time1';
-import { mountedDoctrineCombatBonus, mountedDoctrineSpeedBonus, tickChariotry } from '../military/chariotry.js?v=20260907-classical1';
+import { mountedDoctrineCombatBonus, mountedDoctrineSpeedBonus, tickChariotry } from '../military/chariotry.js?v=20260907-memory1';
 
 const HORSES_PER_SQ_KM_AT_CAPACITY = 0.12;
 const STARTING_CAPACITY_FRACTION = 0.28;
@@ -105,11 +105,19 @@ export function tickHorseEconomy(region, workingAge, elapsedDays = 7) {
   horses.breeders = Math.min(workforceCap, totalHorses(region) / HORSES_PER_BREEDER);
   const laborAfterBreeding = Math.max(0, workforceCap - horses.breeders);
   const horsePriority = ensureMilitaryPolicy(region).warHorseAllocation;
+  const memory = region.culturalMemory?.effects || {};
+  const chariotPrestige = clamp01(memory.chariotPrestige || 0);
+  const cavalryPrestige = clamp01(memory.cavalryPrestige || 0);
   const civilScale = 1.2 - horsePriority * 0.65;
   const transportScale = 1.1 - horsePriority * 0.45;
   const doctrineDemand = region.unlockedTechIds?.has('mounted_cavalry') ? 1.45
     : region.unlockedTechIds?.has('light_chariotry') ? 1.25 : 1;
-  const warScale = (0.25 + horsePriority * 1.25) * doctrineDemand;
+  // A society that defines elite status through mounted traditions breeds and
+  // trains more war horses. This is costly: those animals, trainers and pasture
+  // are unavailable for farms and transport, so the memory creates a real
+  // opportunity cost rather than a free combat bonus.
+  const culturalWarDemand = 1 + chariotPrestige * 0.32 + cavalryPrestige * 0.26;
+  const warScale = (0.25 + horsePriority * 1.25) * doctrineDemand * culturalWarDemand;
   const draftWanted = (region.occupations?.farmer || 0) / FARMERS_PER_DRAUGHT_HORSE * civilScale;
   const transportWanted = (region.occupations?.trader || 0) / TRADERS_PER_TRANSPORT_HORSE * transportScale;
   const warWanted = Math.max(0, region.army?.personnel || 0) * WAR_HORSES_PER_SOLDIER * warScale;
