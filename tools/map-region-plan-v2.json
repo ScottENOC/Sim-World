@@ -1,7 +1,7 @@
 {
-  "version": 2,
-  "purpose": "Second-layer geographic expansion from the live 418-region map. Existing simulated land is subtracted before new regions are created, so already-covered countries are never duplicated.",
-  "targetExistingRegionCount": 418,
+  "version": 3,
+  "purpose": "Second-layer geographic expansion from the live 598-region map. Existing simulated land is subtracted before new regions are created, so already-covered countries are never duplicated.",
+  "targetExistingRegionCount": 598,
   "principles": [
     "Modern borders are geometry sources, not historical political borders.",
     "Absorb modern microstates unless physical geography independently justifies a standalone region.",
