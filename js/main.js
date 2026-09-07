@@ -19,7 +19,8 @@ import { FogOfWar } from './core/fogOfWar.js?v=20260904-weather1';
 import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260906-scouting1';
 import { startScoutingMission, tickScouting } from './core/scouting.js?v=20260906-scouting1';
 import { attitudeLabel, attitudeToward, canDiplomaticallyReach, endAgreement, proposeAgreement, syncNextAgreementId, tickDiplomacy } from './diplomacy/relations.js?v=20260904-save1';
-import { availableVassalLevies, changeGovernanceForm, demandVassalage, governanceFormAvailability, governanceLabel, initialisePolities, musterVassalLevies, setDelegatedPower, setGovernancePolicy, sovereignPolity, tickPolities } from './politics/polities.js?v=20260904-war1';
+import { availableVassalLevies, changeGovernanceForm, demandVassalage, governanceFormAvailability, governanceLabel, initialisePolities, musterVassalLevies, polityById, setDelegatedPower, setGovernancePolicy, sovereignPolity, tickPolities } from './politics/polities.js?v=20260904-war1';
+import { SETTLEMENT_TYPES, acceptSettlementOffer, createConquestSettlementOffer, grantRegionalAutonomy, initialisePoliticalContinuity, plausibleGovernedRegions, rejectSettlementOffer, resolveNpcSettlement, tickPoliticalContinuity, transferRegion } from './politics/continuity.js?v=20260907-continuity1';
 import { createGameSnapshot, readSave, restoreGameSnapshot, saveSummary, writeSave } from './core/saveGame.js?v=20260904-war1';
 import { syncNextCampaignId, tickCampaigns } from './military/campaigns.js?v=20260905-projects1';
 import { prepareConstructionLabor, syncNextProjectId, tickConstruction, tickInfrastructureMaintenance } from './economy/construction.js?v=20260905-projects1';
@@ -53,6 +54,8 @@ const LAYERS = {
   },
 };
 
+let activePlayerPolityId = null;
+
 async function main() {
   const bus = new EventBus();
   const clock = new Clock();
@@ -61,6 +64,7 @@ async function main() {
   seedCensus(regions);
   const religiousWorld = initialiseReligions(regions, createReligiousWorld());
   const polities = initialisePolities(regions);
+  initialisePoliticalContinuity(polities, regions, 0);
   const seaRegions = await loadSeaWorld();
   linkSeaAdjacency(regions, seaRegions);
   const fishingContactPairs = buildFishingContactPairs(regions, seaRegions);
@@ -92,7 +96,7 @@ async function main() {
       const campaign = activeCampaigns.find((item) => item.defenderId === region.id && item.phase === 'engaged');
       if (!campaign) return 0;
       if (fogOfWar.devMode) return campaign.pressure;
-      const playerPolity = regionsById.get(playerRegionId)?.governance?.sovereignPolityId;
+      const playerPolity = activePlayerPolityId;
       const attacker = regionsById.get(campaign.attackerId);
       const defender = regionsById.get(campaign.defenderId);
       return attacker?.governance?.sovereignPolityId === playerPolity ||
@@ -150,6 +154,7 @@ async function main() {
     if (!snapshot) throw new Error('No saved game was found.');
     const restored = restoreGameSnapshot(snapshot, { regions, seaRegions, polities, religiousWorld, agreements, activeRaids, activeCampaigns, clock, fogOfWar });
     playerRegionId = restored.playerRegionId;
+    activePlayerPolityId = restored.playerPolityId || regionsById.get(playerRegionId)?.polityId || null;
     syncNextRaidId(activeRaids);
     syncNextAgreementId(agreements);
     syncNextCampaignId(activeCampaigns);
@@ -197,7 +202,7 @@ async function main() {
     // index derived from absolute simulated time. The expensive scheduler can
     // therefore tick monthly without turning 104 historical weeks into 104 months.
     const calendarWeek = calendarWeekIndex(time.endDay);
-    const campaignResult = tickCampaigns(activeCampaigns, regionsById, polities, calendarWeek, toolTypes, Math.random);
+    const campaignResult = tickCampaigns(activeCampaigns, regionsById, polities, calendarWeek, toolTypes, Math.random, { playerPolityId: activePlayerPolityId });
     activeCampaigns = campaignResult.remaining;
     prepareConstructionLabor(regions);
     prepareSiegeWorkforce(regions);
@@ -216,6 +221,7 @@ async function main() {
     tickDemographics(regions, religiousWorld, time.elapsedDays);
     const diplomacyEvents = tickDiplomacy(regions, agreements, toolTypes, calendarWeek, time.elapsedDays);
     const polityEvents = tickPolities(polities, regions, calendarWeek, time.elapsedDays);
+    const continuityEvents = tickPoliticalContinuity(polities, regions, time.elapsedDays / 365.2425, calendarWeek);
     tickBanditry(regions, toolTypes, agreements, time.elapsedDays);
     tickNationAi(regions, playerRegionId, activeRaids, activeCampaigns, agreements, polities,
       religiousWorld, calendarWeek, toolTypes, Math.random, time.elapsedDays);
@@ -235,6 +241,39 @@ async function main() {
           attacker?.governance?.sovereignPolityId === playerPolityId ||
           defender?.governance?.sovereignPolityId === playerPolityId;
       });
+    for (const settlementEvent of campaignResult.events.filter((event) => event.type === 'settlement_required')) {
+      const attacker = regionsById.get(settlementEvent.attackerId);
+      const defender = regionsById.get(settlementEvent.defenderId);
+      settlementEvent.resolveSettlement = (choice) => {
+        let offer = settlementEvent.offer;
+        let result;
+        if (settlementEvent.playerRole === 'conqueror') {
+          offer = createConquestSettlementOffer(attacker, defender, choice, polities, regions, calendarWeek);
+          result = choice === 'direct_rule'
+            ? rejectSettlementOffer(offer, polities, regions, calendarWeek, true)
+            : resolveNpcSettlement(offer, polities, regions, calendarWeek);
+        } else {
+          result = offer?.type === 'direct_rule'
+            ? rejectSettlementOffer(offer, polities, regions, calendarWeek, true)
+            : choice === 'accept'
+              ? acceptSettlementOffer(offer, polities, regions, calendarWeek)
+              : rejectSettlementOffer(offer, polities, regions, calendarWeek, false);
+        }
+        settlementEvent.campaign.settlementResolved = true;
+        settlementEvent.campaign.settlement = offer;
+        settlementEvent.campaign.settlementResult = result;
+        settlementEvent.campaign.outcome = 'submission';
+        const playerPolity = polityById(polities, activePlayerPolityId);
+        const newSeat = playerPolity?.continuity?.seatRegionId;
+        if (newSeat && regionsById.has(newSeat)) {
+          playerRegionId = newSeat;
+          fogOfWar.setPlayerRegion(newSeat);
+        }
+        map.refreshLayer();
+        return { result, offer, playerState: playerPolity?.continuity || null };
+      };
+    }
+
     const playerEvents = [
       ...breakthroughEvents.filter((event) => event.regionId === playerRegionId),
       ...constructionEvents.filter((event) => event.regionId === playerRegionId),
@@ -242,10 +281,12 @@ async function main() {
       ...playerRaidEvents,
       ...diplomacyEvents.filter((event) => event.agreement.fromId === playerRegionId || event.agreement.toId === playerRegionId),
       ...polityEvents.filter((event) => event.regionId === playerRegionId),
+      ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),
       ...campaignResult.events.filter((event) => {
+        if (event.type === 'settlement_required') return event.attackerPolityId === activePlayerPolityId || event.defenderPolityId === activePlayerPolityId;
         const attacker = regionsById.get(event.campaign.attackerId);
         const defender = regionsById.get(event.campaign.defenderId);
-        const playerPolity = regionsById.get(playerRegionId)?.governance?.sovereignPolityId;
+        const playerPolity = activePlayerPolityId;
         return attacker?.governance?.sovereignPolityId === playerPolity || defender?.governance?.sovereignPolityId === playerPolity;
       }),
     ];
@@ -280,6 +321,7 @@ async function main() {
 
   showRegionPicker(regions, (chosen) => {
     playerRegionId = chosen.id;
+    activePlayerPolityId = chosen.polityId || chosen.governance?.localPolityId || chosen.governance?.sovereignPolityId;
     fogOfWar.setPlayerRegion(chosen.id);
 
     document.getElementById('picker-modal').classList.add('hidden');
@@ -626,7 +668,7 @@ function wireMenu({ fogOfWar, map, clock, regions, seaRegions, polities, religio
     try {
       const snapshot = createGameSnapshot({ regions, seaRegions, polities, religiousWorld, agreements,
         activeRaids: getActiveRaids(), activeCampaigns: getActiveCampaigns(),
-        clock, playerRegionId: getPlayerRegionId(), fogOfWar });
+        clock, playerRegionId: getPlayerRegionId(), playerPolityId: activePlayerPolityId, fogOfWar });
       writeSave(snapshot);
       refreshSaveStatus(`Game saved · ${clock.formatDate(START_YEAR)}.`);
     } catch (error) {
@@ -681,15 +723,22 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
   document.getElementById('region-name').textContent = region.name;
 
   const playerCapital = regions.find((candidate) => candidate.id === playerRegionId);
-  const playerPolity = sovereignPolity(playerCapital, polities);
-  const isPlayerSubject = playerPolity && region.id !== playerRegionId &&
-    region.governance?.sovereignPolityId === playerPolity.id;
+  const playerPolity = polityById(polities, activePlayerPolityId) || sovereignPolity(playerCapital, polities);
+  const playerState = playerPolity?.continuity;
+  const playerHasLocalRule = Boolean(playerPolity && (region.governance?.sovereignPolityId === playerPolity.id ||
+    region.governance?.localPolityId === playerPolity.id));
+  const isPlayerSubject = playerPolity && region.id !== playerRegionId && region.governance?.sovereignPolityId === playerPolity.id;
+  if (playerState?.status === 'exile') {
+    if (region.id === playerState.seatRegionId) renderExileGovernmentControls(region, regions, polities, playerPolity);
+    else document.getElementById('region-controls').innerHTML = '<div class="raid-status">Your government is in exile. You have no domestic authority here.</div>';
+    return;
+  }
   if (isPlayerSubject) {
     renderSubjectRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
     return;
   }
 
-  if (region.id !== playerRegionId) {
+  if (!playerHasLocalRule) {
     const rulerName = fogOfWar.devMode
       ? (regions.find((r) => r.id === region.controllingActorId)?.name || region.controllingActorId)
       : 'another ruler';
@@ -707,7 +756,7 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
     .filter((t) => t.possible);
 
   const inFlight = activeRaids.filter((r) => r.attackerId === region.id && !r.completed);
-  const diplomaticTargets = regions
+  const diplomaticTargets = (playerState?.status === 'vassal' || playerState?.status === 'governor') ? [] : regions
     .filter((r) => r.id !== region.id && fogOfWar.isVisible(r) && canDiplomaticallyReach(region, r));
   const activeAgreements = agreements.filter((a) => a.active && (a.fromId === region.id || a.toId === region.id));
   const polity = sovereignPolity(region, polities);
@@ -970,6 +1019,12 @@ function renderSubjectRegionControls(region, regions, polities, clock, activeRai
       Local defence reserve: ${(offer?.reserveNeeded || 0).toLocaleString()} · insecurity ${((offer?.insecurity || 0) * 100).toFixed(0)}%<br>
       Previous contingents: ${history.sent.toLocaleString()} sent, ${history.returned.toLocaleString()} returned${survival === null ? '' : ` (${(survival * 100).toFixed(0)}% survival)`}</div>
     <div class="raid-status">Routine labour, trade and local defence remain under the local ruler. Your authority is limited to tribute, broad military obligations and passage.</div>
+    <div class="raid-section"><strong>Political settlement</strong><br>
+      <button id="btn-grant-more-autonomy">Grant another 10% autonomy</button>
+      <div class="raid-status">You can return or grant this region to a polity with a plausible historical/cultural claim.</div>
+      <select id="transfer-region-target"><option value="">— choose recipient —</option></select>
+      <button id="btn-transfer-region" disabled>Transfer / liberate region</button>
+    </div>
   `;
   const wirePolicy = (id, labelId, policy) => {
     const input = document.getElementById(id);
@@ -989,12 +1044,85 @@ function renderSubjectRegionControls(region, regions, polities, clock, activeRai
   document.querySelectorAll('[data-delegated-power]').forEach((input) => {
     input.addEventListener('change', () => setDelegatedPower(region, input.dataset.delegatedPower, input.checked));
   });
+  document.getElementById('btn-grant-more-autonomy')?.addEventListener('click', () => {
+    grantRegionalAutonomy(region, 0.1);
+    renderRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
+  });
+  const transferSelect = document.getElementById('transfer-region-target');
+  const transferButton = document.getElementById('btn-transfer-region');
+  for (const candidate of polities) {
+    if (candidate.id === polity?.id) continue;
+    const score = plausibleGovernedRegions(candidate, [region], polities, 0.42)[0]?.score || 0;
+    if (score < 0.42) continue;
+    const option = document.createElement('option');
+    option.value = candidate.id;
+    option.textContent = `${candidate.name} (claim ${Math.round(score * 100)}%)`;
+    transferSelect?.appendChild(option);
+  }
+  transferSelect?.addEventListener('change', () => { if (transferButton) transferButton.disabled = !transferSelect.value; });
+  transferButton?.addEventListener('click', () => {
+    const recipient = polityById(polities, transferSelect.value);
+    if (!recipient || !polity) return;
+    const reason = (recipient.continuity?.claims?.[region.id] || 0) >= 0.7 ? 'liberation' : 'grant';
+    const result = transferRegion(region, polity, recipient, regions, polities, clock.tickIndex, reason);
+    if (result.transferred) renderRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
+  });
+}
+
+function renderExileGovernmentControls(hostRegion, regions, polities, playerPolity) {
+  const state = playerPolity.continuity;
+  const claims = plausibleGovernedRegions(playerPolity, regions, polities, 0.32).slice(0, 8);
+  document.getElementById('region-controls').innerHTML = `
+    <div class="raid-status"><strong>Government in exile</strong><br>
+      Your court is hosted in ${hostRegion.name}. You govern no local population here.<br>
+      Exile community: ${Math.round(state.exilePopulation || 0).toLocaleString()} · legitimacy ${Math.round((state.legitimacy || 0) * 100)}%</div>
+    <div class="raid-section"><strong>Restoration claims</strong>
+      ${claims.length ? claims.map((item) => `<div class="raid-status">${item.region.name}: ${Math.round(item.score * 100)}% plausible restoration claim</div>`).join('') : '<div class="raid-status">No strong territorial claim remains.</div>'}
+      <div class="raid-status">Preserve legitimacy and cultivate allies. Rebellion, war or a negotiated liberation can restore territorial rule.</div>
+    </div>`;
 }
 
 function showNextEvent(clock, eventQueue) {
   if (eventQueue.length === 0) return;
 
   const event = eventQueue.shift();
+  if (event.type === 'settlement_required') {
+    const options = document.getElementById('event-options');
+    const finish = (summary) => {
+      document.getElementById('event-body').textContent = summary;
+      options.innerHTML = '<button id="btn-event-continue">Continue</button>';
+      document.getElementById('btn-event-continue').addEventListener('click', () => {
+        document.getElementById('event-modal').classList.add('hidden');
+        if (eventQueue.length > 0) showNextEvent(clock, eventQueue); else clock.releaseAutoPause();
+      });
+    };
+    document.getElementById('event-title').textContent = event.playerRole === 'conqueror'
+      ? `Terms for ${event.defenderName}` : `Your government after the fall of ${event.defenderName}`;
+    if (event.playerRole === 'conqueror') {
+      document.getElementById('event-body').textContent = 'Military resistance has collapsed. Choose what role, if any, to offer the defeated government. Recognition can legitimise your rule; exclusion may create a rival government in exile.';
+      options.innerHTML = Object.entries(SETTLEMENT_TYPES).map(([id, terms]) => `<button data-settlement-type="${id}">${terms.label}</button>`).join('');
+      options.querySelectorAll('[data-settlement-type]').forEach((button) => button.addEventListener('click', () => {
+        const resolved = event.resolveSettlement(button.dataset.settlementType);
+        finish(resolved?.result?.accepted
+          ? `The defeated government accepted ${resolved.offer.terms.label.toLowerCase()}. Its cooperation adds legitimacy to your settlement.`
+          : `The defeated government remains a rival claimant${resolved?.result?.hostPolityId ? ' under foreign protection' : ''}.`);
+      }));
+    } else if (event.offer?.type === 'direct_rule') {
+      document.getElementById('event-body').textContent = 'The conqueror offers your government no role and intends direct rule. Your political alternative is exile.';
+      options.innerHTML = '<button id="btn-settlement-reject">Form a government in exile</button>';
+      document.getElementById('btn-settlement-reject').addEventListener('click', () => {
+        const resolved = event.resolveSettlement('reject');
+        finish(`Your government survives in exile with about ${Math.round(resolved?.playerState?.exilePopulation || 0).toLocaleString()} followers and retains its claims.`);
+      });
+    } else {
+      document.getElementById('event-body').textContent = `${event.offer?.terms?.label || 'A subordinate role'} is offered. Accepting preserves local authority but recognises the conqueror's sovereignty; refusing preserves an independent claim from exile.`;
+      options.innerHTML = '<button id="btn-settlement-accept">Accept the settlement</button><button id="btn-settlement-reject">Refuse and flee</button>';
+      document.getElementById('btn-settlement-accept').addEventListener('click', () => { const resolved = event.resolveSettlement('accept'); finish(`You remain in office as a ${resolved?.playerState?.status || 'subject ruler'} under the new sovereign.`); });
+      document.getElementById('btn-settlement-reject').addEventListener('click', () => { const resolved = event.resolveSettlement('reject'); finish(`Your government continues in exile with about ${Math.round(resolved?.playerState?.exilePopulation || 0).toLocaleString()} followers.`); });
+    }
+    document.getElementById('event-modal').classList.remove('hidden');
+    return;
+  }
   if (event.type === 'campaign_arrived') {
     document.getElementById('event-title').textContent = `Campaign reaches ${event.defenderName}`;
     document.getElementById('event-body').textContent = `${event.attackerName}'s army has completed its march and begun applying military pressure to ${event.defenderName}. Open the Marshal's conflict report to follow the fighting or issue orders.`;
@@ -1006,7 +1134,8 @@ function showNextEvent(clock, eventQueue) {
       withdrawn: 'The attacker has ordered a withdrawal.',
       attacker_broke: 'Losses, poor supply and failing morale have broken the attacking army.',
       punitive_success: 'The punitive expedition has inflicted its intended damage and is withdrawing.',
-      submission: `${event.defenderName} has surrendered and pledged loyalty.`,
+      submission_pending: `${event.defenderName} has surrendered militarily; the political settlement is unresolved.`,
+      submission: `${event.defenderName} has surrendered and a political settlement has been reached.`,
       devastated: `${event.defenderName} has been devastated. The surviving attackers are withdrawing.`,
     };
     document.getElementById('event-title').textContent = `Campaign decided: ${event.defenderName}`;
