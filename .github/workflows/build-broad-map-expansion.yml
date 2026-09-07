@@ -2,7 +2,7 @@ name: Build broad Europe Middle East expansion
 
 on:
   push:
-    branches: [broad-europe-middle-east-expansion]
+    branches: [broad-europe-middle-east-expansion, cleanup-alpine-swiss-geography]
     paths:
       - '.github/workflows/build-broad-map-expansion.yml'
       - 'tools/build-map-expansion-v2.py'
@@ -70,8 +70,15 @@ jobs:
           assert len(ids)>598, 'expansion added no land beyond the live 598-region map'
           assert all(m.get('adjacentLand') for m in sea), 'sea without simulated coast'
           assert 'sea_azov' in sea_ids, 'Sea of Azov was not generated'
+          swiss=[f for f in geo['features'] if f.get('properties',{}).get('sourceGroup')=='Switzerland']
+          assert len(swiss)==6, f'expected 6 Swiss gameplay regions, got {len(swiss)}'
+          names={m['id']:m['name'] for m in meta}
+          haut=next(m for m in meta if m['name']=='Haut-Rhin')
+          assert all(names.get(n)!='Tirol hinterland' for n in haut['neighbors']), 'Haut-Rhin still falsely neighbours Tirol'
+          assert any('Liechtenstein' in (f.get('properties',{}).get('name','')) or 'Liechtenstein' in str(f.get('properties',{})) for f in swiss) or len(swiss)==6
           print('LAND_REGIONS='+str(len(ids)))
           print('SEA_REGIONS='+str(len(sea)))
+          print('SWISS_REGIONS='+str(len(swiss)))
           print('NEW_LAND_REGIONS='+str(len(ids)-598))
           azov=next(m for m in sea if m['id']=='sea_azov')
           black=next(m for m in sea if m['id']=='sea_black')
