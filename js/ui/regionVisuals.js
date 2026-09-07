@@ -224,6 +224,14 @@ function installObservableLayerControls() {
   host.querySelectorAll('.layer-btn').forEach((button) => {
     button.addEventListener('click', clearVisualButtons, { capture: true });
   });
+
+  // Regional profiles are deliberately cached during pinch-zoom, but their
+  // source data changes every simulation tick. Clear only the presentation
+  // cache after a tick so farms, cities, mines and monuments track the world.
+  if (!sim.map._visualTickHookInstalled && sim.clock?.onTick) {
+    sim.map._visualTickHookInstalled = true;
+    sim.clock.onTick(() => sim.map._visualProfileCache?.clear());
+  }
   return true;
 }
 
