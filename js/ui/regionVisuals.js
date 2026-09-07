@@ -137,3 +137,104 @@ export function representativeCount(actual, { min = 0, max = 24, scale = 1 } = {
   if (!(actual > 0)) return 0;
   return Math.max(min, Math.min(max, Math.round(Math.sqrt(actual) * scale)));
 }
+
+function installObservableLayerControls() {
+  const sim = window.__worldsim;
+  const host = document.querySelector('.layer-toggle');
+  if (!sim?.map || !host) return false;
+  if (host.querySelector('.visual-overlay-btn')) return true;
+
+  const buttonStyle = (button) => {
+    button.type = 'button';
+    button.className = 'visual-overlay-btn';
+    Object.assign(button.style, {
+      flex: '1', padding: '4px 6px', fontSize: '10px', borderRadius: '5px',
+      border: '1px solid #7a5a34', background: 'rgba(23,29,41,.6)', color: '#a8a08c',
+    });
+  };
+
+  const setActive = (button, active) => {
+    button.dataset.active = active ? '1' : '0';
+    button.style.background = active ? '#c08a4e' : 'rgba(23,29,41,.6)';
+    button.style.color = active ? '#10141c' : '#a8a08c';
+    button.style.borderColor = active ? '#c08a4e' : '#7a5a34';
+  };
+
+  const clearVisualButtons = () => host.querySelectorAll('.visual-overlay-btn')
+    .forEach((button) => setActive(button, false));
+
+  const makeOverlayButton = (label, config) => {
+    const button = document.createElement('button');
+    button.textContent = label;
+    buttonStyle(button);
+    button.addEventListener('click', () => {
+      const wasActive = button.dataset.active === '1';
+      document.querySelectorAll('.layer-btn').forEach((item) => item.classList.remove('active'));
+      clearVisualButtons();
+      if (wasActive) {
+        sim.map.clearLayer();
+        document.getElementById('legend')?.classList.add('hidden');
+        return;
+      }
+      sim.map.setLayer(config);
+      setActive(button, true);
+      const legend = document.getElementById('legend');
+      if (legend) legend.classList.remove('hidden');
+      const info = sim.map.getLegendInfo();
+      if (info?.type === 'gradient') {
+        const labelEl = document.getElementById('legend-label');
+        const minEl = document.getElementById('legend-min');
+        const maxEl = document.getElementById('legend-max');
+        const gradientEl = document.getElementById('legend-gradient');
+        const categoricalEl = document.getElementById('legend-categorical');
+        if (labelEl) labelEl.textContent = info.label;
+        if (minEl) minEl.textContent = info.min;
+        if (maxEl) maxEl.textContent = info.max;
+        gradientEl?.classList.remove('hidden');
+        categoricalEl?.classList.add('hidden');
+      }
+    });
+    host.appendChild(button);
+    return button;
+  };
+
+  makeOverlayButton('Trade', {
+    valueFn: (region) => Math.max(0,
+      (region.tradeEconomy?.exportIncomeEma || 0) + (region.tradeEconomy?.importSpendEma || 0)),
+    label: 'Trade activity',
+    format: (value) => value.toFixed(0),
+    colorLow: '#263238',
+    colorHigh: '#c08a4e',
+    visualOverlay: 'trade',
+  });
+
+  makeOverlayButton('Army', {
+    valueFn: (region) => Math.max(0,
+      (region.army?.personnel || 0) + (region.army?.away || 0) + (region.navy?.personnel || 0)),
+    label: 'Mobilised forces',
+    format: (value) => Math.round(value).toLocaleString(),
+    colorLow: '#292d31',
+    colorHigh: '#a4453a',
+    visualOverlay: 'military',
+  });
+
+  // The existing main.js owns the ordinary Pop/Stability/Wealth/Political
+  // buttons. If one of those is chosen after a visual overlay, just clear our
+  // visual active state and let the existing handler do its normal work.
+  host.querySelectorAll('.layer-btn').forEach((button) => {
+    button.addEventListener('click', clearVisualButtons, { capture: true });
+  });
+  return true;
+}
+
+// main.js exposes its simulation object only after asynchronous world loading.
+// A short-lived retry avoids coupling the visual module back into boot logic.
+if (typeof window !== 'undefined') {
+  let attempts = 0;
+  const tryInstall = () => {
+    attempts += 1;
+    if (installObservableLayerControls() || attempts >= 80) return;
+    setTimeout(tryInstall, 125);
+  };
+  setTimeout(tryInstall, 0);
+}
