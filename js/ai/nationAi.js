@@ -17,6 +17,7 @@ import { chooseAiSiegeTargets } from '../military/siegeEquipment.js?v=20260905-p
 import { chooseAiReligion, religiousWarModifier } from '../society/religion.js?v=20260905-religion1';
 import { activeTradeRestrictions, setTradeRestriction, tradeActorId } from '../economy/tradePolicy.js?v=20260905-policy1';
 import { startScoutingMission } from '../core/scouting.js?v=20260906-scouting1';
+import { applyMemoryDrivenNpcPolicy, npcMemorySignals } from './memoryDrivenAi.js?v=20260907-memory-ai1';
 
 // A one-percent peacetime levy is supportable while trade and taxation are
 // healthy. Threatened states still expand this through the safety multiplier;
@@ -59,6 +60,7 @@ export function tickNationAi(regions, playerRegionId, activeRaids, activeCampaig
     const strategicWeeks = strategicReviewWeeks(region, currentTick, baseWeekScale);
     if (strategicWeeks <= 0) continue;
     const chance = (weekly) => 1 - Math.pow(1 - weekly, strategicWeeks);
+    applyMemoryDrivenNpcPolicy(region, religiousWorld, currentTick, rng, strategicWeeks);
     chooseAiConstruction(region, currentTick, rng);
     chooseAiSiegeTargets(region);
     chooseAiReligion(region, religiousWorld, currentTick, rng, strategicWeeks);
@@ -207,8 +209,12 @@ function maybeCampaign(region, regionsById, activeCampaigns, polities, religious
     if (!best || score > best.score) best = { target, score, advantage };
   }
   if (!best) return;
-  const objective = best.advantage > 2.4 && rng() < 0.35 ? 'subjugation'
-    : attitudeToward(region, best.target.id) < -0.65 ? 'devastation' : 'punitive';
+  const memory = npcMemorySignals(region);
+  const culturalRestraint = Math.max(memory.politicalLoss, memory.politicalContinuity * 0.55);
+  const subjugationThreshold = 2.4 + culturalRestraint * 0.45;
+  const devastationHostility = -0.65 - culturalRestraint * 0.18;
+  const objective = best.advantage > subjugationThreshold && rng() < Math.max(0.12, 0.35 - culturalRestraint * 0.16) ? 'subjugation'
+    : attitudeToward(region, best.target.id) < devastationHostility ? 'devastation' : 'punitive';
   const requested = Math.floor(region.army.personnel * (0.65 + rng() * 0.25));
   const campaign = launchCampaign(region, best.target, objective, requested, currentTick,
     { campaigns: activeCampaigns, regions: [...regionsById.values()], polities });
