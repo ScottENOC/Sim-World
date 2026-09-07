@@ -31,9 +31,6 @@ SWISS_DISPLAY_NAMES = {
     'Valais': 'Upper Rhône & Valais',
 }
 
-# Small regions that are intentionally useful at gameplay scale even when a
-# source-country import contains more regions than its target. The compactor
-# preferentially removes duplicate admin remnants instead of these exceptions.
 PRESERVE_COMPACTION_NAMES = {
     'Oslo',
     'Svalbard',
@@ -41,6 +38,7 @@ PRESERVE_COMPACTION_NAMES = {
     'Saare maakond',
     'Bahrain',
 }
+MAX_COMPACTION_AREA_SQKM = 6000.0
 
 
 def absorb_microstates_geographic(base_geo, base_meta, masks, specs):
@@ -165,22 +163,20 @@ def prune_stale_base_adjacency(base_features, base_meta):
 
 
 def compact_overrepresented_source_groups(base_geo, base_meta_doc, base_resources, configured_plan):
-    """Collapse duplicate admin remnants left by mixed source vintages.
+    """Collapse only small duplicate admin remnants left by mixed source vintages.
 
-    The region plan defines an upper bound for each expansion source group. If
-    an already-generated map contains more regions than that bound, repeatedly
-    absorb the smallest non-preserved region into the adjacent same-source
-    region with the longest shared boundary. The absorbed region's resources
-    are discarded rather than added, because these remnants are overlapping
-    source representations and combining them would double-count endowments.
+    A source group is eligible only when it contains more regions than its plan
+    target. Within that group, only non-preserved regions below 6,000 km² are
+    absorbed. Once the smallest remaining region is larger than that threshold,
+    compaction stops for the group rather than redesigning legitimate geography.
     """
     targets = {c['iso']: int(c['targetRegions']) for c in configured_plan.get('countries', [])}
     features = base_geo['features']
     meta = base_meta_doc['regions']
     total_removed = 0
+    blocked_groups = set()
 
     while True:
-        feature_by_id = {f['properties']['id']: f for f in features}
         meta_by_id = {m['id']: m for m in meta}
         groups = {}
         for f in features:
@@ -188,7 +184,11 @@ def compact_overrepresented_source_groups(base_geo, base_meta_doc, base_resource
             if group in targets:
                 groups.setdefault(group, []).append(f)
 
-        over = [(group, fs, targets[group]) for group, fs in groups.items() if len(fs) > targets[group]]
+        over = [
+            (group, fs, targets[group])
+            for group, fs in groups.items()
+            if len(fs) > targets[group] and group not in blocked_groups
+        ]
         if not over:
             break
 
@@ -198,14 +198,24 @@ def compact_overrepresented_source_groups(base_geo, base_meta_doc, base_resource
             for _ in range(excess):
                 current = [f for f in features if f.get('properties', {}).get('sourceGroup') == group]
                 removable = [f for f in current if f.get('properties', {}).get('name') not in PRESERVE_COMPACTION_NAMES]
-                if len(removable) <= target_count - len([f for f in current if f.get('properties', {}).get('name') in PRESERVE_COMPACTION_NAMES]):
-                    raise RuntimeError(f'{group}: preservation rules leave no removable sliver')
+                if not removable:
+                    blocked_groups.add(group)
+                    break
 
                 def area_of(f):
                     m = meta_by_id.get(f['properties']['id'])
                     return float(m.get('areaSqKm', 0)) if m else map_v2.area_sqkm(shape(f['geometry']))
 
                 sliver = min(removable, key=area_of)
+                sliver_area = area_of(sliver)
+                if sliver_area > MAX_COMPACTION_AREA_SQKM:
+                    print(
+                        f'SLIVER_STOP group={group} count={len(current)} target={target_count} '
+                        f'smallestRemaining={sliver_area:.1f}sqkm'
+                    )
+                    blocked_groups.add(group)
+                    break
+
                 sid = sliver['properties']['id']
                 sg = map_v2.repair(shape(sliver['geometry']))
                 neighbours = set(meta_by_id.get(sid, {}).get('neighbors', []))
@@ -215,10 +225,14 @@ def compact_overrepresented_source_groups(base_geo, base_meta_doc, base_resource
                     if oid == sid or oid not in neighbours:
                         continue
                     og = map_v2.repair(shape(other['geometry']))
-                    shared = sg.boundary.intersection(og.boundary).length
+                    sb = getattr(sg, 'boundary', None)
+                    ob = getattr(og, 'boundary', None)
+                    shared = sb.intersection(ob).length if sb is not None and ob is not None else 0.0
                     candidates.append((shared, area_of(other), other, og))
                 if not candidates:
-                    raise RuntimeError(f'{group}: sliver {sliver["properties"].get("name")} has no adjacent same-source merge target')
+                    print(f'SLIVER_STOP group={group} no same-source neighbour for {sliver["properties"].get("name")}')
+                    blocked_groups.add(group)
+                    break
 
                 shared, _, target, tg = max(candidates, key=lambda x: (x[0], x[1]))
                 tid = target['properties']['id']
@@ -244,15 +258,14 @@ def compact_overrepresented_source_groups(base_geo, base_meta_doc, base_resource
                 meta[:] = [m for m in meta if m['id'] != sid]
                 base_resources.pop(sid, None)
                 print(
-                    f'SLIVER_MERGE group={group} area={area_of(sliver):.1f} '
+                    f'SLIVER_MERGE group={group} area={sliver_area:.1f} '
                     f'{sliver["properties"].get("name")} -> {target["properties"].get("name")} shared={shared:.6f}'
                 )
                 total_removed += 1
                 changed = True
-                feature_by_id.pop(sid, None)
                 meta_by_id.pop(sid, None)
 
-        if not changed:
+        if not changed and all(group in blocked_groups for group, _, _ in over):
             break
 
     print(f'SLIVER_COMPACTION removedRegions={total_removed}')
