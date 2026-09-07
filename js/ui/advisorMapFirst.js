@@ -1,4 +1,5 @@
 import { ensureEducation, setScribalStudentTarget, educatedSpecialists } from '../society/education.js?v=20260906-education1';
+import { perceivedEconomicImportance, confidenceLabel } from '../economy/economicImportance.js?v=20260907-importance1';
 
 const number = (value) => Math.round(Number(value) || 0).toLocaleString();
 
@@ -50,13 +51,42 @@ function renderScribalSection(sim) {
   });
 }
 
+function renderEconomicReputation(sim) {
+  const content = document.getElementById('advisor-content');
+  const treasurerTab = document.querySelector('[data-advisor="treasurer"].active');
+  if (!content || !treasurerTab || content.querySelector('[data-mapfirst-economic-reputation]')) return;
+  const observer = playerRegion(sim);
+  if (!observer) return;
+
+  const known = sim.regions
+    .filter((region) => region.id !== observer.id && sim.fogOfWar?.isVisible?.(region))
+    .map((region) => ({ region, estimate: perceivedEconomicImportance(observer, region, sim.regions, sim.clock?.tickIndex || 0) }))
+    .sort((a, b) => b.estimate.score - a.estimate.score)
+    .slice(0, 8);
+
+  const section = document.createElement('section');
+  section.className = 'advisor-section';
+  section.dataset.mapfirstEconomicReputation = '1';
+  section.innerHTML = `
+    <h3>Known economic centres</h3>
+    <p class="advisor-note">These are estimates, not accounts. Merchants, envoys and travellers judge scale from traffic, visible construction, court display and whatever reports have reached us. Magnificence can conceal decline.</p>
+    ${known.length ? `<div class="advisor-list">${known.map(({ region, estimate }) => `
+      <button data-open-region="${region.id}"><span>${region.name}</span><small>${estimate.description} · ${confidenceLabel(estimate.confidence)}</small></button>
+    `).join('')}</div>` : '<p class="advisor-note">We do not yet know enough foreign centres to compare them.</p>'}
+  `;
+  content.appendChild(section);
+}
+
 export function installMapFirstAdvisorExtensions(sim = window.__worldsim) {
   const content = document.getElementById('advisor-content');
   if (!sim || !content) return false;
   if (content.dataset.mapFirstAdvisorExtensions === '1') return true;
   content.dataset.mapFirstAdvisorExtensions = '1';
 
-  const refresh = () => queueMicrotask(() => renderScribalSection(sim));
+  const refresh = () => queueMicrotask(() => {
+    renderScribalSection(sim);
+    renderEconomicReputation(sim);
+  });
   new MutationObserver(refresh).observe(content, { childList: true });
   document.getElementById('advisor-tabs')?.addEventListener('click', refresh);
   sim.clock?.onTick?.(() => {
