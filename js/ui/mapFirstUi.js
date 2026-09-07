@@ -106,9 +106,9 @@ function installRuntimePatch() {
   document.getElementById('map-focus-close')?.addEventListener('click', () => clearFocus(sim));
   document.getElementById('btn-council')?.setAttribute('title', 'Advisors, reports and orders');
 
-  import('./advisorMapFirst.js?v=20260907-mapfirst3').catch((error) =>
+  import('./advisorMapFirst.js?v=20260907-mapfirst4').catch((error) =>
     console.error('Could not install map-first advisor extensions', error));
-  import('./economicImportanceUi.js?v=20260907-importance1').catch((error) =>
+  import('./economicImportanceUi.js?v=20260907-importance2').catch((error) =>
     console.error('Could not install economic importance overlay', error));
   return true;
 }
