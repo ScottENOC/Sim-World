@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "purpose": "Coarse geography/geology defaults for the second Europe/Middle East expansion. These describe physical endowment, not historical destiny.",
+  "version": 2,
+  "purpose": "Coarse geography/geology defaults for the second Europe/Middle East/Northwest Africa expansion. These describe physical endowment, not historical destiny.",
   "defaultsByISO": {
     "AUT":{"landQuality":1.05,"forestFraction":0.58,"forestStartCoverage":0.82,"deposits":{"stone":"major","ironOre":"moderate","salt":"moderate","silver":"minor","lead":"minor"}},
     "CZE":{"landQuality":1.10,"forestFraction":0.52,"forestStartCoverage":0.78,"deposits":{"stone":"major","ironOre":"moderate","silver":"moderate","lead":"moderate"}},
@@ -23,6 +23,10 @@
     "DNK":{"landQuality":1.30,"forestFraction":0.28,"forestStartCoverage":0.68,"deposits":{"stone":"minor","ironOre":"minor"}},
     "ISL":{"landQuality":0.38,"forestFraction":0.10,"forestStartCoverage":0.70,"deposits":{"stone":"very_major","ironOre":"minor"}},
     "AND":{"landQuality":0.45,"forestFraction":0.58,"forestStartCoverage":0.88,"deposits":{"stone":"major","ironOre":"minor"}},
+
+    "MAR":{"landQuality":0.68,"forestFraction":0.18,"forestStartCoverage":0.78,"deposits":{"stone":"major","fineStone":"moderate","ironOre":"moderate","copper":"moderate","lead":"moderate","silver":"minor","salt":"moderate"}},
+    "DZA":{"landQuality":0.38,"forestFraction":0.09,"forestStartCoverage":0.76,"deposits":{"stone":"major","fineStone":"moderate","ironOre":"major","copper":"minor","lead":"moderate","silver":"minor","salt":"major"}},
+    "ESH":{"landQuality":0.10,"forestFraction":0.004,"forestStartCoverage":0.70,"deposits":{"stone":"moderate","salt":"major"}},
 
     "ARM":{"landQuality":0.60,"forestFraction":0.30,"forestStartCoverage":0.80,"deposits":{"stone":"major","ironOre":"moderate","copper":"major","gold":"minor","silver":"minor"}},
     "GEO":{"landQuality":0.78,"forestFraction":0.58,"forestStartCoverage":0.86,"deposits":{"stone":"major","ironOre":"moderate","copper":"major","gold":"minor","silver":"minor"}},
