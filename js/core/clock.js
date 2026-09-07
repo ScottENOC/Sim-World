@@ -1,9 +1,10 @@
 import { TIME_RESOLUTIONS, formatHistoricalDate, resolutionForWorld } from './simTime.js?v=20260905-time1';
 
-// At 1x, one world tick is still 600 ms of wall-clock time. What changes is
-// how much historical time that tick represents. Bronze Age starts monthly;
-// future capabilities can tighten the cadence without rewriting every system.
-export const MS_PER_TICK_AT_1X = 600;
+// 1x is deliberately slow. The design budget is the eventual full world on a
+// representative phone, not a tiny present-day calibration map. Bronze Age
+// starts monthly; later capabilities can tighten the historical tick cadence
+// while keeping the same wall-clock pacing philosophy.
+export const MS_PER_TICK_AT_1X = 2200;
 const RUNNING_SPEEDS = [0.5, 1, 2, 4];
 const PERFORMANCE_HEADROOM = 1.08;
 
