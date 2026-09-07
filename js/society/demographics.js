@@ -14,6 +14,8 @@ import { tickSettlements } from './settlements.js?v=20260907-art1';
 import { tickArts } from './arts.js?v=20260907-art1';
 import { tickArtistMigration, tickStatePatronage } from './statePatronage.js?v=20260907-art2';
 import { tickCulturalMemory } from './culturalMemory.js?v=20260907-memory1';
+import { recordFamineStress } from './societalMemoryEvents.js?v=20260907-memory2';
+import { tickMilitaryFormations } from '../military/formations.js?v=20260907-formations1';
 
 const CHILD_BAND_YEARS = 14;
 const WORKING_BAND_YEARS = 45;
@@ -38,6 +40,7 @@ export function tickDemographics(regions, religiousWorld = null, elapsedDays = 7
     tickArts(region, regionsById, elapsedDays);
     tickStatePatronage(region, elapsedDays);
     tickCulturalMemory(region, elapsedDays);
+    tickMilitaryFormations(region, elapsedDays);
     tickExternalities(region, elapsedDays);
     applyBaselineDemographics(region, elapsedDays);
   }
@@ -82,11 +85,16 @@ function applyFamineResponse(region, regionsById, religiousWorld, elapsedDays) {
   region.stability = clamp01(region.stability - deficitRatio * STARVATION_STABILITY_PENALTY_PER_WEEK * weeks +
     (deficitRatio === 0 ? WELL_FED_STABILITY_RECOVERY_PER_WEEK * weeks : 0));
   region.stockpile.food = Math.max(0, region.stockpile.food || 0);
-  if (shortfall <= 0.5) return;
+  if (shortfall <= 0.5) {
+    recordFamineStress(region, 0, elapsedDays);
+    return;
+  }
 
   const humansPresent = Math.max(0, region.population + region.army.personnel + region.navy.personnel);
   const foodPerPersonThisTick = FOOD_PER_PERSON_PER_WEEK * Math.max(0.001, weeks);
   const distressed = Math.min(humansPresent, shortfall / foodPerPersonThisTick);
+  const distressShare = distressed / Math.max(1, humansPresent);
+  recordFamineStress(region, Math.max(deficitRatio, distressShare), elapsedDays);
   const deaths = distressed * FAMINE_DEATH_SHARE;
   const emigrants = distressed * FAMINE_EMIGRATE_SHARE;
   const banditsNew = distressed * FAMINE_BANDIT_SHARE;

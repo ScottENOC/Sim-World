@@ -29,9 +29,6 @@ export function setMilitaryPolicy(region, key, value) {
   return true;
 }
 
-// The establishment is the force available in a crisis. A levy-based realm
-// keeps only part of it under arms while safe, then calls more people up as
-// security deteriorates. A standing army remains mobilised and paid.
 export function mobilisedArmyTarget(region) {
   const policy = ensureMilitaryPolicy(region);
   const threat = clamp01(1 - (region.safetyRating ?? 1));
@@ -40,11 +37,24 @@ export function mobilisedArmyTarget(region) {
   return Math.max(0, region.targetArmySize || 0) * Math.min(1, mobilisationShare);
 }
 
+function emergentFormationCohesion(region) {
+  const formations = region.militaryFormations?.traditions || [];
+  let bonus = 0;
+  for (const formation of formations) {
+    if (formation.status !== 'active') continue;
+    const coverage = clamp01(formation.coverage || 0);
+    const readiness = clamp01(formation.readiness || 0);
+    if (formation.archetypeId === 'standardised_heavy_infantry') bonus += 0.10 * coverage * readiness;
+  }
+  return Math.min(0.12, bonus);
+}
+
 export function armyCohesionMultiplier(region) {
   let multiplier = 0.82 + ensureMilitaryPolicy(region).armyPermanence * 0.28;
   if (region.unlockedTechIds?.has('mass_heavy_infantry')) multiplier += 0.08;
   if (region.unlockedTechIds?.has('military_drill')) multiplier += 0.08;
   if (operationalInfrastructure(region, 'drill_ground')) multiplier += 0.07;
+  multiplier += emergentFormationCohesion(region);
   return multiplier;
 }
 

@@ -1,4 +1,4 @@
-import { AdvisorCouncil } from './advisors.js?v=20260907-art1';
+import { AdvisorCouncil } from './advisors.js?v=20260905-projects1';
 import { settlementSummary } from '../society/settlements.js?v=20260907-art1';
 import { artistPopulation, ensureCulturalLife, notableWorks } from '../society/arts.js?v=20260907-art1';
 import { definingMemories } from '../society/culturalMemory.js?v=20260907-memory1';
@@ -85,7 +85,7 @@ function culturalSection(player) {
     <p class="advisor-note">Artists are sustained by real urban surplus and patronage. Their work can reinforce particular stories; it still does not generate an abstract culture currency.</p>
 
     <h4>Defining stories</h4>
-    <p class="advisor-note">Important events can become shared cultural memories. Practical consequences fade when the underlying practice becomes obsolete, while stories, symbols, surviving artworks and visitor interest can persist much longer.</p>
+    <p class="advisor-note">Important events can become shared cultural memories. Practical consequences fade when the underlying practice becomes obsolete, while stories, symbols and surviving artworks can persist much longer.</p>
     ${memoryRows(player)}
 
     <h4>State patronage</h4>
