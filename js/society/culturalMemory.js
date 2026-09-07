@@ -5,11 +5,21 @@ const MAX_MEMORIES = 24;
 const MAX_DEFINING = 6;
 const clamp01 = (v) => Math.max(0, Math.min(1, Number(v) || 0));
 
+const MONUMENT_MEMORY = Object.freeze({
+  monumental_tomb: { label: 'monumental royal tomb', theme: 'rulership', legacy: 0.22 },
+  great_temple: { label: 'great temple complex', theme: 'religion', legacy: 0.20 },
+  ceremonial_complex: { label: 'ceremonial and assembly complex', theme: 'rulership', legacy: 0.15 },
+  monumental_statue: { label: 'colossal monument', theme: 'achievement', legacy: 0.18 },
+});
+
 function ensure(region) {
   region.culturalMemory ||= { memories: [], nextSerial: 1, effects: {} };
   region.culturalMemory.memories ||= [];
   region.culturalMemory.nextSerial ||= 1;
   region.culturalMemory.effects ||= {};
+  region.culturalMemory.observation ||= { seenMonuments: [], eventSerial: 1 };
+  region.culturalMemory.observation.seenMonuments ||= [];
+  region.culturalMemory.observation.eventSerial ||= 1;
   return region.culturalMemory;
 }
 
@@ -48,23 +58,23 @@ function salience(campaign, region, role) {
 
 function addMemory(region, spec) {
   const state = ensure(region);
-  const existing = state.memories.find((m) => m.sourceType === spec.sourceType && m.sourceId === spec.sourceId && m.role === spec.role);
+  const existing = state.memories.find((m) => m.sourceType === spec.sourceType && String(m.sourceId) === String(spec.sourceId) && (m.role || 'community') === (spec.role || 'community'));
   if (existing) return existing;
   const memory = {
     id: `${region.id}:memory:${state.nextSerial++}`,
     sourceType: spec.sourceType,
     sourceId: spec.sourceId,
-    role: spec.role,
+    role: spec.role || 'community',
     label: spec.label,
     createdTick: spec.createdTick ?? null,
     ageYears: 0,
     theme: spec.theme || 'war',
     motif: spec.motif || null,
     valence: spec.valence || 0,
-    historicalAccuracy: 0.9,
+    historicalAccuracy: clamp01(spec.historicalAccuracy ?? 0.9),
     strength: clamp01(spec.strength || 0.1),
     practicalRelevance: clamp01(spec.practicalRelevance ?? 1),
-    symbolicLegacy: clamp01((spec.strength || 0.1) * 0.35),
+    symbolicLegacy: clamp01(spec.symbolicLegacy ?? (spec.strength || 0.1) * 0.35),
     reinforcement: 0,
     artReinforcement: 0,
     defining: false,
@@ -97,11 +107,98 @@ export function recordCampaignMemories(campaign, attacker, defender, currentTick
   return created;
 }
 
+function dominantReligionId(region) {
+  return Object.entries(region.religion?.shares || {})
+    .sort((a, b) => (b[1] || 0) - (a[1] || 0))[0]?.[0] || null;
+}
+
+function observeNonMilitaryEvents(region, state) {
+  const observation = state.observation;
+  const nextEventId = (kind) => `${kind}-${observation.eventSerial++}`;
+
+  // Physical monuments are especially good memory anchors because the object
+  // itself can outlive the political purpose for which it was built.
+  const seen = new Set(observation.seenMonuments || []);
+  for (const asset of region.construction?.assets || []) {
+    const spec = MONUMENT_MEMORY[asset.typeId];
+    if (!spec || seen.has(asset.id)) continue;
+    seen.add(asset.id);
+    const scale = Math.max(0.5, Number(asset.scale) || 1);
+    addMemory(region, {
+      sourceType: 'monument', sourceId: asset.id,
+      label: `Building of the ${spec.label} in ${region.name}`,
+      theme: spec.theme, motif: asset.typeId, valence: 1,
+      strength: clamp01(0.13 + Math.log2(1 + scale) * 0.11),
+      practicalRelevance: spec.theme === 'achievement' ? 0.45 : 0.72,
+      symbolicLegacy: clamp01(spec.legacy * Math.sqrt(scale)),
+    });
+  }
+  observation.seenMonuments = [...seen].slice(-80);
+
+  const official = region.religion?.stateReligionId || null;
+  const dominant = dominantReligionId(region);
+  if (observation.initialised) {
+    if (observation.stateReligionId !== official) {
+      addMemory(region, {
+        sourceType: 'religious_change', sourceId: nextEventId('state-faith'),
+        label: official ? `Adoption of a new state faith in ${region.name}` : `End of the state faith in ${region.name}`,
+        theme: 'religion', motif: official ? 'state_faith' : 'disestablishment',
+        valence: 0, strength: 0.16, practicalRelevance: 0.88, symbolicLegacy: 0.045,
+      });
+    }
+    if (observation.dominantReligionId && dominant && observation.dominantReligionId !== dominant) {
+      const dominantShare = Number(region.religion?.shares?.[dominant]) || 0;
+      if (dominantShare >= 0.45) {
+        addMemory(region, {
+          sourceType: 'religious_change', sourceId: nextEventId('dominant-faith'),
+          label: `Religious realignment in ${region.name}`,
+          theme: 'religion', motif: 'religious_realignment',
+          valence: 0, strength: 0.13 + Math.min(0.12, dominantShare * 0.12),
+          practicalRelevance: 0.8, symbolicLegacy: 0.035,
+        });
+      }
+    }
+
+    const sovereign = region.governance?.sovereignPolityId || region.controllingActorId || null;
+    if (observation.sovereignPolityId && sovereign && observation.sovereignPolityId !== sovereign) {
+      const autonomy = clamp01(region.governance?.autonomy ?? 0.5);
+      addMemory(region, {
+        sourceType: 'political_change', sourceId: nextEventId('sovereignty'),
+        label: `Change of rule in ${region.name}`,
+        theme: autonomy < 0.35 ? 'political_loss' : 'political_settlement',
+        motif: autonomy < 0.35 ? 'direct_rule' : 'change_of_sovereignty',
+        valence: autonomy < 0.35 ? -1 : -0.2,
+        strength: autonomy < 0.35 ? 0.29 : 0.19,
+        practicalRelevance: 0.92, symbolicLegacy: autonomy < 0.35 ? 0.09 : 0.05,
+      });
+    }
+
+    const previousPopulation = Math.max(1, Number(observation.population) || 1);
+    const populationChange = ((region.population || 0) - previousPopulation) / previousPopulation;
+    if (previousPopulation >= 1000 && Math.abs(populationChange) >= 0.12) {
+      addMemory(region, {
+        sourceType: 'migration_shock', sourceId: nextEventId(populationChange > 0 ? 'arrival' : 'flight'),
+        label: populationChange > 0 ? `The Great Arrival in ${region.name}` : `The Great Flight from ${region.name}`,
+        theme: 'migration', motif: populationChange > 0 ? 'arrival' : 'displacement',
+        valence: populationChange > 0 ? 0.2 : -0.8,
+        strength: clamp01(0.12 + Math.min(0.3, Math.abs(populationChange) * 0.8)),
+        practicalRelevance: 0.72, symbolicLegacy: 0.04 + Math.min(0.08, Math.abs(populationChange) * 0.15),
+      });
+    }
+  }
+
+  observation.stateReligionId = official;
+  observation.dominantReligionId = dominant;
+  observation.sovereignPolityId = region.governance?.sovereignPolityId || region.controllingActorId || null;
+  observation.population = region.population || 0;
+  observation.initialised = true;
+}
+
 function workMatchesMemory(work, memory) {
   if (!work || work.lost) return 0;
   let match = 0;
   if (memory.theme === 'victory' && work.subject === 'victory') match += 0.7;
-  if ((memory.theme === 'defeat' || memory.theme === 'famine' || memory.theme === 'political_loss') && work.subject === 'mourning') match += 0.6;
+  if ((memory.theme === 'defeat' || memory.theme === 'famine' || memory.theme === 'political_loss' || memory.theme === 'migration') && work.subject === 'mourning') match += 0.6;
   if (memory.theme === 'religion' && work.subject === 'religion') match += 0.72;
   if ((memory.theme === 'rulership' || memory.theme === 'political_settlement') && work.subject === 'ruler') match += 0.58;
   if (memory.theme === 'achievement' && work.subject === 'city') match += 0.55;
@@ -126,13 +223,18 @@ function materialRelevance(region, memory) {
   if (memory.theme === 'religion') return region.religion?.stateReligionId ? 0.8 : 0.45;
   if (memory.theme === 'political_loss' || memory.theme === 'political_settlement') return 0.65;
   if (memory.theme === 'rulership') return 0.6;
+  if (memory.theme === 'migration') return 0.5;
   return 0.5;
 }
 
 export function tickCulturalMemory(region, elapsedDays = 7) {
   const years = Math.max(0, elapsedDays) / DAYS_PER_YEAR;
   const state = ensure(region);
-  if (years <= 0 || state.memories.length === 0) return state;
+  observeNonMilitaryEvents(region, state);
+  if (years <= 0 || state.memories.length === 0) {
+    state.effects = culturalMemoryEffects(region);
+    return state;
+  }
   const works = region.culturalLife?.works || [];
   for (const memory of state.memories) {
     memory.ageYears += years;
@@ -165,7 +267,7 @@ export function tickCulturalMemory(region, elapsedDays = 7) {
 export function culturalMemoryEffects(region) {
   const state = ensure(region);
   let chariot = 0, cavalry = 0, martial = 0, symbolic = 0, tourism = 0;
-  let foodSecurity = 0, religiousIdentity = 0, politicalTradition = 0, monumentalTradition = 0;
+  let foodSecurity = 0, religiousIdentity = 0, politicalTradition = 0, monumentalTradition = 0, migrationIdentity = 0;
   for (const m of state.memories) {
     const active = m.strength * (0.35 + m.practicalRelevance * 0.65);
     if (m.motif === 'chariot') chariot += active;
@@ -175,6 +277,7 @@ export function culturalMemoryEffects(region) {
     if (m.theme === 'religion') religiousIdentity += active;
     if (m.theme === 'political_loss' || m.theme === 'political_settlement' || m.theme === 'rulership') politicalTradition += active;
     if (m.theme === 'achievement' || m.sourceType === 'monument') monumentalTradition += active;
+    if (m.theme === 'migration') migrationIdentity += active;
     symbolic += m.symbolicLegacy * m.strength;
     tourism += m.symbolicLegacy * (0.35 + m.artReinforcement * 0.65);
   }
@@ -186,6 +289,7 @@ export function culturalMemoryEffects(region) {
     religiousIdentity: clamp01(religiousIdentity / 1.8),
     politicalTradition: clamp01(politicalTradition / 2.2),
     monumentalTradition: clamp01(monumentalTradition / 2.2),
+    migrationIdentity: clamp01(migrationIdentity / 1.8),
     symbolicLegacy: clamp01(symbolic / 3.5),
     tourismPotential: clamp01(tourism / 3.0),
   };
