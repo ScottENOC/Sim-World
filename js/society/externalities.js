@@ -58,6 +58,10 @@ export function ensureExternalities(region) {
   if (!e.hazards) e.hazards = {};
   if (!e.knowledge) e.knowledge = {};
   if (!e.regulation) e.regulation = {};
+  if (!e.adoption) e.adoption = {};
+  if (!e.adoption.leadPlumbing) e.adoption.leadPlumbing = { coverage: 0, installedLead: 0 };
+  if (!Number.isFinite(e.adoption.leadPlumbing.coverage)) e.adoption.leadPlumbing.coverage = 0;
+  if (!Number.isFinite(e.adoption.leadPlumbing.installedLead)) e.adoption.leadPlumbing.installedLead = 0;
   if (!Number.isFinite(e.healthBurden)) e.healthBurden = 0;
   if (!Number.isFinite(e.productivityBurden)) e.productivityBurden = 0;
   return e;
@@ -79,16 +83,72 @@ export function addHazardExposure(region, hazardId, amount, source = null) {
   if (source) state.lastSource = source;
 }
 
+function tickLeadPlumbingAdoption(region, elapsedYears) {
+  const e = ensureExternalities(region);
+  const plumbing = e.adoption.leadPlumbing;
+  const hasHydraulics = region.unlockedTechIds?.has('hydraulic_engineering');
+  const availableLead = Math.max(0, region.stockpile?.lead || 0);
+  const urbanShare = clamp01(region.urbanisation?.urbanShare || 0);
+  const urbanPressure = clamp01((region.urbanisation?.urbanPopulation || 0) /
+    Math.max(1, region.urbanisation?.urbanCapacity || 1));
+  const leadKnowledge = e.knowledge?.lead;
+  const recognised = Boolean(leadKnowledge?.recognised);
+  const regulation = clamp01(e.regulation?.lead || 0);
+
+  if (!hasHydraulics) return plumbing;
+
+  // This is intentionally locally rational. Lead is cheap, workable and useful
+  // in difficult hydraulic joints and pressure sections, so a growing city that
+  // has the material tends to adopt it before anyone understands the chronic
+  // population-health externality. Once the harm is recognised, regulation can
+  // push new systems toward safer substitutes.
+  const visibleDemand = clamp01(0.2 + urbanShare * 0.65 + urbanPressure * 0.55);
+  const knowledgeBrake = recognised ? (1 - regulation * 0.95) : 1;
+  const desiredCoverage = visibleDemand * knowledgeBrake;
+
+  if (desiredCoverage > plumbing.coverage && availableLead > 0) {
+    const unconstrainedGrowth = (desiredCoverage - plumbing.coverage) *
+      (1 - Math.exp(-Math.max(0, elapsedYears) / 8));
+    const leadNeededAtFullCoverage = Math.max(8, (region.population || 0) / 900);
+    const affordableGrowth = availableLead / Math.max(1, leadNeededAtFullCoverage);
+    const growth = Math.max(0, Math.min(unconstrainedGrowth, affordableGrowth));
+    if (growth > 0) {
+      const leadUsed = growth * leadNeededAtFullCoverage;
+      plumbing.coverage = clamp01(plumbing.coverage + growth);
+      plumbing.installedLead += leadUsed;
+      region.stockpile.lead = Math.max(0, availableLead - leadUsed);
+    }
+  } else if (recognised && plumbing.coverage > desiredCoverage) {
+    // Replacement is slow: knowing something is harmful does not make an
+    // installed urban network vanish. Strong regulation gradually retires it.
+    const retirement = (plumbing.coverage - desiredCoverage) *
+      (1 - Math.exp(-Math.max(0, elapsedYears) / 18));
+    plumbing.coverage = Math.max(desiredCoverage, plumbing.coverage - retirement);
+  }
+  return plumbing;
+}
+
+export function leadPlumbingStatus(region) {
+  const e = ensureExternalities(region);
+  const plumbing = e.adoption.leadPlumbing;
+  return {
+    coverage: clamp01(plumbing.coverage),
+    installedLead: Math.max(0, plumbing.installedLead || 0),
+    // This is a visible engineering benefit and is safe to show before toxicity
+    // is recognised. The causal health cost is intentionally omitted here.
+    waterCapacityBonus: clamp01(plumbing.coverage) * 9000,
+  };
+}
+
 function leadExposureFromCurrentEconomy(region) {
-  const lead = Math.max(0, region.stockpile?.lead || 0);
   const mined = Math.max(0, region.report?.mining?.resources?.lead || region.report?.mining?.lead || 0);
-  const hydraulic = region.unlockedTechIds?.has('hydraulic_engineering');
   const urbanShare = region.urbanisation?.urbanShare || 0;
-  const plumbingUse = hydraulic && lead > 0 ? Math.min(1, lead / Math.max(10, (region.population || 1) / 1200)) : 0;
+  const plumbingCoverage = leadPlumbingStatus(region).coverage;
   // Mining/smelting is the high-risk source. Plumbing adds broad but usually
-  // lower-intensity chronic exposure; hard-water/passivation is abstracted by
-  // keeping this coefficient modest rather than treating every pipe as poison.
-  return mined * 0.0008 + plumbingUse * urbanShare * 0.16;
+  // lower-intensity chronic exposure; hard-water/passivation and continuous
+  // flow are abstracted by keeping this coefficient modest rather than treating
+  // every lead pipe as an acute poisoning event.
+  return mined * 0.0008 + plumbingCoverage * urbanShare * 0.12;
 }
 
 function spontaneousEvidence(region, hazard, state, elapsedYears) {
@@ -104,9 +164,9 @@ export function tickExternalities(region, elapsedDays = 7) {
   const years = Math.max(0, elapsedDays) / DAYS_PER_YEAR;
   const e = ensureExternalities(region);
 
-  if (region.stockpile?.lead > 0 || region.unlockedTechIds?.has('hydraulic_engineering')) {
-    addHazardExposure(region, 'lead', leadExposureFromCurrentEconomy(region), 'lead use and processing');
-  }
+  tickLeadPlumbingAdoption(region, years);
+  const leadExposure = leadExposureFromCurrentEconomy(region);
+  if (leadExposure > 0) addHazardExposure(region, 'lead', leadExposure, 'lead use and processing');
 
   let health = 0;
   let productivity = 0;
