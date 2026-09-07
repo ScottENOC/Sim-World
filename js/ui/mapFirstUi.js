@@ -65,7 +65,7 @@ function clearLegacySelectionWithoutLosingFocus(sim) {
   const selected = sim?.regions?.find((region) => region.id === sim?.map?.selectedId) || null;
   const close = document.getElementById('btn-close-sheet');
   if (!close) return;
-  close.click(); // main.js clears its internal selectedRegion here.
+  close.click();
   if (selected) showFocus(selected, sim);
 }
 
@@ -75,18 +75,12 @@ function installRuntimePatch() {
   if (sim.map._mapFirstSelectionPatched) return true;
   sim.map._mapFirstSelectionPatched = true;
 
-  // Ordinary taps no longer build the legacy report/control sheet. MapRenderer
-  // already assigns selectedId before calling onSelect, so this callback only
-  // maintains the tiny focus UI and redraws progressive detail.
   sim.map.onSelect = (region) => showFocus(region, sim);
 
   const playerRegion = sim.regions?.find((region) => region.id === sim.fogOfWar?.playerRegionId);
   const selected = sim.regions?.find((region) => region.id === sim.map.selectedId) || playerRegion;
   if (selected && document.getElementById('picker-modal')?.classList.contains('hidden')) showFocus(selected, sim);
 
-  // main.js keeps a legacy selectedRegion variable and rebuilds its hidden
-  // report every tick while that variable is non-null. Triggering the existing
-  // close handler clears it safely, then we restore only the lightweight focus.
   if (document.getElementById('picker-modal')?.classList.contains('hidden')) {
     clearLegacySelectionWithoutLosingFocus(sim);
   } else {
@@ -99,9 +93,6 @@ function installRuntimePatch() {
     pickerObserver.observe(document.getElementById('picker-modal'), { attributes: true, attributeFilter: ['class'] });
   }
 
-  // Some old advisor shortcuts still call main.js's openRegion callback, which
-  // rebuilds the sheet and re-populates that legacy selectedRegion. Convert any
-  // such attempt immediately back into map focus and clear the legacy state.
   const sheet = document.getElementById('region-sheet');
   if (sheet) {
     new MutationObserver(() => {
@@ -117,6 +108,8 @@ function installRuntimePatch() {
 
   import('./advisorMapFirst.js?v=20260907-mapfirst3').catch((error) =>
     console.error('Could not install map-first advisor extensions', error));
+  import('./economicImportanceUi.js?v=20260907-importance1').catch((error) =>
+    console.error('Could not install economic importance overlay', error));
   return true;
 }
 
