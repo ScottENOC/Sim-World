@@ -21,7 +21,7 @@ spec = importlib.util.spec_from_file_location('map_v2', MODULE_PATH)
 map_v2 = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(map_v2)
 
-ADMIN1_URL = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_1_states_provinces.geojson'
+ADMIN1_URL = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_1_states_provinces.geojson'
 HOST_ISO = {'VAT':'ITA', 'SMR':'ITA', 'MCO':'FRA', 'LIE':'CHE'}
 ALIASES = {'KOS': {'KOS','XKX'}, 'PSE': {'PSE','PSX'}, 'ESH': {'ESH','SAH'}}
 _admin1_cache = None
@@ -75,8 +75,6 @@ def absorb_microstates_hosted(base_geo, base_meta, masks, specs):
                 continue
             total_area = max(1.0, map_v2.area_sqkm(g))
             host_area = map_v2.area_sqkm(g.intersection(host))
-            # Require the receiving gameplay region to genuinely belong to the
-            # surrounding host geography; tiny border overlaps are not enough.
             if host_area / total_area < 0.50:
                 continue
             d = g.distance(micro)
