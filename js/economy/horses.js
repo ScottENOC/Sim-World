@@ -1,6 +1,7 @@
 import { accumulateExperience, skillMultiplier } from '../technology/learningByDoing.js?v=20260904-weather1';
 import { ensureMilitaryPolicy } from '../military/policies.js?v=20260904-policy1';
 import { elapsedWeeks } from '../core/simTime.js?v=20260905-time1';
+import { mountedDoctrineCombatBonus, mountedDoctrineSpeedBonus, tickChariotry } from '../military/chariotry.js?v=20260907-classical1';
 
 const HORSES_PER_SQ_KM_AT_CAPACITY = 0.12;
 const STARTING_CAPACITY_FRACTION = 0.28;
@@ -106,7 +107,9 @@ export function tickHorseEconomy(region, workingAge, elapsedDays = 7) {
   const horsePriority = ensureMilitaryPolicy(region).warHorseAllocation;
   const civilScale = 1.2 - horsePriority * 0.65;
   const transportScale = 1.1 - horsePriority * 0.45;
-  const warScale = 0.25 + horsePriority * 1.25;
+  const doctrineDemand = region.unlockedTechIds?.has('mounted_cavalry') ? 1.45
+    : region.unlockedTechIds?.has('light_chariotry') ? 1.25 : 1;
+  const warScale = (0.25 + horsePriority * 1.25) * doctrineDemand;
   const draftWanted = (region.occupations?.farmer || 0) / FARMERS_PER_DRAUGHT_HORSE * civilScale;
   const transportWanted = (region.occupations?.trader || 0) / TRADERS_PER_TRANSPORT_HORSE * transportScale;
   const warWanted = Math.max(0, region.army?.personnel || 0) * WAR_HORSES_PER_SOLDIER * warScale;
@@ -131,6 +134,7 @@ export function tickHorseEconomy(region, workingAge, elapsedDays = 7) {
 
   accumulateExperience(region, 'horseHusbandry', horses.breeders + horses.trainers);
   horses.pastureFraction = Math.min(0.06, 0.06 * totalHorses(region) / horses.capacity);
+  tickChariotry(region, elapsedDays);
   return {
     workers: horses.breeders + horses.trainers,
     breeders: horses.breeders,
@@ -170,10 +174,11 @@ export function horseMilitaryMultiplier(region) {
   const soldiers = Math.max(1, (region.army?.personnel || 0) + (region.army?.away || 0));
   const coverage = clamp01((region.horseEconomy?.war || 0) /
     Math.max(1, soldiers * WAR_HORSES_PER_SOLDIER));
-  return 1 + coverage * 0.20;
+  return 1 + coverage * 0.20 + mountedDoctrineCombatBonus(region);
 }
 
 export function horseLandSpeedMultiplier(region) {
-  return 1 + clamp01((region.horseEconomy?.war || 0) /
-    Math.max(1, (region.army?.personnel || 0) * WAR_HORSES_PER_SOLDIER)) * 0.5;
+  const base = clamp01((region.horseEconomy?.war || 0) /
+    Math.max(1, (region.army?.personnel || 0) * WAR_HORSES_PER_SOLDIER));
+  return 1 + base * 0.5 + mountedDoctrineSpeedBonus(region);
 }
