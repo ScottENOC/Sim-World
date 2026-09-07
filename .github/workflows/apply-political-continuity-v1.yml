@@ -2,7 +2,7 @@ name: Political continuity validation
 on:
   push:
     branches: [political-continuity-v1]
-    paths: ['tools/apply-political-continuity-exile-diplomacy.py', '.github/workflows/apply-political-continuity-v1.yml']
+    paths: ['tools/apply-political-continuity-npc-autonomy.py', '.github/workflows/apply-political-continuity-v1.yml']
 permissions:
   contents: write
 jobs:
@@ -13,7 +13,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: python tools/apply-political-continuity-exile-diplomacy.py
+      - run: python tools/apply-political-continuity-npc-autonomy.py
       - run: find js tools -name '*.js' -o -name '*.mjs' | while read f; do node --check "$f"; done
       - run: node tools/test-political-continuity.mjs
       - run: node tools/test-culture.mjs
@@ -22,5 +22,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add js/politics/continuity.js js/main.js tools/test-political-continuity.mjs
-          git commit -m 'Add exile diplomacy and restoration backing'
+          git commit -m 'Give NPCs autonomy and liberation choices'
           git push
