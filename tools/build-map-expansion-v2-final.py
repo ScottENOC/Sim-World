@@ -121,6 +121,34 @@ def clean_detached_liechtenstein_from_base():
     fast.prepare_existing_index(geo_doc.get('features', []))
 
 
+def prune_stale_base_adjacency(base_features, base_meta):
+    """Remove metadata neighbour edges that no longer exist in the geometry.
+
+    This validates only already-recorded edges rather than doing a full O(n²)
+    adjacency rebuild. New Swiss edges are added immediately afterwards by the
+    normal additive adjacency routine.
+    """
+    geoms = {
+        f['properties']['id']: map_v2.repair(shape(f['geometry']))
+        for f in base_features
+    }
+    removed = 0
+    for m in base_meta:
+        mid = m['id']
+        mg = geoms.get(mid)
+        if mg is None:
+            continue
+        kept = []
+        for nid in m.get('neighbors', []):
+            ng = geoms.get(nid)
+            if ng is not None and mg.distance(ng) <= map_v2.ADJ_TOL:
+                kept.append(nid)
+            else:
+                removed += 1
+        m['neighbors'] = sorted(set(kept))
+    print(f'ADJACENCY_PRUNE removedDirectedEdges={removed}')
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output-dir', default='/tmp/simworld-map-expansion-v2')
@@ -144,10 +172,9 @@ def main():
     admin0 = fast.fetch_json_retry(map_v2.ADMIN0_URL)
     masks = fast.country_masks_with_hosts(admin0, wanted)
 
-    # Liechtenstein is handled as a source piece inside the Swiss clustering so
-    # it becomes contiguous with the eastern Swiss/Rhine-Alpine gameplay region.
     ordinary_microstates = [m for m in plan.get('microstateAbsorption', []) if m.get('iso') != 'LIE']
     absorb_microstates_geographic(base_geo['features'], base_meta_doc['regions'], masks, ordinary_microstates)
+    prune_stale_base_adjacency(base_geo['features'], base_meta_doc['regions'])
 
     all_new = []
     for country in plan['countries']:
@@ -158,9 +185,6 @@ def main():
         mask = masks.get(country['iso'])
         pieces = fast.source_features_fast(country, mask, None)
 
-        # Only append Liechtenstein when Switzerland itself still has uncovered
-        # source geography. On future idempotent reruns, an already-built Swiss
-        # map therefore does not create a duplicate Liechtenstein fragment.
         if country['iso'] == 'CHE' and pieces:
             lie = masks.get('LIE')
             if lie is not None and not lie.is_empty:
