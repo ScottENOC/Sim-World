@@ -1,11 +1,20 @@
 import { ensureEducation, setScribalStudentTarget, educatedSpecialists } from '../society/education.js?v=20260906-education1';
-import { perceivedEconomicImportance, confidenceLabel } from '../economy/economicImportance.js?v=20260907-importance1';
+import { perceivedEconomicImportance, confidenceLabel } from '../economy/economicImportance.js?v=20260907-importance2';
 
 const number = (value) => Math.round(Number(value) || 0).toLocaleString();
 
 function playerRegion(sim) {
   const playerId = sim?.fogOfWar?.playerRegionId;
   return sim?.regions?.find((region) => region.id === playerId) || null;
+}
+
+function focusRegion(sim, regionId) {
+  const region = sim?.regions?.find((candidate) => candidate.id === regionId);
+  if (!region || !sim?.fogOfWar?.isVisible?.(region)) return;
+  document.getElementById('council-panel')?.classList.add('hidden');
+  sim.map.selectedId = region.id;
+  sim.map.onSelect?.(region);
+  sim.map.draw();
 }
 
 function renderScribalSection(sim) {
@@ -71,10 +80,13 @@ function renderEconomicReputation(sim) {
     <h3>Known economic centres</h3>
     <p class="advisor-note">These are estimates, not accounts. Merchants, envoys and travellers judge scale from traffic, visible construction, court display and whatever reports have reached us. Magnificence can conceal decline.</p>
     ${known.length ? `<div class="advisor-list">${known.map(({ region, estimate }) => `
-      <button data-open-region="${region.id}"><span>${region.name}</span><small>${estimate.description} · ${confidenceLabel(estimate.confidence)}</small></button>
+      <button data-economic-region="${region.id}"><span>${region.name}</span><small>${estimate.description} · ${confidenceLabel(estimate.confidence)}</small></button>
     `).join('')}</div>` : '<p class="advisor-note">We do not yet know enough foreign centres to compare them.</p>'}
   `;
   content.appendChild(section);
+  section.querySelectorAll('[data-economic-region]').forEach((button) => {
+    button.addEventListener('click', () => focusRegion(sim, button.dataset.economicRegion));
+  });
 }
 
 export function installMapFirstAdvisorExtensions(sim = window.__worldsim) {
