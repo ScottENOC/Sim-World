@@ -107,7 +107,10 @@ function install() {
     const rawValueFn = (region) => finite(config.valueFn(region), 0);
     const key = config.scaleKey || config.label || 'unnamed-gradient';
     if (!this._overlayDomains.has(key)) {
-      this._overlayDomains.set(key, robustDomain(this.regions, rawValueFn, config.label));
+      const explicit = Array.isArray(config.fixedDomain) && config.fixedDomain.length === 2
+        ? [finite(config.fixedDomain[0], 0), finite(config.fixedDomain[1], 1)]
+        : robustDomain(this.regions, rawValueFn, config.label);
+      this._overlayDomains.set(key, explicit);
     }
     const [domainMin, domainMax] = this._overlayDomains.get(key);
     const min = finite(domainMin, 0);
