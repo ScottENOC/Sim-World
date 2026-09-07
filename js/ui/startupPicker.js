@@ -69,9 +69,6 @@ function handOffPendingRegion(regionId) {
   const region = sim.regions.find((candidate) => candidate.id === regionId);
   if (!region) return false;
 
-  // main.js owns the authoritative start callback. Rather than duplicate that
-  // state transition here, drive its already-rendered hierarchy to the same
-  // region and let its normal click handler start the game.
   const { continent, country } = navigationForRegion(region);
   const continentButton = buttonByStrongText(picker, continent);
   if (!continentButton) return false;
@@ -89,23 +86,24 @@ function installRuntimeCompatibilityPatches() {
   const sim = window.__worldsim;
   if (!sim) return false;
 
-  // main.js historically imported clock.js with an old cache-busting URL. A
-  // browser that has that URL cached can otherwise retain the obsolete 600 ms
-  // 1x cadence even after clock.js itself changes.
   if (sim.clock && !sim.clock._startupCadencePatched) {
     sim.clock._startupCadencePatched = true;
     sim.clock._targetIntervalMs = (speed = sim.clock.speed) => CLOCK_MS_PER_TICK_AT_1X / speed;
   }
 
-  // progressiveVisuals used to stop polling after roughly ten seconds. Slow
-  // phones can still be initialising the world at that point. Import a fresh
-  // module identity only once the simulation object definitely exists so the
-  // 128x zoom/detail patch cannot miss its installation window.
   if (sim.map && !sim.map._progressiveDetailInstalled && !window.__lateProgressiveImportStarted) {
     window.__lateProgressiveImportStarted = true;
     import('./progressiveVisuals.js?v=20260907-progressive3').catch((error) => {
       console.error('Could not install progressive map detail', error);
       window.__lateProgressiveImportStarted = false;
+    });
+  }
+
+  if (sim.map && !sim.map._stableOverlayScalesInstalled && !window.__stableOverlayImportStarted) {
+    window.__stableOverlayImportStarted = true;
+    import('./mapOverlayStability.js?v=20260907-overlay2').catch((error) => {
+      console.error('Could not install stable map overlays', error);
+      window.__stableOverlayImportStarted = false;
     });
   }
 
@@ -134,8 +132,6 @@ async function installEarlyPicker() {
     return;
   }
 
-  // main.js may already have reached its richer continent/country picker. If so
-  // leave it alone; the early picker is only there to cover expensive startup.
   if (window.__worldsim) return;
 
   const search = document.createElement('input');
@@ -193,8 +189,6 @@ async function installEarlyPicker() {
 }
 
 if (typeof window !== 'undefined') {
-  // Start the cheap metadata fetch immediately. Module scripts are deferred, so
-  // the picker DOM already exists but the heavy main.js setup need not be done.
   installEarlyPicker();
 
   let attempts = 0;
