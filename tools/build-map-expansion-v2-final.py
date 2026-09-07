@@ -4,7 +4,8 @@
 Uses the fast spatial-index source path and deliberately avoids rebuilding a
 world-sized union after every country. Country masks are mutually exclusive;
 new land therefore only needs to be subtracted from the pre-existing simulated
-map, which the fast wrapper already indexes.
+map, which the fast wrapper already indexes. This entry point is also the clean
+regeneration target used by the broad-map workflow.
 """
 import argparse
 import importlib.util
@@ -52,19 +53,12 @@ def absorb_microstates_geographic(base_geo, base_meta, masks, specs):
             if host_area <= 0.25:
                 continue
             host_share = host_area / total_area
-            # Prefer a nearby region that genuinely overlaps the nominal host.
             candidates.append(((shared > 0, shared, -d, host_share, host_area), f, g, d))
 
         if not candidates:
             raise RuntimeError(f'{iso}: no gameplay region overlaps host geography')
 
         _, f, g, chosen_distance = max(candidates, key=lambda item: item[0])
-
-        # Some gameplay regions deliberately cross modern borders. If the best
-        # host-overlap candidate is still geographically remote, do not attach
-        # the microstate to a distant region merely to satisfy a modern-country
-        # label. Use the physically nearest existing gameplay region instead.
-        # 0.35 degrees is roughly 30–40 km at European latitudes.
         if chosen_distance > 0.35:
             _, nearest_f, nearest_g, nearest_distance = max(all_regions, key=lambda item: item[0])
             if nearest_distance < chosen_distance:
