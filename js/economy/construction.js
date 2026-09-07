@@ -21,6 +21,22 @@ export const CONSTRUCTION_TYPES = Object.freeze({
     workRequired: 8500, defaultWorkers: 120, minWorkers: 40, maxWorkers: 500,
     materials: { stone: 350, wood: 450, pottery: 100 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.05,
   },
+  aqueduct: {
+    id: 'aqueduct', name: 'Long-distance aqueduct', requiredTechId: 'hydraulic_engineering', unique: true,
+    requiresInfrastructure: 'irrigation', minPopulation: 9000,
+    description: 'Surveyed channels, conduits, arcades and settling works bringing dependable water from beyond the settlement catchment. Its main payoff is a much higher sustainable urban population.',
+    workRequired: 26000, defaultWorkers: 320, minWorkers: 90, maxWorkers: 1400,
+    materials: { stone: 2600, wood: 700, pottery: 450 }, wagePerWorkerWeek: 0.002,
+    maintenanceRate: 0.055,
+  },
+  urban_drainage: {
+    id: 'urban_drainage', name: 'Urban drainage and sewers', requiredTechId: 'urban_drainage', unique: true,
+    requiresInfrastructure: 'aqueduct', minPopulation: 12000,
+    description: 'Covered drains, street channels, culverts and sewer outfalls that let dense settlements handle wastewater and stormwater without relying entirely on household disposal.',
+    workRequired: 19000, defaultWorkers: 240, minWorkers: 70, maxWorkers: 1000,
+    materials: { stone: 1900, wood: 350, pottery: 500 }, wagePerWorkerWeek: 0.002,
+    maintenanceRate: 0.065,
+  },
   watchtowers: {
     id: 'watchtowers', name: 'Watchtower network', requiredTechId: 'hill_forts', unique: true,
     description: 'Border towers, signal fires and patrol posts providing early warning.',
@@ -59,6 +75,13 @@ export const CONSTRUCTION_TYPES = Object.freeze({
     workRequired: 6000, defaultWorkers: 80, minWorkers: 25, maxWorkers: 350,
     materials: { stone: 300, wood: 600, bronze: 30 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.025,
   },
+  drill_ground: {
+    id: 'drill_ground', name: 'Barracks and drill ground', requiredTechId: 'military_drill', unique: true,
+    requiresInfrastructure: 'royal_arsenal', minPopulation: 7000,
+    description: 'Permanent mustering space, barracks, stores and instructors that make repeated formation drill and standardised mobilisation practical.',
+    workRequired: 9000, defaultWorkers: 110, minWorkers: 35, maxWorkers: 450,
+    materials: { stone: 650, wood: 800, iron: 20 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.035,
+  },
   market_customs: {
     id: 'market_customs', name: 'Market and customs house', requiredTechId: null, unique: true,
     minPopulation: 3000,
@@ -66,12 +89,26 @@ export const CONSTRUCTION_TYPES = Object.freeze({
     workRequired: 4500, defaultWorkers: 65, minWorkers: 20, maxWorkers: 250,
     materials: { stone: 250, wood: 450, pottery: 100 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.025,
   },
+  mint: {
+    id: 'mint', name: 'State mint', requiredTechId: 'coinage', unique: true,
+    requiresInfrastructure: 'market_customs', minPopulation: 5000,
+    description: 'A controlled workshop for assaying metal, maintaining official dies and issuing recognisable state coinage. It improves monetary administration rather than creating wealth from nothing.',
+    workRequired: 5200, defaultWorkers: 70, minWorkers: 20, maxWorkers: 260,
+    materials: { stone: 280, wood: 300, bronze: 18 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.025,
+  },
   administrative_centre: {
     id: 'administrative_centre', name: 'Palace and administrative centre', requiredTechId: null, unique: true,
     minPopulation: 5000,
     description: 'Audience halls, records rooms, stores and offices supporting durable government.',
     workRequired: 10000, defaultWorkers: 140, minWorkers: 45, maxWorkers: 550,
     materials: { stone: 900, wood: 700, pottery: 150, bronze: 20 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.025,
+  },
+  relay_stations: {
+    id: 'relay_stations', name: 'Royal relay stations', requiredTechId: 'relay_administration', unique: true,
+    requiresInfrastructure: 'road_network', minPopulation: 6000,
+    description: 'Maintained posts, remounts, messengers and stores that carry official information and orders much faster than ordinary travellers.',
+    workRequired: 7600, defaultWorkers: 85, minWorkers: 25, maxWorkers: 350,
+    materials: { stone: 350, wood: 650, pottery: 100 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.045,
   },
   canal: {
     id: 'canal', name: 'Canal', requiredTechId: 'water_management', unique: true,
@@ -101,6 +138,13 @@ export const CONSTRUCTION_TYPES = Object.freeze({
     workRequired: 6200, defaultWorkers: 80, minWorkers: 25, maxWorkers: 350,
     materials: { stone: 350, wood: 900, bronze: 20 }, wagePerWorkerWeek: 0.002,
     maintenanceRate: 0.03,
+  },
+  naval_base: {
+    id: 'naval_base', name: 'Naval base and sheds', requiredTechId: 'naval_warfare', coastal: true, unique: true,
+    requiresInfrastructure: 'harbour', minPopulation: 7000,
+    description: 'Dedicated warship sheds, stores, repair space and naval administration supporting a fleet that exists to fight rather than merely transport soldiers.',
+    workRequired: 10500, defaultWorkers: 135, minWorkers: 40, maxWorkers: 550,
+    materials: { stone: 700, wood: 1200, bronze: 30 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.04,
   },
   monumental_tomb: {
     id: 'monumental_tomb', name: 'Monumental royal tomb', requiredTechId: null, monumental: true,
@@ -353,7 +397,8 @@ export function settlementDefenceMultiplier(region) {
 
 export function overlandInfrastructureMultiplier(region) {
   return 1 + infrastructureBonus(region, 'road_network', 0.3) +
-    infrastructureBonus(region, 'canal', 0.12);
+    infrastructureBonus(region, 'canal', 0.12) +
+    infrastructureBonus(region, 'relay_stations', 0.08);
 }
 
 function availableWorkers(region) {
@@ -493,16 +538,23 @@ export function chooseAiConstruction(region, currentTick, rng = Math.random) {
   }
   const available = new Set(availableConstructionTypes(region).map((type) => type.id));
   if (rng() < 0.004 && (region.treasury || 0) >= 5) {
+    const urbanPressure = (region.urbanisation?.urbanPopulation || 0) / Math.max(1, region.urbanisation?.urbanCapacity || 1);
     const candidates = [
       ['wells_cisterns', (region.weather?.yieldMultiplier || 1) < 0.9 ? 8 : 3],
       ['irrigation', (region.report?.foodPlan?.shortfall || 0) > 0 ? 9 : 4],
+      ['aqueduct', urbanPressure > 0.82 ? 10 : 4],
+      ['urban_drainage', urbanPressure > 0.88 ? 9 : 3],
       ['road_network', (region.tradeEconomy?.weeklyExports || 0) > 20 ? 7 : 2],
+      ['relay_stations', (region.population || 0) > 18000 ? 7 : 3],
       ['market_customs', (region.tradeEconomy?.weeklyExports || 0) > 30 ? 8 : 2],
+      ['mint', (region.stockpile?.silver || 0) > 10 ? 8 : 3],
       ['state_quarry', (region.stockpile?.stone || 0) < 800 ? 6 : 2],
       ['deep_mine', 4], ['mine_drainage', 3],
       ['watchtowers', (region.safetyRating || 1) < 0.75 ? 9 : 2],
       ['settlement_walls', (region.conflictPressure || 0) > 0 ? 10 : 3],
       ['royal_arsenal', (region.army?.personnel || 0) > 250 ? 6 : 2],
+      ['drill_ground', (region.army?.personnel || 0) > 500 ? 7 : 3],
+      ['naval_base', (region.navy?.boats || 0) > 8 ? 7 : 2],
       ['administrative_centre', (region.population || 0) > 12000 ? 6 : 2],
       ['canal', (region.population || 0) > 20000 ? 5 : 1],
       ['monumental_tomb', (region.population || 0) > 25000 && (region.stability || 0) > 0.7 ? 3 : 0],
