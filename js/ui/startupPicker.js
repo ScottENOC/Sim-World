@@ -97,6 +97,18 @@ function installRuntimeCompatibilityPatches() {
     sim.clock._targetIntervalMs = (speed = sim.clock.speed) => CLOCK_MS_PER_TICK_AT_1X / speed;
   }
 
+  // progressiveVisuals used to stop polling after roughly ten seconds. Slow
+  // phones can still be initialising the world at that point. Import a fresh
+  // module identity only once the simulation object definitely exists so the
+  // 128x zoom/detail patch cannot miss its installation window.
+  if (sim.map && !sim.map._progressiveDetailInstalled && !window.__lateProgressiveImportStarted) {
+    window.__lateProgressiveImportStarted = true;
+    import('./progressiveVisuals.js?v=20260907-progressive3').catch((error) => {
+      console.error('Could not install progressive map detail', error);
+      window.__lateProgressiveImportStarted = false;
+    });
+  }
+
   return true;
 }
 
@@ -132,11 +144,17 @@ async function installEarlyPicker() {
   search.placeholder = `Search ${regions.length.toLocaleString()} regions`;
   search.autocomplete = 'off';
   search.spellcheck = false;
+  Object.assign(search.style, {
+    boxSizing: 'border-box', width: '100%', padding: '10px 12px', marginBottom: '8px',
+    borderRadius: '7px', border: '1px solid #7a5a34', background: '#171d29', color: '#eee3cc',
+    fontSize: '16px',
+  });
 
   const results = document.createElement('div');
   results.className = 'startup-region-results';
   const status = document.createElement('div');
   status.className = 'startup-picker-status';
+  Object.assign(status.style, { margin: '5px 0 10px', color: '#a8a08c', fontSize: '12px' });
 
   const render = () => {
     const query = search.value.trim().toLocaleLowerCase();
