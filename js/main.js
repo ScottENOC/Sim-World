@@ -1179,6 +1179,8 @@ function showNextEvent(clock, eventQueue) {
       capital_lost: `${event.defenderName} has fallen, but the ruling faction has retreated to surviving territory.`,
       region_lost: `${event.defenderName} has been occupied while the defending polity survives elsewhere.`,
       submission: `${event.defenderName} has surrendered and a political settlement has been reached.`,
+      liberated: `${event.defenderName} has been liberated and restored to the recognised claimant government.`,
+      liberation_failed: `The attempted liberation of ${event.defenderName} failed to produce a viable restoration.`,
       devastated: `${event.defenderName} has been devastated. The surviving attackers are withdrawing.`,
     };
     document.getElementById('event-title').textContent = `Campaign decided: ${event.defenderName}`;

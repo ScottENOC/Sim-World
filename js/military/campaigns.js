@@ -6,7 +6,7 @@ import { horseLandSpeedMultiplier, horseMilitaryMultiplier } from '../economy/ho
 import { advancedNavyShare, navyTransportCapacity } from './army.js?v=20260905-infra1';
 import { armyCohesionMultiplier, navalMissionProfile, postureProfile } from './policies.js?v=20260904-policy1';
 import { findLandStagingRegion, sovereignPolity } from '../politics/polities.js?v=20260904-war1';
-import { createConquestSettlementOffer, chooseNpcConquestOffer, resolveNpcSettlement, resolvePartialConquest } from '../politics/continuity.js?v=20260907-continuity1';
+import { createConquestSettlementOffer, chooseNpcConquestOffer, resolveNpcSettlement, resolvePartialConquest, transferRegion } from '../politics/continuity.js?v=20260907-continuity1';
 import { removeFromBands, syncPopulation } from '../society/demographics.js?v=20260904-weather1';
 import { effectiveInfrastructureCount, hillFortDefenceMultiplier, overlandInfrastructureMultiplier, settlementDefenceMultiplier } from '../economy/construction.js?v=20260905-projects1';
 import { returnSiegeTrain, survivingFortBenefit, takeSiegeTrain } from './siegeEquipment.js?v=20260905-siege1';
@@ -15,6 +15,7 @@ export const CAMPAIGN_OBJECTIVES = Object.freeze({
   devastation: { label: 'Destroy the region', pressureRate: 0.8, damageRate: 1.8 },
   subjugation: { label: 'Force submission', pressureRate: 1, damageRate: 0.75 },
   punitive: { label: 'Inflict damage and withdraw', pressureRate: 1.2, damageRate: 1.1 },
+  liberation: { label: 'Liberate for an allied claimant', pressureRate: 1, damageRate: 0.55 },
 });
 
 const LAND_SPEED_KM_PER_WEEK = 85;
@@ -76,6 +77,7 @@ export function launchCampaign(attacker, defender, objective, requestedPersonnel
     travelWeeks, returnTick: null, completed: false, withdrawRequested: false,
     initialPersonnel: personnel, personnel, militia: 0,
     siegeEquipment,
+    beneficiaryPolityId: options.beneficiaryPolityId || null,
     pressure: 0, damage: 0, attackerMorale: 1, defenderMorale: 1, supply: 1,
     attackerCasualties: 0, defenderCasualties: 0, civilianDeaths: 0,
     weeksEngaged: 0, stage: 'marching', lastWeek: null, history: [], outcome: null,
@@ -229,6 +231,24 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   }
   if (campaign.objective === 'punitive' && (campaign.pressure >= 0.5 || campaign.damage >= 0.18)) {
     return beginReturn(campaign, attacker, defender, currentTick, 'punitive_success');
+  }
+  if (campaign.objective === 'liberation' && (campaign.pressure >= 0.98 || campaign.defenderMorale <= 0.05)) {
+    const currentOwner = sovereignPolity(defender, polities);
+    const beneficiary = polities.find((p) => p.id === campaign.beneficiaryPolityId);
+    if (currentOwner && beneficiary && currentOwner.id !== beneficiary.id) {
+      const result = transferRegion(defender, currentOwner, beneficiary, regions, polities, currentTick, 'liberation');
+      if (result.transferred) {
+        beneficiary.continuity ||= {};
+        beneficiary.continuity.status = 'claimant';
+        beneficiary.continuity.seatRegionId = defender.id;
+        beneficiary.continuity.hostPolityId = null;
+        beneficiary.continuity.exilePopulation = 0;
+        beneficiary.capitalRegionId = defender.id;
+        beneficiary.rulerRegionId = defender.id;
+        return beginReturn(campaign, attacker, defender, currentTick, 'liberated');
+      }
+    }
+    return beginReturn(campaign, attacker, defender, currentTick, 'liberation_failed');
   }
   if (campaign.objective === 'subjugation' && (campaign.pressure >= 0.98 || campaign.defenderMorale <= 0.05)) {
     // Military surrender begins a political settlement. The defeated ruler can

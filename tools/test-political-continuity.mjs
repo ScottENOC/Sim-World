@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { launchCampaign, CAMPAIGN_OBJECTIVES } from '../js/military/campaigns.js';
 import {
   initialisePoliticalContinuity, plausibleGovernanceScore, createConquestSettlementOffer,
   evaluateSettlementOffer, acceptSettlementOffer, rejectSettlementOffer,
@@ -90,6 +91,17 @@ const autonomyBefore = strained.governance.autonomy;
 const npcEvents = (await import('../js/politics/continuity.js')).tickPoliticalContinuity(polities, regions, 1.1, 100, { playerPolityId: pHome.id });
 assert(strained.governance.autonomy > autonomyBefore, 'NPC sovereign should grant autonomy to an ungovernable subject');
 assert(npcEvents.some((event) => event.type === 'autonomy_granted' && event.regionId === strained.id), 'NPC autonomy decision should emit an event');
+
+assert(CAMPAIGN_OBJECTIVES.liberation, 'Liberation campaign objective must exist');
+// Campaign launch plumbing retains the beneficiary polity for later victory transfer.
+conquerorRegion.army = { personnel: 500, away: 0 }; home.army = { personnel: 50, away: 0 };
+conquerorRegion.adjacentSeaIds = []; home.adjacentSeaIds = [];
+conquerorRegion.neighbors = ['home'];
+conquerorRegion.knowledge.directContactIds.add('home');
+home.knowledge.directContactIds.add('conqueror');
+const liberationCampaign = launchCampaign(conquerorRegion, home, 'liberation', 200, 200,
+  { campaigns: [], regions, polities, beneficiaryPolityId: pHome.id });
+assert(liberationCampaign?.beneficiaryPolityId === pHome.id, 'Liberation campaign must preserve beneficiary claimant');
 
 console.log('POLITICAL_CONTINUITY_TESTS_OK', {
   governability: plausibleGovernanceScore(pHome, home, regions, polities),
