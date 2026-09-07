@@ -1,0 +1,62 @@
+{
+  "version": 3,
+  "purpose": "Second-layer geographic expansion from the live 598-region map. Existing simulated land is subtracted before new regions are created, so already-covered countries are never duplicated.",
+  "targetExistingRegionCount": 598,
+  "principles": [
+    "Modern borders are geometry sources, not historical political borders.",
+    "Absorb modern microstates unless physical geography independently justifies a standalone region.",
+    "Keep Gibraltar and other strategic islands/peninsulas standalone where geography warrants it.",
+    "Stop Russia at the Urals for this tranche; Siberia belongs to a later world expansion.",
+    "Give productive coasts, river basins, mountain corridors and chokepoints more detail than sparsely populated desert.",
+    "Prefer a moderate number of durable geographic regions over reproducing every modern province."
+  ],
+  "microstateAbsorption": [
+    {"iso":"VAT","name":"Vatican City","action":"absorb-nearest","reason":"urban enclave inside Rome; future holy-city sovereignty belongs to settlement/politics systems"},
+    {"iso":"SMR","name":"San Marino","action":"absorb-nearest","reason":"small inland enclave without independent strategic geography at this map scale"},
+    {"iso":"MCO","name":"Monaco","action":"absorb-nearest","reason":"urban coastal enclave; no terrain-scale separation"},
+    {"iso":"LIE","name":"Liechtenstein","action":"absorb-nearest","reason":"Rhine/Alpine territory is not sufficiently separated at this map scale"}
+  ],
+  "standaloneExceptions": [
+    {"name":"Gibraltar","reason":"isolated fortified peninsula controlling a major maritime chokepoint"},
+    {"iso":"AND","name":"Andorra","reason":"high Pyrenean basin; geography can justify a distinct mountain region even without modern-state determinism"}
+  ],
+  "countries": [
+    {"iso":"AUT","name":"Austria","level":"ADM1","targetRegions":5},
+    {"iso":"CZE","name":"Bohemia & Moravia","level":"ADM1","targetRegions":4},
+    {"iso":"SVK","name":"Slovakia","level":"ADM1","targetRegions":3},
+    {"iso":"HUN","name":"Hungary","level":"ADM1","targetRegions":5},
+    {"iso":"SVN","name":"Slovenia","level":"ADM1","targetRegions":2},
+    {"iso":"KOS","name":"Kosovo Plain & Metohija","level":"ADM0","targetRegions":1,"minAreaSqKm":100},
+    {"iso":"ROU","name":"Romania","level":"ADM1","targetRegions":8},
+    {"iso":"MDA","name":"Moldavia","level":"ADM1","targetRegions":2},
+    {"iso":"POL","name":"Poland","level":"ADM1","targetRegions":12},
+    {"iso":"LTU","name":"Lithuania","level":"ADM1","targetRegions":3},
+    {"iso":"LVA","name":"Latvia","level":"ADM1","targetRegions":3},
+    {"iso":"EST","name":"Estonia","level":"ADM1","targetRegions":3},
+    {"iso":"BLR","name":"Belarus","level":"ADM1","targetRegions":6},
+    {"iso":"UKR","name":"Ukraine","level":"ADM1","targetRegions":14},
+    {"iso":"RUS","name":"European Russia","level":"ADM1","targetRegions":24,"maxCentroidLongitude":62.5},
+    {"iso":"FIN","name":"Finland","level":"ADM1","targetRegions":8},
+    {"iso":"SWE","name":"Sweden","level":"ADM1","targetRegions":10},
+    {"iso":"NOR","name":"Norway","level":"ADM1","targetRegions":10},
+    {"iso":"DNK","name":"Denmark","level":"ADM1","targetRegions":3},
+    {"iso":"ISL","name":"Iceland","level":"ADM1","targetRegions":4},
+    {"iso":"AND","name":"Pyrenean Valleys","level":"ADM0","targetRegions":1,"minAreaSqKm":100},
+
+    {"iso":"MAR","name":"Morocco","level":"ADM1","targetRegions":8},
+    {"iso":"DZA","name":"Algeria","level":"ADM1","targetRegions":11},
+    {"iso":"ESH","name":"Atlantic Sahara","level":"ADM0","targetRegions":2,"minAreaSqKm":500},
+
+    {"iso":"ARM","name":"Armenian Highlands","level":"ADM1","targetRegions":3},
+    {"iso":"GEO","name":"Georgia","level":"ADM1","targetRegions":4},
+    {"iso":"AZE","name":"Azerbaijan","level":"ADM1","targetRegions":4},
+    {"iso":"IRN","name":"Iran","level":"ADM1","targetRegions":12},
+    {"iso":"SAU","name":"Arabia","level":"ADM1","targetRegions":12},
+    {"iso":"KWT","name":"Kuwait","level":"ADM1","targetRegions":2,"minAreaSqKm":150},
+    {"iso":"BHR","name":"Bahrain","level":"ADM0","targetRegions":1,"minAreaSqKm":100},
+    {"iso":"QAT","name":"Qatar","level":"ADM0","targetRegions":1,"minAreaSqKm":100},
+    {"iso":"ARE","name":"Trucial Coast","level":"ADM1","targetRegions":3,"minAreaSqKm":150},
+    {"iso":"OMN","name":"Oman","level":"ADM1","targetRegions":5},
+    {"iso":"YEM","name":"Yemen","level":"ADM1","targetRegions":6}
+  ]
+}

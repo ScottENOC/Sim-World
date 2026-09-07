@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "purpose": "Additional water regions needed when Europe, northwest Africa and the modern Middle East are completed. Existing sea regions are preserved except where an explicitly distinct sea is carved from an older coarse polygon.",
+  "coastalToleranceDegrees": 0.06,
+  "regions": [
+    {"id":"sea_baltic","name":"Baltic Sea","bbox":[9.0,53.0,24.0,61.5]},
+    {"id":"sea_gulf_finland","name":"Gulf of Finland","bbox":[22.0,58.5,30.8,61.2]},
+    {"id":"sea_gulf_bothnia","name":"Gulf of Bothnia","bbox":[16.0,60.0,26.5,66.2]},
+    {"id":"sea_azov","name":"Sea of Azov","bbox":[33.6,44.7,39.7,47.6],"carveFromExisting":["sea_black"]},
+    {"id":"sea_caspian","name":"Caspian Sea","bbox":[46.0,36.0,55.5,47.5]},
+    {"id":"sea_southern_red","name":"Southern Red Sea","bbox":[32.0,12.0,44.5,22.5]},
+    {"id":"sea_gulf_aden","name":"Gulf of Aden","bbox":[42.0,10.0,52.5,16.5]},
+    {"id":"sea_gulf_oman","name":"Gulf of Oman","bbox":[55.0,22.0,61.5,27.0]},
+    {"id":"sea_arabian","name":"Arabian Sea","bbox":[50.0,10.0,66.0,24.5]},
+    {"id":"sea_moroccan_atlantic","name":"Moroccan Atlantic","bbox":[-15.5,27.0,-5.0,36.2]},
+    {"id":"sea_barents","name":"Barents Sea","bbox":[15.0,66.0,61.0,80.0]},
+    {"id":"sea_white","name":"White Sea","bbox":[32.0,63.0,44.5,69.5]}
+  ]
+}

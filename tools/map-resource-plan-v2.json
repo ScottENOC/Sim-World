@@ -1,0 +1,43 @@
+{
+  "version": 2,
+  "purpose": "Coarse geography/geology defaults for the second Europe/Middle East/Northwest Africa expansion. These describe physical endowment, not historical destiny.",
+  "defaultsByISO": {
+    "AUT":{"landQuality":1.05,"forestFraction":0.58,"forestStartCoverage":0.82,"deposits":{"stone":"major","ironOre":"moderate","salt":"moderate","silver":"minor","lead":"minor"}},
+    "CZE":{"landQuality":1.10,"forestFraction":0.52,"forestStartCoverage":0.78,"deposits":{"stone":"major","ironOre":"moderate","silver":"moderate","lead":"moderate"}},
+    "SVK":{"landQuality":1.02,"forestFraction":0.62,"forestStartCoverage":0.84,"deposits":{"stone":"major","ironOre":"moderate","copper":"minor","silver":"minor"}},
+    "HUN":{"landQuality":1.35,"forestFraction":0.28,"forestStartCoverage":0.68,"deposits":{"stone":"moderate","ironOre":"minor","salt":"minor"}},
+    "SVN":{"landQuality":0.95,"forestFraction":0.70,"forestStartCoverage":0.86,"deposits":{"stone":"major","ironOre":"moderate","lead":"minor"}},
+    "KOS":{"landQuality":0.92,"forestFraction":0.52,"forestStartCoverage":0.82,"deposits":{"stone":"major","ironOre":"moderate","lead":"moderate","silver":"minor"}},
+    "ROU":{"landQuality":1.15,"forestFraction":0.48,"forestStartCoverage":0.80,"deposits":{"stone":"major","ironOre":"moderate","copper":"moderate","gold":"moderate","salt":"major","silver":"minor"}},
+    "MDA":{"landQuality":1.32,"forestFraction":0.18,"forestStartCoverage":0.62,"deposits":{"stone":"minor","ironOre":"minor","salt":"minor"}},
+    "POL":{"landQuality":1.12,"forestFraction":0.45,"forestStartCoverage":0.78,"deposits":{"stone":"moderate","ironOre":"moderate","salt":"major","lead":"moderate","silver":"minor"}},
+    "LTU":{"landQuality":0.98,"forestFraction":0.52,"forestStartCoverage":0.84,"deposits":{"stone":"minor","ironOre":"minor"}},
+    "LVA":{"landQuality":0.88,"forestFraction":0.60,"forestStartCoverage":0.88,"deposits":{"stone":"minor","ironOre":"minor"}},
+    "EST":{"landQuality":0.82,"forestFraction":0.62,"forestStartCoverage":0.90,"deposits":{"stone":"minor","ironOre":"minor"}},
+    "BLR":{"landQuality":0.92,"forestFraction":0.58,"forestStartCoverage":0.88,"deposits":{"stone":"minor","ironOre":"minor"}},
+    "UKR":{"landQuality":1.38,"forestFraction":0.30,"forestStartCoverage":0.72,"deposits":{"stone":"moderate","ironOre":"major","salt":"moderate"}},
+    "RUS":{"landQuality":0.92,"forestFraction":0.62,"forestStartCoverage":0.90,"deposits":{"stone":"major","ironOre":"major","copper":"moderate","gold":"minor","salt":"moderate"}},
+    "FIN":{"landQuality":0.58,"forestFraction":0.78,"forestStartCoverage":0.94,"deposits":{"stone":"major","ironOre":"major","copper":"moderate","gold":"minor"}},
+    "SWE":{"landQuality":0.70,"forestFraction":0.75,"forestStartCoverage":0.92,"deposits":{"stone":"major","ironOre":"very_major","copper":"moderate","silver":"minor"}},
+    "NOR":{"landQuality":0.50,"forestFraction":0.62,"forestStartCoverage":0.90,"deposits":{"stone":"very_major","ironOre":"moderate","copper":"minor","silver":"minor"}},
+    "DNK":{"landQuality":1.30,"forestFraction":0.28,"forestStartCoverage":0.68,"deposits":{"stone":"minor","ironOre":"minor"}},
+    "ISL":{"landQuality":0.38,"forestFraction":0.10,"forestStartCoverage":0.70,"deposits":{"stone":"very_major","ironOre":"minor"}},
+    "AND":{"landQuality":0.45,"forestFraction":0.58,"forestStartCoverage":0.88,"deposits":{"stone":"major","ironOre":"minor"}},
+
+    "MAR":{"landQuality":0.68,"forestFraction":0.18,"forestStartCoverage":0.78,"deposits":{"stone":"major","fineStone":"moderate","ironOre":"moderate","copper":"moderate","lead":"moderate","silver":"minor","salt":"moderate"}},
+    "DZA":{"landQuality":0.38,"forestFraction":0.09,"forestStartCoverage":0.76,"deposits":{"stone":"major","fineStone":"moderate","ironOre":"major","copper":"minor","lead":"moderate","silver":"minor","salt":"major"}},
+    "ESH":{"landQuality":0.10,"forestFraction":0.004,"forestStartCoverage":0.70,"deposits":{"stone":"moderate","salt":"major"}},
+
+    "ARM":{"landQuality":0.60,"forestFraction":0.30,"forestStartCoverage":0.80,"deposits":{"stone":"major","ironOre":"moderate","copper":"major","gold":"minor","silver":"minor"}},
+    "GEO":{"landQuality":0.78,"forestFraction":0.58,"forestStartCoverage":0.86,"deposits":{"stone":"major","ironOre":"moderate","copper":"major","gold":"minor","silver":"minor"}},
+    "AZE":{"landQuality":0.72,"forestFraction":0.24,"forestStartCoverage":0.74,"deposits":{"stone":"major","ironOre":"moderate","copper":"moderate","salt":"moderate"}},
+    "IRN":{"landQuality":0.58,"forestFraction":0.20,"forestStartCoverage":0.76,"deposits":{"stone":"major","fineStone":"major","ironOre":"major","copper":"major","lead":"moderate","silver":"moderate","gold":"minor","salt":"major"}},
+    "SAU":{"landQuality":0.14,"forestFraction":0.015,"forestStartCoverage":0.75,"deposits":{"stone":"major","fineStone":"moderate","ironOre":"minor","copper":"minor","gold":"minor","salt":"major"}},
+    "KWT":{"landQuality":0.12,"forestFraction":0.008,"forestStartCoverage":0.70,"deposits":{"stone":"minor","salt":"major"}},
+    "BHR":{"landQuality":0.22,"forestFraction":0.01,"forestStartCoverage":0.70,"deposits":{"stone":"minor","salt":"moderate"}},
+    "QAT":{"landQuality":0.10,"forestFraction":0.005,"forestStartCoverage":0.68,"deposits":{"stone":"moderate","salt":"major"}},
+    "ARE":{"landQuality":0.13,"forestFraction":0.012,"forestStartCoverage":0.72,"deposits":{"stone":"major","copper":"minor","salt":"major"}},
+    "OMN":{"landQuality":0.24,"forestFraction":0.045,"forestStartCoverage":0.78,"deposits":{"stone":"major","fineStone":"moderate","ironOre":"moderate","copper":"major","gold":"minor","salt":"moderate"}},
+    "YEM":{"landQuality":0.52,"forestFraction":0.10,"forestStartCoverage":0.78,"deposits":{"stone":"major","fineStone":"moderate","ironOre":"minor","copper":"minor","silver":"minor","salt":"moderate"}}
+  }
+}

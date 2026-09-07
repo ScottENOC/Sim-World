@@ -146,6 +146,12 @@ export const CONSTRUCTION_TYPES = Object.freeze({
     workRequired: 10500, defaultWorkers: 135, minWorkers: 40, maxWorkers: 550,
     materials: { stone: 700, wood: 1200, bronze: 30 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.04,
   },
+  coastal_fortifications: {
+    id: 'coastal_fortifications', name: 'Coastal and strait fortifications', requiredTechId: 'hill_forts', coastal: true, unique: true,
+    description: 'Fortified headlands, signal towers, protected anchorages and defended shore positions. On a narrow passage these works make persistent toll collection and naval interdiction far more credible.',
+    workRequired: 11500, defaultWorkers: 150, minWorkers: 45, maxWorkers: 650,
+    materials: { stone: 1250, wood: 650, bronze: 25 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.035,
+  },
   monumental_tomb: {
     id: 'monumental_tomb', name: 'Monumental royal tomb', requiredTechId: null, monumental: true,
     minPopulation: 7000,
@@ -555,6 +561,7 @@ export function chooseAiConstruction(region, currentTick, rng = Math.random) {
       ['royal_arsenal', (region.army?.personnel || 0) > 250 ? 6 : 2],
       ['drill_ground', (region.army?.personnel || 0) > 500 ? 7 : 3],
       ['naval_base', (region.navy?.boats || 0) > 8 ? 7 : 2],
+      ['coastal_fortifications', region.isCoastal && (region.adjacentSeaIds || []).length >= 2 ? 8 : 1],
       ['administrative_centre', (region.population || 0) > 12000 ? 6 : 2],
       ['canal', (region.population || 0) > 20000 ? 5 : 1],
       ['monumental_tomb', (region.population || 0) > 25000 && (region.stability || 0) > 0.7 ? 3 : 0],
