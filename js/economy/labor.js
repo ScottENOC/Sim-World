@@ -11,8 +11,15 @@ function committedMerchantCount(region) {
 }
 
 function committedArtistCount(region, availableAfterMerchants) {
-  const artists = Math.max(0, Math.round(artistPopulation(region)));
-  return Math.min(Math.max(0, availableAfterMerchants), artists);
+  const professionalArtists = Math.max(0, Math.round(artistPopulation(region)));
+  const schoolStudents = region.culturalLife?.artSchool?.founded
+    ? Math.max(0, Math.round(region.culturalLife.artSchool.students || 0)) : 0;
+  const total = professionalArtists + schoolStudents;
+  return {
+    total: Math.min(Math.max(0, availableAfterMerchants), total),
+    professionalArtists,
+    schoolStudents,
+  };
 }
 
 function normaliseReportMetadata(region) {
@@ -27,17 +34,17 @@ function normaliseReportMetadata(region) {
   }
 }
 
-// Persistent merchants and professional artists are committed labour, like
-// soldiers: they do not become farmers/miners for a convenient week while
-// retaining their careers. Keep the core allocator unchanged by temporarily
-// presenting it with only genuinely allocatable workers.
+// Persistent merchants, professional artists and full-time art-school students
+// are committed labour, like soldiers: they do not become farmers/miners for a
+// convenient week while retaining those careers. Keep the core allocator
+// unchanged by temporarily presenting it with only genuinely allocatable workers.
 export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, currentTick = null, elapsedDays = 7, endDay = null) {
   const reservations = [];
   for (const region of regions) {
     const workingAge = Math.max(0, Number(region.demographics?.workingAge) || 0);
     const merchants = committedMerchantCount(region);
     const artists = committedArtistCount(region, workingAge - merchants);
-    const reserved = merchants + artists;
+    const reserved = merchants + artists.total;
     reservations.push([region, merchants, artists]);
     if (reserved > 0 && region.demographics) {
       region.demographics.workingAge = Math.max(0, region.demographics.workingAge - reserved);
@@ -52,12 +59,13 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
     for (const region of regions) normaliseReportMetadata(region);
   } finally {
     for (const [region, merchants, artists] of reservations) {
-      if (region.demographics) region.demographics.workingAge += merchants + artists;
+      if (region.demographics) region.demographics.workingAge += merchants + artists.total;
       if (!region.occupations) region.occupations = {};
       // The core allocator already excluded these people, so general labour
       // must not be reduced a second time here.
       region.occupations.trader = merchants;
-      region.occupations.artist = artists;
+      region.occupations.artist = Math.min(artists.professionalArtists, artists.total);
+      region.occupations.artStudent = Math.max(0, artists.total - region.occupations.artist);
     }
   }
 }
