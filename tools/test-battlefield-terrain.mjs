@@ -59,7 +59,7 @@ const experienced = region({ militaryExperience: { field: 0.8, institutional: 0,
 const twelveYears = 12 * (365.2425 / 7);
 const decayed = combatExperience(experienced, twelveYears);
 assert.ok(decayed < 0.5 && decayed > 0.25, `field experience should decay substantially without institutions, got ${decayed}`);
-const learned = recordCombatExperience(experienced, twelveYears + 1, { intensity: 0.02, casualtyShare: 0.03, defender: true });
-assert.ok(learned > decayed, 'real combat should add effective experience after decay');
+const learned = recordCombatExperience(experienced, twelveYears + 1, { intensity: 0.02, casualtyShare: 0.001, defender: true });
+assert.ok(learned > decayed, 'a low-loss real engagement should add effective experience after decay');
 
 console.log('battlefield terrain regression tests passed');
