@@ -12,6 +12,8 @@ import { recordCampaignMemories } from '../society/culturalMemory.js?v=20260907-
 import { effectiveInfrastructureCount, hillFortDefenceMultiplier, overlandInfrastructureMultiplier, settlementDefenceMultiplier } from '../economy/construction.js?v=20260905-projects1';
 import { returnSiegeTrain, survivingFortBenefit, takeSiegeTrain } from './siegeEquipment.js?v=20260905-siege1';
 import { chooseBattlefield, recordCombatExperience, terrainCombatMultiplier } from './terrain.js?v=20260908-terrain1';
+import { formationAmphibiousBonus, formationMobilityBonus, formationSiegeBonus } from './formations.js?v=20260908-prof1';
+import { marchSpeedMultiplier, moraleShockMultiplier, professionalLogisticsMultiplier, retreatLossMultiplier } from './professionalisation.js?v=20260908-prof1';
 
 export const CAMPAIGN_OBJECTIVES = Object.freeze({
   devastation: { label: 'Destroy the region', pressureRate: 0.8, damageRate: 1.8 },
@@ -29,8 +31,9 @@ let nextCampaignId = 1;
 const clamp = (value, low = 0, high = 1) => Math.max(low, Math.min(high, value));
 
 function campaignMobility(region) {
-  const movement = horseLandSpeedMultiplier(region) * overlandInfrastructureMultiplier(region);
-  return clamp((movement - 0.8) / 1.15);
+  const movement = horseLandSpeedMultiplier(region) * overlandInfrastructureMultiplier(region) *
+    marchSpeedMultiplier(region) * (1 + formationMobilityBonus(region));
+  return clamp((movement - 0.8) / 1.25);
 }
 
 export function syncNextCampaignId(campaigns = []) {
@@ -41,7 +44,8 @@ export function campaignTravelWeeks(attacker, defender, viaSea) {
   const distance = centroidDistanceKm(attacker, defender) ?? 500;
   const speed = viaSea
     ? SEA_SPEED_KM_PER_WEEK * (1 + advancedNavyShare(attacker) * 0.5)
-    : LAND_SPEED_KM_PER_WEEK * horseLandSpeedMultiplier(attacker) * overlandInfrastructureMultiplier(attacker);
+    : LAND_SPEED_KM_PER_WEEK * horseLandSpeedMultiplier(attacker) * overlandInfrastructureMultiplier(attacker) *
+      marchSpeedMultiplier(attacker) * (1 + formationMobilityBonus(attacker));
   return Math.max(1, Math.ceil(distance / speed));
 }
 
@@ -142,6 +146,16 @@ function navalControl(attacker, defender) {
 }
 
 function beginReturn(campaign, attacker, defender, currentTick, outcome) {
+  if (campaign.weeksEngaged > 0 && (outcome === 'attacker_broke' || outcome === 'withdrawn')) {
+    const baseRetreatLoss = outcome === 'attacker_broke' ? 0.055 : 0.022;
+    const retreatLoss = Math.min(campaign.personnel, Math.round(campaign.personnel * baseRetreatLoss * retreatLossMultiplier(attacker, currentTick)));
+    if (retreatLoss > 0) {
+      campaign.personnel -= retreatLoss;
+      campaign.attackerCasualties += retreatLoss;
+      attacker.army.away = Math.max(0, (attacker.army.away || 0) - retreatLoss);
+      campaign.retreatLosses = (campaign.retreatLosses || 0) + retreatLoss;
+    }
+  }
   campaign.phase = 'returning';
   campaign.stage = 'withdrawing';
   campaign.outcome = outcome;
@@ -171,25 +185,28 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   campaign.weeksEngaged += 1;
   const objective = CAMPAIGN_OBJECTIVES[campaign.objective];
   const control = defender.isCoastal ? navalControl(attacker, defender) : 1;
+  const amphibiousPreparation = campaign.viaSea ? 1 + formationAmphibiousBonus(attacker) : 1;
   const coastalFactor = defender.isCoastal
-    ? campaign.viaSea ? clamp(control * 1.35, 0.25, 1) : clamp(0.55 + control * 0.55, 0.55, 1)
+    ? campaign.viaSea ? clamp(control * 1.35 * amphibiousPreparation, 0.25, 1.15) : clamp(0.55 + control * 0.55, 0.55, 1)
     : 1;
 
+  const logistics = professionalLogisticsMultiplier(attacker, currentTick);
   const foodNeeded = campaign.personnel * 0.08;
   const foodSupplied = Math.min(foodNeeded, Math.max(0, attacker.stockpile?.food || 0));
   attacker.stockpile.food = Math.max(0, (attacker.stockpile.food || 0) - foodSupplied);
   const supplySuccess = foodNeeded > 0 ? foodSupplied / foodNeeded : 1;
   const defenderWater = Math.min(0.012, effectiveInfrastructureCount(defender, 'wells_cisterns') * 0.007 +
     effectiveInfrastructureCount(defender, 'canal') * 0.005);
-  const supplyDrain = 0.018 + campaign.travelWeeks * 0.0025 + (defender.isCoastal ? (1 - control) * 0.035 : 0);
-  campaign.supply = clamp(campaign.supply + supplySuccess * 0.035 - supplyDrain - campaign.pressure * 0.008);
+  const supplyDrain = (0.018 + campaign.travelWeeks * 0.0025 + (defender.isCoastal ? (1 - control) * 0.035 : 0)) / logistics;
+  campaign.supply = clamp(campaign.supply + supplySuccess * 0.035 * Math.min(1.18, logistics) - supplyDrain - campaign.pressure * 0.008);
   campaign.defenderMorale = clamp(campaign.defenderMorale + defenderWater);
 
   const terrain = campaign.battlefield?.terrain || 'plains';
-  const attackerPower = combatPower(attacker, campaign.personnel, toolTypes, 'attacker', campaign.supply,
+  let attackerPower = combatPower(attacker, campaign.personnel, toolTypes, 'attacker', campaign.supply,
     campaign.attackerMorale, null, terrain);
   const defenderArmyPower = combatPower(defender, defender.army.personnel, toolTypes, 'defender', 1,
     campaign.defenderMorale, campaign.siegeEquipment, terrain);
+  if (campaign.pressure >= 0.45) attackerPower *= 1 + formationSiegeBonus(attacker);
   const militiaPower = campaign.militia * 0.24 * postureProfile(defender).raidDefence;
   const defenderPower = defenderArmyPower + militiaPower;
   const totalPower = Math.max(1, attackerPower + defenderPower);
@@ -236,10 +253,10 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   });
 
   const lossShock = attackerLosses / Math.max(1, campaign.initialPersonnel);
-  campaign.attackerMorale = clamp(campaign.attackerMorale - lossShock * 2.2 -
+  campaign.attackerMorale = clamp(campaign.attackerMorale - lossShock * 2.2 * moraleShockMultiplier(attacker, currentTick) -
     (1 - campaign.supply) * 0.035 + Math.max(0, pressureDelta) * 0.08 - (pressureDelta <= 0 ? 0.01 : 0));
-  campaign.defenderMorale = clamp(campaign.defenderMorale - Math.max(0, pressureDelta) * 0.5 -
-    (defenderLosses + militiaLosses) / Math.max(1, defender.population) * 4);
+  campaign.defenderMorale = clamp(campaign.defenderMorale - Math.max(0, pressureDelta) * 0.5 * moraleShockMultiplier(defender, currentTick) -
+    (defenderLosses + militiaLosses) / Math.max(1, defender.population) * 4 * moraleShockMultiplier(defender, currentTick));
   const civilianDeaths = applyCivilianDamage(campaign, defender, Math.max(0, pressureDelta), attackerShare);
   defender.conflictPressure = campaign.pressure;
   const week = { tick: currentTick, stage: campaign.stage, terrain, pressureDelta, pressure: campaign.pressure,
