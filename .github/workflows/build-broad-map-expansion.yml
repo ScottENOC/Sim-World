@@ -2,7 +2,7 @@ name: Build broad Europe Middle East expansion
 
 on:
   push:
-    branches: [broad-europe-middle-east-expansion, cleanup-alpine-swiss-geography]
+    branches: [broad-europe-middle-east-expansion, cleanup-alpine-swiss-geography, cleanup-map-slivers-v1]
     paths:
       - '.github/workflows/build-broad-map-expansion.yml'
       - 'tools/build-map-expansion-v2.py'
@@ -42,6 +42,22 @@ jobs:
           node --check js/world/chokepoints.js
           node --check js/economy/transitTolls.js
           node --check js/economy/trade.js
+      - name: Audit small expansion regions
+        run: |
+          python - <<'PY'
+          import json
+          meta=json.load(open('data/world/regions.meta.json'))['regions']
+          by_id={m['id']:m for m in meta}
+          small=[]
+          for m in meta:
+              if not str(m['id']).startswith('r2_') or m.get('areaSqKm',0)>=2500:
+                  continue
+              neighbours=[by_id.get(n,{}).get('name',n) for n in m.get('neighbors',[])]
+              small.append((m['areaSqKm'],m['id'],m['name'],neighbours))
+          print('SMALL_EXPANSION_REGIONS='+str(len(small)))
+          for area,rid,name,neighbours in sorted(small):
+              print(f'SLIVER_CANDIDATE area={area:.1f} id={rid} name={name} neighbours={" | ".join(neighbours)}')
+          PY
       - name: Build uncovered land
         run: |
           rm -rf /tmp/simworld-v2-land /tmp/simworld-v2-sea
@@ -79,7 +95,6 @@ jobs:
           print('LAND_REGIONS='+str(len(ids)))
           print('SEA_REGIONS='+str(len(sea)))
           print('SWISS_REGIONS='+str(len(swiss)))
-          print('NEW_SWISS_REGIONS=6')
           azov=next(m for m in sea if m['id']=='sea_azov')
           black=next(m for m in sea if m['id']=='sea_black')
           print('AZOV_AREA_SQKM='+str(round(azov['areaSqKm'])))
@@ -95,7 +110,7 @@ jobs:
           if git diff --cached --quiet; then
             echo 'Generated map already current'
           else
-            git commit -m 'Repair Alpine geography and add Switzerland'
+            git commit -m 'Polish residual map slivers'
             git pull --rebase
             git push
           fi
