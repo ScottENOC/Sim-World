@@ -7,6 +7,7 @@ on:
       - '.github/workflows/validate-transit-control.yml'
       - 'tools/apply-transit-control-patch.py'
       - 'tools/apply-chokepoint-trade-patch.py'
+      - 'tools/apply-interdiction-patch.py'
       - 'js/economy/transitTolls.js'
       - 'js/world/chokepoints.js'
       - 'js/economy/trade.js'
@@ -31,9 +32,10 @@ jobs:
         run: |
           python tools/apply-chokepoint-trade-patch.py
           python tools/apply-transit-control-patch.py
+          python tools/apply-interdiction-patch.py
       - name: Validate JavaScript and patches
         run: |
-          python -m py_compile tools/apply-chokepoint-trade-patch.py tools/apply-transit-control-patch.py
+          python -m py_compile tools/apply-chokepoint-trade-patch.py tools/apply-transit-control-patch.py tools/apply-interdiction-patch.py
           node --check js/world/chokepoints.js
           node --check js/economy/transitTolls.js
           node --check js/economy/trade.js
@@ -50,7 +52,7 @@ jobs:
           if git diff --cached --quiet; then
             echo 'Transit integration already materialised'
           else
-            git commit -m 'Wire chokepoint control and transit tolls into simulation'
+            git commit -m 'Wire chokepoint interdiction into simulation'
             git pull --rebase
             git push
           fi
