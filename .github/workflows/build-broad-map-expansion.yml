@@ -7,6 +7,7 @@ on:
       - '.github/workflows/build-broad-map-expansion.yml'
       - 'tools/build-map-expansion-v2.py'
       - 'tools/build-map-expansion-v2-natural-earth.py'
+      - 'tools/build-map-expansion-v2-fast.py'
       - 'tools/map-region-plan-v2.json'
       - 'tools/map-resource-plan-v2.json'
       - 'tools/build-sea-expansion-v2.py'
@@ -36,7 +37,7 @@ jobs:
         run: python tools/apply-chokepoint-trade-patch.py
       - name: Validate scripts and plans
         run: |
-          python -m py_compile tools/build-map-expansion-v2.py tools/build-map-expansion-v2-natural-earth.py tools/build-sea-expansion-v2.py tools/apply-chokepoint-trade-patch.py
+          python -m py_compile tools/build-map-expansion-v2.py tools/build-map-expansion-v2-natural-earth.py tools/build-map-expansion-v2-fast.py tools/build-sea-expansion-v2.py tools/apply-chokepoint-trade-patch.py
           python -m json.tool tools/map-region-plan-v2.json >/dev/null
           python -m json.tool tools/map-resource-plan-v2.json >/dev/null
           python -m json.tool tools/sea-region-expansion-plan-v2.json >/dev/null
@@ -45,13 +46,13 @@ jobs:
       - name: Build uncovered land
         run: |
           rm -rf /tmp/simworld-v2-land /tmp/simworld-v2-sea
-          python tools/build-map-expansion-v2-natural-earth.py --output-dir /tmp/simworld-v2-land | tee /tmp/v2-land.log
+          time python tools/build-map-expansion-v2-fast.py --output-dir /tmp/simworld-v2-land | tee /tmp/v2-land.log
           cp /tmp/simworld-v2-land/regions.geo.json data/world/regions.geo.json
           cp /tmp/simworld-v2-land/regions.meta.json data/world/regions.meta.json
           cp /tmp/simworld-v2-land/resources.initial.json data/world/resources.initial.json
       - name: Build seas and refresh all coastal adjacency
         run: |
-          python tools/build-sea-expansion-v2.py --land-geo data/world/regions.geo.json --output-dir /tmp/simworld-v2-sea | tee /tmp/v2-sea.log
+          time python tools/build-sea-expansion-v2.py --land-geo data/world/regions.geo.json --output-dir /tmp/simworld-v2-sea | tee /tmp/v2-sea.log
           cp /tmp/simworld-v2-sea/seaRegions.geo.json data/world/seaRegions.geo.json
           cp /tmp/simworld-v2-sea/seaRegions.meta.json data/world/seaRegions.meta.json
       - name: Sanity check generated world
