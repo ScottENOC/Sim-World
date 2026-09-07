@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """Fast Natural-Earth-backed additive map expansion.
 
-Avoids repeatedly differencing each source polygon against one enormous,
-increasingly complex world union. Existing Sim-World land is indexed once and
-only nearby polygons are unioned for each source piece. Modern country masks
-keep newly generated countries disjoint, so newly generated land does not need
-to be folded back into the subtraction geometry country-by-country.
+Existing Sim-World land is spatially indexed once. Each candidate source polygon
+is differenced only against nearby existing regions, and already-represented
+stable IDs are dropped as source-boundary slivers before adjacency is built.
 """
 import importlib.util
 import json
@@ -23,15 +21,13 @@ spec = importlib.util.spec_from_file_location('map_v2', MODULE_PATH)
 map_v2 = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(map_v2)
 
-# 50m admin-1 geometry is ample for durable gameplay regions and dramatically
-# cheaper than 10m coastlines. Final adjacency/area calculations still use the
-# generated geometries and geodesic area calculation in build-map-expansion-v2.
 ADMIN1_URL = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_1_states_provinces.geojson'
 HOST_ISO = {'VAT':'ITA', 'SMR':'ITA', 'MCO':'FRA', 'LIE':'CHE'}
 ALIASES = {'KOS': {'KOS','XKX'}, 'PSE': {'PSE','PSX'}, 'ESH': {'ESH','SAH'}}
 _admin1_cache = None
 _existing_geoms = []
 _existing_tree = None
+_existing_ids = set()
 
 
 def fetch_json_retry(url, attempts=4, timeout=120):
@@ -77,15 +73,19 @@ def absorb_microstates_hosted(base_geo, base_meta, masks, specs):
             g = map_v2.repair(shape(f['geometry']))
             if not g.envelope.intersects(host_env):
                 continue
-            if map_v2.area_sqkm(g.intersection(host)) < 1:
+            total_area = max(1.0, map_v2.area_sqkm(g))
+            host_area = map_v2.area_sqkm(g.intersection(host))
+            # Require the receiving gameplay region to genuinely belong to the
+            # surrounding host geography; tiny border overlaps are not enough.
+            if host_area / total_area < 0.50:
                 continue
             d = g.distance(micro)
             shared = g.boundary.intersection(micro.boundary).length if d < 0.08 else 0
-            score = (shared > 0, shared, -d)
+            score = (shared > 0, shared, -d, host_area / total_area)
             if best is None or score > best[0]:
                 best = (score, f, g)
         if best is None:
-            raise RuntimeError(f'{iso}: no host-country region available for absorption')
+            raise RuntimeError(f'{iso}: no predominantly host-country region available for absorption')
         _, f, g = best
         merged = map_v2.repair(unary_union([g, micro]))
         f['geometry'] = map_v2.mapping(merged)
@@ -112,8 +112,9 @@ def natural_earth_admin1():
 
 
 def prepare_existing_index(base_features):
-    global _existing_geoms, _existing_tree
+    global _existing_geoms, _existing_tree, _existing_ids
     _existing_geoms = []
+    _existing_ids = {f['properties']['id'] for f in base_features}
     for f in base_features:
         g = map_v2.repair(shape(f['geometry']))
         if not g.is_empty:
@@ -174,7 +175,6 @@ def source_features_fast(country, mask, _unused_existing_coverage):
 
 
 def cluster_regions_fast(pieces, target):
-    """Merge neighbouring administrative pieces without geodesic rescans."""
     clusters = list(pieces)
     target = max(1, min(int(target), len(clusters))) if clusters else 0
     while len(clusters) > target:
@@ -226,6 +226,17 @@ def cluster_regions_fast(pieces, target):
     return clusters
 
 
+def make_game_regions_fast(country, clusters):
+    regions = original_make_game_regions(country, clusters)
+    kept = []
+    for r in regions:
+        if r['id'] in _existing_ids:
+            print(f"DUPLICATE_SLIVER_SKIP {country['iso']} {r['name']} {r['areaSqKm']:.0f}sqkm")
+            continue
+        kept.append(r)
+    return kept
+
+
 def make_runtime_plan_idempotent():
     configured = json.loads(Path(map_v2.PLAN).read_text())
     baseline = int(configured.get('targetExistingRegionCount', 0))
@@ -244,11 +255,13 @@ def make_runtime_plan_idempotent():
 
 
 original_country_masks = map_v2.country_masks
+original_make_game_regions = map_v2.make_game_regions
 map_v2.fetch_json = fetch_json_retry
 map_v2.country_masks = country_masks_with_hosts
 map_v2.absorb_microstates = absorb_microstates_hosted
 map_v2.source_features = source_features_fast
 map_v2.cluster_regions = cluster_regions_fast
+map_v2.make_game_regions = make_game_regions_fast
 
 if __name__ == '__main__':
     make_runtime_plan_idempotent()
