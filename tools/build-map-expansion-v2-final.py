@@ -76,12 +76,7 @@ def absorb_microstates_geographic(base_geo, base_meta, masks, specs):
 
 
 def clean_detached_liechtenstein_from_base():
-    """Undo the earlier bad absorption that attached Liechtenstein to Haut-Rhin.
-
-    The old pass unioned Liechtenstein into a distant French feature, creating a
-    disconnected MultiPolygon and a false Haut-Rhin/Tirol adjacency. Strip only
-    that erroneous component before the existing-land spatial index is rebuilt.
-    """
+    """Undo the earlier bad absorption that attached Liechtenstein to Haut-Rhin."""
     admin0 = fast.fetch_json_retry(map_v2.ADMIN0_URL)
     masks = fast.country_masks_with_hosts(admin0, {'LIE', 'CHE'})
     lie = masks.get('LIE')
@@ -131,11 +126,17 @@ def main():
     parser.add_argument('--output-dir', default='/tmp/simworld-map-expansion-v2')
     args = parser.parse_args()
     plan = json.loads(Path(map_v2.PLAN).read_text())
+    configured_plan = json.loads((ROOT / 'tools' / 'map-region-plan-v2.json').read_text())
     resource_plan = json.loads(Path(map_v2.RESOURCE_PLAN).read_text())
     base_geo = json.loads(Path(map_v2.BASE_GEO).read_text())
     base_meta_doc = json.loads(Path(map_v2.BASE_META).read_text())
     base_resources = json.loads(Path(map_v2.BASE_RESOURCES).read_text())
     expected = int(plan['targetExistingRegionCount'])
+    configured_baseline = int(configured_plan['targetExistingRegionCount'])
+    rebased = expected > configured_baseline
+    append_only = set(configured_plan.get('appendOnlyCountriesWhenRebased', [])) if rebased else set()
+    if append_only:
+        print('IDEMPOTENT_APPEND_ONLY=' + ','.join(sorted(append_only)))
     if len(base_geo.get('features', [])) != expected:
         raise RuntimeError(f"Base map has {len(base_geo.get('features', []))} regions; expected {expected}")
 
@@ -150,10 +151,17 @@ def main():
 
     all_new = []
     for country in plan['countries']:
+        if append_only and country['iso'] not in append_only:
+            print(f"COUNTRY_REBASE_SKIP {country['iso']}")
+            continue
+
         mask = masks.get(country['iso'])
         pieces = fast.source_features_fast(country, mask, None)
 
-        if country['iso'] == 'CHE':
+        # Only append Liechtenstein when Switzerland itself still has uncovered
+        # source geography. On future idempotent reruns, an already-built Swiss
+        # map therefore does not create a duplicate Liechtenstein fragment.
+        if country['iso'] == 'CHE' and pieces:
             lie = masks.get('LIE')
             if lie is not None and not lie.is_empty:
                 lie_area = map_v2.area_sqkm(lie)
