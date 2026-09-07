@@ -75,6 +75,57 @@ def absorb_microstates_geographic(base_geo, base_meta, masks, specs):
         print(f"MICROSTATE_ABSORB {iso} -> {f['properties'].get('name')}")
 
 
+def clean_detached_liechtenstein_from_base():
+    """Undo the earlier bad absorption that attached Liechtenstein to Haut-Rhin.
+
+    The old pass unioned Liechtenstein into a distant French feature, creating a
+    disconnected MultiPolygon and a false Haut-Rhin/Tirol adjacency. Strip only
+    that erroneous component before the existing-land spatial index is rebuilt.
+    """
+    admin0 = fast.fetch_json_retry(map_v2.ADMIN0_URL)
+    masks = fast.country_masks_with_hosts(admin0, {'LIE', 'CHE'})
+    lie = masks.get('LIE')
+    if lie is None or lie.is_empty:
+        print('ALPINE_CLEANUP_WARN Liechtenstein mask missing')
+        return
+
+    geo_doc = json.loads(Path(map_v2.BASE_GEO).read_text())
+    meta_doc = json.loads(Path(map_v2.BASE_META).read_text())
+    meta_by_id = {m['id']: m for m in meta_doc['regions']}
+    changed = False
+
+    for f in geo_doc.get('features', []):
+        if f.get('properties', {}).get('name') != 'Haut-Rhin':
+            continue
+        g = map_v2.repair(shape(f['geometry']))
+        overlap = map_v2.area_sqkm(g.intersection(lie))
+        if overlap < 50:
+            continue
+        cleaned = map_v2.repair(g.difference(lie.buffer(1e-7)))
+        if cleaned.is_empty:
+            raise RuntimeError('Alpine cleanup would remove all of Haut-Rhin')
+        f['geometry'] = map_v2.mapping(cleaned)
+        meta = meta_by_id.get(f['properties']['id'])
+        if meta:
+            c = cleaned.centroid
+            meta['centroid'] = [c.x, c.y]
+            meta['areaSqKm'] = map_v2.area_sqkm(cleaned)
+        print(f'ALPINE_CLEANUP removed {overlap:.1f}sqkm detached Liechtenstein component from Haut-Rhin')
+        changed = True
+
+    if not changed:
+        print('ALPINE_CLEANUP no detached Liechtenstein component found')
+        return
+
+    geo_path = Path('/tmp/simworld-clean-base-regions.geo.json')
+    meta_path = Path('/tmp/simworld-clean-base-regions.meta.json')
+    geo_path.write_text(json.dumps(geo_doc, ensure_ascii=False, separators=(',', ':')))
+    meta_path.write_text(json.dumps(meta_doc, ensure_ascii=False, separators=(',', ':')))
+    map_v2.BASE_GEO = geo_path
+    map_v2.BASE_META = meta_path
+    fast.prepare_existing_index(geo_doc.get('features', []))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output-dir', default='/tmp/simworld-map-expansion-v2')
@@ -91,13 +142,30 @@ def main():
     wanted = {c['iso'] for c in plan['countries']} | {m['iso'] for m in plan.get('microstateAbsorption', [])}
     admin0 = fast.fetch_json_retry(map_v2.ADMIN0_URL)
     masks = fast.country_masks_with_hosts(admin0, wanted)
-    absorb_microstates_geographic(base_geo['features'], base_meta_doc['regions'], masks,
-                                  plan.get('microstateAbsorption', []))
+
+    # Liechtenstein is handled as a source piece inside the Swiss clustering so
+    # it becomes contiguous with the eastern Swiss/Rhine-Alpine gameplay region.
+    ordinary_microstates = [m for m in plan.get('microstateAbsorption', []) if m.get('iso') != 'LIE']
+    absorb_microstates_geographic(base_geo['features'], base_meta_doc['regions'], masks, ordinary_microstates)
 
     all_new = []
     for country in plan['countries']:
         mask = masks.get(country['iso'])
         pieces = fast.source_features_fast(country, mask, None)
+
+        if country['iso'] == 'CHE':
+            lie = masks.get('LIE')
+            if lie is not None and not lie.is_empty:
+                lie_area = map_v2.area_sqkm(lie)
+                pieces.append({
+                    'geometry': lie,
+                    'names': ['Liechtenstein'],
+                    'anchor': 'Liechtenstein',
+                    'anchorArea': lie_area,
+                    'mergeArea': lie.area,
+                })
+                print(f'SWISS_CLUSTER added Liechtenstein source piece area={lie_area:.1f}sqkm')
+
         if not pieces:
             print(f"COUNTRY_SKIP {country['iso']} already covered or no substantial uncovered land")
             continue
@@ -148,4 +216,5 @@ map_v2.make_game_regions = fast.make_game_regions_fast
 
 if __name__ == '__main__':
     fast.make_runtime_plan_idempotent()
+    clean_detached_liechtenstein_from_base()
     main()
