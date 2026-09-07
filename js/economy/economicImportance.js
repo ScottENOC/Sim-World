@@ -7,6 +7,7 @@
 
 const clamp = (value, low = 0, high = 1) => Math.max(low, Math.min(high, Number(value) || 0));
 const safe = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
+const DOMAIN_CACHE = new WeakMap();
 
 function hash01(text) {
   let h = 2166136261;
@@ -100,9 +101,15 @@ function distress(region) {
 }
 
 function rawDomain(regions) {
+  if (!Array.isArray(regions)) return 1;
+  const cached = DOMAIN_CACHE.get(regions);
+  if (cached) return cached;
   const values = regions.map(economicWeight).filter(Number.isFinite).sort((a, b) => a - b);
-  if (!values.length) return 1;
-  return Math.max(1, values[Math.floor((values.length - 1) * 0.95)] || values[values.length - 1]);
+  const domain = values.length
+    ? Math.max(1, values[Math.floor((values.length - 1) * 0.95)] || values[values.length - 1])
+    : 1;
+  DOMAIN_CACHE.set(regions, domain);
+  return domain;
 }
 
 export function perceivedEconomicImportance(observer, subject, regions, currentTick = 0) {
