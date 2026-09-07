@@ -173,9 +173,18 @@ export function chooseNpcConquestOffer(attackerRegion, defenderRegion, polities,
   const defeated = sovereignPolity(defenderRegion, polities);
   const score = plausibleGovernanceScore(defeated, defenderRegion, regions, polities);
   const attitude = clamp((attitudeToward(attackerRegion, defenderRegion.id) + 1) / 2);
-  if (score >= 0.72) return 'vassal_ruler';
-  if (score >= 0.52 && attitude >= 0.25) return 'governor';
-  if (score >= 0.42) return 'reduced_realm';
+  const memory = attackerRegion.aiMemoryBias || {};
+  // Societies that strongly remember dispossession, exile or negotiated political
+  // continuity assign a larger legitimacy cost to simply erasing an existing
+  // government. This is a bias, not a ban: very weak governability still leads
+  // to direct rule when rulers see no workable intermediary.
+  const continuityBias = clamp(Math.max(memory.politicalLoss || 0, (memory.politicalContinuity || 0) * 0.8));
+  const vassalThreshold = Math.max(0.58, 0.72 - continuityBias * 0.12);
+  const governorThreshold = Math.max(0.43, 0.52 - continuityBias * 0.08);
+  const reducedThreshold = Math.max(0.30, 0.42 - continuityBias * 0.09);
+  if (score >= vassalThreshold) return 'vassal_ruler';
+  if (score >= governorThreshold && attitude >= 0.25 - continuityBias * 0.08) return 'governor';
+  if (score >= reducedThreshold) return 'reduced_realm';
   return 'direct_rule';
 }
 
