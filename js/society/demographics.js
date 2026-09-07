@@ -67,8 +67,7 @@ function applyBaselineDemographics(region, elapsedDays) {
 
   d.children = Math.max(0, d.children + births - childDeaths - childToWorking);
   d.workingAge = Math.max(0, d.workingAge + childToWorking - workingDeaths - workingToElderly);
-  d.elderly = Math.max(0, d.elderly + workingToElderly - workingDeaths - workingToElderly + workingDeaths);
-  d.elderly = Math.max(0, d.elderly - elderlyDeaths + workingToElderly);
+  d.elderly = Math.max(0, d.elderly + workingToElderly - elderlyDeaths);
 
   const militaryDeathFraction = annualFractionRate(ARMY_BASE_ANNUAL_DEATH_RATE, elapsedDays);
   region.army.personnel = Math.max(0, region.army.personnel * (1 - militaryDeathFraction));
