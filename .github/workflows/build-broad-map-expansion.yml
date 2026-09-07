@@ -11,6 +11,9 @@ on:
       - 'tools/map-resource-plan-v2.json'
       - 'tools/build-sea-expansion-v2.py'
       - 'tools/sea-region-expansion-plan-v2.json'
+      - 'tools/apply-chokepoint-trade-patch.py'
+      - 'js/world/chokepoints.js'
+      - 'js/economy/trade.js'
   workflow_dispatch:
 
 permissions:
@@ -29,12 +32,16 @@ jobs:
           python-version: '3.12'
       - name: Install map dependencies
         run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2
+      - name: Apply chokepoint trade integration
+        run: python tools/apply-chokepoint-trade-patch.py
       - name: Validate scripts and plans
         run: |
-          python -m py_compile tools/build-map-expansion-v2.py tools/build-map-expansion-v2-natural-earth.py tools/build-sea-expansion-v2.py
+          python -m py_compile tools/build-map-expansion-v2.py tools/build-map-expansion-v2-natural-earth.py tools/build-sea-expansion-v2.py tools/apply-chokepoint-trade-patch.py
           python -m json.tool tools/map-region-plan-v2.json >/dev/null
           python -m json.tool tools/map-resource-plan-v2.json >/dev/null
           python -m json.tool tools/sea-region-expansion-plan-v2.json >/dev/null
+          node --check js/world/chokepoints.js
+          node --check js/economy/trade.js
       - name: Build uncovered land
         run: |
           rm -rf /tmp/simworld-v2-land /tmp/simworld-v2-sea
@@ -57,24 +64,31 @@ jobs:
           sea=json.load(open('data/world/seaRegions.meta.json'))['seaRegions']
           ids=[f['properties']['id'] for f in geo['features']]
           mids=[m['id'] for m in meta]
+          sea_ids={m['id'] for m in sea}
           assert len(ids)==len(set(ids)), 'duplicate land ids'
           assert set(ids)==set(mids)==set(res), 'land/meta/resource ids differ'
-          assert len(ids)>418, 'expansion added no land'
+          assert len(ids)>598, 'expansion added no land beyond the live 598-region map'
           assert all(m.get('adjacentLand') for m in sea), 'sea without simulated coast'
+          assert 'sea_azov' in sea_ids, 'Sea of Azov was not generated'
           print('LAND_REGIONS='+str(len(ids)))
           print('SEA_REGIONS='+str(len(sea)))
-          print('NEW_LAND_REGIONS='+str(len(ids)-418))
+          print('NEW_LAND_REGIONS='+str(len(ids)-598))
+          azov=next(m for m in sea if m['id']=='sea_azov')
+          black=next(m for m in sea if m['id']=='sea_black')
+          print('AZOV_AREA_SQKM='+str(round(azov['areaSqKm'])))
+          print('AZOV_COASTALS='+str(len(azov['adjacentLand'])))
+          print('BLACK_SEA_AREA_SQKM='+str(round(black['areaSqKm'])))
           PY
           git diff --check
-      - name: Commit generated map on expansion branch
+      - name: Commit generated map and trade integration on expansion branch
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add data/world/regions.geo.json data/world/regions.meta.json data/world/resources.initial.json data/world/seaRegions.geo.json data/world/seaRegions.meta.json
+          git add data/world/regions.geo.json data/world/regions.meta.json data/world/resources.initial.json data/world/seaRegions.geo.json data/world/seaRegions.meta.json js/economy/trade.js
           if git diff --cached --quiet; then
-            echo 'Generated map already current'
+            echo 'Generated map and trade integration already current'
           else
-            git commit -m 'Generate broad Europe and Middle East map expansion'
+            git commit -m 'Generate broad map and chokepoint trade routes'
             git pull --rebase
             git push
           fi
