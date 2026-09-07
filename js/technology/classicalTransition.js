@@ -1,5 +1,5 @@
 import { effectiveExperience } from './learningByDoing.js?v=20260906-education1';
-import { operationalInfrastructure, effectiveInfrastructureCount } from '../economy/construction.js?v=20260905-projects1';
+import { operationalInfrastructure, effectiveInfrastructureCount } from '../economy/construction.js?v=20260907-classical1';
 
 export const LIGHT_CHARIOTRY_TECH_ID = 'light_chariotry';
 export const MOUNTED_CAVALRY_TECH_ID = 'mounted_cavalry';
@@ -43,7 +43,6 @@ export function classicalBreakthroughChances(region, regionsById) {
   const horseExp = Math.max(0, effectiveExperience(region, 'horseHusbandry'));
   const smithExp = Math.max(0, effectiveExperience(region, 'smithing'));
   const boatExp = Math.max(0, effectiveExperience(region, 'boatbuilding'));
-  const miningExp = Math.max(0, effectiveExperience(region, 'mining'));
   const population = Math.max(0, region.population || 0);
   const admin = adminCapacity(region);
   const pressure = urbanPressure(region);
@@ -67,8 +66,12 @@ export function classicalBreakthroughChances(region, regionsById) {
     : 0;
   const weightsIndependent = operationalInfrastructure(region, 'market_customs') && population >= 4000
     ? 0.00001 + admin * 0.000035 : 0;
+  // Early coinage need not wait for a map-wide silver pass: historically
+  // electrum/gold and silver all supplied early monetary systems. Silver is
+  // preferred once present, but existing gold-rich regions can originate it.
+  const preciousMetal = Math.max(0, region.stockpile?.silver || 0) + Math.max(0, region.stockpile?.gold || 0) * 0.45;
   const coinageIndependent = region.unlockedTechIds.has(STANDARD_WEIGHTS_TECH_ID) &&
-      (region.stockpile?.silver || 0) > 5 && admin > 0.25
+      preciousMetal > 5 && admin > 0.25
     ? 0.000006 + admin * 0.000025 : 0;
   const heavyInfantryIndependent = ironReady > 0.35 && population >= 8000
     ? ironReady * (0.000005 + insecurity * 0.00004) : 0;
