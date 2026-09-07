@@ -1,8 +1,9 @@
 {
-  "version": 2,
+  "version": 3,
   "purpose": "Coarse geography/geology defaults for the second Europe/Middle East/Northwest Africa expansion. These describe physical endowment, not historical destiny.",
   "defaultsByISO": {
     "AUT":{"landQuality":1.05,"forestFraction":0.58,"forestStartCoverage":0.82,"deposits":{"stone":"major","ironOre":"moderate","salt":"moderate","silver":"minor","lead":"minor"}},
+    "CHE":{"landQuality":0.82,"forestFraction":0.58,"forestStartCoverage":0.86,"deposits":{"stone":"very_major","fineStone":"moderate","ironOre":"minor","salt":"major","lead":"minor","silver":"minor"}},
     "CZE":{"landQuality":1.10,"forestFraction":0.52,"forestStartCoverage":0.78,"deposits":{"stone":"major","ironOre":"moderate","silver":"moderate","lead":"moderate"}},
     "SVK":{"landQuality":1.02,"forestFraction":0.62,"forestStartCoverage":0.84,"deposits":{"stone":"major","ironOre":"moderate","copper":"minor","silver":"minor"}},
     "HUN":{"landQuality":1.35,"forestFraction":0.28,"forestStartCoverage":0.68,"deposits":{"stone":"moderate","ironOre":"minor","salt":"minor"}},
