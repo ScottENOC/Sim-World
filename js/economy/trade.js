@@ -363,7 +363,10 @@ function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByR
     const route = ventureRouteProfile(region, dest, regionsById);
     if (!route || route.reliability <= 0.001) continue;
     const transit = estimateTransitToll(region, route, regions, regionsById, agreements);
-    const baseCost = route.cost + (1 - route.reliability) * 0.1;
+    if (transit.blocked) continue;
+    const effectiveReliability = route.reliability * (transit.reliabilityMultiplier ?? 1);
+    if (effectiveReliability <= 0.001) continue;
+    const baseCost = route.cost + (1 - effectiveReliability) * 0.1;
     const pricesThere = pricesByRegion.get(dest.id);
     for (const resource of stockedResources) {
       if (!tradeAllowed(region, dest, resource)) continue;
@@ -381,7 +384,7 @@ function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByR
         resource, dest, gap, score, stockAvailable,
         expectedPrice: (priceHere + priceThere) / 2,
         originPrice: priceHere,
-        route: { ...route, cost, transit },
+        route: { ...route, cost, transit, reliability: effectiveReliability },
       });
     }
   }

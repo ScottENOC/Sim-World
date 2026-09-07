@@ -253,7 +253,8 @@ export class AdvisorCouncil {
         <p class="advisor-note">Road tolls apply only to merchants crossing an intermediate region with an operational road network. Repeated tolling creates bounded resentment based on the burden; it does not subtract relations forever.</p>
         ${transit.nearby.length ? transit.nearby.map((entry) => `<div class="advisor-report-row"><span>${entry.label}</span><strong>${entry.controlledByUs ? `control ${percent(entry.control)}` : 'not under our effective control'}</strong></div>
           <label class="advisor-field advisor-slider"><span>${entry.label} toll <b id="cp-toll-label-${entry.id}">${Math.round((entry.policy.rate || 0) * 100)}%</b></span><input data-cp-toll="${entry.id}" type="range" min="0" max="20" value="${Math.round((entry.policy.rate || 0) * 100)}" ${entry.controlledByUs ? '' : 'disabled'}></label>
-          <label class="advisor-field"><span>${entry.label}: military-support allies</span><select data-cp-allies="${entry.id}" ${entry.controlledByUs ? '' : 'disabled'}><option value="yes" ${entry.policy.alliesFree !== false ? 'selected' : ''}>Travel toll-free</option><option value="no" ${entry.policy.alliesFree === false ? 'selected' : ''}>Pay normal tolls</option></select></label>`).join('') : '<p class="advisor-note">This region is not close enough to a major mapped maritime chokepoint to enforce passage tolls.</p>'}`)}
+          <label class="advisor-field"><span>${entry.label}: military-support allies</span><select data-cp-allies="${entry.id}" ${entry.controlledByUs ? '' : 'disabled'}><option value="yes" ${entry.policy.alliesFree !== false ? 'selected' : ''}>Travel toll-free</option><option value="no" ${entry.policy.alliesFree === false ? 'selected' : ''}>Pay normal tolls</option></select></label>
+          <label class="advisor-field"><span>${entry.label}: passage policy</span><select data-cp-access="${entry.id}" ${entry.controlledByUs ? '' : 'disabled'}><option value="open" ${entry.policy.access === 'open' ? 'selected' : ''}>Open passage</option><option value="hostile" ${entry.policy.access === 'hostile' ? 'selected' : ''}>Interdict hostile traffic</option><option value="closed" ${entry.policy.access === 'closed' ? 'selected' : ''}>Attempt closure</option></select></label>`).join('') : '<p class="advisor-note">This region is not close enough to a major mapped maritime chokepoint to enforce passage tolls.</p>'}`)}
       ${section('Trade restrictions', `
         <p class="advisor-note">Imports are open by default. Civilian exports are open by default; military goods are closed by default. Embargoes can cover imports, exports or both. The diplomatic reaction depends on how much the restriction is expected to hurt the other realm.</p>
         <label class="advisor-field"><span>Direction</span><select id="trade-rule-direction"><option value="trade">All trade</option><option value="export">Exports only</option><option value="import">Imports only</option></select></label>
@@ -381,13 +382,21 @@ export class AdvisorCouncil {
     document.querySelectorAll('[data-cp-toll]').forEach((input) => input.addEventListener('input', () => {
       const id = input.dataset.cpToll;
       const allies = document.querySelector(`[data-cp-allies="${id}"]`);
-      setChokepointTollPolicy(player, id, { rate: Number(input.value) / 100, alliesFree: allies?.value !== 'no' });
+      const access = document.querySelector(`[data-cp-access="${id}"]`);
+      setChokepointTollPolicy(player, id, { rate: Number(input.value) / 100, alliesFree: allies?.value !== 'no', access: access?.value || 'open' });
       const label = document.getElementById(`cp-toll-label-${id}`); if (label) label.textContent = `${input.value}%`;
     }));
     document.querySelectorAll('[data-cp-allies]').forEach((select) => select.addEventListener('change', () => {
       const id = select.dataset.cpAllies;
       const input = document.querySelector(`[data-cp-toll="${id}"]`);
-      setChokepointTollPolicy(player, id, { rate: Number(input?.value || 0) / 100, alliesFree: select.value !== 'no' });
+      const access = document.querySelector(`[data-cp-access="${id}"]`);
+      setChokepointTollPolicy(player, id, { rate: Number(input?.value || 0) / 100, alliesFree: select.value !== 'no', access: access?.value || 'open' });
+    }));
+    document.querySelectorAll('[data-cp-access]').forEach((select) => select.addEventListener('change', () => {
+      const id = select.dataset.cpAccess;
+      const input = document.querySelector(`[data-cp-toll="${id}"]`);
+      const allies = document.querySelector(`[data-cp-allies="${id}"]`);
+      setChokepointTollPolicy(player, id, { rate: Number(input?.value || 0) / 100, alliesFree: allies?.value !== 'no', access: select.value });
     }));
     document.getElementById('add-trade-embargo')?.addEventListener('click', () => {
       const direction = document.getElementById('trade-rule-direction')?.value || 'trade';

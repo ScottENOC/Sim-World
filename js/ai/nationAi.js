@@ -107,8 +107,9 @@ function maybeManageTransitTolls(region, regions, rng) {
     const customs = (region.construction?.assets || []).some((asset) => asset.typeId === 'market_customs' && (asset.condition || 0) > 0.5);
     if (!customs) continue;
     const desired = treasuryPressure ? 0.055 : throughput > 100 ? 0.03 : 0.018;
+    const access = entry.control >= 0.78 && (region.militaryPolicy?.navalPriority === 'war') ? 'hostile' : 'open';
     // Small variation stops every AI from converging on the exact same nominal rate.
-    setChokepointTollPolicy(region, entry.id, { rate: desired * (0.9 + rng() * 0.2), alliesFree: true });
+    setChokepointTollPolicy(region, entry.id, { rate: desired * (0.9 + rng() * 0.2), alliesFree: true, access });
   }
 }
 
