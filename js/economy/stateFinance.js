@@ -1,13 +1,10 @@
-import { effectiveInfrastructureCount } from './construction.js?v=20260905-projects1';
+import { effectiveInfrastructureCount, operationalInfrastructure } from './construction.js?v=20260907-classical1';
 
 // State finance connects the commercial collapse to military failure. Taxes
 // are transfers from populace wealth, not newly-created money; wages and
 // procurement return treasury money to the populace. Revenue therefore rises
 // with taxable wealth and trade, then contracts when routes and markets fail.
 
-// Wallets now represent a meaningful stock of portable household wealth.
-// Only a small fraction is collectable annually; trade duties remain the
-// state's important commercial revenue and disappear with the trade system.
 const WEEKLY_WEALTH_TAX_RATE = 0.00025 / 52;
 const EXPORT_DUTY_RATE = 0.05;
 const REVENUE_EMA_ALPHA = 1 / 52;
@@ -19,10 +16,6 @@ const PROCUREMENT_REVENUE_SHARE = 0.5;
 const PROCUREMENT_TREASURY_SHARE = 0.02;
 const ARREARS_STABILITY_PENALTY = 0.0015;
 const MAX_WEEKLY_DESERTION = 0.01;
-// Most administration is local and paid partly in kind. At the previous rate
-// courts and collectors alone cost four times the entire military payroll,
-// bankrupting non-commercial regions during the prosperous period. This
-// lower portable-wealth cost remains material after trade and taxes collapse.
 const CIVIL_ADMIN_PER_PERSON_PER_WEEK = 0.000005;
 const ADMIN_IN_KIND_CREDIT_PER_FOOD = 0.000004;
 
@@ -33,22 +26,11 @@ function clamp01(value) {
 function ensureMilitaryFinance(region) {
   if (!region.militaryFinance) region.militaryFinance = {};
   const defaults = {
-    weeklyTaxRevenue: 0,
-    weeklyTradeDuties: 0,
-    revenueEma: 0,
-    payrollDue: 0,
-    payrollPaid: 0,
-    payRatio: 1,
-    readiness: 1,
-    arrearsWeeks: 0,
-    procurementBudget: 0,
-    procurementSpent: 0,
-    weeklyProcurementSpent: 0,
-    fundedPersonnelCap: Infinity,
-    deserters: 0,
-    administrationDue: 0,
-    administrationPaid: 0,
-    administrationInKind: 0,
+    weeklyTaxRevenue: 0, weeklyTradeDuties: 0, revenueEma: 0,
+    payrollDue: 0, payrollPaid: 0, payRatio: 1, readiness: 1,
+    arrearsWeeks: 0, procurementBudget: 0, procurementSpent: 0,
+    weeklyProcurementSpent: 0, fundedPersonnelCap: Infinity, deserters: 0,
+    administrationDue: 0, administrationPaid: 0, administrationInKind: 0,
     stateCapacity: 1,
   };
   for (const [key, value] of Object.entries(defaults)) {
@@ -57,23 +39,41 @@ function ensureMilitaryFinance(region) {
   return region.militaryFinance;
 }
 
+function classicalFiscalProfile(region) {
+  const standardWeights = region.unlockedTechIds?.has('standard_weights') ? 1 : 0;
+  const formalTaxation = region.unlockedTechIds?.has('formal_taxation') ? 1 : 0;
+  const coinage = region.unlockedTechIds?.has('coinage') ? 1 : 0;
+  const mint = operationalInfrastructure(region, 'mint') ? 1 : 0;
+  const relays = operationalInfrastructure(region, 'relay_stations') ? 1 : 0;
+  return {
+    collection: 1 + standardWeights * 0.08 + formalTaxation * 0.14 + coinage * 0.05 + mint * 0.05,
+    tradeDuty: 1 + standardWeights * 0.1 + coinage * 0.08 + mint * 0.07,
+    adminEfficiency: 1 + formalTaxation * 0.10 + relays * 0.08 + mint * 0.03,
+    payrollEfficiency: 1 + coinage * 0.06 + mint * 0.06,
+  };
+}
+
 export function tickStateFinance(regions, elapsedDays = 7) {
   const weekScale = Math.max(0.01, elapsedDays / 7);
   const revenueAlpha = 1 - Math.pow(1 - REVENUE_EMA_ALPHA, weekScale);
   for (const region of regions) {
     const finance = ensureMilitaryFinance(region);
-    const administrativeBonus = Math.min(0.28,
+    const classical = classicalFiscalProfile(region);
+    const administrativeBonus = Math.min(0.4,
       effectiveInfrastructureCount(region, 'administrative_centre') * 0.18 +
-      effectiveInfrastructureCount(region, 'market_customs') * 0.1);
+      effectiveInfrastructureCount(region, 'market_customs') * 0.1 +
+      effectiveInfrastructureCount(region, 'relay_stations') * 0.08 +
+      effectiveInfrastructureCount(region, 'mint') * 0.04);
     const collectionEffectiveness = clamp01(
-      0.2 + 0.5 * (region.stability ?? 1) + 0.3 * (region.safetyRating ?? 1)
-    ) * clamp01(finance.stateCapacity + administrativeBonus);
+      clamp01(0.2 + 0.5 * (region.stability ?? 1) + 0.3 * (region.safetyRating ?? 1)) *
+      clamp01(finance.stateCapacity + administrativeBonus) * classical.collection
+    );
     const wealthTax = Math.min(
       Math.max(0, region.wallet || 0),
       Math.max(0, region.wallet || 0) * WEEKLY_WEALTH_TAX_RATE * weekScale * collectionEffectiveness
     );
     const tradeDuties = Math.min(
-      Math.max(0, (region.tradeEconomy?.weeklyExports || 0) * EXPORT_DUTY_RATE *
+      Math.max(0, (region.tradeEconomy?.weeklyExports || 0) * EXPORT_DUTY_RATE * classical.tradeDuty *
         (1 + Math.min(0.4, effectiveInfrastructureCount(region, 'market_customs') * 0.4)) * collectionEffectiveness),
       Math.max(0, (region.wallet || 0) - wealthTax)
     );
@@ -85,18 +85,11 @@ export function tickStateFinance(regions, elapsedDays = 7) {
     const weeklyEquivalentRevenue = revenue / weekScale;
     finance.revenueEma += (weeklyEquivalentRevenue - finance.revenueEma) * revenueAlpha;
 
-    // Courts, messengers, granaries and tax collectors are a continuing cost,
-    // not free machinery. Paying them recirculates money to households; not
-    // paying them erodes the state's ability to collect next week's taxes.
-    const grossAdministrationDue = Math.max(0, region.population) * CIVIL_ADMIN_PER_PERSON_PER_WEEK * weekScale;
+    const grossAdministrationDue = Math.max(0, region.population) * CIVIL_ADMIN_PER_PERSON_PER_WEEK * weekScale /
+      classical.adminEfficiency;
     const foodProduced = Math.max(0, (region.report?.farming?.food || 0) +
       (region.report?.gathering?.food || 0) + (region.report?.shoreFishing?.food || 0) +
       (region.report?.boatFishing?.food || 0));
-    // Local officials, messengers and granary workers receive most ordinary
-    // support as food and obligations rather than coin. Failed harvests remove
-    // this credit immediately; commerce is still needed for military payroll
-    // and arms, so an in-kind administration does not immunise the state from
-    // a Bronze Age trade collapse.
     const administrationInKind = Math.min(
       grossAdministrationDue,
       foodProduced * ADMIN_IN_KIND_CREDIT_PER_FOOD
@@ -116,7 +109,8 @@ export function tickStateFinance(regions, elapsedDays = 7) {
 
     const payrollDue = (Math.max(0, region.army.personnel || 0) * SOLDIER_UPKEEP_PER_WEEK +
       Math.max(0, region.navy.personnel || 0) * SAILOR_UPKEEP_PER_WEEK +
-      Math.max(0, region.horseEconomy?.war || 0) * WAR_HORSE_UPKEEP_PER_WEEK) * weekScale;
+      Math.max(0, region.horseEconomy?.war || 0) * WAR_HORSE_UPKEEP_PER_WEEK) * weekScale /
+      classical.payrollEfficiency;
     const payrollPaid = Math.min(Math.max(0, region.treasury || 0), payrollDue);
     region.treasury -= payrollPaid;
     region.wallet += payrollPaid;
@@ -146,17 +140,16 @@ export function tickStateFinance(regions, elapsedDays = 7) {
     }
     finance.deserters = deserters;
 
-    // Revenue supports a permanent force; reserves can bridge one bad season,
-    // but cannot sustain a large army indefinitely after the tax base fails.
     const blendedUpkeep = SOLDIER_UPKEEP_PER_WEEK;
     const operatingRevenue = Math.max(0, finance.revenueEma - administrationDue);
     finance.fundedPersonnelCap = Math.max(0,
       (operatingRevenue + Math.max(0, region.treasury) / 52) / blendedUpkeep
     );
 
-    const nextPayroll = Math.max(0, region.army.personnel) * SOLDIER_UPKEEP_PER_WEEK +
+    const nextPayroll = (Math.max(0, region.army.personnel) * SOLDIER_UPKEEP_PER_WEEK +
       Math.max(0, region.navy.personnel) * SAILOR_UPKEEP_PER_WEEK +
-      Math.max(0, region.horseEconomy?.war || 0) * WAR_HORSE_UPKEEP_PER_WEEK;
+      Math.max(0, region.horseEconomy?.war || 0) * WAR_HORSE_UPKEEP_PER_WEEK) /
+      classical.payrollEfficiency;
     const unreservedTreasury = Math.max(0, region.treasury - nextPayroll * PAYROLL_RESERVE_WEEKS);
     finance.procurementBudget = Math.min(
       unreservedTreasury,
@@ -171,7 +164,7 @@ export function tickStateFinance(regions, elapsedDays = 7) {
       procurementBudget: finance.procurementBudget,
       procurementSpent: finance.weeklyProcurementSpent,
       administrationRatio, stateCapacity: finance.stateCapacity,
-      administrationInKind,
+      administrationInKind, classicalFiscalProfile: classical,
     };
   }
 }
