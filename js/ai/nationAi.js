@@ -160,6 +160,36 @@ function maybeCampaign(region, regionsById, activeCampaigns, polities, religious
   if (region.army.away > 0 || region.army.personnel < 100) return;
   if (rng() > considerationChance) return;
   const candidates = [...directContactIds(region)].map((id) => regionsById.get(id)).filter(Boolean);
+
+  // A recognised government in exile can remain strategically relevant.
+  // Strong restoration backing gives this polity a reason to fight for a
+  // claimant's occupied homeland rather than annexing it for itself.
+  const hostPolity = polities.find((p) => p.capitalRegionId === region.id);
+  if (hostPolity) {
+    let restoration = null;
+    for (const claimant of polities) {
+      const continuity = claimant.continuity;
+      const backing = continuity?.exileSupport?.[hostPolity.id] || 0;
+      if (continuity?.status !== 'exile' || backing < 0.7) continue;
+      for (const target of candidates) {
+        const claim = continuity.claims?.[target.id] || 0;
+        if (claim < 0.65 || target.governance?.sovereignPolityId === claimant.id) continue;
+        const reach = canCampaign(region, target, activeCampaigns, [...regionsById.values()], polities);
+        if (!reach.possible) continue;
+        const estimatedDefenders = Math.max(25, (target.army?.personnel || target.population * 0.006) * 1.8);
+        const advantage = region.army.personnel / estimatedDefenders;
+        if (advantage < 1.4) continue;
+        const score = backing * 0.5 + claim * 0.35 + Math.min(2.5, advantage) * 0.15;
+        if (!restoration || score > restoration.score) restoration = { claimant, target, backing, claim, advantage, score };
+      }
+    }
+    if (restoration) {
+      const requested = Math.floor(region.army.personnel * (0.65 + rng() * 0.2));
+      const campaign = launchCampaign(region, restoration.target, 'liberation', requested, currentTick,
+        { campaigns: activeCampaigns, regions: [...regionsById.values()], polities, beneficiaryPolityId: restoration.claimant.id });
+      if (campaign) { activeCampaigns.push(campaign); return; }
+    }
+  }
   let best = null;
   for (const target of candidates) {
     const reach = canCampaign(region, target, activeCampaigns, [...regionsById.values()], polities);

@@ -41,10 +41,10 @@ function restoreRegion(region, saved) {
   delete region._cultureAffinityCache;
 }
 
-export function createGameSnapshot({ regions, seaRegions, polities, religiousWorld, agreements, activeRaids, activeCampaigns, clock, playerRegionId, fogOfWar }) {
+export function createGameSnapshot({ regions, seaRegions, polities, religiousWorld, agreements, activeRaids, activeCampaigns, clock, playerRegionId, playerPolityId = null, fogOfWar }) {
   if (!playerRegionId) throw new Error('Choose a starting region before saving.');
   return {
-    format: 'worldsim-save', version: SAVE_VERSION, savedAt: new Date().toISOString(), worldRegionIds: regions.map((region) => region.id), playerRegionId,
+    format: 'worldsim-save', version: SAVE_VERSION, savedAt: new Date().toISOString(), worldRegionIds: regions.map((region) => region.id), playerRegionId, playerPolityId,
     clock: { tickIndex: clock.tickIndex, elapsedDays: clock.elapsedDays, resolution: clock.resolution?.id || 'month', speed: clock.speed,
       resumeSpeed: clock._resumeSpeed, estimatedTickMs: clock._estimatedTickMs },
     fogOfWar: { devMode: fogOfWar.devMode }, regions: regions.map(regionSnapshot), polities: encode(polities), religiousWorld: encode(religiousWorld),
@@ -75,7 +75,7 @@ export function restoreGameSnapshot(snapshot, { regions, seaRegions, polities, r
   const restoredSpeed = [0, 0.5, 1, 2, 4].includes(snapshot.clock.speed) ? snapshot.clock.speed : 0;
   clock.speed = Number.NaN; clock._applySpeed(restoredSpeed, { automatic: false, reason: 'load' }); clock._nextTickAt = null;
   fogOfWar.setPlayerRegion(snapshot.playerRegionId); fogOfWar.setDevMode(Boolean(snapshot.fogOfWar?.devMode));
-  return { playerRegionId: snapshot.playerRegionId, savedAt: snapshot.savedAt };
+  return { playerRegionId: snapshot.playerRegionId, playerPolityId: snapshot.playerPolityId || null, savedAt: snapshot.savedAt };
 }
 
 export function writeSave(snapshot, storage = localStorage) { storage.setItem(SAVE_KEY, JSON.stringify(snapshot)); }
