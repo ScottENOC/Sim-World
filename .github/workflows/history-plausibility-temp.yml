@@ -1,0 +1,70 @@
+name: History plausibility benchmark
+
+on:
+  push:
+    branches: [history-plausibility-benchmark]
+
+jobs:
+  history:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: A
+            seed: 305419896
+          - label: B
+            seed: 2959855665
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check
+        run: find js tools -type f \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check
+      - name: Run 160-year history seed ${{ matrix.label }}
+        run: |
+          node tools/calibrate.mjs --years 160 --seeds 1 --base-seed ${{ matrix.seed }} --snapshot-years 20 --days-per-tick 30 --regional-detail true --output history-${{ matrix.label }}.json
+      - name: Print historical summary
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const file = fs.readdirSync('.').find(f => f.startsWith('history-') && f.endsWith('.json'));
+          const report = JSON.parse(fs.readFileSync(file, 'utf8'));
+          console.log('ELAPSED_SECONDS='+report.elapsedSeconds);
+          for (const s of report.runs[0].timeline) {
+            console.log('SNAPSHOT '+JSON.stringify({
+              elapsedYears:s.year,
+              calendarYearBCE:Math.round(1300-s.year),
+              populationPct:s.populationPct,
+              trade:s.smoothedWeeklyTrade,
+              foodImports:s.smoothedWeeklyFoodImports,
+              tinPct:s.surfaceTinPct,
+              copperPct:s.surfaceCopperPct,
+              distressed:s.distressedRegions,
+              bandits:s.bandits,
+              bronzeOutput:s.weeklyBronzeOutput,
+              ironRegions:s.ironRegions,
+              advancedBoatRegions:s.advancedBoatRegions,
+              kingdoms:s.politics.kingdoms,
+              subjects:s.politics.subjectRegions,
+              delegated:s.politics.delegatedProvinces,
+              integrated:s.politics.integratedProvinces,
+              writing:s.politics.writingPolities,
+              specialities:Object.fromEntries(Object.entries(s.specialities).map(([k,v])=>[k,v.count]))
+            }));
+          }
+          const final=report.runs[0].timeline.at(-1);
+          console.log('FINAL_SPECIALITIES '+JSON.stringify(final.specialities));
+          const regional = final.regional || [];
+          const topPop=[...regional].sort((a,b)=>(b.population||0)-(a.population||0)).slice(0,12);
+          const lowStability=[...regional].sort((a,b)=>(a.stability||1)-(b.stability||1)).slice(0,12);
+          console.log('TOP_POP '+JSON.stringify(topPop));
+          console.log('LOW_STABILITY '+JSON.stringify(lowStability));
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: history-plausibility-${{ matrix.label }}
+          path: history-${{ matrix.label }}.json
+          retention-days: 3
