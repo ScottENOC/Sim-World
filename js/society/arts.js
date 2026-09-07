@@ -44,8 +44,6 @@ function artisticDemand(region) {
 
 function targetArtists(region, demand) {
   const working = Math.max(0, region.demographics?.workingAge || 0);
-  // Professional artists remain rare. This is enough to create schools without
-  // turning a city into a population of painters.
   return Math.min(working * 0.006, Math.max(0, (region.urbanisation?.urbanPopulation || 0) * 0.0045 * demand));
 }
 
@@ -75,7 +73,6 @@ function commissionChance(region, discipline, years) {
 function materialAndCost(region, discipline, scale) {
   if (discipline === 'sculpture') {
     const fineStone = Math.max(0, region.stockpile?.fineStone || 0);
-    const stone = Math.max(0, region.stockpile?.stone || 0);
     const material = fineStone > 0.5 * scale ? 'fineStone' : 'stone';
     const amount = 0.5 + 3.5 * scale;
     if ((region.stockpile?.[material] || 0) < amount) return null;
@@ -83,7 +80,7 @@ function materialAndCost(region, discipline, scale) {
   }
   if (discipline === 'painting') {
     const wood = 0.2 + scale * 0.5;
-    const pottery = 0.1 + scale * 0.25; // pigments/binders abstracted through existing crafts
+    const pottery = 0.1 + scale * 0.25;
     if ((region.stockpile?.wood || 0) < wood || (region.stockpile?.pottery || 0) < pottery) return null;
     return { material: 'mixed pigments', amount: wood + pottery, wood, pottery, cost: 1 + scale * 3 };
   }
@@ -101,12 +98,46 @@ function spendMaterials(region, spec) {
 function workTitle(region, discipline, subject, serial) {
   const place = principalSettlement(region)?.name || region.name;
   const noun = {
-    sculpture: subject === 'ruler' ? 'Portrait' : subject === 'victory' ? 'Victory Stele' : 'Figure',
-    painting: subject === 'religion' ? 'Sacred Painting' : 'Painted Scene',
-    music: subject === 'mourning' ? 'Lament' : subject === 'victory' ? 'Victory Hymn' : 'Song',
-    poetry: subject === 'victory' ? 'Ode' : subject === 'ancestors' ? 'Lay of the Ancestors' : 'Verse',
+    sculpture: subject === 'ruler' ? 'Portrait' : subject === 'victory' ? 'Victory Stele' : subject === 'mourning' ? 'Memorial Figure' : 'Figure',
+    painting: subject === 'religion' ? 'Sacred Painting' : subject === 'mourning' ? 'Memorial Scene' : 'Painted Scene',
+    music: subject === 'mourning' ? 'Lament' : subject === 'victory' ? 'Victory Hymn' : subject === 'religion' ? 'Sacred Hymn' : 'Song',
+    poetry: subject === 'victory' ? 'Ode' : subject === 'ancestors' ? 'Lay of the Ancestors' : subject === 'mourning' ? 'Lament' : 'Verse',
   }[discipline];
   return `${noun} of ${place}${serial > 1 ? ` ${serial}` : ''}`;
+}
+
+function memorySubjectWeights(region) {
+  const weights = Object.fromEntries(SUBJECTS.map((subject) => [subject, 1]));
+  const memories = [...(region.culturalMemory?.memories || [])]
+    .sort((a, b) => ((b.strength || 0) + (b.symbolicLegacy || 0) * 0.4) -
+      ((a.strength || 0) + (a.symbolicLegacy || 0) * 0.4))
+    .slice(0, 8);
+  for (const memory of memories) {
+    const influence = clamp01((memory.strength || 0) * (0.55 + (memory.practicalRelevance || 0) * 0.25) +
+      (memory.symbolicLegacy || 0) * 0.2) * 3.2;
+    if (memory.theme === 'victory' || memory.theme === 'military_tradition') weights.victory += influence;
+    else if (memory.theme === 'defeat' || memory.theme === 'famine' || memory.theme === 'political_loss') {
+      weights.mourning += influence * 0.75; weights.ancestors += influence * 0.35;
+    } else if (memory.theme === 'migration') {
+      weights.ancestors += influence * 0.65; weights.mourning += influence * 0.35;
+    } else if (memory.theme === 'religion') weights.religion += influence;
+    else if (memory.theme === 'rulership' || memory.theme === 'political_settlement') weights.ruler += influence * 0.8;
+    else if (memory.theme === 'achievement') weights.city += influence * 0.8;
+  }
+  return weights;
+}
+
+function chooseSubject(region, rng = Math.random, fallbackSeed = 0) {
+  const weights = memorySubjectWeights(region);
+  const entries = SUBJECTS.map((subject) => [subject, Math.max(0.05, Number(weights[subject]) || 1)]);
+  const total = entries.reduce((sum, [, weight]) => sum + weight, 0);
+  let roll = rng() * total;
+  if (!Number.isFinite(roll)) return pick(SUBJECTS, fallbackSeed);
+  for (const [subject, weight] of entries) {
+    roll -= weight;
+    if (roll <= 0) return subject;
+  }
+  return pick(SUBJECTS, fallbackSeed);
 }
 
 function createWork(region, discipline, rng = Math.random) {
@@ -115,7 +146,7 @@ function createWork(region, discipline, rng = Math.random) {
   if (artists.people < 0.5) return null;
   const serial = cultural.nextWorkSerial++;
   const seed = hashString(`${region.id}:${discipline}:${serial}`);
-  const subject = pick(SUBJECTS, seed);
+  const subject = chooseSubject(region, rng, seed);
   const scale = clamp01(0.18 + rng() * 0.82);
   const material = materialAndCost(region, discipline, scale);
   if (!material) return null;
@@ -172,7 +203,6 @@ function ageAndSpreadFame(region, regionsById, years) {
     const intrinsic = work.quality * (0.65 + work.innovation * 0.35) * (0.4 + work.condition * 0.6);
     const fameGrowth = intrinsic * (0.015 + contactReach * 0.025) * years;
     work.fame = clamp01((work.fame || 0) + fameGrowth * (1 - (work.fame || 0)));
-    // Oral works can actually vanish when performance traditions die out.
     if (work.transmission === 'oral' && work.condition < 0.12) work.lost = true;
     if (!work.lost) localReputation += work.fame * work.quality;
   }
