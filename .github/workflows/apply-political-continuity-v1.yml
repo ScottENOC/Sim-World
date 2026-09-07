@@ -2,7 +2,7 @@ name: Political continuity validation
 on:
   push:
     branches: [political-continuity-v1]
-    paths: ['tools/apply-political-continuity-v1.py', '.github/workflows/apply-political-continuity-v1.yml']
+    paths: ['tools/apply-political-continuity-followup.py', '.github/workflows/apply-political-continuity-v1.yml']
 permissions:
   contents: write
 jobs:
@@ -13,7 +13,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: python tools/apply-political-continuity-v1.py
+      - run: python tools/apply-political-continuity-followup.py
       - run: find js tools -name '*.js' -o -name '*.mjs' | while read f; do node --check "$f"; done
       - run: node tools/test-political-continuity.mjs
       - run: node tools/test-culture.mjs
@@ -21,6 +21,6 @@ jobs:
       - run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add js/military/campaigns.js js/core/saveGame.js js/main.js
-          git commit -m 'Integrate political continuity with conquest and player state'
+          git add js/politics/continuity.js js/military/campaigns.js js/main.js tools/test-political-continuity.mjs
+          git commit -m 'Retreat claimant court after partial conquest'
           git push
