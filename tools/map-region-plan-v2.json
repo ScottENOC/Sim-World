@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "purpose": "Second-layer geographic expansion from the live 598-region map. Existing simulated land is subtracted before new regions are created, so already-covered countries are never duplicated.",
   "targetExistingRegionCount": 598,
   "principles": [
@@ -14,7 +14,7 @@
     {"iso":"VAT","name":"Vatican City","action":"absorb-nearest","reason":"urban enclave inside Rome; future holy-city sovereignty belongs to settlement/politics systems"},
     {"iso":"SMR","name":"San Marino","action":"absorb-nearest","reason":"small inland enclave without independent strategic geography at this map scale"},
     {"iso":"MCO","name":"Monaco","action":"absorb-nearest","reason":"urban coastal enclave; no terrain-scale separation"},
-    {"iso":"LIE","name":"Liechtenstein","action":"absorb-nearest","reason":"Rhine/Alpine territory is not sufficiently separated at this map scale"}
+    {"iso":"LIE","name":"Liechtenstein","action":"absorb-swiss-cluster","reason":"Rhine/Alpine territory should merge into the eastern Swiss gameplay region rather than form a detached microstate component"}
   ],
   "standaloneExceptions": [
     {"name":"Gibraltar","reason":"isolated fortified peninsula controlling a major maritime chokepoint"},
@@ -22,6 +22,7 @@
   ],
   "countries": [
     {"iso":"AUT","name":"Austria","level":"ADM1","targetRegions":5},
+    {"iso":"CHE","name":"Switzerland","level":"ADM1","targetRegions":6,"minAreaSqKm":120},
     {"iso":"CZE","name":"Bohemia & Moravia","level":"ADM1","targetRegions":4},
     {"iso":"SVK","name":"Slovakia","level":"ADM1","targetRegions":3},
     {"iso":"HUN","name":"Hungary","level":"ADM1","targetRegions":5},
