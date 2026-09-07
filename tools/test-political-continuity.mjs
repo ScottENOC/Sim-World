@@ -78,6 +78,19 @@ home.governance.sovereignPolityId = pConq.id; home.governance.relationship = 'in
 const autonomy = grantRegionalAutonomy(home, 0.31);
 assert(autonomy.changed && home.governance.relationship === 'vassal', 'High autonomy should become vassal relationship');
 
+// NPCs should use the same autonomy tool when a remote subject becomes hard to govern.
+const strained = refuge;
+strained.governance.sovereignPolityId = pConq.id;
+strained.governance.localPolityId = pHome.id;
+strained.governance.relationship = 'integrated';
+strained.governance.autonomy = 0.55;
+strained.governance.administrativeControl = 0.1;
+strained.stability = 0.15;
+const autonomyBefore = strained.governance.autonomy;
+const npcEvents = (await import('../js/politics/continuity.js')).tickPoliticalContinuity(polities, regions, 1.1, 100, { playerPolityId: pHome.id });
+assert(strained.governance.autonomy > autonomyBefore, 'NPC sovereign should grant autonomy to an ungovernable subject');
+assert(npcEvents.some((event) => event.type === 'autonomy_granted' && event.regionId === strained.id), 'NPC autonomy decision should emit an event');
+
 console.log('POLITICAL_CONTINUITY_TESTS_OK', {
   governability: plausibleGovernanceScore(pHome, home, regions, polities),
   settlementChoice: evaluation,

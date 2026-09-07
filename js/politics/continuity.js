@@ -326,12 +326,42 @@ export function restorationBacking(exilePolity) {
     .sort((a, b) => b.support - a.support);
 }
 
-export function tickPoliticalContinuity(polities, regions, elapsedYears = 0, currentTick = 0) {
+export function tickPoliticalContinuity(polities, regions, elapsedYears = 0, currentTick = 0, options = {}) {
   const events = [];
   for (const polity of polities) {
     const state = ensureContinuity(polity);
     const sovereignRegions = regions.filter((r) => r.governance?.sovereignPolityId === polity.id);
     for (const region of sovereignRegions) recordFactionControl(polity, region, elapsedYears, currentTick);
+
+    // Non-player governments use the same autonomy/liberation tools as the
+    // player. Review slowly (roughly annually) so borders do not churn monthly.
+    state.npcPolicyAccumulatorYears = (state.npcPolicyAccumulatorYears || 0) + Math.max(0, elapsedYears);
+    if (polity.id !== options.playerPolityId && state.npcPolicyAccumulatorYears >= 1) {
+      const reviewYears = Math.floor(state.npcPolicyAccumulatorYears);
+      state.npcPolicyAccumulatorYears -= reviewYears;
+      for (const subject of sovereignRegions.filter((r) => r.id !== polity.capitalRegionId && r.governance?.relationship !== 'core')) {
+        const g = subject.governance;
+        const strain = clamp((0.5 - (subject.stability ?? 1)) * 1.1 + (0.35 - (g.administrativeControl ?? 0.5)) * 0.8);
+        if (strain > 0.18) {
+          const before = g.autonomy;
+          grantRegionalAutonomy(subject, Math.min(0.12, 0.035 * reviewYears + strain * 0.05));
+          if (g.autonomy > before + 0.001) events.push({ type: 'autonomy_granted', polityId: polity.id, regionId: subject.id, autonomy: g.autonomy });
+        }
+        if (g.autonomy >= 0.97 && g.administrativeControl <= 0.16) {
+          const candidates = polities
+            .filter((candidate) => candidate.id !== polity.id && candidate.id !== options.playerPolityId)
+            .map((candidate) => ({ candidate, score: plausibleGovernanceScore(candidate, subject, regions, polities) }))
+            .filter((item) => item.score >= 0.76)
+            .sort((a, b) => b.score - a.score);
+          const best = candidates[0];
+          const ownerClaim = clamp(state.claims[subject.id] || 0);
+          if (best && best.score > ownerClaim + 0.22) {
+            const result = transferRegion(subject, polity, best.candidate, regions, polities, currentTick, 'liberation');
+            if (result.transferred) events.push({ type: 'region_liberated', polityId: polity.id, regionId: subject.id, recipientPolityId: best.candidate.id });
+          }
+        }
+      }
+    }
 
     if (state.status === 'exile') {
       const host = polityById(polities, state.hostPolityId);
