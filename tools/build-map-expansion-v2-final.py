@@ -31,6 +31,17 @@ SWISS_DISPLAY_NAMES = {
     'Valais': 'Upper Rhône & Valais',
 }
 
+# Small regions that are intentionally useful at gameplay scale even when a
+# source-country import contains more regions than its target. The compactor
+# preferentially removes duplicate admin remnants instead of these exceptions.
+PRESERVE_COMPACTION_NAMES = {
+    'Oslo',
+    'Svalbard',
+    'Hiiu maakond',
+    'Saare maakond',
+    'Bahrain',
+}
+
 
 def absorb_microstates_geographic(base_geo, base_meta, masks, specs):
     meta_by_id = {m['id']: m for m in base_meta}
@@ -153,6 +164,101 @@ def prune_stale_base_adjacency(base_features, base_meta):
     print(f'ADJACENCY_PRUNE removedDirectedEdges={removed}')
 
 
+def compact_overrepresented_source_groups(base_geo, base_meta_doc, base_resources, configured_plan):
+    """Collapse duplicate admin remnants left by mixed source vintages.
+
+    The region plan defines an upper bound for each expansion source group. If
+    an already-generated map contains more regions than that bound, repeatedly
+    absorb the smallest non-preserved region into the adjacent same-source
+    region with the longest shared boundary. The absorbed region's resources
+    are discarded rather than added, because these remnants are overlapping
+    source representations and combining them would double-count endowments.
+    """
+    targets = {c['iso']: int(c['targetRegions']) for c in configured_plan.get('countries', [])}
+    features = base_geo['features']
+    meta = base_meta_doc['regions']
+    total_removed = 0
+
+    while True:
+        feature_by_id = {f['properties']['id']: f for f in features}
+        meta_by_id = {m['id']: m for m in meta}
+        groups = {}
+        for f in features:
+            group = f.get('properties', {}).get('sourceGroup')
+            if group in targets:
+                groups.setdefault(group, []).append(f)
+
+        over = [(group, fs, targets[group]) for group, fs in groups.items() if len(fs) > targets[group]]
+        if not over:
+            break
+
+        changed = False
+        for group, fs, target_count in sorted(over):
+            excess = len(fs) - target_count
+            for _ in range(excess):
+                current = [f for f in features if f.get('properties', {}).get('sourceGroup') == group]
+                removable = [f for f in current if f.get('properties', {}).get('name') not in PRESERVE_COMPACTION_NAMES]
+                if len(removable) <= target_count - len([f for f in current if f.get('properties', {}).get('name') in PRESERVE_COMPACTION_NAMES]):
+                    raise RuntimeError(f'{group}: preservation rules leave no removable sliver')
+
+                def area_of(f):
+                    m = meta_by_id.get(f['properties']['id'])
+                    return float(m.get('areaSqKm', 0)) if m else map_v2.area_sqkm(shape(f['geometry']))
+
+                sliver = min(removable, key=area_of)
+                sid = sliver['properties']['id']
+                sg = map_v2.repair(shape(sliver['geometry']))
+                neighbours = set(meta_by_id.get(sid, {}).get('neighbors', []))
+                candidates = []
+                for other in current:
+                    oid = other['properties']['id']
+                    if oid == sid or oid not in neighbours:
+                        continue
+                    og = map_v2.repair(shape(other['geometry']))
+                    shared = sg.boundary.intersection(og.boundary).length
+                    candidates.append((shared, area_of(other), other, og))
+                if not candidates:
+                    raise RuntimeError(f'{group}: sliver {sliver["properties"].get("name")} has no adjacent same-source merge target')
+
+                shared, _, target, tg = max(candidates, key=lambda x: (x[0], x[1]))
+                tid = target['properties']['id']
+                merged = map_v2.repair(unary_union([tg, sg]))
+                target['geometry'] = map_v2.mapping(merged)
+                tm = meta_by_id[tid]
+                sm = meta_by_id[sid]
+                c = merged.centroid
+                tm['centroid'] = [c.x, c.y]
+                tm['areaSqKm'] = map_v2.area_sqkm(merged)
+                tm['neighbors'] = sorted((set(tm.get('neighbors', [])) | set(sm.get('neighbors', []))) - {sid, tid})
+
+                for m in meta:
+                    ns = set(m.get('neighbors', []))
+                    if sid in ns:
+                        ns.remove(sid)
+                        if m['id'] != tid:
+                            ns.add(tid)
+                    ns.discard(m['id'])
+                    m['neighbors'] = sorted(ns)
+
+                features[:] = [f for f in features if f['properties']['id'] != sid]
+                meta[:] = [m for m in meta if m['id'] != sid]
+                base_resources.pop(sid, None)
+                print(
+                    f'SLIVER_MERGE group={group} area={area_of(sliver):.1f} '
+                    f'{sliver["properties"].get("name")} -> {target["properties"].get("name")} shared={shared:.6f}'
+                )
+                total_removed += 1
+                changed = True
+                feature_by_id.pop(sid, None)
+                meta_by_id.pop(sid, None)
+
+        if not changed:
+            break
+
+    print(f'SLIVER_COMPACTION removedRegions={total_removed}')
+    return total_removed
+
+
 def apply_swiss_display_names(regions):
     """Use geographic Swiss labels without changing stable generated IDs."""
     renamed = 0
@@ -185,6 +291,8 @@ def main():
         print('IDEMPOTENT_APPEND_ONLY=' + ','.join(sorted(append_only)))
     if len(base_geo.get('features', [])) != expected:
         raise RuntimeError(f"Base map has {len(base_geo.get('features', []))} regions; expected {expected}")
+
+    compact_overrepresented_source_groups(base_geo, base_meta_doc, base_resources, configured_plan)
 
     wanted = {c['iso'] for c in plan['countries']} | {m['iso'] for m in plan.get('microstateAbsorption', [])}
     admin0 = fast.fetch_json_retry(map_v2.ADMIN0_URL)
