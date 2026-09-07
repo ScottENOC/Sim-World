@@ -1,4 +1,5 @@
 import { effectiveExperience } from './learningByDoing.js?v=20260906-education1';
+import { tickClassicalBreakthroughs } from './classicalTransition.js?v=20260907-classical1';
 
 export const IRON_SMELTING_TECH_ID = 'iron_smelting';
 export const ADVANCED_BOATBUILDING_TECH_ID = 'advanced_boatbuilding';
@@ -220,5 +221,6 @@ export function tickBreakthroughs(regions, currentTick, rng = Math.random, elaps
     // Travelling craftspeople cease to be a permanent lottery ticket.
     region.ironWorkingExposure = Math.max(0, (region.ironWorkingExposure || 0) * Math.pow(0.99, weekScale));
   }
+  events.push(...tickClassicalBreakthroughs(regions, currentTick, rng, elapsedDays));
   return events;
 }
