@@ -10,37 +10,37 @@ export const CHOKEPOINTS = Object.freeze({
   gibraltar: {
     id: 'gibraltar', label: 'Strait of Gibraltar',
     seas: ['sea_gulf_cadiz', 'sea_strait_gibraltar', 'sea_alboran'],
-    physicalFriction: 0.10,
+    physicalFriction: 0.10, controlCenter: [-5.60, 36.02], controlRadiusKm: 180,
   },
   dardanelles: {
     id: 'dardanelles', label: 'Dardanelles',
     seas: ['sea_aegean', 'sea_marmara'],
-    physicalFriction: 0.08,
+    physicalFriction: 0.08, controlCenter: [26.42, 40.20], controlRadiusKm: 150,
   },
   bosporus: {
     id: 'bosporus', label: 'Bosporus',
     seas: ['sea_marmara', 'sea_black'],
-    physicalFriction: 0.10,
+    physicalFriction: 0.10, controlCenter: [29.06, 41.10], controlRadiusKm: 120,
   },
   kerch: {
     id: 'kerch', label: 'Kerch Strait',
     seas: ['sea_black', 'sea_azov'],
-    physicalFriction: 0.08,
+    physicalFriction: 0.08, controlCenter: [36.53, 45.30], controlRadiusKm: 180,
   },
   bab_el_mandeb: {
     id: 'bab_el_mandeb', label: 'Bab el-Mandeb',
     seas: ['sea_southern_red', 'sea_gulf_aden'],
-    physicalFriction: 0.08,
+    physicalFriction: 0.08, controlCenter: [43.32, 12.58], controlRadiusKm: 180,
   },
   hormuz: {
     id: 'hormuz', label: 'Strait of Hormuz',
     seas: ['sea_persian_gulf', 'sea_gulf_oman'],
-    physicalFriction: 0.08,
+    physicalFriction: 0.08, controlCenter: [56.35, 26.55], controlRadiusKm: 180,
   },
   danish_straits: {
     id: 'danish_straits', label: 'Danish Straits',
     seas: ['sea_north', 'sea_baltic'],
-    physicalFriction: 0.06,
+    physicalFriction: 0.06, controlCenter: [12.55, 55.75], controlRadiusKm: 200,
   },
 });
 
@@ -114,9 +114,11 @@ const MAX_SEA_HOPS = 8;
 const MAX_CACHE = 20000;
 
 function cacheKey(aIds, bIds) {
+  // Routes are directional because downstream UI/animation and toll reporting
+  // need the sea sequence in the actual direction of travel.
   const a = [...new Set(aIds || [])].sort().join(',');
   const b = [...new Set(bIds || [])].sort().join(',');
-  return a < b ? `${a}|${b}` : `${b}|${a}`;
+  return `${a}>${b}`;
 }
 
 function remember(key, value) {
@@ -163,31 +165,4 @@ export function maritimeRouteBetween(regionA, regionB) {
 
 export function chokepointDefinition(id) {
   return CHOKEPOINTS[id] || null;
-}
-
-// Deliberately observation-only for now. This gives later toll/blockade logic a
-// single interface without pretending that owning nearby land equals closing a
-// strait. `controllingActorId`, navy and fortification strength can be combined
-// by the policy layer when interdiction is implemented.
-export function chokepointControlSnapshot(id, regions = []) {
-  const definition = CHOKEPOINTS[id];
-  if (!definition) return null;
-  const relevant = regions.filter((region) =>
-    (region.adjacentSeaIds || []).some((seaId) => definition.seas.includes(seaId)));
-  const actors = new Map();
-  for (const region of relevant) {
-    const actorId = region.controllingActorId || region.id;
-    const entry = actors.get(actorId) || {
-      actorId, coastalRegions: 0, navalPersonnel: 0, navalBoats: 0,
-    };
-    entry.coastalRegions += 1;
-    entry.navalPersonnel += Math.max(0, region.navy?.personnel || 0);
-    entry.navalBoats += Math.max(0, region.navy?.boats || 0) + Math.max(0, region.navy?.advancedBoats || 0);
-    actors.set(actorId, entry);
-  }
-  return {
-    id, label: definition.label,
-    contenders: [...actors.values()].sort((a, b) =>
-      (b.navalPersonnel + b.navalBoats * 5) - (a.navalPersonnel + a.navalBoats * 5)),
-  };
 }
