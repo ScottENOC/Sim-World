@@ -50,7 +50,10 @@ def absorb_microstates_geographic(base_geo, base_meta, masks, specs):
             host_share = host_area / total_area
             d = g.distance(micro)
             shared = g.boundary.intersection(micro.boundary).length if d < 0.12 else 0
-            candidates.append(((host_share, host_area, shared, -d), f, g))
+            # Physical adjacency/proximity to the enclave is decisive. Host
+            # overlap is a constraint/tiebreaker, not a reason to assign an
+            # enclave to a distant but more purely modern-country region.
+            candidates.append(((shared > 0, shared, -d, host_share, host_area), f, g))
         if not candidates:
             raise RuntimeError(f'{iso}: no gameplay region overlaps host geography')
         _, f, g = max(candidates, key=lambda item: item[0])
@@ -84,9 +87,6 @@ def main():
     absorb_microstates_geographic(base_geo['features'], base_meta_doc['regions'], masks,
                                   plan.get('microstateAbsorption', []))
 
-    # The fast source function ignores this parameter and uses its STRtree of
-    # the original map. Keeping None here makes it explicit that we are not
-    # growing/re-unioning a global geometry between countries.
     all_new = []
     for country in plan['countries']:
         mask = masks.get(country['iso'])
@@ -144,7 +144,6 @@ def main():
         print('ISOLATED_NAMES=' + ', '.join(isolated))
 
 
-# Install fast hooks before preparing the runtime plan/index.
 map_v2.fetch_json = fast.fetch_json_retry
 map_v2.country_masks = fast.country_masks_with_hosts
 map_v2.absorb_microstates = absorb_microstates_geographic
