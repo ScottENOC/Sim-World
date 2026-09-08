@@ -81,10 +81,6 @@ export function alliedCoordinationQuality(campaigns, war, regionsById) {
     const region = regionsById.get(campaign.attackerId);
     return sum + clamp(region?.militaryProfessionalisation?.institutionalExperience || 0);
   }, 0) / campaigns.length;
-  // Professional staffs and drill help allies coordinate, but do not create a
-  // magical coalition bonus. Even excellent allies merely approach the sum of
-  // their independently effective armies unless a future unified-command
-  // institution explicitly says otherwise.
   return clamp(relationshipQuality + institutional * 0.08, 0.55, 1);
 }
 
@@ -135,8 +131,6 @@ function applyCoalitionLosses(side, enemyPower, ownPower, rng) {
     const campaign = member.campaign;
     const exposure = Math.max(1, member.power) / Math.max(1, totalExposure);
     const baseLosses = (campaign.personnel || 0) * casualtyRate(ownPower, enemyPower, campaign, rng);
-    // Poor coordination concentrates local reverses and makes units support one
-    // another less effectively, increasing the coalition's casualties slightly.
     const coordinationPenalty = 1 + (1 - side.coordinationQuality) * 0.32;
     const actual = applyLosses(campaign, member.region, baseLosses * coordinationPenalty * (0.82 + exposure * 0.36));
     const shock = actual / Math.max(1, campaign.initialPersonnel || campaign.personnel + actual || 1);
@@ -177,12 +171,10 @@ function resolveCoalitionBattle(coalitionA, coalitionB, node, war, regionsById, 
   const b = coalitionPower(coalitionB, node, regionsById, war);
   const lossesA = applyCoalitionLosses(a, b.effectivePower, a.effectivePower, rng);
   const lossesB = applyCoalitionLosses(b, a.effectivePower, b.effectivePower, rng);
-
   const ratio = a.effectivePower / Math.max(1, b.effectivePower);
   let winner = null, loser = null;
   if (ratio >= 1.32 || coalitionBroken(b)) { winner = a; loser = b; }
   else if (ratio <= 0.76 || coalitionBroken(a)) { winner = b; loser = a; }
-
   let retreats = [];
   if (winner && loser) {
     retreats = retreatCoalition(loser);
@@ -190,24 +182,21 @@ function resolveCoalitionBattle(coalitionA, coalitionB, node, war, regionsById, 
   } else {
     blockOpposingCoalitions(a, b);
   }
-
+  const winnerIds = winner?.members.map((member) => member.campaign.id) || [];
+  const loserIds = loser?.members.map((member) => member.campaign.id) || [];
   const record = {
     tick: currentTick,
     nodeId: node?.id || coalitionA[0]?.subregional?.currentNodeId || null,
     coalitionA: coalitionA.map((campaign) => ({ campaignId: campaign.id, actorId: campaign.occupationActorId })),
     coalitionB: coalitionB.map((campaign) => ({ campaignId: campaign.id, actorId: campaign.occupationActorId })),
-    lossesA,
-    lossesB,
-    nominalPowerA: a.nominalPower,
-    nominalPowerB: b.nominalPower,
-    powerA: a.effectivePower,
-    powerB: b.effectivePower,
-    coordinationA: a.coordinationQuality,
-    coordinationB: b.coordinationQuality,
-    winnerCampaignIds: winner?.members.map((member) => member.campaign.id) || [],
-    loserCampaignIds: loser?.members.map((member) => member.campaign.id) || [],
-    decisive: Boolean(winner),
-    retreats,
+    lossesA, lossesB,
+    nominalPowerA: a.nominalPower, nominalPowerB: b.nominalPower,
+    powerA: a.effectivePower, powerB: b.effectivePower,
+    coordinationA: a.coordinationQuality, coordinationB: b.coordinationQuality,
+    winnerCampaignIds: winnerIds, loserCampaignIds: loserIds,
+    winnerCampaignId: winnerIds.length === 1 ? winnerIds[0] : null,
+    loserCampaignId: loserIds.length === 1 ? loserIds[0] : null,
+    decisive: Boolean(winner), retreats,
   };
   for (const campaign of [...coalitionA, ...coalitionB]) {
     campaign.fieldBattleHistory ||= [];
@@ -225,15 +214,15 @@ export function resolveSubregionalArmyBattles(campaigns, wars, defenderRegion, r
     const node = control?.places?.find((p) => p.id === group.nodeId) || null;
     const war = group.campaigns.map((campaign) => warForCampaign(wars || [], campaign)).find(Boolean) || null;
     const coalitions = buildCoalitions(group.campaigns, war);
-    const alreadyResolved = new Set();
     for (let i = 0; i < coalitions.length; i++) {
       for (let j = i + 1; j < coalitions.length; j++) {
         if (!coalitionsHostile(coalitions[i], coalitions[j], war)) continue;
-        const key = `${i}|${j}`;
-        if (alreadyResolved.has(key)) continue;
-        alreadyResolved.add(key);
         const battle = resolveCoalitionBattle(coalitions[i], coalitions[j], node, war, regionsById, currentTick, rng);
-        events.push({ type: battle.decisive ? 'subregional_coalition_battle_decided' : 'subregional_coalition_battle_continues', ...battle });
+        const singlePair = coalitions[i].length === 1 && coalitions[j].length === 1;
+        const type = singlePair
+          ? (battle.decisive ? 'subregional_army_battle_decided' : 'subregional_army_battle_continues')
+          : (battle.decisive ? 'subregional_coalition_battle_decided' : 'subregional_coalition_battle_continues');
+        events.push({ type, ...battle });
       }
     }
   }
