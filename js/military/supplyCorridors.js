@@ -12,8 +12,12 @@ export function campaignSupplyCorridor(campaign, region) {
   const actor = campaign?.occupationActorId;
   const currentId = campaign?.subregional?.currentNodeId;
   const port = controlledPort(control, actor);
-  if (!campaign?.viaSea || !actor || !currentId || !port) {
+  if (!campaign?.viaSea || !actor || !port) {
     return { open: false, reliability: 0, portNodeId: port?.id || null, route: [], brokenNodeId: null, weakNodeId: null };
+  }
+  // Before the army has moved inland there is no internal line to cut: the port/beachhead is the supply head.
+  if (!currentId || currentId === port.id) {
+    return { open: true, reliability: 1, portNodeId: port.id, route: [port.id], brokenNodeId: null, weakNodeId: null };
   }
   const route = routeBetween(region, port.id, currentId).nodeIds;
   let reliability = 1;
