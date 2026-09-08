@@ -26,10 +26,13 @@ repl(
 "function resolveCampaignWeek(campaign, attacker, defender, polities, regions, currentTick, toolTypes, rng) {\n  campaign.weeksEngaged += 1;\n  const movement = tickCampaignMovement(campaign, defender, currentTick, campaignMobility(attacker));",
 'weekly movement')
 
+capture_block = "  if (movement.arrived) {\n    const occupation = attemptPhysicalOccupation(campaign, defender, currentTick, campaign.pressure);\n    if (occupation.captured) campaign.occupationSummary = occupation.summary;\n  }"
 repl(
 "  campaign.occupationSummary = advanceCampaignControl(defender, campaign.occupationActorId || attacker.governance?.sovereignPolityId || attacker.controllingActorId || attacker.id, pressureDelta, campaign.pressure, currentTick);",
-"  campaign.occupationSummary = advanceCampaignControl(defender, campaign.occupationActorId || attacker.governance?.sovereignPolityId || attacker.controllingActorId || attacker.id, pressureDelta, campaign.pressure, currentTick, { capturePlaces: false });\n  if (movement.arrived) {\n    const occupation = attemptPhysicalOccupation(campaign, defender, currentTick, campaign.pressure);\n    if (occupation.captured) campaign.occupationSummary = occupation.summary;\n  }",
+"  campaign.occupationSummary = advanceCampaignControl(defender, campaign.occupationActorId || attacker.governance?.sovereignPolityId || attacker.controllingActorId || attacker.id, pressureDelta, campaign.pressure, currentTick, { capturePlaces: false });\n" + capture_block,
 'physical capture')
+while capture_block + "\n" + capture_block in s:
+    s = s.replace(capture_block + "\n" + capture_block, capture_block, 1)
 
 repl(
 "      establishCampaignFootprint(defender, campaign.occupationActorId || attacker.governance?.sovereignPolityId || attacker.controllingActorId || attacker.id, campaign.arriveTick, { viaSea: campaign.viaSea });\n      campaign.occupationSummary = occupationSummary(defender);",
