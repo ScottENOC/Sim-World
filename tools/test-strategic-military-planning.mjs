@@ -8,7 +8,7 @@ function region(id, actor, neighbors = [], seas = []) {
     id, name: id, neighbors, adjacentSeaIds: seas, isCoastal: seas.length > 0,
     population: 10000, demographics: { workingAge: 5500 },
     army: { personnel: 90, away: 0 }, navy: { boats: 0, advancedBoats: 0, personnel: 0 },
-    safetyRating: 0.9, conflictPressure: 0, banditPopulation: 0,
+    safetyRating: 1, conflictPressure: 0, banditPopulation: 0,
     governance: { sovereignPolityId: actor, autonomy: 0.5, levyHistory: { sent: 0, returned: 0 } },
     controllingActorId: actor,
     construction: { assets: [] }, relations: new Map(), diplomaticMessages: [],
@@ -24,7 +24,7 @@ function know(a, b, confidence = 1) {
 }
 
 const essex = region('essex', 'polity_essex', ['mid']);
-const mid = region('mid', 'polity_mid', ['essex','kent']);
+const mid = region('mid', 'polity_mid', ['essex','kent','ally']);
 const kent = region('kent', 'polity_kent', ['mid']);
 kent.army.personnel = 180;
 know(essex, kent, 1); know(kent, essex, 1);
@@ -47,9 +47,9 @@ assert.equal(invitation.sent, true);
 assert.ok(invitation.message.arrivalTick > 20, 'diplomatic message should take time');
 assert.equal(invitation.message.route.mode, 'land');
 
-// Safe route + favourable deterministic roll: message arrives and creates a commitment.
+// Safe route + genuinely favourable deterministic roll: message arrives and creates a commitment.
 const agreements = [];
-let events = tickDiplomaticCouriers([essex, mid, kent, ally], agreements, [], invitation.message.arrivalTick, 7, () => 0.99);
+let events = tickDiplomaticCouriers([essex, mid, kent, ally], agreements, [], invitation.message.arrivalTick, 7, () => 0.1);
 const response = events.find((e) => e.type === 'join_war_response');
 assert.ok(response, 'arrival should produce a response');
 assert.equal(response.accepted, true, 'friendly safe ally should accept with a favourable roll');
