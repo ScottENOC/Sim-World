@@ -14,12 +14,14 @@ function region(id, actor, neighbors = []) {
 }
 
 // Proposal and reply both travel as physical courier messages. Acceptance is not instant knowledge.
+// This partner is duplicitous: willing to say yes, but friendlier with Essex than with the proposer,
+// which makes deliberately showing Essex the letter a plausible outcome.
 const sender = region('sender', 'A', ['ally']);
 const ally = region('ally', 'B', ['sender', 'essex']);
 const essex = region('essex', 'E', ['ally']);
-sender.relations.set('ally', { attitude: 0.7 });
-ally.relations.set('sender', { attitude: 0.7 });
-ally.relations.set('essex', { attitude: -0.7 });
+sender.relations.set('ally', { attitude: 0.2 });
+ally.relations.set('sender', { attitude: -0.6 });
+ally.relations.set('essex', { attitude: 0.8 });
 const regions = [sender, ally, essex];
 const agreements = [];
 const proposal = sendJointOperationProposal(sender, ally, essex, regions, 0, {
@@ -32,7 +34,7 @@ assert.equal(agreements.length, 1, 'accepted proposal should create a joint-oper
 assert.equal(agreements[0].attackTick, 12);
 assert.ok(ally.diplomaticMessages.some((m) => m.type === 'joint_operation_reply' && m.status === 'in_transit'));
 assert.notEqual(proposal.message.response?.replyMessageId, null);
-assert.ok(essex.diplomaticIntelligence?.some((r) => r.type === 'joint_operation_leak'), 'an ally can deliberately show the plan to the target');
+assert.ok(essex.diplomaticIntelligence?.some((r) => r.type === 'joint_operation_leak'), 'a duplicitous partner can deliberately show the plan to the target');
 events = tickDiplomaticCouriers(regions, agreements, [], 2, 7, () => 0.99);
 assert.ok(events.some((e) => e.type === 'joint_operation_reply_delivered'), 'the acceptance itself must travel back');
 
