@@ -19,6 +19,7 @@ import { activeTradeRestrictions, setTradeRestriction, tradeActorId } from '../e
 import { startScoutingMission } from '../core/scouting.js?v=20260906-scouting1';
 import { applyMemoryDrivenNpcPolicy, npcMemorySignals } from './memoryDrivenAi.js?v=20260907-memory-ai1';
 import { setChokepointTollPolicy, setRoadTollPolicy, transitPolicySummary } from '../economy/transitTolls.js?v=20260907-transit1';
+import { chooseNpcMilitaryStrategy } from '../military/strategicPlanning.js?v=20260908-strategy1';
 
 // A one-percent peacetime levy is supportable while trade and taxation are
 // healthy. Threatened states still expand this through the safety multiplier;
@@ -53,7 +54,7 @@ export function tickNationAi(regions, playerRegionId, activeRaids, activeCampaig
     if (region.controllingActorId === playerRegionId) continue;
     // Operational posture stays responsive every monthly world tick.
     chooseAiMilitaryPolicies(region);
-    setMilitaryTargets(region);
+    chooseNpcMilitaryStrategy(region, regions, agreements, polities, currentTick, activeCampaigns);
 
     // Strategic choices are much slower-moving. Spread quarterly reviews over
     // stable cohorts so a large world does not make every ruler reconsider

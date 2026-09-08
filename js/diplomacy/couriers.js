@@ -169,6 +169,13 @@ export function tickDiplomaticCouriers(regions, agreements, fleets, currentTick,
       let agreement = null;
       if (accepted) {
         agreement = createWarCommitment(message, sender, target, agreements, currentTick);
+        if (!target.militaryStrategy || typeof target.militaryStrategy !== 'object') target.militaryStrategy = {};
+        target.militaryStrategy.posture = 'prepare_war';
+        target.militaryStrategy.targetRegionId = enemy?.id || message.enemyRegionId;
+        target.militaryStrategy.targetPolityId = message.enemyActorId;
+        target.militaryStrategy.garrisonFloor = Math.min(0.85, Math.max(0.45, Number(target.militaryStrategy.garrisonFloor) || 0.7));
+        target.militaryStrategy.spendingPriority = Math.max(0.6, Number(target.militaryStrategy.spendingPriority) || 0);
+        target.militaryStrategy.desiredPreparationWeeks = Math.min(26, Math.max(8, Number(target.militaryStrategy.desiredPreparationWeeks) || 20));
         changeAttitude(sender, target.id, 0.08, 'joined_war', currentTick);
         changeAttitude(target, sender.id, 0.12, 'joined_war', currentTick);
       } else {
