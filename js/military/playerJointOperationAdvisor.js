@@ -2,7 +2,6 @@ import { canCampaign, launchCampaign } from './campaigns.js?v=20260905-projects1
 import { reviewMilitaryStrategy, setMilitaryStrategy } from './strategicPlanning.js?v=20260908-strategy1';
 
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
-const actorId = (region) => region?.governance?.sovereignPolityId || region?.controllingActorId || region?.id;
 
 function roleFor(player, plan) {
   if (plan.proposerRegionId === player.id) return 'proposer';
@@ -12,7 +11,7 @@ function roleFor(player, plan) {
 
 function preparation(plan, role) {
   plan.playerPreparation ||= {};
-  plan.playerPreparation[role] ||= { mobilisePrompted: false, stagePrompted: false, launchPrompted: false, mobilised: false, staged: false };
+  plan.playerPreparation[role] ||= { mobilisePrompted: false, stagePrompted: false, launchPrompted: false, mobilised: false, staged: false, stagingNodeId: null };
   return plan.playerPreparation[role];
 }
 
@@ -36,9 +35,24 @@ function allyRegion(player, plan, regionsById) {
 
 function enemyRegion(plan, regionsById) { return regionsById.get(plan.enemyRegionId) || null; }
 
+function stagingLocation(player, enemy) {
+  const places = player.subregionalControl?.places || [];
+  const landAdjacent = Boolean(enemy && (player.neighbors || []).includes(enemy.id));
+  if (!landAdjacent) {
+    const port = places.find((p) => p.kind === 'port');
+    if (port) return { id: port.id, name: port.name || `${player.name} harbour`, kind: 'port' };
+  }
+  const fort = places.find((p) => p.kind === 'fort');
+  if (fort) return { id: fort.id, name: fort.name || `${player.name} fortified position`, kind: 'fort' };
+  const principal = places.find((p) => ['principal_settlement','city'].includes(p.kind));
+  if (principal) return { id: principal.id, name: principal.name || `${player.name} principal settlement`, kind: principal.kind };
+  return { id: player.id, name: `${player.name} muster`, kind: 'regional_muster' };
+}
+
 export function jointOperationCouncilAssessment(player, plan, regionsById, activeCampaigns, currentTick) {
   const ally = allyRegion(player, plan, regionsById);
   const enemy = enemyRegion(plan, regionsById);
+  const staging = stagingLocation(player, enemy);
   const report = reviewMilitaryStrategy(player, {
     regions: [...regionsById.values()], polities: [], agreements: [plan], activeCampaigns, currentTick,
   });
@@ -73,7 +87,7 @@ export function jointOperationCouncilAssessment(player, plan, regionsById, activ
 
   return {
     allyName: ally?.name || 'ally', enemyName: enemy?.name || 'enemy', allySignal, allySummary,
-    promised, readiness, affordability, food,
+    promised, readiness, affordability, food, staging,
     marshal: readiness >= 0.75 ? `Marshal: the army is about ${Math.round(readiness * 100)}% ready.` : `Marshal: readiness is only about ${Math.round(readiness * 100)}%; delay would improve preparation.`,
     treasurer: affordability === 'acceptable' ? 'Treasurer: the treasury can support the promised mobilisation in the short term.' : 'Treasurer: the promised mobilisation will put immediate strain on the treasury.',
     steward: food > promised * 2 ? 'Steward: stores look adequate for initial operations.' : 'Steward: stores are thin for the size of force promised.',
@@ -126,8 +140,9 @@ export function resolvePlayerJointOperationAdvice(event, choice, player, regions
   }
   if (event.type === 'joint_operation_stage_advice') {
     prep.staged = choice === 'yes';
+    prep.stagingNodeId = choice === 'yes' ? event.assessment?.staging?.id || null : null;
     return choice === 'yes'
-      ? { accepted: true, summary: 'The Marshal has concentrated the field force at the appropriate border or embarkation staging area.' }
+      ? { accepted: true, summary: `The Marshal has concentrated the field force at ${event.assessment?.staging?.name || 'the agreed staging area'}.` }
       : { accepted: false, summary: 'You kept the army dispersed at home. It can still attack later, but may leave late or less prepared.' };
   }
   if (event.type === 'joint_operation_launch_confirmation') {
