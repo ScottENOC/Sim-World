@@ -5,35 +5,17 @@ on:
     branches: [subregional-control-final]
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Apply subregional integration
-        run: |
-          python tools/patch-subregional-model.py
-          python tools/apply-subregional-control.py
       - name: Syntax checks
         run: |
-          python -m py_compile tools/patch-subregional-model.py tools/apply-subregional-control.py
           node --check js/military/subregionalControl.js
           node --check js/military/campaigns.js
       - name: Subregional regressions
-        run: |
-          set -o pipefail
-          node tools/test-subregional-control.mjs 2>&1 | tee /tmp/subregional-test.log
-      - name: Upload regression output on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: subregional-regression-output
-          path: /tmp/subregional-test.log
+        run: node tools/test-subregional-control.mjs
       - name: Existing war and military regressions
         run: |
           node tools/test-multi-party-war.mjs
@@ -45,15 +27,3 @@ jobs:
         run: node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 1 --output /tmp/subregional-smoke.json
       - name: Diff sanity
         run: git diff --check
-      - name: Commit integrated source
-        run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add js/military/subregionalControl.js js/military/campaigns.js
-          if git diff --cached --quiet; then
-            echo 'Subregional integration already materialised'
-          else
-            git commit -m 'Integrate subregional campaign control'
-            git pull --rebase
-            git push
-          fi
