@@ -30,7 +30,8 @@ import { tickMaritimeExperience } from './technology/seamanship.js?v=20260906-ma
 import { deployFleet, dockFleet, fleetEventInvolvesActor, formatShipOutcome, initialiseFleets, orderFleetHome, orderFleetToSea, resolveFleetContact, setFleetFlag, setFleetMission, syncNextFleetIds, syncRegionalNavyLedger, tickFleets } from './military/fleets.js?v=20260908-fleets1';
 import { tickTransitControl } from './economy/transitTolls.js?v=20260907-transit1';
 import { MILITARY_POSTURES, ensureMilitaryStrategy, reviewMilitaryStrategy, setMilitaryStrategy } from './military/strategicPlanning.js?v=20260908-strategy1';
-import { sendWarInvitation, syncNextDiplomaticMessageId, tickDiplomaticCouriers } from './diplomacy/couriers.js?v=20260908-couriers1';
+import { sendJointOperationProposal, sendWarInvitation, syncNextDiplomaticMessageId, tickDiplomaticCouriers } from './diplomacy/couriers.js?v=20260909-joint-player1';
+import { resolvePlayerJointOperationAdvice, tickPlayerJointOperationAdvisor } from './military/playerJointOperationAdvisor.js?v=20260909-joint-player1';
 import { WAR_STANCES, participantInWar, setEnemyPriority, setWarStance, syncNextWarId, syncWarTheatres } from './military/warTheatres.js?v=20260908-war1';
 
 const START_YEAR = -1300; // target: roughly eighty prosperous years before a c.1220 BCE collapse
@@ -130,6 +131,7 @@ async function main() {
     addRaid: (raid) => activeRaids.push(raid),
     getCampaigns: () => activeCampaigns,
     addCampaign: (campaign) => activeCampaigns.push(campaign),
+    getAgreements: () => agreements,
     openRegion: (regionId) => {
       const region = regionsById.get(regionId);
       if (!region || !fogOfWar.isVisible(region)) return;
@@ -242,6 +244,11 @@ async function main() {
     const religionEvents = tickReligion(regions, religiousWorld, calendarWeek, activeRaids, activeCampaigns, Math.random, time.elapsedDays);
     tickDemographics(regions, religiousWorld, time.elapsedDays);
     const courierEvents = tickDiplomaticCouriers(regions, agreements, fleets, calendarWeek, time.elapsedDays, Math.random);
+    const playerCapitalForJointPlan = regionsById.get(playerRegionId);
+    const jointOperationAdvisorEvents = tickPlayerJointOperationAdvisor(playerCapitalForJointPlan, agreements, regionsById, activeCampaigns, calendarWeek);
+    for (const advisoryEvent of jointOperationAdvisorEvents) {
+      advisoryEvent.resolveDecision = (choice) => resolvePlayerJointOperationAdvice(advisoryEvent, choice, playerCapitalForJointPlan, regionsById, activeCampaigns, polities, calendarWeek);
+    }
     const warEvents = syncWarTheatres(activeWars, activeCampaigns, regions, agreements, calendarWeek);
     preparePlayerWarEntryEvents(warEvents, activeWars, activePlayerPolityId, regions);
     const diplomacyEvents = tickDiplomacy(regions, agreements, toolTypes, calendarWeek, time.elapsedDays);
@@ -319,6 +326,7 @@ async function main() {
         const message = event.message;
         return message && (message.senderActorId === activePlayerPolityId || message.targetActorId === activePlayerPolityId || event.interceptingActorId === activePlayerPolityId);
       }),
+      ...jointOperationAdvisorEvents,
       ...polityEvents.filter((event) => event.regionId === playerRegionId),
       ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),
       ...fleetResult.events.filter((event) => fleetEventInvolvesActor(event, activePlayerPolityId, fleets)),
@@ -913,6 +921,7 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
               <option value="tribute">Demand weekly tribute</option>
               <option value="resource_access">Claim wood-harvesting rights</option>
               <option value="join_war">Ask them to join a war</option>
+              <option value="joint_operation">Plan a joint attack for a future date</option>
               <option value="vassalage">Demand submission as a vassal</option>
             </select>
           </label>
@@ -921,6 +930,12 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
           </label>
           <label class="control-row hidden" id="war-enemy-row">Ask them to fight
             <select id="war-enemy"><option value="">— select enemy —</option>${regions.filter((candidate) => candidate.id !== region.id && fogOfWar.isVisible(candidate)).map((candidate) => `<option value="${candidate.id}">${candidate.name}</option>`).join('')}</select>
+          </label>
+          <label class="control-row hidden" id="joint-operation-months-row">Attack in
+            <input id="joint-operation-months" type="number" min="1" max="60" step="1" value="3"> months
+          </label>
+          <label class="control-row hidden" id="joint-operation-share-row">Promise to commit
+            <input id="joint-operation-share" type="number" min="10" max="95" step="5" value="60">% of the field army
           </label>
           <div id="diplomacy-info" class="raid-status"></div>
           <button id="btn-diplomacy-propose" disabled>Make proposal</button>`}
@@ -1046,7 +1061,9 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
     const supportRow = document.getElementById('support-personnel-row');
     const updateDiplomacyInfo = () => {
       supportRow.classList.toggle('hidden', !['military_support','join_war'].includes(diplomacyAction.value));
-      document.getElementById('war-enemy-row')?.classList.toggle('hidden', diplomacyAction.value !== 'join_war');
+      document.getElementById('war-enemy-row')?.classList.toggle('hidden', !['join_war','joint_operation'].includes(diplomacyAction.value));
+      document.getElementById('joint-operation-months-row')?.classList.toggle('hidden', diplomacyAction.value !== 'joint_operation');
+      document.getElementById('joint-operation-share-row')?.classList.toggle('hidden', diplomacyAction.value !== 'joint_operation');
       diplomacyButton.disabled = !diplomacyTarget.value;
       const target = diplomaticTargets.find((r) => r.id === diplomacyTarget.value);
       document.getElementById('diplomacy-info').textContent = target
@@ -1061,6 +1078,21 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
       const target = diplomaticTargets.find((r) => r.id === diplomacyTarget.value);
       if (!target) return;
       let result;
+      if (diplomacyAction.value === 'joint_operation') {
+        const enemy = regions.find((candidate) => candidate.id === document.getElementById('war-enemy')?.value);
+        if (!enemy || enemy.id === target.id) { document.getElementById('diplomacy-info').textContent = 'Choose a different polity as the target of the joint attack.'; return; }
+        const currentWeek = calendarWeekIndex(clock.elapsedDays || 0);
+        const months = Math.max(1, Number(document.getElementById('joint-operation-months')?.value) || 3);
+        const share = Math.max(10, Math.min(95, Number(document.getElementById('joint-operation-share')?.value) || 60)) / 100;
+        result = sendJointOperationProposal(region, target, enemy, regions, currentWeek, {
+          attackTick: currentWeek + Math.max(2, Math.round(months * 4.345)), commitmentFraction: share,
+          secrecy: ensureMilitaryStrategy(region).secrecy,
+        });
+        document.getElementById('diplomacy-info').textContent = result.sent
+          ? `Courier dispatched. You propose attacking ${enemy.name} in about ${months} month${months === 1 ? '' : 's'} and promise roughly ${Math.round(share * 100)}% of the field army. Their answer must travel back before you know it.`
+          : `Could not dispatch the plan (${String(result.reason).replaceAll('_', ' ')}).`;
+        return;
+      }
       if (diplomacyAction.value === 'join_war') {
         const enemy = regions.find((candidate) => candidate.id === document.getElementById('war-enemy')?.value);
         if (!enemy || enemy.id === target.id) { document.getElementById('diplomacy-info').textContent = 'Choose a different polity as the enemy they should fight.'; return; }
@@ -1418,6 +1450,38 @@ function showNextEvent(clock, eventQueue) {
       document.getElementById('btn-settlement-accept').addEventListener('click', () => { const resolved = event.resolveSettlement('accept'); finish(`You remain in office as a ${resolved?.playerState?.status || 'subject ruler'} under the new sovereign.`); });
       document.getElementById('btn-settlement-reject').addEventListener('click', () => { const resolved = event.resolveSettlement('reject'); finish(`Your government continues in exile with about ${Math.round(resolved?.playerState?.exilePopulation || 0).toLocaleString()} followers.`); });
     }
+    document.getElementById('event-modal').classList.remove('hidden');
+    return;
+  }
+  if (['joint_operation_mobilise_advice','joint_operation_stage_advice','joint_operation_launch_confirmation'].includes(event.type)) {
+    const assessment = event.assessment || {};
+    const options = document.getElementById('event-options');
+    const isLaunch = event.type === 'joint_operation_launch_confirmation';
+    const isStage = event.type === 'joint_operation_stage_advice';
+    document.getElementById('event-title').textContent = isLaunch ? `Launch the promised attack on ${assessment.enemyName || 'the enemy'}?`
+      : isStage ? 'Marshal: concentrate the army now?' : 'Marshal: begin mobilisation now?';
+    const lead = Math.max(0, (event.plan?.attackTick || 0) - (event.dueTick || 0));
+    document.getElementById('event-body').innerHTML = `${isLaunch
+      ? `This is the date agreed with ${assessment.allyName || 'our ally'}. The decision to attack is still yours.`
+      : isStage
+        ? `The agreed attack is approaching. The Marshal recommends concentrating the promised field army at the relevant border or embarkation area.`
+        : `The Marshal calculates that mobilisation should start now if we are to have the promised force ready on time.`}<br><br>` +
+      `<strong>Council assessment</strong><br>${assessment.marshal || ''}<br>${assessment.treasurer || ''}<br>${assessment.steward || ''}<br>${assessment.envoy || ''}<br>${assessment.spymaster || ''}` +
+      (isLaunch ? `<br><br><strong>Allied participation:</strong> ${assessment.allySummary || 'uncertain'}` : '');
+    const yesLabel = isLaunch ? 'Launch the attack as promised' : isStage ? 'Concentrate the army' : 'Begin mobilisation';
+    const noLabel = isLaunch ? 'Do not attack' : 'Not yet';
+    options.innerHTML = `<button id="btn-joint-plan-yes">${yesLabel}</button><button id="btn-joint-plan-no">${noLabel}</button>`;
+    const finish = (choice) => {
+      const result = event.resolveDecision?.(choice);
+      document.getElementById('event-body').textContent = result?.summary || 'Order recorded.';
+      options.innerHTML = '<button id="btn-event-continue">Continue</button>';
+      document.getElementById('btn-event-continue').addEventListener('click', () => {
+        document.getElementById('event-modal').classList.add('hidden');
+        if (eventQueue.length > 0) showNextEvent(clock, eventQueue); else clock.releaseAutoPause();
+      });
+    };
+    document.getElementById('btn-joint-plan-yes').addEventListener('click', () => finish('yes'));
+    document.getElementById('btn-joint-plan-no').addEventListener('click', () => finish('no'));
     document.getElementById('event-modal').classList.remove('hidden');
     return;
   }
