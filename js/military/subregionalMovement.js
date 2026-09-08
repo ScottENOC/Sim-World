@@ -1,4 +1,5 @@
 import { ensureSubregionalControl, occupationSummary } from './subregionalControl.js?v=20260908-subregion1';
+import { stanceBetween, WAR_STANCES, warForCampaign } from './warTheatres.js?v=20260908-war1';
 
 export const SUBREGIONAL_OBJECTIVES = Object.freeze({
   port: { label: 'Seize a port', preferred: ['port', 'town', 'city', 'principal_settlement'] },
@@ -9,6 +10,7 @@ export const SUBREGIONAL_OBJECTIVES = Object.freeze({
   balanced: { label: 'Advance on strategic objectives', preferred: ['port', 'town', 'fort', 'city', 'principal_settlement', 'village_district'] },
 });
 
+const CAPTURE_PRESSURE = Object.freeze({ village_district: 0.10, port: 0.22, town: 0.34, fort: 0.55, principal_settlement: 0.68, city: 0.74 });
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
 
 function nodeDistance(a, b) {
@@ -95,6 +97,7 @@ export function initialiseCampaignMovement(campaign, region, currentTick) {
   campaign.subregional.routeIndex = 0;
   campaign.subregional.edgeProgress = 0;
   campaign.subregional.lastMoveTick = currentTick;
+  campaign.subregional.blockedByCampaignId = null;
   return campaign.subregional;
 }
 
@@ -106,6 +109,7 @@ export function setCampaignSubregionalObjective(campaign, region, policy) {
   campaign.subregional.route = [];
   campaign.subregional.routeIndex = 0;
   campaign.subregional.edgeProgress = 0;
+  campaign.subregional.blockedByCampaignId = null;
   return true;
 }
 
@@ -113,6 +117,7 @@ export function tickCampaignMovement(campaign, region, currentTick, mobility = 1
   const control = ensureSubregionalControl(region);
   if (!campaign.subregional?.currentNodeId) initialiseCampaignMovement(campaign, region, currentTick);
   const state = campaign.subregional;
+  if (state.blockedByCampaignId) return { moved: false, blocked: true, state, summary: occupationSummary(region) };
   if (state.objectivePolicy === 'hold') return { moved: false, holding: true, state, summary: occupationSummary(region) };
   let target = control.places.find((n) => n.id === state.targetNodeId && n.controllerActorId !== campaign.occupationActorId);
   if (!target) {
@@ -142,6 +147,23 @@ export function tickCampaignMovement(campaign, region, currentTick, mobility = 1
   return { moved: true, arrived, targetNodeId: state.targetNodeId, currentNodeId: state.currentNodeId, state, summary: occupationSummary(region) };
 }
 
+export function attemptPhysicalOccupation(campaign, region, currentTick, pressure = 0) {
+  const control = ensureSubregionalControl(region);
+  const node = control.places.find((n) => n.id === campaign.subregional?.currentNodeId);
+  if (!node || node.controllerActorId === campaign.occupationActorId) return { captured: false, reason: 'already_controlled', node };
+  const threshold = CAPTURE_PRESSURE[node.kind] ?? 0.45;
+  if (pressure < threshold) return { captured: false, reason: 'insufficient_pressure', node, threshold };
+  node.controllerActorId = campaign.occupationActorId;
+  node.occupationMode = 'military';
+  node.garrisonActorId = null;
+  node.garrisonPersonnel = 0;
+  node.capturedTick = currentTick;
+  campaign.subregional.targetNodeId = null;
+  campaign.subregional.route = [];
+  campaign.subregional.routeIndex = 0;
+  return { captured: true, node, summary: occupationSummary(region) };
+}
+
 export function campaignsAtSameNode(campaigns, defenderRegionId) {
   const groups = new Map();
   for (const campaign of campaigns) {
@@ -154,6 +176,34 @@ export function campaignsAtSameNode(campaigns, defenderRegionId) {
   return [...groups.entries()].filter(([, group]) => group.length > 1).map(([nodeId, group]) => ({ nodeId, campaigns: group }));
 }
 
+export function resolveCampaignNodeInteractions(campaigns, wars, defenderRegionId) {
+  const events = [];
+  for (const group of campaignsAtSameNode(campaigns, defenderRegionId)) {
+    for (let i = 0; i < group.campaigns.length; i++) for (let j = i + 1; j < group.campaigns.length; j++) {
+      const a = group.campaigns[i], b = group.campaigns[j];
+      if (a.occupationActorId === b.occupationActorId) continue;
+      const war = warForCampaign(wars || [], a) || warForCampaign(wars || [], b);
+      const stanceAB = war ? stanceBetween(war, a.occupationActorId, b.occupationActorId) : WAR_STANCES.AVOID;
+      const stanceBA = war ? stanceBetween(war, b.occupationActorId, a.occupationActorId) : WAR_STANCES.AVOID;
+      const hostile = stanceAB === WAR_STANCES.HOSTILE || stanceBA === WAR_STANCES.HOSTILE;
+      const avoid = !hostile && (stanceAB === WAR_STANCES.AVOID || stanceBA === WAR_STANCES.AVOID);
+      if (hostile) {
+        a.subregional.blockedByCampaignId = b.id;
+        b.subregional.blockedByCampaignId = a.id;
+        events.push({ type: 'subregional_armies_confront', nodeId: group.nodeId, campaignAId: a.id, campaignBId: b.id, actorAId: a.occupationActorId, actorBId: b.occupationActorId });
+      } else if (avoid) {
+        const yielding = Number(a.id) > Number(b.id) ? a : b;
+        yielding.subregional.targetNodeId = null;
+        yielding.subregional.route = [];
+        events.push({ type: 'subregional_army_yields_route', nodeId: group.nodeId, yieldingCampaignId: yielding.id });
+      } else {
+        events.push({ type: 'subregional_armies_coordinate', nodeId: group.nodeId, campaignAId: a.id, campaignBId: b.id });
+      }
+    }
+  }
+  return events;
+}
+
 export function raceStatus(campaigns, defenderRegionId) {
   return campaigns.filter((c) => !c.completed && c.defenderId === defenderRegionId).map((campaign) => ({
     campaignId: campaign.id,
@@ -161,6 +211,7 @@ export function raceStatus(campaigns, defenderRegionId) {
     currentNodeId: campaign.subregional?.currentNodeId || null,
     targetNodeId: campaign.subregional?.targetNodeId || null,
     objectivePolicy: campaign.subregional?.objectivePolicy || null,
+    blockedByCampaignId: campaign.subregional?.blockedByCampaignId || null,
     phase: campaign.phase,
   }));
 }
