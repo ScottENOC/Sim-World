@@ -1,0 +1,30 @@
+name: Multi-party war validation
+
+on:
+  push:
+    branches: [multi-party-war-v1]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax checks
+        run: |
+          node --check js/military/warTheatres.js
+          node --check js/military/campaigns.js
+          node --check js/core/saveGame.js
+          node --check js/main.js
+      - name: Multi-party war regressions
+        run: node tools/test-multi-party-war.mjs
+      - name: Existing strategic and military regressions
+        run: |
+          node tools/test-strategic-military-planning.mjs
+          node tools/test-battlefield-terrain.mjs
+          node tools/test-military-professionalisation.mjs
+          node tools/test-persistent-fleets.mjs
+      - name: Headless current-world smoke test
+        run: node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 1 --output /tmp/multi-war-smoke.json
+      - name: Diff sanity
+        run: git diff --check

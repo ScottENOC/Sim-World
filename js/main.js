@@ -31,6 +31,7 @@ import { deployFleet, dockFleet, fleetEventInvolvesActor, formatShipOutcome, ini
 import { tickTransitControl } from './economy/transitTolls.js?v=20260907-transit1';
 import { MILITARY_POSTURES, ensureMilitaryStrategy, reviewMilitaryStrategy, setMilitaryStrategy } from './military/strategicPlanning.js?v=20260908-strategy1';
 import { sendWarInvitation, syncNextDiplomaticMessageId, tickDiplomaticCouriers } from './diplomacy/couriers.js?v=20260908-couriers1';
+import { WAR_STANCES, participantInWar, setEnemyPriority, setWarStance, syncNextWarId, syncWarTheatres } from './military/warTheatres.js?v=20260908-war1';
 
 const START_YEAR = -1300; // target: roughly eighty prosperous years before a c.1220 BCE collapse
 const LAYERS = {
@@ -90,6 +91,7 @@ async function main() {
   const seaRegionsById = new Map(seaRegions.map((s) => [s.id, s]));
   let activeRaids = [];
   let activeCampaigns = [];
+  let activeWars = [];
   let fleets = initialiseFleets(regions);
   const agreements = [];
   const eventQueue = [];
@@ -157,13 +159,14 @@ async function main() {
   const loadSavedGame = () => {
     const snapshot = readSave();
     if (!snapshot) throw new Error('No saved game was found.');
-    const restored = restoreGameSnapshot(snapshot, { regions, seaRegions, polities, religiousWorld, agreements, activeRaids, activeCampaigns, fleets, clock, fogOfWar });
+    const restored = restoreGameSnapshot(snapshot, { regions, seaRegions, polities, religiousWorld, agreements, activeRaids, activeCampaigns, activeWars, fleets, clock, fogOfWar });
     if (!restored.fleetsRestored) fleets.splice(0, fleets.length, ...initialiseFleets(regions, []));
     playerRegionId = restored.playerRegionId;
     activePlayerPolityId = restored.playerPolityId || regionsById.get(playerRegionId)?.polityId || null;
     syncNextRaidId(activeRaids);
     syncNextAgreementId(agreements);
     syncNextCampaignId(activeCampaigns);
+    syncNextWarId(activeWars);
     syncNextFleetIds(fleets);
     syncRegionalNavyLedger(regions, fleets);
     syncNextDiplomaticMessageId(regions);
@@ -239,6 +242,8 @@ async function main() {
     const religionEvents = tickReligion(regions, religiousWorld, calendarWeek, activeRaids, activeCampaigns, Math.random, time.elapsedDays);
     tickDemographics(regions, religiousWorld, time.elapsedDays);
     const courierEvents = tickDiplomaticCouriers(regions, agreements, fleets, calendarWeek, time.elapsedDays, Math.random);
+    const warEvents = syncWarTheatres(activeWars, activeCampaigns, regions, agreements, calendarWeek);
+    preparePlayerWarEntryEvents(warEvents, activeWars, activePlayerPolityId, regions);
     const diplomacyEvents = tickDiplomacy(regions, agreements, toolTypes, calendarWeek, time.elapsedDays);
     const playerCapitalForPlan = regionsById.get(playerRegionId);
     if (playerCapitalForPlan) reviewMilitaryStrategy(playerCapitalForPlan, { regions, polities, agreements, activeCampaigns, currentTick: calendarWeek });
@@ -309,6 +314,7 @@ async function main() {
       ...religionEvents.filter((event) => event.regionId === playerRegionId),
       ...playerRaidEvents,
       ...diplomacyEvents.filter((event) => event.agreement.fromId === playerRegionId || event.agreement.toId === playerRegionId),
+      ...warEvents.filter((event) => event.playerInvolved),
       ...courierEvents.filter((event) => {
         const message = event.message;
         return message && (message.senderActorId === activePlayerPolityId || message.targetActorId === activePlayerPolityId || event.interceptingActorId === activePlayerPolityId);
@@ -379,6 +385,7 @@ async function main() {
     seaRegions,
     get activeRaids() { return activeRaids; },
     get activeCampaigns() { return activeCampaigns; },
+    get activeWars() { return activeWars; },
     get fleets() { return fleets; },
     get activePlayerPolityId() { return activePlayerPolityId; },
     fleetApi: { deployFleet, dockFleet, orderFleetHome, orderFleetToSea, setFleetFlag, setFleetMission, syncRegionalNavyLedger },
@@ -706,7 +713,7 @@ function wireMenu({ fogOfWar, map, clock, regions, seaRegions, polities, religio
   saveButton.addEventListener('click', () => {
     try {
       const snapshot = createGameSnapshot({ regions, seaRegions, polities, religiousWorld, agreements,
-        activeRaids: getActiveRaids(), activeCampaigns: getActiveCampaigns(), fleets: window.__worldsim?.fleets || [],
+        activeRaids: getActiveRaids(), activeCampaigns: getActiveCampaigns(), activeWars: window.__worldsim?.activeWars || [], fleets: window.__worldsim?.fleets || [],
         clock, playerRegionId: getPlayerRegionId(), playerPolityId: activePlayerPolityId, fogOfWar });
       writeSave(snapshot);
       refreshSaveStatus(`Game saved · ${clock.formatDate(START_YEAR)}.`);
@@ -1205,10 +1212,75 @@ function renderExileGovernmentControls(hostRegion, regions, polities, playerPoli
   });
 }
 
+
+function actorRegion(regions, actorId) {
+  return regions.find((region) => (region.governance?.sovereignPolityId || region.controllingActorId || region.id) === actorId) || null;
+}
+
+function preparePlayerWarEntryEvents(events, wars, playerActorId, regions) {
+  if (!playerActorId) return;
+  for (const event of events) {
+    if (event.type !== 'war_participant_joined') continue;
+    const war = wars.find((candidate) => candidate.id === event.warId);
+    const player = participantInWar(war, playerActorId);
+    if (!war || !player) continue;
+    event.playerInvolved = true;
+    event.war = war;
+    event.entrantName = actorRegion(regions, event.actorId)?.name || event.actorId;
+    event.playerIsEntrant = event.actorId === playerActorId;
+    const entrant = participantInWar(war, event.actorId);
+    const counterpart = event.playerIsEntrant
+      ? war.participants.find((p) => p.actorId !== playerActorId && p.sideId === entrant?.sideId)
+      : entrant;
+    event.sameSide = counterpart ? counterpart.sideId === player.sideId : false;
+    event.resolveWarEntry = (choice) => {
+      const others = war.participants.filter((p) => p.actorId !== playerActorId);
+      const primaryEnemy = others.find((p) => p.sideId !== player.sideId)?.actorId || others[0]?.actorId;
+      if (choice === 'cooperate') {
+        for (const other of others) setWarStance(war, playerActorId, other.actorId,
+          other.sideId === player.sideId ? WAR_STANCES.COOPERATE : WAR_STANCES.HOSTILE);
+      } else if (choice === 'cobelligerent') {
+        for (const other of others) setWarStance(war, playerActorId, other.actorId,
+          other.sideId === player.sideId ? WAR_STANCES.COBELLIGERENT : WAR_STANCES.HOSTILE);
+      } else if (choice === 'avoid_entrant') {
+        setWarStance(war, playerActorId, event.actorId, WAR_STANCES.AVOID);
+      } else if (choice === 'fight_all_primary') {
+        for (const other of others) setWarStance(war, playerActorId, other.actorId, WAR_STANCES.HOSTILE);
+        if (primaryEnemy) setEnemyPriority(war, playerActorId, primaryEnemy, 0.8);
+      } else if (choice === 'prioritise_entrant') {
+        setWarStance(war, playerActorId, event.actorId, WAR_STANCES.HOSTILE);
+        setEnemyPriority(war, playerActorId, event.actorId, 0.85);
+      } else if (choice === 'prioritise_existing') {
+        setWarStance(war, playerActorId, event.actorId, WAR_STANCES.HOSTILE);
+        if (primaryEnemy && primaryEnemy !== event.actorId) setEnemyPriority(war, playerActorId, primaryEnemy, 0.85);
+      }
+      return war;
+    };
+  }
+}
+
 function showNextEvent(clock, eventQueue) {
   if (eventQueue.length === 0) return;
 
   const event = eventQueue.shift();
+  if (event.type === 'war_participant_joined') {
+    const options = document.getElementById('event-options');
+    document.getElementById('event-title').textContent = `${event.entrantName} enters the war`;
+    document.getElementById('event-body').textContent = event.playerIsEntrant
+      ? `Your state has entered an existing multi-party war. Decide how your armies should treat the other belligerents; sharing an enemy does not automatically make another army your ally.`
+      : `${event.entrantName} has entered a war in which you are already fighting. Decide whether to coordinate, avoid them, or treat them as another enemy. These orders also guide how your generals divide effort between fronts.`;
+    const choices = event.sameSide
+      ? [['cooperate','Coordinate as allies'],['cobelligerent','Fight the common enemy independently'],['avoid_entrant','Avoid their forces'],['prioritise_entrant','Treat them as hostile']]
+      : [['prioritise_existing','Fight both; prioritise existing enemy'],['prioritise_entrant','Fight both; prioritise newcomer'],['avoid_entrant','Avoid the newcomer if possible'],['fight_all_primary','Fight all belligerents']];
+    options.innerHTML = choices.map(([id,label]) => `<button data-war-choice="${id}">${label}</button>`).join(' ');
+    document.getElementById('event-modal').classList.remove('hidden');
+    options.querySelectorAll('[data-war-choice]').forEach((button) => button.addEventListener('click', () => {
+      event.resolveWarEntry?.(button.dataset.warChoice);
+      document.getElementById('event-modal').classList.add('hidden');
+      if (eventQueue.length) showNextEvent(clock, eventQueue); else clock.releaseAutoPause();
+    }));
+    return;
+  }
   if (event.type === 'diplomatic_message_intercepted') {
     document.getElementById('event-title').textContent = event.destroyed ? 'Diplomatic courier lost' : 'Secret message compromised';
     document.getElementById('event-body').textContent = event.destroyed
