@@ -16,6 +16,7 @@ import { formationAmphibiousBonus, formationMobilityBonus, formationSiegeBonus }
 import { marchSpeedMultiplier, moraleShockMultiplier, professionalLogisticsMultiplier, retreatLossMultiplier } from './professionalisation.js?v=20260908-prof1';
 import { advanceCampaignControl, establishCampaignFootprint, occupationSummary, releaseUnsupportedOccupation } from './subregionalControl.js?v=20260908-subregion1';
 import { attemptPhysicalOccupation, initialiseCampaignMovement, resolveCampaignNodeInteractions, setCampaignSubregionalObjective, tickCampaignMovement } from './subregionalMovement.js?v=20260908-movement1';
+import { initialiseExpeditionaryLogistics, tickExpeditionaryLogistics } from './expeditionaryLogistics.js?v=20260908-logistics1';
 
 export const CAMPAIGN_OBJECTIVES = Object.freeze({
   devastation: { label: 'Destroy the region', pressureRate: 0.8, damageRate: 1.8 },
@@ -190,9 +191,10 @@ function applyCivilianDamage(campaign, defender, pressureGain, attackerShare) {
   return deaths;
 }
 
-function resolveCampaignWeek(campaign, attacker, defender, polities, regions, currentTick, toolTypes, rng) {
+function resolveCampaignWeek(campaign, attacker, defender, polities, regions, currentTick, toolTypes, rng, options = {}) {
   campaign.weeksEngaged += 1;
-  const movement = tickCampaignMovement(campaign, defender, currentTick, campaignMobility(attacker));
+  const expedition = campaign.viaSea ? tickExpeditionaryLogistics(campaign, attacker, defender, options.fleets || [], currentTick) : null;
+  const movement = tickCampaignMovement(campaign, defender, currentTick, campaignMobility(attacker) * (expedition?.movementMultiplier ?? 1));
   const objective = CAMPAIGN_OBJECTIVES[campaign.objective];
   const control = defender.isCoastal ? navalControl(attacker, defender) : 1;
   const amphibiousPreparation = campaign.viaSea ? 1 + formationAmphibiousBonus(attacker) : 1;
@@ -201,19 +203,24 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
     : 1;
 
   const logistics = professionalLogisticsMultiplier(attacker, currentTick);
-  const foodNeeded = campaign.personnel * 0.08;
-  const foodSupplied = Math.min(foodNeeded, Math.max(0, attacker.stockpile?.food || 0));
-  attacker.stockpile.food = Math.max(0, (attacker.stockpile.food || 0) - foodSupplied);
-  const supplySuccess = foodNeeded > 0 ? foodSupplied / foodNeeded : 1;
   const defenderWater = Math.min(0.012, effectiveInfrastructureCount(defender, 'wells_cisterns') * 0.007 +
     effectiveInfrastructureCount(defender, 'canal') * 0.005);
-  const supplyDrain = (0.018 + campaign.travelWeeks * 0.0025 + (defender.isCoastal ? (1 - control) * 0.035 : 0)) / logistics;
-  campaign.supply = clamp(campaign.supply + supplySuccess * 0.035 * Math.min(1.18, logistics) - supplyDrain - campaign.pressure * 0.008);
+  if (campaign.viaSea && expedition) {
+    campaign.supply = expedition.supplyFraction;
+    campaign.attackerMorale = clamp(campaign.attackerMorale + expedition.moraleDelta);
+  } else {
+    const foodNeeded = campaign.personnel * 0.08;
+    const foodSupplied = Math.min(foodNeeded, Math.max(0, attacker.stockpile?.food || 0));
+    attacker.stockpile.food = Math.max(0, (attacker.stockpile.food || 0) - foodSupplied);
+    const supplySuccess = foodNeeded > 0 ? foodSupplied / foodNeeded : 1;
+    const supplyDrain = (0.018 + campaign.travelWeeks * 0.0025 + (defender.isCoastal ? (1 - control) * 0.035 : 0)) / logistics;
+    campaign.supply = clamp(campaign.supply + supplySuccess * 0.035 * Math.min(1.18, logistics) - supplyDrain - campaign.pressure * 0.008);
+  }
   campaign.defenderMorale = clamp(campaign.defenderMorale + defenderWater);
 
   const terrain = campaign.battlefield?.terrain || 'plains';
   let attackerPower = combatPower(attacker, campaign.personnel, toolTypes, 'attacker', campaign.supply,
-    campaign.attackerMorale, null, terrain);
+    campaign.attackerMorale, null, terrain) * (expedition?.combatMultiplier ?? 1);
   const defenderArmyPower = combatPower(defender, defender.army.personnel, toolTypes, 'defender', 1,
     campaign.defenderMorale, campaign.siegeEquipment, terrain);
   if (campaign.pressure >= 0.45) attackerPower *= 1 + formationSiegeBonus(attacker);
@@ -229,8 +236,10 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
 
   const intensity = campaign.stage === 'skirmishing' ? 0.008 : campaign.stage === 'encirclement' ? 0.013 : 0.02;
   const variance = () => 0.75 + rng() * 0.5;
-  const attackerLosses = Math.min(campaign.personnel,
+  const combatAttackerLosses = Math.min(campaign.personnel,
     Math.round(campaign.personnel * intensity * (1 - attackerShare) * 1.55 * variance()));
+  const logisticsLosses = Math.min(Math.max(0, campaign.personnel - combatAttackerLosses), Math.round(campaign.personnel * (expedition?.attritionRate ?? 0)));
+  const attackerLosses = combatAttackerLosses + logisticsLosses;
   const defenderLossPool = Math.round((defender.army.personnel + campaign.militia) *
     intensity * attackerShare * variance());
   const militiaWeight = campaign.militia * 1.8;
@@ -275,8 +284,9 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
     if (occupation.captured) campaign.occupationSummary = occupation.summary;
   }
   const week = { tick: currentTick, stage: campaign.stage, terrain, pressureDelta, pressure: campaign.pressure,
-    attackerLosses, defenderLosses, militiaLosses, civilianDeaths, attackerMorale: campaign.attackerMorale,
-    defenderMorale: campaign.defenderMorale, supply: campaign.supply, strengthRatio, navalControl: control };
+    attackerLosses, logisticsLosses, defenderLosses, militiaLosses, civilianDeaths, attackerMorale: campaign.attackerMorale,
+    defenderMorale: campaign.defenderMorale, supply: campaign.supply, strengthRatio, navalControl: control,
+    logisticsStatus: campaign.logisticsState?.status || null, routeReliability: campaign.logisticsState?.routeReliability ?? null };
   campaign.lastWeek = week;
   campaign.history.push(week);
   if (campaign.history.length > 26) campaign.history.shift();
@@ -338,6 +348,7 @@ export function tickCampaigns(campaigns, regionsById, polities, currentTick, too
       establishCampaignFootprint(defender, campaign.occupationActorId || attacker.governance?.sovereignPolityId || attacker.controllingActorId || attacker.id, campaign.arriveTick, { viaSea: campaign.viaSea });
       campaign.occupationSummary = occupationSummary(defender);
       initialiseCampaignMovement(campaign, defender, campaign.arriveTick);
+      if (campaign.viaSea) initialiseExpeditionaryLogistics(campaign, attacker, defender, options.fleets || [], campaign.arriveTick);
       campaign.battlefield ||= chooseBattlefield({
         attacker,
         defender,
@@ -350,7 +361,7 @@ export function tickCampaigns(campaigns, regionsById, polities, currentTick, too
     }
     while (campaign.phase === 'engaged' && campaign.lastProcessedTick < currentTick) {
       const combatWeek = campaign.lastProcessedTick + 1;
-      resolveCampaignWeek(campaign, attacker, defender, polities, regionList, combatWeek, toolTypes, rng);
+      resolveCampaignWeek(campaign, attacker, defender, polities, regionList, combatWeek, toolTypes, rng, options);
       campaign.lastProcessedTick = combatWeek;
       if (campaign.phase === 'returning') {
         events.push({ type: 'campaign_decided', campaign, attackerName: attacker.name, defenderName: defender.name });
