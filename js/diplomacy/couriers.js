@@ -276,6 +276,10 @@ export function tickDiplomaticCouriers(regions, agreements, fleets, currentTick,
       if (message.type === 'joint_operation_reply') {
         message.status = 'delivered';
         message.response = { delivered: true, tick: currentTick, accepted: message.accepted };
+        recordDiplomaticIntelligence(target, { type: 'joint_operation_reply_received', jointOperationId: message.jointOperationId,
+          senderActorId: message.senderActorId, targetActorId: message.targetActorId, enemyActorId: message.enemyActorId,
+          attackTick: message.proposedAttackTick, accepted: message.accepted, declaredCommitmentFraction: message.declaredCommitmentFraction,
+          learnedTick: currentTick, sourceMessageId: message.id });
         events.push({ type: 'joint_operation_reply_delivered', message, accepted: message.accepted, jointOperationId: message.jointOperationId });
         continue;
       }

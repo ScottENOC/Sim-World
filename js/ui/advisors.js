@@ -11,6 +11,7 @@ import { dominantReligion, establishReligiousCentre, forkReligion, influenceReli
 import { TRADE_GOODS } from '../economy/tradeGoods.js?v=20260905-goods2';
 import { activeTradeRestrictions, removeTradeRestriction, setTradeRestriction, tradeActorId } from '../economy/tradePolicy.js?v=20260905-policy1';
 import { setChokepointTollPolicy, setRoadTollPolicy, transitPolicySummary } from '../economy/transitTolls.js?v=20260907-transit1';
+import { upcomingPlayerJointOperations } from '../military/playerJointOperationAdvisor.js?v=20260909-joint-player1';
 
 const ADVISORS = [
   { id: 'marshal', icon: '\u2694', name: 'Marshal', brief: 'Forces & raids' },
@@ -29,7 +30,7 @@ const section = (title, body) => `<section class="advisor-section"><h3>${title}<
 
 export class AdvisorCouncil {
   constructor({ regions, polities, religiousWorld, fogOfWar, clock, getPlayerRegionId, getActiveRaids, addRaid,
-    getCampaigns, addCampaign, openRegion }) {
+    getCampaigns, addCampaign, getAgreements = () => [], openRegion }) {
     this.regions = regions;
     this.polities = polities;
     this.religiousWorld = religiousWorld;
@@ -40,6 +41,7 @@ export class AdvisorCouncil {
     this.addRaid = addRaid;
     this.getCampaigns = getCampaigns;
     this.addCampaign = addCampaign;
+    this.getAgreements = getAgreements;
     this.openRegion = openRegion;
     this.expandedCampaignId = null;
     this.activeAdvisor = 'marshal';
@@ -124,6 +126,7 @@ export class AdvisorCouncil {
     });
     const campaignTargets = this.campaignTargets(player);
     const siege = ensureSiegeEquipment(player);
+    const jointPlans = upcomingPlayerJointOperations(player, this.getAgreements(), Math.floor((this.clock.elapsedDays || 0) / 7));
     return `
       <p class="advisor-voice">“I will keep the fighting strength of the realm before you, and speak plainly about what we can afford.”</p>
       ${section('Military report',
@@ -137,6 +140,13 @@ export class AdvisorCouncil {
       ${section('Active conflicts', campaigns.length
         ? campaigns.map((campaign) => this.renderCampaignCard(campaign, player)).join('')
         : '<p class="advisor-note">The realm is not fighting a sustained campaign.</p>')}
+      ${jointPlans.length ? section('Agreed joint operations', jointPlans.map(({ plan, weeksUntilAttack, preparation }) => {
+        const allyId = plan.proposerRegionId === player.id ? plan.partnerRegionId : plan.proposerRegionId;
+        const ally = this.regions.find((region) => region.id === allyId);
+        const enemy = this.regions.find((region) => region.id === plan.enemyRegionId);
+        return `<div class="advisor-note"><strong>${enemy?.name || 'Joint attack'}</strong> with ${ally?.name || 'ally'} · ${weeksUntilAttack > 0 ? `${weeksUntilAttack} weeks to agreed attack` : 'attack date reached'}<br>` +
+          `Mobilised: ${preparation.mobilised ? 'yes' : 'not confirmed'} · staged: ${preparation.staged ? 'yes' : 'not confirmed'}</div>`;
+      }).join('')) : ''}
       ${(player.unlockedTechIds.has('hill_forts') && !(player.infrastructure?.hillForts > 0))
         ? section('Marshal\'s recommendation', '<p class="advisor-note">A hill fort would strengthen the defender\'s home advantage in a sustained campaign.</p><button class="advisor-order" data-open-construction>Ask the Steward to build it</button>') : ''}
       ${section('Siege equipment', player.unlockedTechIds.has('hill_forts') ? `
