@@ -18,14 +18,15 @@ function fleetStrength(fleet) {
   return (fleet?.ships || []).reduce((sum, ship) => sum + Math.max(0, ship.condition ?? 1), 0);
 }
 
+function fleetOnRoute(fleet, attacker, defender) {
+  const seas = new Set(relevantSeaIds(attacker, defender));
+  return (fleet.locationType === 'sea' && seas.has(fleet.seaRegionId)) ||
+    (fleet.locationType === 'port' && fleet.portRegionId === attacker.id);
+}
+
 function supportingFleets(attacker, defender, fleets = []) {
   const actor = actorId(attacker);
-  const seas = new Set(relevantSeaIds(attacker, defender));
-  return fleets.filter((fleet) => fleet.ownerActorId === actor && fleetStrength(fleet) > 0 && (
-    (fleet.locationType === 'sea' && seas.has(fleet.seaRegionId)) ||
-    (fleet.locationType === 'port' && fleet.portRegionId === attacker.id) ||
-    fleet.homePortRegionId === attacker.id
-  ));
+  return fleets.filter((fleet) => fleet.ownerActorId === actor && fleetStrength(fleet) > 0 && fleetOnRoute(fleet, attacker, defender));
 }
 
 function hostileInterdiction(attacker, defender, fleets = []) {
@@ -69,26 +70,27 @@ export function initialiseExpeditionaryLogistics(campaign, attacker, defender, f
     carriedStores: requirementPerWeek * 3,
     horseFodder: requirementPerWeek * 2.5,
     deliveredLastWeek: 0,
-    routeReliability: 1,
+    routeReliability: fleetList.length ? 1 : 0,
     deliveryCapacity: requirementPerWeek,
     localForagingCapacity: 0,
     weeksIsolated: 0,
-    isIsolated: false,
+    isIsolated: fleetList.length === 0,
     rationing: false,
-    status: 'supplied',
+    status: fleetList.length ? 'supplied' : 'living_on_stores',
     lastTick: currentTick,
   };
   return campaign.logisticsState;
 }
 
-function localSupply(campaign, defender, requirement) {
+function localSupply(campaign, defender, requirement, maximumNeeded) {
+  if (maximumNeeded <= 0) return 0;
   const control = ensureSubregionalControl(defender);
   const actor = campaign.occupationActorId;
   const ruralShare = clamp(control.ruralControl?.[actor] || 0);
   const stability = clamp(defender.stability ?? 0.7);
   const availableFood = Math.max(0, defender.stockpile?.food || 0);
   const potential = requirement * clamp(ruralShare * 1.35 + (1 - stability) * 0.12, 0, 0.8);
-  const taken = Math.min(availableFood, potential);
+  const taken = Math.min(availableFood, potential, maximumNeeded);
   if (taken > 0) {
     defender.stockpile.food = Math.max(0, availableFood - taken);
     defender.stability = clamp(stability - (taken / Math.max(1, requirement)) * 0.006);
@@ -102,7 +104,7 @@ export function tickExpeditionaryLogistics(campaign, attacker, defender, fleets 
   const requirement = Math.max(1, campaign.personnel * DAILY_FOOD_PER_SOLDIER * 7);
   state.weeklyRequirement = requirement;
 
-  const support = (fleets || []).filter((f) => state.supportFleetIds.includes(f.id) && fleetStrength(f) > 0);
+  const support = (fleets || []).filter((f) => state.supportFleetIds.includes(f.id) && fleetStrength(f) > 0 && fleetOnRoute(f, attacker, defender));
   const supportPower = support.reduce((sum, f) => sum + fleetStrength(f), 0);
   const threat = hostileInterdiction(attacker, defender, fleets);
   const escortRatio = supportPower / Math.max(1, supportPower + threat);
@@ -117,7 +119,11 @@ export function tickExpeditionaryLogistics(campaign, attacker, defender, fleets 
   attacker.stockpile.food = Math.max(0, sourceFood - delivered);
   state.deliveredLastWeek = delivered;
 
-  const foraged = localSupply(campaign, defender, requirement);
+  const reserveWeeks = state.carriedFood / Math.max(1, requirement);
+  const localNeed = state.routeReliability < 0.75 || reserveWeeks < 2
+    ? Math.max(0, requirement - delivered)
+    : 0;
+  const foraged = localSupply(campaign, defender, requirement, localNeed);
   state.localForagingCapacity = foraged;
   state.carriedFood += delivered + foraged;
   const consumed = Math.min(state.carriedFood, requirement);
