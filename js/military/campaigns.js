@@ -19,6 +19,7 @@ import { attemptPhysicalOccupation, initialiseCampaignMovement, resolveCampaignN
 import { initialiseExpeditionaryLogistics, tickExpeditionaryLogistics } from './expeditionaryLogistics.js?v=20260908-logistics1';
 import { garrisonCapturedNode } from './supplyCorridors.js?v=20260908-corridor1';
 import { desperateAttackProfile } from './supplyAwareAi.js?v=20260908-supply-ai1';
+import { counterLogisticsCombatProfile } from './counterLogisticsAi.js?v=20260909-counter-logistics1';
 
 export const CAMPAIGN_OBJECTIVES = Object.freeze({
   devastation: { label: 'Destroy the region', pressureRate: 0.8, damageRate: 1.8 },
@@ -232,16 +233,19 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   const attackerShare = attackerPower / totalPower;
   const strengthRatio = attackerPower / Math.max(1, defenderPower);
   const desperation = desperateAttackProfile(campaign);
-  const pressureDelta = clamp((strengthRatio - 0.45) * 0.045 * objective.pressureRate * coastalFactor * desperation.pressureMultiplier, -0.025, 0.13);
+  const counterLogistics = counterLogisticsCombatProfile(campaign);
+  const pressureDelta = clamp((strengthRatio - 0.45) * 0.045 * objective.pressureRate * coastalFactor * desperation.pressureMultiplier * counterLogistics.attackerPressureMultiplier, -0.025, 0.13);
   campaign.pressure = clamp(campaign.pressure + pressureDelta);
   campaign.stage = campaign.pressure < 0.25 ? 'skirmishing'
     : campaign.pressure < 0.55 ? 'encirclement' : campaign.pressure < 0.85 ? 'siege' : 'collapse';
 
-  const intensity = campaign.stage === 'skirmishing' ? 0.008 : campaign.stage === 'encirclement' ? 0.013 : 0.02;
+  const baseIntensity = campaign.stage === 'skirmishing' ? 0.008 : campaign.stage === 'encirclement' ? 0.013 : 0.02;
+  const intensity = baseIntensity * counterLogistics.intensityMultiplier;
   const variance = () => 0.75 + rng() * 0.5;
   const combatAttackerLosses = Math.min(campaign.personnel,
     Math.round(campaign.personnel * intensity * (1 - attackerShare) * 1.55 * desperation.casualtyMultiplier * variance()));
-  const logisticsLosses = Math.min(Math.max(0, campaign.personnel - combatAttackerLosses), Math.round(campaign.personnel * (expedition?.attritionRate ?? 0)));
+  const supplyAttrition = (expedition?.attritionRate ?? 0) + counterLogistics.extraAttackerAttritionRate;
+  const logisticsLosses = Math.min(Math.max(0, campaign.personnel - combatAttackerLosses), Math.round(campaign.personnel * supplyAttrition));
   const attackerLosses = combatAttackerLosses + logisticsLosses;
   const defenderLossPool = Math.round((defender.army.personnel + campaign.militia) *
     intensity * attackerShare * variance());
