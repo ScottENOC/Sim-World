@@ -32,8 +32,9 @@ establishCampaignFootprint(target, 'wessex', 20, { viaSea: false });
 for (let i = 0; i < 4; i++) advanceCampaignControl(target, 'wessex', 0.055, 0.3 + i * 0.1, 21 + i);
 summary = occupationSummary(target);
 assert.ok(summary.byActor.wessex.ruralShare > 0, 'second invader can control countryside simultaneously');
+assert.ok(summary.byActor.essex.ruralShare > 0, 'first invader keeps its own occupation while the second advances');
 assert.ok(summary.contested, 'multi-party occupation marks region contested');
-assert.ok(Object.keys(summary.byActor).length >= 3, 'defender and two invaders coexist in one region');
+assert.equal(summary.sovereignActorId, 'kentish', 'defender can retain sovereignty even after losing all crude physical control');
 
 const beforeRelease = summary.byActor.essex.places.length;
 const released = releaseUnsupportedOccupation(target, 'essex', 30);
