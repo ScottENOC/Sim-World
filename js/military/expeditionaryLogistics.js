@@ -1,6 +1,7 @@
 import { effectiveInfrastructureCount } from '../economy/construction.js?v=20260905-projects1';
 import { ensureSubregionalControl } from './subregionalControl.js?v=20260908-subregion1';
 import { FLEET_MISSIONS } from './fleets.js?v=20260908-fleets1';
+import { campaignSupplyCorridor } from './supplyCorridors.js?v=20260908-corridor1';
 
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
 const actorId = (region) => region?.governance?.sovereignPolityId || region?.controllingActorId || region?.id || null;
@@ -112,6 +113,11 @@ export function tickExpeditionaryLogistics(campaign, attacker, defender, fleets 
   const routePresence = supportPower > 0 ? 1 : 0;
   const missionBonus = support.some((f) => [FLEET_MISSIONS.ESCORT, FLEET_MISSIONS.PATROL, FLEET_MISSIONS.INTERCEPT].includes(f.mission)) ? 0.12 : 0;
   state.routeReliability = clamp(routePresence * (0.3 + escortRatio * 0.62 + missionBonus), 0, 1);
+  const corridor = campaignSupplyCorridor(campaign, defender);
+  state.internalCorridorReliability = port.captured ? corridor.reliability : 1;
+  state.corridorBrokenNodeId = port.captured ? corridor.brokenNodeId : null;
+  state.corridorWeakNodeId = port.captured ? corridor.weakNodeId : null;
+  state.routeReliability = clamp(state.routeReliability * state.internalCorridorReliability);
   state.deliveryCapacity = requirement * port.throughput * state.routeReliability;
 
   const sourceFood = Math.max(0, attacker.stockpile?.food || 0);
@@ -158,6 +164,9 @@ export function expeditionarySupplySummary(campaign) {
     status: s.status,
     weeksFood,
     routeReliability: s.routeReliability,
+    internalCorridorReliability: s.internalCorridorReliability ?? 1,
+    corridorBrokenNodeId: s.corridorBrokenNodeId || null,
+    corridorWeakNodeId: s.corridorWeakNodeId || null,
     deliveredLastWeek: s.deliveredLastWeek,
     localForagingCapacity: s.localForagingCapacity,
     isIsolated: s.isIsolated,
