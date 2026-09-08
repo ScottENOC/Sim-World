@@ -52,8 +52,8 @@ export function campaignTravelWeeks(attacker, defender, viaSea) {
 export function canCampaign(attacker, defender, campaigns = [], regions = null, polities = null) {
   if (!attacker || !defender || attacker.id === defender.id) return { possible: false, reason: 'same_region' };
   if (campaigns.some((campaign) => !campaign.completed &&
-      [campaign.attackerId, campaign.defenderId].some((id) => id === attacker.id || id === defender.id))) {
-    return { possible: false, reason: 'already_at_war' };
+      campaign.attackerId === attacker.id && campaign.defenderId === defender.id)) {
+    return { possible: false, reason: 'already_campaigning_target' };
   }
   const staging = regions && polities ? findLandStagingRegion(attacker, defender, regions, polities)
     : attacker.neighbors.includes(defender.id) ? attacker : null;
