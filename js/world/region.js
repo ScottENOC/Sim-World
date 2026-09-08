@@ -15,6 +15,12 @@ export class Region {
       raiderTreatment: 'reintegrate', navalPriority: 'trade', warHorseAllocation: 0.5 };
     this.militaryExperience = { field: 0, institutional: 0, lastFieldTick: 0, engagementWeeks: 0, trainingYears: 0 };
     this.militaryInstitutions = { officerSchoolProgress: 0, officerSchoolActive: false };
+    // Rulers set enduring strategic intent; the military planner derives the
+    // establishment and recruitment target instead of asking for a troop count.
+    this.militaryStrategy = { posture: 'peace', targetRegionId: null, targetPolityId: null,
+      garrisonFloor: 1, spendingPriority: 0.45, desiredPreparationWeeks: 26, secrecy: 0.35,
+      vassalAssumption: 'conservative', allyAssumption: 'conservative', planReport: {} };
+    this.diplomaticMessages = [];
     this.isCoastal = false; this.adjacentSeaIds = []; this.fishingBoats = 0;
     this.advancedFishingBoats = 0; this.targetFishingBoats = 0;
     this.landQuality = null; this.forest = null; this.terrain = null; this.deposits = null; this.stockpile = {};

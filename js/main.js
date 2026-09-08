@@ -29,6 +29,8 @@ import { createReligiousWorld, initialiseReligions, tickReligion } from './socie
 import { tickMaritimeExperience } from './technology/seamanship.js?v=20260906-maritime1';
 import { deployFleet, dockFleet, fleetEventInvolvesActor, formatShipOutcome, initialiseFleets, orderFleetHome, orderFleetToSea, resolveFleetContact, setFleetFlag, setFleetMission, syncNextFleetIds, syncRegionalNavyLedger, tickFleets } from './military/fleets.js?v=20260908-fleets1';
 import { tickTransitControl } from './economy/transitTolls.js?v=20260907-transit1';
+import { MILITARY_POSTURES, ensureMilitaryStrategy, reviewMilitaryStrategy, setMilitaryStrategy } from './military/strategicPlanning.js?v=20260908-strategy1';
+import { sendWarInvitation, syncNextDiplomaticMessageId, tickDiplomaticCouriers } from './diplomacy/couriers.js?v=20260908-couriers1';
 
 const START_YEAR = -1300; // target: roughly eighty prosperous years before a c.1220 BCE collapse
 const LAYERS = {
@@ -164,6 +166,7 @@ async function main() {
     syncNextCampaignId(activeCampaigns);
     syncNextFleetIds(fleets);
     syncRegionalNavyLedger(regions, fleets);
+    syncNextDiplomaticMessageId(regions);
     syncNextProjectId(regions);
     eventQueue.length = 0;
     document.getElementById('event-modal').classList.add('hidden');
@@ -235,7 +238,10 @@ async function main() {
     const breakthroughEvents = tickBreakthroughs(regions, calendarWeek, Math.random, time.elapsedDays);
     const religionEvents = tickReligion(regions, religiousWorld, calendarWeek, activeRaids, activeCampaigns, Math.random, time.elapsedDays);
     tickDemographics(regions, religiousWorld, time.elapsedDays);
+    const courierEvents = tickDiplomaticCouriers(regions, agreements, fleets, calendarWeek, time.elapsedDays, Math.random);
     const diplomacyEvents = tickDiplomacy(regions, agreements, toolTypes, calendarWeek, time.elapsedDays);
+    const playerCapitalForPlan = regionsById.get(playerRegionId);
+    if (playerCapitalForPlan) reviewMilitaryStrategy(playerCapitalForPlan, { regions, polities, agreements, activeCampaigns, currentTick: calendarWeek });
     const polityEvents = tickPolities(polities, regions, calendarWeek, time.elapsedDays);
     const continuityEvents = tickPoliticalContinuity(polities, regions, time.elapsedDays / 365.2425, calendarWeek, { playerPolityId: activePlayerPolityId });
     tickBanditry(regions, toolTypes, agreements, time.elapsedDays);
@@ -303,6 +309,10 @@ async function main() {
       ...religionEvents.filter((event) => event.regionId === playerRegionId),
       ...playerRaidEvents,
       ...diplomacyEvents.filter((event) => event.agreement.fromId === playerRegionId || event.agreement.toId === playerRegionId),
+      ...courierEvents.filter((event) => {
+        const message = event.message;
+        return message && (message.senderActorId === activePlayerPolityId || message.targetActorId === activePlayerPolityId || event.interceptingActorId === activePlayerPolityId);
+      }),
       ...polityEvents.filter((event) => event.regionId === playerRegionId),
       ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),
       ...fleetResult.events.filter((event) => fleetEventInvolvesActor(event, activePlayerPolityId, fleets)),
@@ -348,6 +358,7 @@ async function main() {
     playerRegionId = chosen.id;
     activePlayerPolityId = chosen.polityId || chosen.governance?.localPolityId || chosen.governance?.sovereignPolityId;
     fogOfWar.setPlayerRegion(chosen.id);
+    reviewMilitaryStrategy(chosen, { regions, polities, agreements, activeCampaigns, currentTick: calendarWeekIndex(clock.elapsedDays || 0) });
 
     document.getElementById('picker-modal').classList.add('hidden');
     selectedRegion = chosen;
@@ -795,9 +806,37 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
     : '';
 
   document.getElementById('region-controls').innerHTML = `
-    <label class="control-row">Target army size
-      <input type="number" min="0" step="100" id="input-army" value="${Math.round(region.targetArmySize)}">
-    </label>
+    <div class="raid-section military-strategy-section">
+      <strong>Military strategy</strong>
+      <label class="control-row">Posture
+        <select id="military-posture">
+          <option value="peace" ${ensureMilitaryStrategy(region).posture === 'peace' ? 'selected' : ''}>Peace — local defence</option>
+          <option value="guarded" ${ensureMilitaryStrategy(region).posture === 'guarded' ? 'selected' : ''}>Guarded</option>
+          <option value="prepare_war" ${ensureMilitaryStrategy(region).posture === 'prepare_war' ? 'selected' : ''}>Prepare for war</option>
+          <option value="mobilise_war" ${ensureMilitaryStrategy(region).posture === 'mobilise_war' ? 'selected' : ''}>Mobilise for war</option>
+          <option value="emergency_defence" ${ensureMilitaryStrategy(region).posture === 'emergency_defence' ? 'selected' : ''}>Emergency defence</option>
+        </select>
+      </label>
+      <label class="control-row">War planning target
+        <select id="military-plan-target"><option value="">— none —</option>${diplomaticTargets.map((target) => `<option value="${target.id}" ${ensureMilitaryStrategy(region).targetRegionId === target.id ? 'selected' : ''}>${target.name}</option>`).join('')}</select>
+      </label>
+      <label class="control-row">Minimum normal garrisons <span id="garrison-floor-label">${Math.round(ensureMilitaryStrategy(region).garrisonFloor * 100)}%</span>
+        <input type="range" id="military-garrison-floor" min="10" max="100" value="${Math.round(ensureMilitaryStrategy(region).garrisonFloor * 100)}">
+      </label>
+      <label class="control-row">Military spending priority <span id="military-spending-label">${Math.round(ensureMilitaryStrategy(region).spendingPriority * 100)}%</span>
+        <input type="range" id="military-spending-priority" min="10" max="100" value="${Math.round(ensureMilitaryStrategy(region).spendingPriority * 100)}">
+      </label>
+      <label class="control-row">Desired preparation time (weeks)
+        <input type="number" id="military-prep-weeks" min="4" max="260" step="4" value="${ensureMilitaryStrategy(region).desiredPreparationWeeks}">
+      </label>
+      <label class="control-row">Assume vassal help
+        <select id="military-vassal-assumption">${['none','conservative','normal','optimistic'].map((v) => `<option value="${v}" ${ensureMilitaryStrategy(region).vassalAssumption === v ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      </label>
+      <label class="control-row">Assume ally help
+        <select id="military-ally-assumption">${['none','conservative','normal','optimistic'].map((v) => `<option value="${v}" ${ensureMilitaryStrategy(region).allyAssumption === v ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      </label>
+      <div id="military-plan-report" class="raid-status"></div>
+    </div>
     <label class="control-row">Target navy size (boats)
       <input type="number" min="0" step="1" id="input-navy" value="${Math.round(region.targetNavySize)}" ${region.isCoastal ? '' : 'disabled title="not a coastal region"'}>
     </label>
@@ -866,11 +905,15 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
               <option value="military_support">Send troops against bandits</option>
               <option value="tribute">Demand weekly tribute</option>
               <option value="resource_access">Claim wood-harvesting rights</option>
+              <option value="join_war">Ask them to join a war</option>
               <option value="vassalage">Demand submission as a vassal</option>
             </select>
           </label>
-          <label class="control-row" id="support-personnel-row">Troops to send
+          <label class="control-row" id="support-personnel-row">Troops / requested contribution
             <input type="number" min="10" step="10" id="support-personnel" value="${Math.max(10, Math.floor(region.army.personnel * 0.1))}">
+          </label>
+          <label class="control-row hidden" id="war-enemy-row">Ask them to fight
+            <select id="war-enemy"><option value="">— select enemy —</option>${regions.filter((candidate) => candidate.id !== region.id && fogOfWar.isVisible(candidate)).map((candidate) => `<option value="${candidate.id}">${candidate.name}</option>`).join('')}</select>
           </label>
           <div id="diplomacy-info" class="raid-status"></div>
           <button id="btn-diplomacy-propose" disabled>Make proposal</button>`}
@@ -879,16 +922,37 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
           ${activeAgreements.map((agreement) => {
             const otherId = agreement.fromId === region.id ? agreement.toId : agreement.fromId;
             const other = regions.find((r) => r.id === otherId);
-            const labels = { military_support: 'military support', tribute: 'tribute', resource_access: 'wood access' };
+            const labels = { military_support: 'military support', tribute: 'tribute', resource_access: 'wood access', war_commitment: 'war commitment' };
             return `<div class="agreement-row"><span>${labels[agreement.type]} — ${other?.name || otherId}</span><button data-end-agreement="${agreement.id}">End</button></div>`;
           }).join('')}
         </div>`}
     </div>
   `;
 
-  document.getElementById('input-army').addEventListener('change', (e) => {
-    region.targetArmySize = Math.max(0, Number(e.target.value) || 0);
-  });
+  const refreshMilitaryPlan = () => {
+    const strategy = setMilitaryStrategy(region, {
+      posture: document.getElementById('military-posture')?.value || 'peace',
+      targetRegionId: document.getElementById('military-plan-target')?.value || null,
+      garrisonFloor: (Number(document.getElementById('military-garrison-floor')?.value) || 100) / 100,
+      spendingPriority: (Number(document.getElementById('military-spending-priority')?.value) || 45) / 100,
+      desiredPreparationWeeks: Number(document.getElementById('military-prep-weeks')?.value) || 26,
+      vassalAssumption: document.getElementById('military-vassal-assumption')?.value || 'conservative',
+      allyAssumption: document.getElementById('military-ally-assumption')?.value || 'conservative',
+    });
+    const report = reviewMilitaryStrategy(region, { regions, polities, agreements, activeCampaigns: window.__worldsim?.activeCampaigns || [], currentTick: calendarWeekIndex(clock.elapsedDays || 0) });
+    const garrisonLabel = document.getElementById('garrison-floor-label');
+    const spendingLabel = document.getElementById('military-spending-label');
+    if (garrisonLabel) garrisonLabel.textContent = `${Math.round(strategy.garrisonFloor * 100)}%`;
+    if (spendingLabel) spendingLabel.textContent = `${Math.round(strategy.spendingPriority * 100)}%`;
+    const status = document.getElementById('military-plan-report');
+    if (status) status.innerHTML = `Authorised establishment: ${report.establishment.toLocaleString()} · current ${report.currentPersonnel.toLocaleString()}<br>` +
+      `Normal garrisons ${report.normalGarrison.toLocaleString()} → retain ${report.retainedGarrison.toLocaleString()} · desired field army ${report.desiredFieldArmy.toLocaleString()}<br>` +
+      `Expected support: vassals ${report.expectedVassalSupport.toLocaleString()} / nominal ${report.nominalVassalSupport.toLocaleString()}, allies ${report.expectedAllySupport.toLocaleString()} / nominal ${report.nominalAllySupport.toLocaleString()}` +
+      (report.targetName ? `<br>Plan against ${report.targetName}: estimated opposing force ${report.estimatedEnemy.toLocaleString()} (uncertainty ±${Math.round(report.enemyUncertainty * 100)}%)${report.viaSea ? ' · overseas operation' : ''}` : '');
+  };
+  ['military-posture','military-plan-target','military-garrison-floor','military-spending-priority','military-prep-weeks','military-vassal-assumption','military-ally-assumption']
+    .forEach((id) => document.getElementById(id)?.addEventListener(id.includes('floor') || id.includes('priority') ? 'input' : 'change', refreshMilitaryPlan));
+  refreshMilitaryPlan();
 
   document.getElementById('input-navy').addEventListener('change', (e) => {
     region.targetNavySize = Math.max(0, Number(e.target.value) || 0);
@@ -974,7 +1038,8 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
   if (diplomacyTarget && diplomacyAction && diplomacyButton) {
     const supportRow = document.getElementById('support-personnel-row');
     const updateDiplomacyInfo = () => {
-      supportRow.classList.toggle('hidden', diplomacyAction.value !== 'military_support');
+      supportRow.classList.toggle('hidden', !['military_support','join_war'].includes(diplomacyAction.value));
+      document.getElementById('war-enemy-row')?.classList.toggle('hidden', diplomacyAction.value !== 'join_war');
       diplomacyButton.disabled = !diplomacyTarget.value;
       const target = diplomaticTargets.find((r) => r.id === diplomacyTarget.value);
       document.getElementById('diplomacy-info').textContent = target
@@ -988,7 +1053,20 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
     diplomacyButton.addEventListener('click', () => {
       const target = diplomaticTargets.find((r) => r.id === diplomacyTarget.value);
       if (!target) return;
-      const result = diplomacyAction.value === 'vassalage'
+      let result;
+      if (diplomacyAction.value === 'join_war') {
+        const enemy = regions.find((candidate) => candidate.id === document.getElementById('war-enemy')?.value);
+        if (!enemy || enemy.id === target.id) { document.getElementById('diplomacy-info').textContent = 'Choose a different polity as the enemy they should fight.'; return; }
+        result = sendWarInvitation(region, target, enemy, regions, calendarWeekIndex(clock.elapsedDays || 0), {
+          requestedPersonnel: Number(document.getElementById('support-personnel')?.value) || 0,
+          secrecy: ensureMilitaryStrategy(region).secrecy,
+        });
+        document.getElementById('diplomacy-info').textContent = result.sent
+          ? `Courier dispatched to ${target.name}. Expected arrival around week ${result.message.arrivalTick}; the message may be delayed, intercepted or exposed en route.`
+          : `Could not dispatch the request (${String(result.reason).replaceAll('_', ' ')}).`;
+        return;
+      }
+      result = diplomacyAction.value === 'vassalage'
         ? demandVassalage(region, target, polities, toolTypes, clock.tickIndex, regions)
         : proposeAgreement(diplomacyAction.value, region, target, agreements, toolTypes,
           clock.tickIndex, { personnel: Number(document.getElementById('support-personnel')?.value) || 0 });
@@ -1131,6 +1209,20 @@ function showNextEvent(clock, eventQueue) {
   if (eventQueue.length === 0) return;
 
   const event = eventQueue.shift();
+  if (event.type === 'diplomatic_message_intercepted') {
+    document.getElementById('event-title').textContent = event.destroyed ? 'Diplomatic courier lost' : 'Secret message compromised';
+    document.getElementById('event-body').textContent = event.destroyed
+      ? 'A diplomatic courier carrying war plans was intercepted and the message never reached its destination. The enemy may now know something of your intentions.'
+      : 'A diplomatic courier was intercepted or searched en route. The message continued, but your intended war and requested alliance may no longer be secret.';
+    wireEventContinue(clock, eventQueue); return;
+  }
+  if (event.type === 'join_war_response') {
+    document.getElementById('event-title').textContent = event.accepted ? 'Ally joins the war' : 'War request refused';
+    document.getElementById('event-body').textContent = event.accepted
+      ? `${event.targetName} has agreed to join the war against ${event.enemyName}. Their commitment is now part of your general's planning assumptions, but actual troops still have to be mobilised and moved.`
+      : `${event.targetName} has refused to join the war against ${event.enemyName}. Your general will no longer count on that promised contribution.`;
+    wireEventContinue(clock, eventQueue); return;
+  }
   if (event.type === 'fleet_contact') {
     document.getElementById('event-title').textContent = 'Fleet sighted';
     document.getElementById('event-body').textContent = event.description;
