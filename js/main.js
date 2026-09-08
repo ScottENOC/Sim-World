@@ -214,7 +214,7 @@ async function main() {
     // index derived from absolute simulated time. The expensive scheduler can
     // therefore tick monthly without turning 104 historical weeks into 104 months.
     const calendarWeek = calendarWeekIndex(time.endDay);
-    const campaignResult = tickCampaigns(activeCampaigns, regionsById, polities, calendarWeek, toolTypes, Math.random, { playerPolityId: activePlayerPolityId });
+    const campaignResult = tickCampaigns(activeCampaigns, regionsById, polities, calendarWeek, toolTypes, Math.random, { playerPolityId: activePlayerPolityId, activeWars });
     activeCampaigns = campaignResult.remaining;
     prepareConstructionLabor(regions);
     prepareSiegeWorkforce(regions);

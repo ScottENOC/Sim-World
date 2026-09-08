@@ -15,6 +15,7 @@ import { chooseBattlefield, recordCombatExperience, terrainCombatMultiplier } fr
 import { formationAmphibiousBonus, formationMobilityBonus, formationSiegeBonus } from './formations.js?v=20260908-prof1';
 import { marchSpeedMultiplier, moraleShockMultiplier, professionalLogisticsMultiplier, retreatLossMultiplier } from './professionalisation.js?v=20260908-prof1';
 import { advanceCampaignControl, establishCampaignFootprint, occupationSummary, releaseUnsupportedOccupation } from './subregionalControl.js?v=20260908-subregion1';
+import { attemptPhysicalOccupation, initialiseCampaignMovement, resolveCampaignNodeInteractions, setCampaignSubregionalObjective, tickCampaignMovement } from './subregionalMovement.js?v=20260908-movement1';
 
 export const CAMPAIGN_OBJECTIVES = Object.freeze({
   devastation: { label: 'Destroy the region', pressureRate: 0.8, damageRate: 1.8 },
@@ -96,6 +97,7 @@ export function launchCampaign(attacker, defender, objective, requestedPersonnel
     battlefield: null,
     occupationActorId: attacker.governance?.sovereignPolityId || attacker.controllingActorId || attacker.id,
     occupationSummary: null,
+    subregional: { objectivePolicy: options.subregionalObjective || (reach.viaSea ? 'port' : 'balanced'), currentNodeId: null, targetNodeId: null, route: [], routeIndex: 0, edgeProgress: 0, blockedByCampaignId: null },
   };
 }
 
@@ -190,6 +192,7 @@ function applyCivilianDamage(campaign, defender, pressureGain, attackerShare) {
 
 function resolveCampaignWeek(campaign, attacker, defender, polities, regions, currentTick, toolTypes, rng) {
   campaign.weeksEngaged += 1;
+  const movement = tickCampaignMovement(campaign, defender, currentTick, campaignMobility(attacker));
   const objective = CAMPAIGN_OBJECTIVES[campaign.objective];
   const control = defender.isCoastal ? navalControl(attacker, defender) : 1;
   const amphibiousPreparation = campaign.viaSea ? 1 + formationAmphibiousBonus(attacker) : 1;
@@ -267,6 +270,10 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   const civilianDeaths = applyCivilianDamage(campaign, defender, Math.max(0, pressureDelta), attackerShare);
   defender.conflictPressure = campaign.pressure;
   campaign.occupationSummary = advanceCampaignControl(defender, campaign.occupationActorId || attacker.governance?.sovereignPolityId || attacker.controllingActorId || attacker.id, pressureDelta, campaign.pressure, currentTick);
+  if (movement.arrived) {
+    const occupation = attemptPhysicalOccupation(campaign, defender, currentTick, campaign.pressure);
+    if (occupation.captured) campaign.occupationSummary = occupation.summary;
+  }
   const week = { tick: currentTick, stage: campaign.stage, terrain, pressureDelta, pressure: campaign.pressure,
     attackerLosses, defenderLosses, militiaLosses, civilianDeaths, attackerMorale: campaign.attackerMorale,
     defenderMorale: campaign.defenderMorale, supply: campaign.supply, strengthRatio, navalControl: control };
@@ -330,6 +337,7 @@ export function tickCampaigns(campaigns, regionsById, polities, currentTick, too
       campaign.occupationSummary = occupationSummary(defender);
       establishCampaignFootprint(defender, campaign.occupationActorId || attacker.governance?.sovereignPolityId || attacker.controllingActorId || attacker.id, campaign.arriveTick, { viaSea: campaign.viaSea });
       campaign.occupationSummary = occupationSummary(defender);
+      initialiseCampaignMovement(campaign, defender, campaign.arriveTick);
       campaign.battlefield ||= chooseBattlefield({
         attacker,
         defender,
@@ -394,5 +402,10 @@ export function tickCampaigns(campaigns, regionsById, polities, currentTick, too
       events.push({ type: 'campaign_returned', campaign, attackerName: attacker.name, defenderName: defender.name });
     }
   }
+  const activeWars = options.activeWars || [];
+  const defenderIds = new Set(campaigns.filter((campaign) => !campaign.completed && campaign.phase === 'engaged').map((campaign) => campaign.defenderId));
+  for (const defenderId of defenderIds) events.push(...resolveCampaignNodeInteractions(campaigns, activeWars, defenderId));
   return { remaining: campaigns.filter((campaign) => !campaign.completed), events };
 }
+
+export function setCampaignObjectivePolicy(campaign, defender, policy) { return setCampaignSubregionalObjective(campaign, defender, policy); }
