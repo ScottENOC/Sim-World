@@ -19,9 +19,10 @@ jobs:
         run: |
           python tools/apply-strategic-military-planning.py
           python tools/apply-strategic-military-planning-v2.py
+          python tools/apply-strategic-military-planning-v3.py
       - name: Syntax checks
         run: |
-          python -m py_compile tools/apply-strategic-military-planning.py tools/apply-strategic-military-planning-v2.py
+          python -m py_compile tools/apply-strategic-military-planning.py tools/apply-strategic-military-planning-v2.py tools/apply-strategic-military-planning-v3.py
           node --check js/military/strategicPlanning.js
           node --check js/diplomacy/couriers.js
           node --check js/ai/nationAi.js
