@@ -39,9 +39,10 @@ export function ensureSubregionalControl(region) {
     const principal = principalSettlement(region);
     const counts = desiredPlaceCount(region);
     const places = [];
-    const principalKind = (principal.population || 0) >= 5000 ? 'city' : (principal.population || 0) >= 1000 ? 'town' : 'principal_settlement';
-    places.push(place(`${region.id}:principal`, principal.name || region.name, principalKind, sovereign, 1, principal.population || 0));
-    if (region.isCoastal) places.push(place(`${region.id}:port`, `${region.name} harbour`, 'port', sovereign, 0.92, Math.min(principal.population || 0, Math.max(100, (principal.population || 0) * 0.22))));
+    const principalPopulation = Math.max(0, principal.population || 0, region.urbanisation?.urbanPopulation || 0);
+    const principalKind = principalPopulation >= 5000 ? 'city' : principalPopulation >= 1000 ? 'town' : 'principal_settlement';
+    places.push(place(`${region.id}:principal`, principal.name || region.name, principalKind, sovereign, 1, principalPopulation));
+    if (region.isCoastal) places.push(place(`${region.id}:port`, `${region.name} harbour`, 'port', sovereign, 0.92, Math.min(principalPopulation, Math.max(100, principalPopulation * 0.22))));
     for (let i = 0; i < counts.towns; i++) places.push(place(`${region.id}:town:${i + 1}`, `${region.name} town ${i + 1}`, 'town', sovereign, 0.58 - i * 0.05, Math.max(150, (principal.population || 0) * (0.16 - i * 0.025))));
     for (let i = 0; i < counts.villageDistricts; i++) places.push(place(`${region.id}:rural:${i + 1}`, `${region.name} village district ${i + 1}`, 'village_district', sovereign, 0.28, 0));
     if (assetCount(region, 'hill_fort') + assetCount(region, 'coastal_fortifications') > 0) places.push(place(`${region.id}:fort`, `${region.name} fortified position`, 'fort', sovereign, 0.74, 0));

@@ -14,6 +14,7 @@ import { returnSiegeTrain, survivingFortBenefit, takeSiegeTrain } from './siegeE
 import { chooseBattlefield, recordCombatExperience, terrainCombatMultiplier } from './terrain.js?v=20260908-terrain1';
 import { formationAmphibiousBonus, formationMobilityBonus, formationSiegeBonus } from './formations.js?v=20260908-prof1';
 import { marchSpeedMultiplier, moraleShockMultiplier, professionalLogisticsMultiplier, retreatLossMultiplier } from './professionalisation.js?v=20260908-prof1';
+import { advanceCampaignControl, establishCampaignFootprint, occupationSummary, releaseUnsupportedOccupation } from './subregionalControl.js?v=20260908-subregion1';
 
 export const CAMPAIGN_OBJECTIVES = Object.freeze({
   devastation: { label: 'Destroy the region', pressureRate: 0.8, damageRate: 1.8 },
@@ -93,6 +94,8 @@ export function launchCampaign(attacker, defender, objective, requestedPersonnel
     attackerCasualties: 0, defenderCasualties: 0, civilianDeaths: 0,
     weeksEngaged: 0, stage: 'marching', lastWeek: null, history: [], outcome: null,
     battlefield: null,
+    occupationActorId: attacker.governance?.sovereignPolityId || attacker.controllingActorId || attacker.id,
+    occupationSummary: null,
   };
 }
 
@@ -155,6 +158,10 @@ function beginReturn(campaign, attacker, defender, currentTick, outcome) {
       attacker.army.away = Math.max(0, (attacker.army.away || 0) - retreatLoss);
       campaign.retreatLosses = (campaign.retreatLosses || 0) + retreatLoss;
     }
+  }
+  if (!['submission_pending', 'liberated'].includes(outcome)) {
+    campaign.occupationRelease = releaseUnsupportedOccupation(defender, campaign.occupationActorId || attacker.governance?.sovereignPolityId || attacker.controllingActorId || attacker.id, currentTick);
+    campaign.occupationSummary = occupationSummary(defender);
   }
   campaign.phase = 'returning';
   campaign.stage = 'withdrawing';
@@ -259,6 +266,7 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
     (defenderLosses + militiaLosses) / Math.max(1, defender.population) * 4 * moraleShockMultiplier(defender, currentTick));
   const civilianDeaths = applyCivilianDamage(campaign, defender, Math.max(0, pressureDelta), attackerShare);
   defender.conflictPressure = campaign.pressure;
+  campaign.occupationSummary = advanceCampaignControl(defender, campaign.occupationActorId || attacker.governance?.sovereignPolityId || attacker.controllingActorId || attacker.id, pressureDelta, campaign.pressure, currentTick);
   const week = { tick: currentTick, stage: campaign.stage, terrain, pressureDelta, pressure: campaign.pressure,
     attackerLosses, defenderLosses, militiaLosses, civilianDeaths, attackerMorale: campaign.attackerMorale,
     defenderMorale: campaign.defenderMorale, supply: campaign.supply, strengthRatio, navalControl: control };
@@ -319,6 +327,9 @@ export function tickCampaigns(campaigns, regionsById, polities, currentTick, too
     if (campaign.phase === 'travelling' && currentTick >= campaign.arriveTick) {
       campaign.phase = 'engaged'; campaign.stage = 'skirmishing';
       campaign.lastProcessedTick = Math.max(campaign.lastProcessedTick, campaign.arriveTick - 1);
+      campaign.occupationSummary = occupationSummary(defender);
+      establishCampaignFootprint(defender, campaign.occupationActorId || attacker.governance?.sovereignPolityId || attacker.controllingActorId || attacker.id, campaign.arriveTick, { viaSea: campaign.viaSea });
+      campaign.occupationSummary = occupationSummary(defender);
       campaign.battlefield ||= chooseBattlefield({
         attacker,
         defender,
