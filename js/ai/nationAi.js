@@ -20,6 +20,7 @@ import { startScoutingMission } from '../core/scouting.js?v=20260906-scouting1';
 import { applyMemoryDrivenNpcPolicy, npcMemorySignals } from './memoryDrivenAi.js?v=20260907-memory-ai1';
 import { setChokepointTollPolicy, setRoadTollPolicy, transitPolicySummary } from '../economy/transitTolls.js?v=20260907-transit1';
 import { chooseNpcMilitaryStrategy } from '../military/strategicPlanning.js?v=20260908-strategy1';
+import { chooseSupplyAwareCampaignDirective } from '../military/supplyAwareAi.js?v=20260908-supply-ai1';
 
 // A one-percent peacetime levy is supportable while trade and taxation are
 // healthy. Threatened states still expand this through the safety multiplier;
@@ -176,9 +177,14 @@ function manageCampaigns(campaigns, regionsById, playerRegionId, rng) {
         (campaign.pressure >= 0.18 || campaign.defenderMorale < 0.65)) {
       massMobiliseDefender(campaign, defender, 0.1 + rng() * 0.1);
     }
-    if (attacker.controllingActorId !== playerRegionId &&
-        (campaign.attackerMorale < 0.28 || (campaign.supply < 0.3 && campaign.pressure < 0.45))) {
-      requestCampaignWithdrawal(campaign);
+    if (attacker.controllingActorId !== playerRegionId) {
+      const supplyDecision = chooseSupplyAwareCampaignDirective(campaign, attacker, defender);
+      const desperate = (supplyDecision.riskTolerance || 0) >= 0.72;
+      const canOrderlyWithdraw = (campaign.logisticsState?.routeReliability ?? 1) >= 0.20;
+      if (campaign.attackerMorale < 0.22 ||
+          (!desperate && canOrderlyWithdraw && campaign.supply < 0.3 && campaign.pressure < 0.45)) {
+        requestCampaignWithdrawal(campaign);
+      }
     }
   }
 }
