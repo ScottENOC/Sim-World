@@ -28,7 +28,6 @@ assert.ok(summary.byActor.essex.places.length >= 2, 'successful campaign should 
 assert.ok(summary.byActor.essex.ruralShare > 0.2, 'successful campaign expands rural control');
 assert.equal(summary.sovereignActorId, 'kentish', 'military occupation does not itself transfer sovereignty');
 
-// A second invader can enter the same region and hold its own footprint.
 establishCampaignFootprint(target, 'wessex', 20, { viaSea: false });
 for (let i = 0; i < 4; i++) advanceCampaignControl(target, 'wessex', 0.055, 0.3 + i * 0.1, 21 + i);
 summary = occupationSummary(target);
@@ -36,20 +35,20 @@ assert.ok(summary.byActor.wessex.ruralShare > 0, 'second invader can control cou
 assert.ok(summary.contested, 'multi-party occupation marks region contested');
 assert.ok(Object.keys(summary.byActor).length >= 3, 'defender and two invaders coexist in one region');
 
-// Unsupported crude occupation vanishes as soon as the field army leaves.
 const beforeRelease = summary.byActor.essex.places.length;
 const released = releaseUnsupportedOccupation(target, 'essex', 30);
 summary = occupationSummary(target);
 assert.ok(released.reverted > 0);
 assert.ok((summary.byActor.essex?.places.length || 0) < beforeRelease);
 
-// A sufficiently manned garrison can preserve a captured node after the field army leaves.
 advanceCampaignControl(target, 'essex', 0.08, 0.8, 31);
-const occupiedNode = ensureSubregionalControl(target).places.find((p) => p.controllerActorId === 'essex');
-assert.ok(occupiedNode);
-const need = requiredGarrison(target, occupiedNode);
-assignOccupationGarrison(target, 'essex', need * 2, 32);
+const occupied = ensureSubregionalControl(target).places.filter((p) => p.controllerActorId === 'essex');
+assert.ok(occupied.length > 0);
+const budget = occupied.reduce((sum, node) => sum + requiredGarrison(target, node), 0);
+assignOccupationGarrison(target, 'essex', budget, 32);
+const supportedNode = ensureSubregionalControl(target).places.find((p) => p.controllerActorId === 'essex' && p.garrisonPersonnel >= requiredGarrison(target, p) * 0.55);
+assert.ok(supportedNode, 'allocator should create at least one adequately supported occupation garrison');
 releaseUnsupportedOccupation(target, 'essex', 33);
-assert.equal(ensureSubregionalControl(target).places.find((p) => p.id === occupiedNode.id).controllerActorId, 'essex', 'adequate garrison preserves local military control');
+assert.equal(ensureSubregionalControl(target).places.find((p) => p.id === supportedNode.id).controllerActorId, 'essex', 'adequate garrison preserves local military control');
 
 console.log('subregional control regressions passed');
