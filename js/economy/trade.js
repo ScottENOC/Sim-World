@@ -178,8 +178,9 @@ function landTransportProfile(origin, dest, regionsById) {
 function routeSecurity(region) {
   const posture = postureProfile(region);
   const naval = navalMissionProfile(region);
-  const patrolCoverage = clamp01((region.navy?.personnel || 0) /
-    Math.max(1, (region.population || 0) * 0.005));
+  const patrolCoverage = Number.isFinite(region.fleetPatrolCoverage)
+    ? clamp01(region.fleetPatrolCoverage)
+    : clamp01((region.navy?.personnel || 0) / Math.max(1, (region.population || 0) * 0.005));
   const publicSecurity = Math.min(0.16, effectiveInfrastructureCount(region, 'watchtowers') * 0.1 +
     effectiveInfrastructureCount(region, 'market_customs') * 0.06);
   return clamp01((region.safetyRating ?? 1) * posture.tradeSecurity + publicSecurity +
@@ -323,7 +324,8 @@ function ventureRouteProfile(origin, dest, regionsById) {
       roundTripDays: oneWayDays * 2 + MARKET_TURNAROUND_DAYS,
       capacityKgPerMerchant: SEA_KG_PER_MERCHANT * sea.capacityMultiplier,
       transportMultiplier: sea.capacityMultiplier,
-      reliability: routeReliability(origin, dest) * Math.max(0.72, 1 - passageCount * 0.05),
+      reliability: routeReliability(origin, dest) * Math.max(0.72, 1 - passageCount * 0.05) *
+        Math.max(0.08, 1 - Math.max(origin.navalBlockadePressure || 0, dest.navalBlockadePressure || 0) * 0.82),
       cost: SEA_COST_PER_KM * geometry.distanceKm * sea.costMultiplier * (1 + physicalFriction),
       seaIds: geometry.maritime?.seaIds || [],
       passageIds: geometry.maritime?.passageIds || [],

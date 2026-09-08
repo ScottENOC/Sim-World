@@ -1,0 +1,50 @@
+name: Persistent fleet validation
+
+on:
+  push:
+    branches: [persistent-fleets-v1]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply final fleet integration patch
+        run: python tools/apply-persistent-fleets-v4.py
+      - name: Syntax checks
+        run: |
+          python -m py_compile tools/apply-persistent-fleets-v4.py
+          node --check js/military/fleets.js
+          node --check js/ui/fleetUi.js
+          node --check js/main.js
+          node --check js/core/saveGame.js
+          node --check js/economy/trade.js
+          node --check js/economy/transitTolls.js
+      - name: Fleet behaviour regression
+        run: node tools/test-persistent-fleets.mjs
+      - name: Existing terrain and military regressions
+        run: |
+          node tools/test-battlefield-terrain.mjs
+          node tools/test-military-professionalisation.mjs
+      - name: Headless current-world smoke test
+        run: node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 1 --output /tmp/fleet-smoke.json
+      - name: Diff sanity
+        run: git diff --check
+      - name: Commit integrated source
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/military/fleets.js js/main.js
+          if git diff --cached --quiet; then
+            echo 'Final persistent fleet integration already materialised'
+          else
+            git commit -m 'Finish routed fleet refit and event ownership'
+            git pull --rebase
+            git push
+          fi

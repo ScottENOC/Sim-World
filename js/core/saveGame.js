@@ -41,7 +41,7 @@ function restoreRegion(region, saved) {
   delete region._cultureAffinityCache;
 }
 
-export function createGameSnapshot({ regions, seaRegions, polities, religiousWorld, agreements, activeRaids, activeCampaigns, clock, playerRegionId, playerPolityId = null, fogOfWar }) {
+export function createGameSnapshot({ regions, seaRegions, polities, religiousWorld, agreements, activeRaids, activeCampaigns, fleets = [], clock, playerRegionId, playerPolityId = null, fogOfWar }) {
   if (!playerRegionId) throw new Error('Choose a starting region before saving.');
   return {
     format: 'worldsim-save', version: SAVE_VERSION, savedAt: new Date().toISOString(), worldRegionIds: regions.map((region) => region.id), playerRegionId, playerPolityId,
@@ -49,11 +49,11 @@ export function createGameSnapshot({ regions, seaRegions, polities, religiousWor
       resumeSpeed: clock._resumeSpeed, estimatedTickMs: clock._estimatedTickMs },
     fogOfWar: { devMode: fogOfWar.devMode }, regions: regions.map(regionSnapshot), polities: encode(polities), religiousWorld: encode(religiousWorld),
     seaRegions: seaRegions.map((sea) => ({ id: sea.id, fish: encode(sea.fish) })), agreements: encode(agreements),
-    activeRaids: encode(activeRaids), activeCampaigns: encode(activeCampaigns),
+    activeRaids: encode(activeRaids), activeCampaigns: encode(activeCampaigns), fleets: encode(fleets),
   };
 }
 
-export function restoreGameSnapshot(snapshot, { regions, seaRegions, polities, religiousWorld, agreements, activeRaids, activeCampaigns, clock, fogOfWar }) {
+export function restoreGameSnapshot(snapshot, { regions, seaRegions, polities, religiousWorld, agreements, activeRaids, activeCampaigns, fleets = null, clock, fogOfWar }) {
   if (!snapshot || snapshot.format !== 'worldsim-save') throw new Error('This is not a Worldsim save.');
   if (snapshot.version !== SAVE_VERSION) throw new Error(`Unsupported save version ${snapshot.version}.`);
   const expectedIds = regions.map((region) => region.id);
@@ -66,6 +66,8 @@ export function restoreGameSnapshot(snapshot, { regions, seaRegions, polities, r
   if (religiousWorld && snapshot.religiousWorld) { for (const key of Object.keys(religiousWorld)) delete religiousWorld[key]; Object.assign(religiousWorld, decode(snapshot.religiousWorld)); }
   agreements.splice(0, agreements.length, ...decode(snapshot.agreements)); activeRaids.splice(0, activeRaids.length, ...decode(snapshot.activeRaids));
   activeCampaigns.splice(0, activeCampaigns.length, ...decode(snapshot.activeCampaigns || []));
+  const fleetsRestored = Array.isArray(snapshot.fleets);
+  if (fleets && fleetsRestored) fleets.splice(0, fleets.length, ...decode(snapshot.fleets || []));
   clock.stop(); clock.tickIndex = Math.max(0, Number(snapshot.clock.tickIndex) || 0);
   // Old weekly saves migrate conservatively: their tick count is treated as elapsed weeks.
   clock.elapsedDays = Number.isFinite(snapshot.clock.elapsedDays) ? snapshot.clock.elapsedDays : clock.tickIndex * 7;
@@ -75,7 +77,7 @@ export function restoreGameSnapshot(snapshot, { regions, seaRegions, polities, r
   const restoredSpeed = [0, 0.5, 1, 2, 4].includes(snapshot.clock.speed) ? snapshot.clock.speed : 0;
   clock.speed = Number.NaN; clock._applySpeed(restoredSpeed, { automatic: false, reason: 'load' }); clock._nextTickAt = null;
   fogOfWar.setPlayerRegion(snapshot.playerRegionId); fogOfWar.setDevMode(Boolean(snapshot.fogOfWar?.devMode));
-  return { playerRegionId: snapshot.playerRegionId, playerPolityId: snapshot.playerPolityId || null, savedAt: snapshot.savedAt };
+  return { playerRegionId: snapshot.playerRegionId, playerPolityId: snapshot.playerPolityId || null, savedAt: snapshot.savedAt, fleetsRestored };
 }
 
 export function writeSave(snapshot, storage = localStorage) { storage.setItem(SAVE_KEY, JSON.stringify(snapshot)); }
