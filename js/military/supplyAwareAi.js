@@ -25,6 +25,26 @@ export function chooseSupplyAwareCampaignDirective(campaign, attacker, defender)
   const foodWeeks = weeksFood(campaign);
   const corridor = campaignSupplyCorridor(campaign, defender);
   const target = supplyCorridorTarget(campaign, defender);
+  campaign.desperateAttack = false;
+
+  // Starvation changes the optimisation problem: a dangerous assault may be preferable to certain collapse.
+  if (state.status === 'starving') {
+    if (target) setDirectTarget(campaign, target, 'desperate_assault', 0.96);
+    else setCampaignSubregionalObjective(campaign, defender, 'countryside');
+    campaign.aiLogisticsDirective = target ? 'desperate_assault' : 'forage_desperately';
+    campaign.aiRiskTolerance = 0.96;
+    campaign.desperateAttack = true;
+    return { directive: campaign.aiLogisticsDirective, riskTolerance: 0.96, corridor, foodWeeks };
+  }
+
+  if (state.status === 'severe_shortage') {
+    // A badly supplied army will accept poor tactical odds to regain food or communications.
+    if (target) setDirectTarget(campaign, target, 'breakout', 0.78);
+    else setCampaignSubregionalObjective(campaign, defender, 'countryside');
+    campaign.aiLogisticsDirective = target ? 'breakout' : 'forage';
+    campaign.aiRiskTolerance = 0.78;
+    return { directive: campaign.aiLogisticsDirective, riskTolerance: 0.78, corridor, foodWeeks };
+  }
 
   // Healthy armies preserve strength and secure the route before taking bad fights.
   if (state.status === 'supplied' && foodWeeks >= 2.5) {
@@ -41,25 +61,6 @@ export function chooseSupplyAwareCampaignDirective(campaign, attacker, defender)
     campaign.aiLogisticsDirective = target ? 'secure_corridor' : 'seize_port';
     campaign.aiRiskTolerance = 0.58;
     return { directive: campaign.aiLogisticsDirective, riskTolerance: 0.58, corridor, foodWeeks };
-  }
-
-  if (state.status === 'severe_shortage') {
-    // A badly supplied army will accept poor tactical odds to regain food or communications.
-    if (target) setDirectTarget(campaign, target, 'breakout', 0.78);
-    else setCampaignSubregionalObjective(campaign, defender, 'countryside');
-    campaign.aiLogisticsDirective = target ? 'breakout' : 'forage';
-    campaign.aiRiskTolerance = 0.78;
-    return { directive: campaign.aiLogisticsDirective, riskTolerance: 0.78, corridor, foodWeeks };
-  }
-
-  // Starvation changes the optimisation problem: a dangerous assault may be preferable to certain collapse.
-  if (state.status === 'starving') {
-    if (target) setDirectTarget(campaign, target, 'desperate_assault', 0.96);
-    else setCampaignSubregionalObjective(campaign, defender, 'countryside');
-    campaign.aiLogisticsDirective = target ? 'desperate_assault' : 'forage_desperately';
-    campaign.aiRiskTolerance = 0.96;
-    campaign.desperateAttack = true;
-    return { directive: campaign.aiLogisticsDirective, riskTolerance: 0.96, corridor, foodWeeks };
   }
 
   campaign.aiLogisticsDirective = 'normal';
