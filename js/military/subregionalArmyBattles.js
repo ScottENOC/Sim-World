@@ -1,11 +1,13 @@
 import { campaignsAtSameNode } from './subregionalMovement.js?v=20260908-movement1';
 import { stanceBetween, WAR_STANCES, warForCampaign } from './warTheatres.js?v=20260908-war1';
 import { desperateAttackProfile } from './supplyAwareAi.js?v=20260908-supply-ai1';
+import { battleParticipationFraction } from './battleCommand.js?v=20260909-joint-ops1';
 
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
 
 function effectiveCampaignPower(campaign, region, node) {
-  const personnel = Math.max(1, campaign.personnel || 0);
+  const participation = battleParticipationFraction(campaign, region);
+  const personnel = Math.max(1, (campaign.personnel || 0) * participation);
   const supply = clamp(campaign.supply ?? campaign.logisticsState?.supplyFraction ?? 1);
   const morale = clamp(campaign.attackerMorale ?? 1);
   const desperation = desperateAttackProfile(campaign);
@@ -16,6 +18,7 @@ function effectiveCampaignPower(campaign, region, node) {
   const professional = 1 + Math.min(0.22, Number(region?.militaryProfessionalisation?.institutionalExperience || 0) * 0.25);
   const pressure = desperation.pressureMultiplier || 1;
   const fatigue = clamp(1 - Math.max(0, 0.45 - supply) * 0.45, 0.72, 1);
+  campaign.lastBattleParticipationFraction = participation;
   return personnel * (0.58 + supply * 0.42) * (0.62 + morale * 0.38) * fortHold * garrisonSupport * professional * fatigue * pressure;
 }
 
@@ -130,7 +133,8 @@ function applyCoalitionLosses(side, enemyPower, ownPower, rng) {
   for (const member of side.members) {
     const campaign = member.campaign;
     const exposure = Math.max(1, member.power) / Math.max(1, totalExposure);
-    const baseLosses = (campaign.personnel || 0) * casualtyRate(ownPower, enemyPower, campaign, rng);
+    const committedPersonnel = (campaign.personnel || 0) * battleParticipationFraction(campaign, member.region);
+    const baseLosses = committedPersonnel * casualtyRate(ownPower, enemyPower, campaign, rng);
     const coordinationPenalty = 1 + (1 - side.coordinationQuality) * 0.32;
     const actual = applyLosses(campaign, member.region, baseLosses * coordinationPenalty * (0.82 + exposure * 0.36));
     const shock = actual / Math.max(1, campaign.initialPersonnel || campaign.personnel + actual || 1);
