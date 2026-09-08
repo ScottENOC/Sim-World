@@ -89,7 +89,7 @@ function renderFleetList() {
       ? `In port at ${regionsById.get(fleet.portRegionId)?.name || fleet.portRegionId}`
       : `At sea in ${seasById.get(fleet.seaRegionId)?.name || fleet.seaRegionId}`;
     const deployOptions = fleet.locationType === 'port'
-      ? (regionsById.get(fleet.portRegionId)?.adjacentSeaIds || []).map((id) => `<option value="${esc(id)}">${esc(seasById.get(id)?.name || id)}</option>`).join('') : '';
+      ? world.seaRegions.map((sea) => `<option value="${esc(sea.id)}">${esc(sea.name)}</option>`).join('') : '';
     const dockOptions = fleet.locationType === 'sea'
       ? possibleDockRegions(world, fleet).map((r) => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('') : '';
     const targetOptions = fleet.locationType === 'sea'
@@ -132,9 +132,9 @@ function renderFleetList() {
     const status = card.querySelector('[data-fleet-status]');
     card.querySelector('[data-deploy]')?.addEventListener('click', () => {
       const seaId = card.querySelector('[data-deploy-sea]')?.value;
-      const ok = world.fleetApi.deployFleet(fleet, seaId, regionsById, seasById);
-      status.textContent = ok ? 'Fleet deployed.' : 'That sea cannot be reached directly from this port.';
-      if (ok) renderFleetList();
+      const result = world.fleetApi.orderFleetToSea(fleet, seaId, regionsById, seasById, 'patrol');
+      status.textContent = result.ordered ? `Fleet sailing via ${result.route.length} sea region(s).` : `Could not sail there (${String(result.reason).replaceAll('_',' ')}).`;
+      if (result.ordered) renderFleetList();
     });
     card.querySelector('[data-dock]')?.addEventListener('click', () => {
       const portId = card.querySelector('[data-dock-port]')?.value;

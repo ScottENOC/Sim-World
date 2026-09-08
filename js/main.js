@@ -27,7 +27,7 @@ import { prepareConstructionLabor, syncNextProjectId, tickConstruction, tickInfr
 import { prepareSiegeWorkforce, tickSiegeEquipment } from './military/siegeEquipment.js?v=20260905-projects1';
 import { createReligiousWorld, initialiseReligions, tickReligion } from './society/religion.js?v=20260905-religion1';
 import { tickMaritimeExperience } from './technology/seamanship.js?v=20260906-maritime1';
-import { deployFleet, dockFleet, fleetEventInvolvesActor, formatShipOutcome, initialiseFleets, resolveFleetContact, setFleetFlag, setFleetMission, syncNextFleetIds, syncRegionalNavyLedger, tickFleets } from './military/fleets.js?v=20260908-fleets1';
+import { deployFleet, dockFleet, fleetEventInvolvesActor, formatShipOutcome, initialiseFleets, orderFleetToSea, resolveFleetContact, setFleetFlag, setFleetMission, syncNextFleetIds, syncRegionalNavyLedger, tickFleets } from './military/fleets.js?v=20260908-fleets1';
 import { tickTransitControl } from './economy/transitTolls.js?v=20260907-transit1';
 
 const START_YEAR = -1300; // target: roughly eighty prosperous years before a c.1220 BCE collapse
@@ -370,7 +370,7 @@ async function main() {
     get activeCampaigns() { return activeCampaigns; },
     get fleets() { return fleets; },
     get activePlayerPolityId() { return activePlayerPolityId; },
-    fleetApi: { deployFleet, dockFleet, setFleetFlag, setFleetMission, syncRegionalNavyLedger },
+    fleetApi: { deployFleet, dockFleet, orderFleetToSea, setFleetFlag, setFleetMission, syncRegionalNavyLedger },
     agreements,
     religiousWorld,
     polities,

@@ -2,6 +2,7 @@ import { effectiveInfrastructureCount, operationalInfrastructure } from '../econ
 import { activeAgreementBetween, attitudeToward } from '../diplomacy/relations.js?v=20260904-save1';
 import { localPrice } from '../economy/prices.js?v=20260904-weather1';
 import { maritimeSkillLevel, maritimeSkillMultiplier, recordMaritimePractice, MARITIME_SKILLS } from '../technology/seamanship.js?v=20260906-maritime1';
+import { maritimeRouteBetween } from '../world/chokepoints.js?v=20260907-chokepoints1';
 
 export const FLEET_MISSIONS = Object.freeze({
   PORT: 'port',
@@ -13,6 +14,7 @@ export const FLEET_MISSIONS = Object.freeze({
   INTERCEPT: 'intercept',
   HIDE: 'hide',
   RETURN_REFIT: 'return_refit',
+  TRANSIT: 'transit',
 });
 
 export const FLAG_MODES = Object.freeze({ OWN: 'own', NONE: 'none', FALSE: 'false' });
@@ -421,7 +423,48 @@ function detectionChance(observer, target, regionsById, weeks) {
 }
 
 function canSearch(fleet) {
-  return fleet.locationType === 'sea' && SEARCH_MISSIONS.has(fleet.mission) && fleet.ships.length > 0;
+  return fleet.locationType === 'sea' && !fleet.routeSeaIds?.length && SEARCH_MISSIONS.has(fleet.mission) && fleet.ships.length > 0;
+}
+
+export function orderFleetToSea(fleet, destinationSeaId, regionsById, seaRegionsById, postTransitMission = null) {
+  if (!fleet?.ships?.length || !seaRegionsById.has(destinationSeaId)) return { ordered: false, reason: 'invalid_destination' };
+  let starts = [];
+  if (fleet.locationType === 'sea' && fleet.seaRegionId) starts = [fleet.seaRegionId];
+  else if (fleet.locationType === 'port') starts = [...(regionsById.get(fleet.portRegionId)?.adjacentSeaIds || [])];
+  if (!starts.length) return { ordered: false, reason: 'no_sea_access' };
+  const route = maritimeRouteBetween({ adjacentSeaIds: starts }, { adjacentSeaIds: [destinationSeaId] });
+  if (!route?.seaIds?.length) return { ordered: false, reason: 'no_route' };
+  fleet.locationType = 'sea';
+  fleet.portRegionId = null;
+  fleet.seaRegionId = route.seaIds[0];
+  fleet.routeSeaIds = route.seaIds;
+  fleet.routeIndex = 0;
+  fleet.routeDestinationSeaId = destinationSeaId;
+  fleet.transitProgressWeeks = 0;
+  fleet.postTransitMission = postTransitMission || (fleet.mission === FLEET_MISSIONS.PORT ? FLEET_MISSIONS.PATROL : fleet.mission);
+  fleet.mission = route.seaIds.length > 1 ? FLEET_MISSIONS.TRANSIT : fleet.postTransitMission;
+  if (route.seaIds.length <= 1) { fleet.routeSeaIds = []; fleet.routeIndex = 0; fleet.routeDestinationSeaId = null; }
+  return { ordered: true, route: [...route.seaIds], passageIds: [...(route.passageIds || [])] };
+}
+
+function advanceFleetRoute(fleet, weeks) {
+  if (fleet.locationType !== 'sea' || !fleet.routeSeaIds?.length || fleet.routeSeaIds.length <= 1) return false;
+  fleet.transitProgressWeeks = (fleet.transitProgressWeeks || 0) + weeks;
+  let moved = false;
+  while (fleet.routeIndex < fleet.routeSeaIds.length - 1) {
+    const hopWeeks = Math.max(0.45, 1.35 / Math.max(0.35, fleetAverageSpeed(fleet)));
+    if (fleet.transitProgressWeeks < hopWeeks) break;
+    fleet.transitProgressWeeks -= hopWeeks;
+    fleet.routeIndex += 1;
+    fleet.seaRegionId = fleet.routeSeaIds[fleet.routeIndex];
+    moved = true;
+  }
+  if (fleet.routeIndex >= fleet.routeSeaIds.length - 1) {
+    fleet.routeSeaIds = []; fleet.routeIndex = 0; fleet.routeDestinationSeaId = null; fleet.transitProgressWeeks = 0;
+    fleet.mission = fleet.postTransitMission || FLEET_MISSIONS.PATROL;
+    fleet.postTransitMission = null;
+  }
+  return moved;
 }
 
 function pursuitScore(fleet, regionsById, rng) {
@@ -737,6 +780,7 @@ function portAssaults(fleets, regionsById, currentTick, rng) {
 export function dockFleet(fleet, portRegionId, regionsById, agreements = []) {
   const port = regionsById.get(portRegionId);
   if (!port) return { docked: false, reason: 'missing_port' };
+  if (fleet.locationType === 'sea' && !(port.adjacentSeaIds || []).includes(fleet.seaRegionId)) return { docked: false, reason: 'port_not_on_this_sea' };
   const access = portAccessLevel(fleet, port, regionsById, agreements);
   if (access === 'denied') return { docked: false, reason: 'no_access' };
   fleet.locationType = 'port';
@@ -744,6 +788,7 @@ export function dockFleet(fleet, portRegionId, regionsById, agreements = []) {
   fleet.seaRegionId = null;
   fleet.mission = FLEET_MISSIONS.PORT;
   fleet.missionTargetId = null;
+  fleet.routeSeaIds = []; fleet.routeIndex = 0; fleet.routeDestinationSeaId = null; fleet.postTransitMission = null;
   return { docked: true, access };
 }
 
@@ -772,6 +817,7 @@ export function tickFleets(fleets, regions, seaRegions, agreements, currentTick,
     if (fleet.locationType === 'port') serviceInPort(fleet, regionsById, agreements, weeks);
     else {
       wearAtSea(fleet, weeks);
+      advanceFleetRoute(fleet, weeks);
       const origin = regionsById.get(fleet.ownerRegionId);
       if (origin) {
         const practice = fleet.ships.length * weeks * (fleet.mission === FLEET_MISSIONS.PATROL || fleet.mission === FLEET_MISSIONS.INTERCEPT ? 2 : 0.8);
@@ -783,6 +829,14 @@ export function tickFleets(fleets, regions, seaRegions, agreements, currentTick,
 
   chooseAiFleetOrders(fleets, regionsById, seaRegionsById, options.playerActorId || null, rng, weeks);
   applyBlockades(fleets, regionsById);
+
+  // A return/refit order docks automatically once the fleet reaches a sea
+  // touching its home port; fleets farther away keep transiting normally.
+  for (const fleet of fleets) {
+    if (fleet.locationType !== 'sea' || fleet.mission !== FLEET_MISSIONS.RETURN_REFIT) continue;
+    const home = regionsById.get(fleet.homePortRegionId);
+    if (home && (home.adjacentSeaIds || []).includes(fleet.seaRegionId)) dockFleet(fleet, home.id, regionsById, agreements);
+  }
 
   const bySea = new Map();
   for (const fleet of fleets) {
