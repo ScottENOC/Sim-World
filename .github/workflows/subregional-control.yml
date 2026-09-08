@@ -25,7 +25,15 @@ jobs:
           node --check js/military/subregionalControl.js
           node --check js/military/campaigns.js
       - name: Subregional regressions
-        run: node tools/test-subregional-control.mjs
+        run: |
+          set -o pipefail
+          node tools/test-subregional-control.mjs 2>&1 | tee /tmp/subregional-test.log
+      - name: Upload regression output on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: subregional-regression-output
+          path: /tmp/subregional-test.log
       - name: Existing war and military regressions
         run: |
           node tools/test-multi-party-war.mjs
