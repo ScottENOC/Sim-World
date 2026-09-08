@@ -23,6 +23,7 @@ import { chooseNpcMilitaryStrategy } from '../military/strategicPlanning.js?v=20
 import { chooseSupplyAwareCampaignDirective } from '../military/supplyAwareAi.js?v=20260908-supply-ai1';
 import { chooseDefensiveCounterLogistics } from '../military/counterLogisticsAi.js?v=20260909-counter-logistics1';
 import { coordinateExpeditionRelief } from '../military/expeditionReliefAi.js?v=20260909-relief1';
+import { activateJointOperations } from '../military/jointOperations.js?v=20260909-joint-ops1';
 
 // A one-percent peacetime levy is supportable while trade and taxation are
 // healthy. Threatened states still expand this through the safety multiplier;
@@ -54,6 +55,9 @@ export function tickNationAi(regions, playerRegionId, activeRaids, activeCampaig
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   manageCampaigns(activeCampaigns, regionsById, playerRegionId, rng, currentTick, options);
   for (const region of regions) {
+    if (region.controllingActorId !== playerRegionId) {
+      activateJointOperations(region, regionsById, agreements, activeCampaigns, polities, currentTick, rng);
+    }
     if (region.controllingActorId === playerRegionId) continue;
     // Operational posture stays responsive every monthly world tick.
     chooseAiMilitaryPolicies(region);
