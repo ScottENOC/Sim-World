@@ -922,7 +922,7 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
           ${activeAgreements.map((agreement) => {
             const otherId = agreement.fromId === region.id ? agreement.toId : agreement.fromId;
             const other = regions.find((r) => r.id === otherId);
-            const labels = { military_support: 'military support', tribute: 'tribute', resource_access: 'wood access' };
+            const labels = { military_support: 'military support', tribute: 'tribute', resource_access: 'wood access', war_commitment: 'war commitment' };
             return `<div class="agreement-row"><span>${labels[agreement.type]} — ${other?.name || otherId}</span><button data-end-agreement="${agreement.id}">End</button></div>`;
           }).join('')}
         </div>`}
@@ -1056,7 +1056,7 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
       let result;
       if (diplomacyAction.value === 'join_war') {
         const enemy = regions.find((candidate) => candidate.id === document.getElementById('war-enemy')?.value);
-        if (!enemy) { document.getElementById('diplomacy-info').textContent = 'Choose which enemy you want them to fight.'; return; }
+        if (!enemy || enemy.id === target.id) { document.getElementById('diplomacy-info').textContent = 'Choose a different polity as the enemy they should fight.'; return; }
         result = sendWarInvitation(region, target, enemy, regions, calendarWeekIndex(clock.elapsedDays || 0), {
           requestedPersonnel: Number(document.getElementById('support-personnel')?.value) || 0,
           secrecy: ensureMilitaryStrategy(region).secrecy,
