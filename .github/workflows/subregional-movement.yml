@@ -1,0 +1,32 @@
+name: Subregional movement validation
+
+on:
+  push:
+    branches: [subregional-movement-v1]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax checks
+        run: |
+          node --check js/military/subregionalMovement.js
+          node --check js/military/subregionalControl.js
+          node --check js/military/campaigns.js
+          node --check js/main.js
+      - name: Movement regressions
+        run: node tools/test-subregional-movement.mjs
+      - name: Existing military regressions
+        run: |
+          node tools/test-subregional-control.mjs
+          node tools/test-multi-party-war.mjs
+          node tools/test-strategic-military-planning.mjs
+          node tools/test-battlefield-terrain.mjs
+          node tools/test-military-professionalisation.mjs
+          node tools/test-persistent-fleets.mjs
+      - name: Headless world smoke test
+        run: node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 1 --output /tmp/subregional-movement-smoke.json
+      - name: Diff sanity
+        run: git diff --check
