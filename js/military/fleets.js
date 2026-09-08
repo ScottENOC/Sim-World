@@ -467,6 +467,30 @@ function advanceFleetRoute(fleet, weeks) {
   return moved;
 }
 
+export function orderFleetHome(fleet, regionsById, seaRegionsById) {
+  const home = regionsById.get(fleet.homePortRegionId);
+  if (!home || !(home.adjacentSeaIds || []).length) return { ordered: false, reason: 'no_home_sea_access' };
+  if (fleet.locationType === 'sea' && (home.adjacentSeaIds || []).includes(fleet.seaRegionId)) {
+    fleet.mission = FLEET_MISSIONS.RETURN_REFIT;
+    fleet.missionTargetId = null;
+    return { ordered: true, alreadyAdjacent: true, route: [fleet.seaRegionId] };
+  }
+  let best = null;
+  for (const seaId of home.adjacentSeaIds) {
+    if (!seaRegionsById.has(seaId)) continue;
+    let starts = [];
+    if (fleet.locationType === 'sea' && fleet.seaRegionId) starts = [fleet.seaRegionId];
+    else if (fleet.locationType === 'port') starts = [...(regionsById.get(fleet.portRegionId)?.adjacentSeaIds || [])];
+    const route = maritimeRouteBetween({ adjacentSeaIds: starts }, { adjacentSeaIds: [seaId] });
+    if (!route?.seaIds?.length) continue;
+    if (!best || route.seaIds.length < best.route.seaIds.length) best = { seaId, route };
+  }
+  if (!best) return { ordered: false, reason: 'no_route_home' };
+  const result = orderFleetToSea(fleet, best.seaId, regionsById, seaRegionsById, FLEET_MISSIONS.RETURN_REFIT);
+  if (result.ordered) fleet.missionTargetId = null;
+  return result;
+}
+
 function pursuitScore(fleet, regionsById, rng) {
   const region = regionsById.get(fleet.ownerRegionId);
   const skill = region ? maritimeSkillMultiplier(region, MARITIME_SKILLS.SCOUTING) : 1;
@@ -660,6 +684,8 @@ function battleEvent(attacker, defender, result, contact = null) {
     defenderFleetId: defender.id,
     attackerOwnerRegionId: attacker.ownerRegionId,
     defenderOwnerRegionId: defender.ownerRegionId,
+    attackerOwnerActorId: attacker.ownerActorId,
+    defenderOwnerActorId: defender.ownerActorId,
     result,
     contact,
   };
@@ -731,11 +757,7 @@ function chooseAiFleetOrders(fleets, regionsById, seaRegionsById, playerActorId,
     const owner = regionsById.get(fleet.ownerRegionId);
     if (!owner) continue;
     if (fleet.locationType === 'sea' && (fleet.supply < 0.32 || fleet.condition < 0.62 || fleet.fatigue > 0.72)) {
-      const home = regionsById.get(fleet.homePortRegionId);
-      if (home) {
-        fleet.locationType = 'port'; fleet.portRegionId = home.id; fleet.seaRegionId = null;
-        fleet.mission = FLEET_MISSIONS.RETURN_REFIT; fleet.missionTargetId = null;
-      }
+      orderFleetHome(fleet, regionsById, seaRegionsById);
       continue;
     }
     if (fleet.locationType !== 'port' || fleet.supply < 0.88 || fleet.condition < 0.82 || fleet.fatigue > 0.2) continue;
@@ -827,6 +849,13 @@ export function tickFleets(fleets, regions, seaRegions, agreements, currentTick,
     }
   }
 
+  // A player or AI may set return_refit while far from home. Turn that order
+  // into a real routed voyage rather than teleporting to harbour.
+  for (const fleet of fleets) {
+    if (fleet.locationType === 'sea' && fleet.mission === FLEET_MISSIONS.RETURN_REFIT && !fleet.routeSeaIds?.length) {
+      orderFleetHome(fleet, regionsById, seaRegionsById);
+    }
+  }
   chooseAiFleetOrders(fleets, regionsById, seaRegionsById, options.playerActorId || null, rng, weeks);
   applyBlockades(fleets, regionsById);
 
@@ -874,10 +903,11 @@ export function tickFleets(fleets, regions, seaRegions, agreements, currentTick,
 
 export function fleetEventInvolvesActor(event, actor, fleets) {
   if (!actor || !event) return false;
+  if (event.ownerActorId === actor || event.attackerOwnerActorId === actor || event.defenderOwnerActorId === actor) return true;
   const ids = [event.observerFleetId, event.targetFleetId, event.attackerFleetId, event.defenderFleetId].filter(Boolean);
   return ids.some((id) => fleets.find((fleet) => fleet.id === id)?.ownerActorId === actor) ||
-    event.attackerOwnerRegionId && fleets.some((fleet) => fleet.ownerRegionId === event.attackerOwnerRegionId && fleet.ownerActorId === actor) ||
-    event.defenderOwnerRegionId && fleets.some((fleet) => fleet.ownerRegionId === event.defenderOwnerRegionId && fleet.ownerActorId === actor);
+    Boolean(event.attackerOwnerRegionId && fleets.some((fleet) => fleet.ownerRegionId === event.attackerOwnerRegionId && fleet.ownerActorId === actor)) ||
+    Boolean(event.defenderOwnerRegionId && fleets.some((fleet) => fleet.ownerRegionId === event.defenderOwnerRegionId && fleet.ownerActorId === actor));
 }
 
 export function formatShipOutcome(counts = {}) {
