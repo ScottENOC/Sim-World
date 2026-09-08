@@ -1155,6 +1155,40 @@ function showNextEvent(clock, eventQueue) {
     wireEventContinue(clock, eventQueue);
     return;
   }
+  if (event.type === 'fleet_escaped') {
+    document.getElementById('event-title').textContent = 'Fleet escapes';
+    document.getElementById('event-body').textContent = 'The target fleet refused battle and escaped the pursuit.';
+    wireEventContinue(clock, eventQueue); return;
+  }
+  if (event.type === 'fleet_hail') {
+    document.getElementById('event-title').textContent = 'Fleet hailed';
+    document.getElementById('event-body').textContent = event.targetResponded ? 'The other fleet answered the hail. Your observers gained a closer look at its ships and flag.' : 'The other fleet ignored the hail and kept its distance.';
+    wireEventContinue(clock, eventQueue); return;
+  }
+  if (event.type === 'fleet_contact') {
+    document.getElementById('event-title').textContent = 'Fleet sighted';
+    document.getElementById('event-body').textContent = event.description;
+    const options = document.getElementById('event-options');
+    options.innerHTML = event.choices.map((choice) => `<button data-fleet-choice="${choice}">${choice[0].toUpperCase() + choice.slice(1)}</button>`).join(' ');
+    document.getElementById('event-modal').classList.remove('hidden');
+    options.querySelectorAll('[data-fleet-choice]').forEach((button) => button.addEventListener('click', () => {
+      const generated = event.resolveDecision ? event.resolveDecision(button.dataset.fleetChoice) : [];
+      document.getElementById('event-modal').classList.add('hidden');
+      if (generated?.length) eventQueue.unshift(...generated);
+      if (eventQueue.length) showNextEvent(clock, eventQueue); else clock.releaseAutoPause();
+    }));
+    return;
+  }
+  if (event.type === 'fleet_battle' || event.type === 'fleet_port_assault') {
+    const r = event.result;
+    document.getElementById('event-title').textContent = event.type === 'fleet_port_assault' ? 'Fleet attacked in port' : 'Naval battle';
+    document.getElementById('event-body').innerHTML = `${event.attackerName} fought ${event.defenderName}.<br><br>` +
+      `${event.attackerName} sunk: ${formatShipOutcome(r.attackerLost)}; captured by enemy: ${formatShipOutcome(r.attackerCapturedByDefender)}; damaged: ${formatShipOutcome(r.attackerDamaged)}.<br>` +
+      `${event.defenderName} sunk: ${formatShipOutcome(r.defenderLost)}; captured: ${formatShipOutcome(r.defenderCapturedByAttacker)}; damaged: ${formatShipOutcome(r.defenderDamaged)}.` +
+      `${r.portDamage?.length ? `<br>Port infrastructure damaged: ${r.portDamage.map((d) => d.typeId.replaceAll('_', ' ')).join(', ')}.` : ''}`;
+    wireEventContinue(clock, eventQueue);
+    return;
+  }
   if (event.type === 'fleet_ship_worn_out') {
     document.getElementById('event-title').textContent = `${event.shipClassLabel} lost`;
     document.getElementById('event-body').textContent = `A ${event.shipClassLabel} has deteriorated beyond service and has been struck from the fleet. Warships are discrete assets; this vessel is gone.`;
