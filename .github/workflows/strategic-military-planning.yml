@@ -5,24 +5,13 @@ on:
     branches: [strategic-military-planning-v1]
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Apply strategic planning integration
-        run: |
-          python tools/apply-strategic-military-planning.py
-          python tools/apply-strategic-military-planning-v2.py
-          python tools/apply-strategic-military-planning-v3.py
       - name: Syntax checks
         run: |
-          python -m py_compile tools/apply-strategic-military-planning.py tools/apply-strategic-military-planning-v2.py tools/apply-strategic-military-planning-v3.py
           node --check js/military/strategicPlanning.js
           node --check js/diplomacy/couriers.js
           node --check js/ai/nationAi.js
@@ -39,15 +28,3 @@ jobs:
         run: node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 1 --output /tmp/strategy-smoke.json
       - name: Diff sanity
         run: git diff --check
-      - name: Commit integrated source
-        run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add js/world/region.js js/ai/nationAi.js js/main.js js/diplomacy/couriers.js
-          if git diff --cached --quiet; then
-            echo 'Strategic planning integration already materialised'
-          else
-            git commit -m 'Integrate strategic military planning and couriers'
-            git pull --rebase
-            git push
-          fi
