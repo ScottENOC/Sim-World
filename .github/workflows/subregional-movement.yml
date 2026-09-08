@@ -1,0 +1,51 @@
+name: Subregional movement validation
+
+on:
+  push:
+    branches: [subregional-movement-v1]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply movement integration
+        run: python tools/apply-subregional-movement.py
+      - name: Syntax checks
+        run: |
+          python -m py_compile tools/apply-subregional-movement.py
+          node --check js/military/subregionalMovement.js
+          node --check js/military/campaigns.js
+          node --check js/main.js
+      - name: Movement regressions
+        run: node tools/test-subregional-movement.mjs
+      - name: Existing military regressions
+        run: |
+          node tools/test-subregional-control.mjs
+          node tools/test-multi-party-war.mjs
+          node tools/test-strategic-military-planning.mjs
+          node tools/test-battlefield-terrain.mjs
+          node tools/test-military-professionalisation.mjs
+          node tools/test-persistent-fleets.mjs
+      - name: Headless world smoke test
+        run: node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 1 --output /tmp/subregional-movement-smoke.json
+      - name: Diff sanity
+        run: git diff --check
+      - name: Commit integrated source
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/military/campaigns.js js/main.js
+          if git diff --cached --quiet; then
+            echo 'Movement integration already materialised'
+          else
+            git commit -m 'Integrate subregional army movement'
+            git pull --rebase
+            git push
+          fi
