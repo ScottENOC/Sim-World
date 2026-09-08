@@ -21,6 +21,8 @@ import { applyMemoryDrivenNpcPolicy, npcMemorySignals } from './memoryDrivenAi.j
 import { setChokepointTollPolicy, setRoadTollPolicy, transitPolicySummary } from '../economy/transitTolls.js?v=20260907-transit1';
 import { chooseNpcMilitaryStrategy } from '../military/strategicPlanning.js?v=20260908-strategy1';
 import { chooseSupplyAwareCampaignDirective } from '../military/supplyAwareAi.js?v=20260908-supply-ai1';
+import { chooseDefensiveCounterLogistics } from '../military/counterLogisticsAi.js?v=20260909-counter-logistics1';
+import { coordinateExpeditionRelief } from '../military/expeditionReliefAi.js?v=20260909-relief1';
 
 // A one-percent peacetime levy is supportable while trade and taxation are
 // healthy. Threatened states still expand this through the safety multiplier;
@@ -47,10 +49,10 @@ function clamp01(v) {
   return Math.max(0, Math.min(1, v));
 }
 
-export function tickNationAi(regions, playerRegionId, activeRaids, activeCampaigns, agreements, polities, religiousWorld, currentTick, toolTypes, rng, elapsedDays = 7) {
+export function tickNationAi(regions, playerRegionId, activeRaids, activeCampaigns, agreements, polities, religiousWorld, currentTick, toolTypes, rng, elapsedDays = 7, options = {}) {
   const baseWeekScale = Math.max(0.01, elapsedDays / 7);
   const regionsById = new Map(regions.map((region) => [region.id, region]));
-  manageCampaigns(activeCampaigns, regionsById, playerRegionId, rng);
+  manageCampaigns(activeCampaigns, regionsById, playerRegionId, rng, currentTick, options);
   for (const region of regions) {
     if (region.controllingActorId === playerRegionId) continue;
     // Operational posture stays responsive every monthly world tick.
@@ -167,21 +169,27 @@ function stableAiHash(value) {
   return hash >>> 0;
 }
 
-function manageCampaigns(campaigns, regionsById, playerRegionId, rng) {
+function manageCampaigns(campaigns, regionsById, playerRegionId, rng, currentTick, options = {}) {
+  const fleets = options.fleets || [];
+  const seaRegionsById = new Map((options.seaRegions || []).map((region) => [region.id, region]));
   for (const campaign of campaigns) {
     if (campaign.phase !== 'engaged') continue;
     const attacker = regionsById.get(campaign.attackerId);
     const defender = regionsById.get(campaign.defenderId);
     if (!attacker || !defender) continue;
-    if (defender.controllingActorId !== playerRegionId && campaign.militia <= 0 &&
-        (campaign.pressure >= 0.18 || campaign.defenderMorale < 0.65)) {
-      massMobiliseDefender(campaign, defender, 0.1 + rng() * 0.1);
+    if (defender.controllingActorId !== playerRegionId) {
+      if (campaign.militia <= 0 && (campaign.pressure >= 0.18 || campaign.defenderMorale < 0.65)) {
+        massMobiliseDefender(campaign, defender, 0.1 + rng() * 0.1);
+      }
+      chooseDefensiveCounterLogistics(campaign, attacker, defender, currentTick, rng);
     }
     if (attacker.controllingActorId !== playerRegionId) {
       const supplyDecision = chooseSupplyAwareCampaignDirective(campaign, attacker, defender);
+      const relief = coordinateExpeditionRelief(campaign, attacker, defender, fleets, regionsById, seaRegionsById, currentTick);
       const desperate = (supplyDecision.riskTolerance || 0) >= 0.72;
       const canOrderlyWithdraw = (campaign.logisticsState?.routeReliability ?? 1) >= 0.20;
-      if (campaign.attackerMorale < 0.22 ||
+      const evacuationOrdered = relief.directive === 'evacuate_if_possible';
+      if (evacuationOrdered || campaign.attackerMorale < 0.22 ||
           (!desperate && canOrderlyWithdraw && campaign.supply < 0.3 && campaign.pressure < 0.45)) {
         requestCampaignWithdrawal(campaign);
       }

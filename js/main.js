@@ -251,7 +251,7 @@ async function main() {
     const continuityEvents = tickPoliticalContinuity(polities, regions, time.elapsedDays / 365.2425, calendarWeek, { playerPolityId: activePlayerPolityId });
     tickBanditry(regions, toolTypes, agreements, time.elapsedDays);
     tickNationAi(regions, playerRegionId, activeRaids, activeCampaigns, agreements, polities,
-      religiousWorld, calendarWeek, toolTypes, Math.random, time.elapsedDays);
+      religiousWorld, calendarWeek, toolTypes, Math.random, time.elapsedDays, { fleets, seaRegions });
 
     const { remaining, events } = tickRaids(activeRaids, regionsById, calendarWeek, toolTypes, Math.random);
     activeRaids = remaining;
