@@ -21,7 +21,6 @@ const fleet = { id: 'fleet-a', ownerActorId: 'A', ownerRegionId: 'a', homePortRe
 ensureSubregionalControl(defender);
 initialiseExpeditionaryLogistics(campaign, attacker, defender, [fleet], 0);
 assert.equal(campaign.logisticsState.isIsolated, false);
-const startFood = campaign.logisticsState.carriedFood;
 let result = tickExpeditionaryLogistics(campaign, attacker, defender, [fleet], 1);
 assert.ok(result.delivered > 0, 'open maritime route should deliver supplies');
 assert.ok(result.state.routeReliability > 0.5, 'escorted route should be reasonably reliable');
@@ -45,18 +44,20 @@ const campaign2 = { id: 2, viaSea: true, personnel: 1000, occupationActorId: 'C'
 const fleet2 = { id: 'fleet-c', ownerActorId: 'C', ownerRegionId: 'c', homePortRegionId: 'c', locationType: 'sea', seaRegionId: 'sea-1', mission: FLEET_MISSIONS.ESCORT, ships: [{ condition: 1 }, { condition: 1 }] };
 const control2 = ensureSubregionalControl(defender2);
 initialiseExpeditionaryLogistics(campaign2, attacker2, defender2, [fleet2], 0);
-let beach = tickExpeditionaryLogistics(campaign2, attacker2, defender2, [fleet2], 1);
+const beach = tickExpeditionaryLogistics(campaign2, attacker2, defender2, [fleet2], 1);
+const beachCapacity = beach.state.deliveryCapacity;
 const port = control2.places.find((p) => p.kind === 'port');
 assert.ok(port, 'coastal region should have a port node');
 port.controllerActorId = 'C';
 attacker2.stockpile.food = 5000;
-let harbour = tickExpeditionaryLogistics(campaign2, attacker2, defender2, [fleet2], 2);
-assert.ok(harbour.state.deliveryCapacity > beach.state.deliveryCapacity, 'captured port should improve supply throughput');
+const harbour = tickExpeditionaryLogistics(campaign2, attacker2, defender2, [fleet2], 2);
+const harbourReliability = harbour.state.routeReliability;
+assert.ok(harbour.state.deliveryCapacity > beachCapacity, 'captured port should improve supply throughput');
 
 // Enemy blockade/interception suppresses route reliability.
 const enemyFleet = { id: 'fleet-d', ownerActorId: 'D', ownerRegionId: 'd', homePortRegionId: 'd', locationType: 'sea', seaRegionId: 'sea-1', mission: FLEET_MISSIONS.BLOCKADE, ships: Array.from({length: 8}, () => ({ condition: 1 })) };
 attacker2.stockpile.food = 5000;
 const contested = tickExpeditionaryLogistics(campaign2, attacker2, defender2, [fleet2, enemyFleet], 3);
-assert.ok(contested.state.routeReliability < harbour.state.routeReliability, 'hostile blockade should reduce deliveries');
+assert.ok(contested.state.routeReliability < harbourReliability, 'hostile blockade should reduce deliveries');
 
 console.log('expeditionary logistics regressions passed');
