@@ -20,9 +20,10 @@ jobs:
           python tools/apply-persistent-fleets.py
           python tools/apply-persistent-fleets-v2.py
           python tools/apply-persistent-fleets-v3.py
+          python tools/apply-persistent-fleets-v4.py
       - name: Syntax checks
         run: |
-          python -m py_compile tools/apply-persistent-fleets.py tools/apply-persistent-fleets-v2.py tools/apply-persistent-fleets-v3.py
+          python -m py_compile tools/apply-persistent-fleets.py tools/apply-persistent-fleets-v2.py tools/apply-persistent-fleets-v3.py tools/apply-persistent-fleets-v4.py
           node --check js/military/fleets.js
           node --check js/ui/fleetUi.js
           node --check js/main.js
