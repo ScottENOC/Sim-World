@@ -108,7 +108,7 @@ function captureCandidate(control, attackerActorId, pressure) {
     .sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || b.strategicValue - a.strategicValue)[0] || null;
 }
 
-export function advanceCampaignControl(region, attackerActorId, pressureDelta, pressure, currentTick) {
+export function advanceCampaignControl(region, attackerActorId, pressureDelta, pressure, currentTick, options = {}) {
   const control = ensureSubregionalControl(region);
   if (pressureDelta > 0) {
     const gain = clamp(pressureDelta * 1.6 + Math.max(0, pressure - 0.55) * 0.012, 0, 0.09);
@@ -116,7 +116,7 @@ export function advanceCampaignControl(region, attackerActorId, pressureDelta, p
     const transferable = Math.min(gain, sovereignShare);
     control.ruralControl[control.sovereignActorId] = sovereignShare - transferable;
     control.ruralControl[attackerActorId] = (control.ruralControl[attackerActorId] || 0) + transferable;
-    const candidate = captureCandidate(control, attackerActorId, pressure);
+    const candidate = options.capturePlaces === false ? null : captureCandidate(control, attackerActorId, pressure);
     if (candidate) {
       candidate.controllerActorId = attackerActorId;
       candidate.occupationMode = 'military';

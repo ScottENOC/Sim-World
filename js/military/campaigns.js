@@ -269,7 +269,11 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
     (defenderLosses + militiaLosses) / Math.max(1, defender.population) * 4 * moraleShockMultiplier(defender, currentTick));
   const civilianDeaths = applyCivilianDamage(campaign, defender, Math.max(0, pressureDelta), attackerShare);
   defender.conflictPressure = campaign.pressure;
-  campaign.occupationSummary = advanceCampaignControl(defender, campaign.occupationActorId || attacker.governance?.sovereignPolityId || attacker.controllingActorId || attacker.id, pressureDelta, campaign.pressure, currentTick);
+  campaign.occupationSummary = advanceCampaignControl(defender, campaign.occupationActorId || attacker.governance?.sovereignPolityId || attacker.controllingActorId || attacker.id, pressureDelta, campaign.pressure, currentTick, { capturePlaces: false });
+  if (movement.arrived) {
+    const occupation = attemptPhysicalOccupation(campaign, defender, currentTick, campaign.pressure);
+    if (occupation.captured) campaign.occupationSummary = occupation.summary;
+  }
   if (movement.arrived) {
     const occupation = attemptPhysicalOccupation(campaign, defender, currentTick, campaign.pressure);
     if (occupation.captured) campaign.occupationSummary = occupation.summary;
