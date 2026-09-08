@@ -274,10 +274,6 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
     const occupation = attemptPhysicalOccupation(campaign, defender, currentTick, campaign.pressure);
     if (occupation.captured) campaign.occupationSummary = occupation.summary;
   }
-  if (movement.arrived) {
-    const occupation = attemptPhysicalOccupation(campaign, defender, currentTick, campaign.pressure);
-    if (occupation.captured) campaign.occupationSummary = occupation.summary;
-  }
   const week = { tick: currentTick, stage: campaign.stage, terrain, pressureDelta, pressure: campaign.pressure,
     attackerLosses, defenderLosses, militiaLosses, civilianDeaths, attackerMorale: campaign.attackerMorale,
     defenderMorale: campaign.defenderMorale, supply: campaign.supply, strengthRatio, navalControl: control };
