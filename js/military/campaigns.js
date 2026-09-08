@@ -19,6 +19,7 @@ import { attemptPhysicalOccupation, initialiseCampaignMovement, resolveCampaignN
 import { initialiseExpeditionaryLogistics, tickExpeditionaryLogistics } from './expeditionaryLogistics.js?v=20260908-logistics1';
 import { garrisonCapturedNode } from './supplyCorridors.js?v=20260908-corridor1';
 import { desperateAttackProfile } from './supplyAwareAi.js?v=20260908-supply-ai1';
+import { resolveSubregionalArmyBattles } from './subregionalArmyBattles.js?v=20260909-nodebattle1';
 import { counterLogisticsCombatProfile } from './counterLogisticsAi.js?v=20260909-counter-logistics1';
 
 export const CAMPAIGN_OBJECTIVES = Object.freeze({
@@ -426,7 +427,10 @@ export function tickCampaigns(campaigns, regionsById, polities, currentTick, too
   }
   const activeWars = options.activeWars || [];
   const defenderIds = new Set(campaigns.filter((campaign) => !campaign.completed && campaign.phase === 'engaged').map((campaign) => campaign.defenderId));
-  for (const defenderId of defenderIds) events.push(...resolveCampaignNodeInteractions(campaigns, activeWars, defenderId));
+  for (const defenderId of defenderIds) {
+    events.push(...resolveCampaignNodeInteractions(campaigns, activeWars, defenderId));
+    events.push(...resolveSubregionalArmyBattles(campaigns, activeWars, regionsById.get(defenderId), regionsById, currentTick, rng));
+  }
   return { remaining: campaigns.filter((campaign) => !campaign.completed), events };
 }
 

@@ -97,6 +97,7 @@ export function initialiseCampaignMovement(campaign, region, currentTick) {
   campaign.subregional.routeIndex = 0;
   campaign.subregional.edgeProgress = 0;
   campaign.subregional.lastMoveTick = currentTick;
+  campaign.subregional.previousNodeId = null;
   campaign.subregional.blockedByCampaignId = null;
   return campaign.subregional;
 }
@@ -139,6 +140,7 @@ export function tickCampaignMovement(campaign, region, currentTick, mobility = 1
     if (budget < remaining) { state.edgeProgress += budget; budget = 0; break; }
     budget -= remaining;
     state.routeIndex += 1;
+    state.previousNodeId = from?.id || state.currentNodeId;
     state.currentNodeId = to.id;
     state.edgeProgress = 0;
   }
