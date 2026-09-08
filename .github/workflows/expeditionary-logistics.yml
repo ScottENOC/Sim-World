@@ -1,0 +1,52 @@
+name: Expeditionary logistics validation
+
+on:
+  push:
+    branches: [expeditionary-logistics-v1]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply logistics integration
+        run: python tools/apply-expeditionary-logistics.py
+      - name: Syntax checks
+        run: |
+          python -m py_compile tools/apply-expeditionary-logistics.py
+          node --check js/military/expeditionaryLogistics.js
+          node --check js/military/campaigns.js
+          node --check js/main.js
+      - name: Logistics regressions
+        run: node tools/test-expeditionary-logistics.mjs
+      - name: Existing military regressions
+        run: |
+          node tools/test-subregional-movement.mjs
+          node tools/test-subregional-control.mjs
+          node tools/test-multi-party-war.mjs
+          node tools/test-strategic-military-planning.mjs
+          node tools/test-battlefield-terrain.mjs
+          node tools/test-military-professionalisation.mjs
+          node tools/test-persistent-fleets.mjs
+      - name: Headless world smoke test
+        run: node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 1 --output /tmp/expeditionary-logistics-smoke.json
+      - name: Diff sanity
+        run: git diff --check
+      - name: Commit integrated source
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/military/campaigns.js js/main.js
+          if git diff --cached --quiet; then
+            echo 'Logistics integration already materialised'
+          else
+            git commit -m 'Integrate expeditionary logistics'
+            git pull --rebase
+            git push
+          fi
