@@ -695,7 +695,7 @@ function wireMenu({ fogOfWar, map, clock, regions, seaRegions, polities, religio
   saveButton.addEventListener('click', () => {
     try {
       const snapshot = createGameSnapshot({ regions, seaRegions, polities, religiousWorld, agreements,
-        activeRaids: getActiveRaids(), activeCampaigns: getActiveCampaigns(),
+        activeRaids: getActiveRaids(), activeCampaigns: getActiveCampaigns(), fleets: window.__worldsim?.fleets || [],
         clock, playerRegionId: getPlayerRegionId(), playerPolityId: activePlayerPolityId, fogOfWar });
       writeSave(snapshot);
       refreshSaveStatus(`Game saved · ${clock.formatDate(START_YEAR)}.`);
@@ -1154,6 +1154,11 @@ function showNextEvent(clock, eventQueue) {
       `${r.portDamage?.length ? `<br>Port infrastructure damaged: ${r.portDamage.map((d) => d.typeId.replaceAll('_', ' ')).join(', ')}.` : ''}`;
     wireEventContinue(clock, eventQueue);
     return;
+  }
+  if (event.type === 'fleet_ship_worn_out') {
+    document.getElementById('event-title').textContent = `${event.shipClassLabel} lost`;
+    document.getElementById('event-body').textContent = `A ${event.shipClassLabel} has deteriorated beyond service and has been struck from the fleet. Warships are discrete assets; this vessel is gone.`;
+    wireEventContinue(clock, eventQueue); return;
   }
   if (event.type === 'fleet_escaped') {
     document.getElementById('event-title').textContent = 'Fleet escapes';

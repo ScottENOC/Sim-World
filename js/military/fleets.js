@@ -132,7 +132,7 @@ function fleetForNewShips(fleets, region) {
 // Existing economy code still constructs vessels by changing region.navy.boats.
 // Reconcile those newly built boats into persistent ship objects before fleet
 // operations, then write the authoritative discrete fleet inventory back after.
-export function reconcileFleetLedger(regions, fleets) {
+export function reconcileFleetLedger(regions, fleets, events = null) {
   const byOwner = new Map();
   for (const fleet of fleets) {
     ensureFleetState(fleet);
@@ -142,15 +142,39 @@ export function reconcileFleetLedger(regions, fleets) {
   for (const region of regions) {
     if (!(region.adjacentSeaIds || []).length) continue;
     const owned = byOwner.get(region.id) || [];
-    const currentShips = owned.flatMap((fleet) => fleet.ships);
-    const actualAdvanced = currentShips.filter((ship) => ship.designId === 'advanced_warship').length;
-    const actualTotal = currentShips.length;
     const wantedTotal = Math.max(0, Math.round(region.navy?.boats || 0));
     const wantedAdvanced = Math.min(wantedTotal, Math.max(0, Math.round(region.navy?.advancedBoats || 0)));
+
+    // The old economy models wear fractionally. Once that fractional ledger
+    // crosses an integer boundary, retire a real persistent ship and report
+    // exactly which class was lost. Prefer already-damaged vessels.
+    const all = () => owned.flatMap((fleet) => fleet.ships.map((ship) => ({ fleet, ship })));
+    const retireOne = (predicate) => {
+      const candidates = all().filter(({ ship }) => predicate(ship))
+        .sort((a, b) => (a.ship.condition ?? 1) - (b.ship.condition ?? 1));
+      const chosen = candidates[0];
+      if (!chosen) return false;
+      const index = chosen.fleet.ships.indexOf(chosen.ship);
+      if (index >= 0) chosen.fleet.ships.splice(index, 1);
+      if (events) events.push({ type: 'fleet_ship_worn_out', ownerRegionId: region.id,
+        ownerActorId: actorId(region), fleetId: chosen.fleet.id, shipId: chosen.ship.id,
+        shipClassLabel: shipLabel(chosen.ship) });
+      return true;
+    };
+
+    let current = all();
+    let actualAdvanced = current.filter(({ ship }) => ship.designId === 'advanced_warship').length;
+    while (actualAdvanced > wantedAdvanced && retireOne((ship) => ship.designId === 'advanced_warship')) actualAdvanced--;
+    current = all();
+    while (current.length > wantedTotal && retireOne(() => true)) current = all();
+
+    current = all();
+    const actualTotal = current.length;
+    actualAdvanced = current.filter(({ ship }) => ship.designId === 'advanced_warship').length;
     let target = fleetForNewShips(fleets, region);
     if (!target && wantedTotal > 0) {
       target = createHomeFleet({ ...region, navy: { ...region.navy, boats: 0, advancedBoats: 0 } });
-      if (target) fleets.push(target);
+      if (target) { fleets.push(target); owned.push(target); }
     }
     if (!target) continue;
     for (let i = actualAdvanced; i < wantedAdvanced; i++) target.ships.push(makeShip('advanced_warship', region.id));
@@ -739,8 +763,8 @@ export function tickFleets(fleets, regions, seaRegions, agreements, currentTick,
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   const seaRegionsById = new Map(seaRegions.map((sea) => [sea.id, sea]));
   const weeks = Math.max(0.01, elapsedDays / 7);
-  reconcileFleetLedger(regions, fleets);
   const events = [];
+  reconcileFleetLedger(regions, fleets, events);
 
   for (const fleet of fleets) {
     ensureFleetState(fleet);
