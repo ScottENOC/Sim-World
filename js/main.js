@@ -34,6 +34,7 @@ import { sendDeceptionJointOperationLetter, sendForgedJointOperationLetter, send
 import { dispatchDiplomat, ensureDiplomaticService, recallDiplomat, setDiplomatAuthority, syncNextDiplomatId, tickDiplomats } from './diplomacy/diplomats.js?v=20260909-diplomats1';
 import { ensureCounterIntelligence, setCounterIntelligencePolicy } from './diplomacy/counterIntelligence.js?v=20260909-counterintel1';
 import { ensureCommunicationState, tickCommunicationPractices } from './diplomacy/languageCommunication.js?v=20260909-language1';
+import { tickGenerationalLanguageChange } from './diplomacy/languageChange.js?v=20260909-language-change1';
 import { resolvePlayerJointOperationAdvice, tickPlayerJointOperationAdvisor } from './military/playerJointOperationAdvisor.js?v=20260909-joint-player1';
 import { WAR_STANCES, participantInWar, setEnemyPriority, setWarStance, syncNextWarId, syncWarTheatres } from './military/warTheatres.js?v=20260908-war1';
 
@@ -250,6 +251,7 @@ async function main() {
     const religionEvents = tickReligion(regions, religiousWorld, calendarWeek, activeRaids, activeCampaigns, Math.random, time.elapsedDays);
     tickDemographics(regions, religiousWorld, time.elapsedDays);
     tickCommunicationPractices(regions, polities, agreements, activeCampaigns, calendarWeek, time.elapsedDays);
+    const languageChangeEvents = tickGenerationalLanguageChange(regions, time.elapsedDays);
     const diplomatEvents = tickDiplomats(regions, calendarWeek, time.elapsedDays, Math.random);
     const courierEvents = tickDiplomaticCouriers(regions, agreements, fleets, calendarWeek, time.elapsedDays, Math.random);
     const playerCapitalForJointPlan = regionsById.get(playerRegionId);
@@ -327,6 +329,7 @@ async function main() {
       ...breakthroughEvents.filter((event) => event.regionId === playerRegionId),
       ...constructionEvents.filter((event) => event.regionId === playerRegionId),
       ...religionEvents.filter((event) => event.regionId === playerRegionId),
+      ...languageChangeEvents.filter((event) => event.regionId === playerRegionId),
       ...playerRaidEvents,
       ...diplomacyEvents.filter((event) => event.agreement.fromId === playerRegionId || event.agreement.toId === playerRegionId),
       ...warEvents.filter((event) => event.playerInvolved),
