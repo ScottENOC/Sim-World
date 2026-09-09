@@ -30,15 +30,39 @@ export function ensureLanguageNetwork(region) {
 
 export function refreshNativeLanguageCommunities(region) {
   const n = ensureLanguageNetwork(region);
-  const next = {};
+  const cultureNow = {};
   for (const group of cultureGroups(region)) {
     const lang = languageForCulture(group);
     const share = Math.max(0, finite(group.share, 0));
-    if (!next[lang.languageId]) next[lang.languageId] = { share: 0, familyId: lang.familyId };
-    next[lang.languageId].share += share;
+    if (!cultureNow[lang.languageId]) cultureNow[lang.languageId] = { share: 0, familyId: lang.familyId };
+    cultureNow[lang.languageId].share += share;
   }
-  const total = Object.values(next).reduce((s, x) => s + x.share, 0) || 1;
-  for (const entry of Object.values(next)) entry.share /= total;
+  const cultureTotal = Object.values(cultureNow).reduce((s, x) => s + x.share, 0) || 1;
+  for (const entry of Object.values(cultureNow)) entry.share /= cultureTotal;
+
+  // Culture/ancestry changes (especially migration) perturb the language population,
+  // but do not overwrite language shift that has happened independently over generations.
+  if (!n.communityShares) {
+    n.communityShares = Object.fromEntries(Object.entries(cultureNow).map(([id, x]) => [id, x.share]));
+    n.lastCultureLanguageShares = { ...n.communityShares };
+  } else {
+    const prior = n.lastCultureLanguageShares || {};
+    const ids = new Set([...Object.keys(cultureNow), ...Object.keys(prior)]);
+    for (const id of ids) {
+      const delta = (cultureNow[id]?.share || 0) - (prior[id] || 0);
+      if (Math.abs(delta) > 1e-9) n.communityShares[id] = Math.max(0, (n.communityShares[id] || 0) + delta);
+    }
+    const total = Object.values(n.communityShares).reduce((s, x) => s + Math.max(0, Number(x) || 0), 0) || 1;
+    for (const id of Object.keys(n.communityShares)) n.communityShares[id] = Math.max(0, Number(n.communityShares[id]) || 0) / total;
+    n.lastCultureLanguageShares = Object.fromEntries(Object.entries(cultureNow).map(([id, x]) => [id, x.share]));
+  }
+
+  const next = {};
+  for (const [id, share] of Object.entries(n.communityShares)) {
+    if (share <= 0.000001) continue;
+    const familyId = cultureNow[id]?.familyId || n.languageMetadata?.[id]?.familyId || n.communities?.[id]?.familyId || `langfam:${id}`;
+    next[id] = { share, familyId };
+  }
   n.communities = next;
   const dominant = Object.entries(next).sort((a,b) => b[1].share - a[1].share)[0]?.[0];
   if (dominant && n.institutions.court.length === 0) n.institutions.court = [dominant];
