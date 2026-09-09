@@ -154,7 +154,7 @@ export function sharedCommunicationLanguage(sender, receiver, mode = 'spoken') {
     const competence = Math.min(a, b);
     const neitherNative = nativeShare(sender, languageId) === 0 && nativeShare(receiver, languageId) === 0;
     const institutional = Object.values(senderNet.institutions).some(x => x.includes(languageId)) || Object.values(receiverNet.institutions).some(x => x.includes(languageId));
-    const score = competence + (institutional ? 0.035 : 0);
+    const score = competence > 0 ? competence + (institutional ? 0.035 : 0) : 0;
     if (score > best.competence) best = { languageId, competence: clamp(score), linguaFranca: neitherNative };
   }
   return best;

@@ -2,7 +2,8 @@ import { attitudeToward, changeAttitude } from './relations.js?v=20260904-save1'
 import { maritimeRouteBetween } from '../world/chokepoints.js?v=20260907-chokepoints1';
 import { diplomatCanCommit, residentDiplomatFor } from './diplomats.js?v=20260909-diplomats1';
 import { assessMessageAuthenticity, forgeryAuthentication, genuineAuthentication, intelligenceCredibilityFromMessage } from './counterIntelligence.js?v=20260909-counterintel1';
-import { chooseMessageMedium, communicationCapabilities, courierProfile, interceptedContentChance, languageComprehension, recordLanguageContact } from './languageCommunication.js?v=20260909-language1';
+import { chooseMessageMedium, communicationCapabilities, courierProfile, interceptedContentChance, languageComprehension, recordLanguageContact } from './languageCommunication.js?v=20260909-language-networks1';
+import { courtLanguageCompetence } from './languageNetworks.js?v=20260909-language-networks1';
 
 let nextMessageId = 1;
 export function syncNextDiplomaticMessageId(regions = []) {
@@ -17,6 +18,8 @@ function clamp(v, lo = 0, hi = 1) { return Math.max(lo, Math.min(hi, Number(v) |
 function prepareCommunication(message, sender, target, complexity = 0.5, options = {}) {
   const choice = chooseMessageMedium(sender, target, complexity, options);
   message.medium = choice.medium;
+  message.languageId = choice.languageId || null;
+  message.linguaFranca = Boolean(choice.linguaFranca);
   message.languageComprehensionAtDispatch = choice.comprehension;
   message.courier = courierProfile(sender, choice.medium, complexity);
   message.contentRecovered = null;
@@ -31,7 +34,9 @@ function prepareCommunication(message, sender, target, complexity = 0.5, options
 
 function resolveDeliveryLanguage(message, sender, target) {
   const mode = ['written','sealed_written'].includes(message.medium) ? 'written' : 'spoken';
-  const understood = languageComprehension(target, sender, mode);
+  const understood = message.languageId
+    ? courtLanguageCompetence(target, message.languageId, mode)
+    : languageComprehension(target, sender, mode);
   const memory = message.medium === 'oral_memorised' ? (message.courier?.memoryAccuracy ?? 0.85) : 1;
   message.deliveryComprehension = clamp(understood * memory);
   recordLanguageContact(target, sender, 1.4, { written: mode === 'written' });
