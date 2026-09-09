@@ -1,6 +1,7 @@
 import { attitudeToward } from './relations.js?v=20260904-save1';
 import { maritimeRouteBetween } from '../world/chokepoints.js?v=20260907-chokepoints1';
 import { diplomatLanguageComprehension, trainDiplomatLanguage } from './languageCommunication.js?v=20260909-language1';
+import { attemptTurnDiplomat, diplomatMayExceedAuthority, diplomatReliability, diplomaticTrustSummary, ensureDiplomatPersonality, recordAuthorityBreach, recordDiplomatPerformance, recordGovernmentTrust } from './diplomatPersonalities.js?v=20260909-agent-trust1';
 
 let nextDiplomatId = 1;
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
@@ -27,6 +28,7 @@ function ensureService(region) {
       route: null, departTick: null, arrivalTick: null,
     });
   }
+  for (const diplomat of region.diplomaticService.diplomats) ensureDiplomatPersonality(diplomat);
   return region.diplomaticService;
 }
 
@@ -70,6 +72,18 @@ function routeFor(origin, target, regionsById) {
 
 export function diplomatsFor(region) { return ensureService(region).diplomats; }
 
+export function diplomatPublicProfile(diplomat) {
+  ensureDiplomatPersonality(diplomat);
+  return {
+    id: diplomat.id, name: diplomat.name, status: diplomat.status, authority: diplomat.authority,
+    postedRegionId: diplomat.postedRegionId, loyalty: clamp(diplomat.loyalty ?? 0.5),
+    reliability: diplomatReliability(diplomat), reputation: { ...diplomat.reputation },
+    suspectedCompromise: clamp(diplomat.suspectedCompromise || 0),
+    authorityBreaches: [...(diplomat.authorityBreaches || [])],
+    // Deliberately omit turnedByActorId: home governments do not get omniscient access to betrayal.
+  };
+}
+
 export function setDiplomatAuthority(region, diplomatId, authority, options = {}) {
   const diplomat = diplomatsFor(region).find((d) => d.id === diplomatId);
   if (!diplomat || !Object.values(DIPLOMAT_AUTHORITY).includes(authority)) return false;
@@ -97,7 +111,7 @@ export function dispatchDiplomat(home, target, regions, diplomatId, currentTick)
 
 export function recallDiplomat(home, diplomatId, regions, currentTick) {
   const diplomat = diplomatsFor(home).find((d) => d.id === diplomatId);
-  if (!diplomat || !diplomat.postedRegionId || diplomat.status === 'en_route') return { sent: false, reason: 'not_posted' };
+  if (!diplomat || !diplomat.postedRegionId || diplomat.status === 'en_route' || diplomat.status === 'detained') return { sent: false, reason: diplomat?.status === 'detained' ? 'detained' : 'not_posted' };
   const host = regions.find((r) => r.id === diplomat.postedRegionId);
   if (!host) return { sent: false, reason: 'host_missing' };
   const regionsById = new Map(regions.map((r) => [r.id, r]));
@@ -124,21 +138,96 @@ export function diplomatCanCommit(diplomat, action, fraction = 0) {
   return false;
 }
 
+export function diplomatCommitDecision(diplomat, action, fraction = 0, currentTick = null, options = {}) {
+  if (diplomatCanCommit(diplomat, action, fraction)) return { canCommit: true, withinAuthority: true, exceededAuthority: false };
+  if (!diplomat || diplomat.status !== 'posted') return { canCommit: false, reason: 'not_posted' };
+  const urgency = clamp(options.urgency || 0);
+  if (['joint_operation','minor_agreement'].includes(action) && diplomatMayExceedAuthority(diplomat, clamp(fraction), urgency, options.rng || Math.random)) {
+    recordAuthorityBreach(diplomat, action, clamp(fraction), currentTick);
+    return { canCommit: true, withinAuthority: false, exceededAuthority: true };
+  }
+  return { canCommit: false, reason: 'outside_mandate' };
+}
+
+export function attemptBribeDiplomat(home, diplomatId, foreignActorId, offeredValue = 0, pressure = 0, rng = Math.random) {
+  const diplomat = diplomatsFor(home).find((d) => d.id === diplomatId);
+  if (!diplomat || diplomat.status !== 'posted') return { attempted: false, reason: 'not_posted' };
+  return attemptTurnDiplomat(diplomat, foreignActorId, offeredValue, pressure, rng);
+}
+
+export function expelDiplomat(home, diplomatId, host, regions, currentTick, reason = 'persona_non_grata') {
+  const diplomat = diplomatsFor(home).find((d) => d.id === diplomatId);
+  if (!diplomat || diplomat.status !== 'posted' || diplomat.postedRegionId !== host?.id) return { expelled: false, reason: 'not_posted_here' };
+  const regionsById = new Map(regions.map((r) => [r.id, r]));
+  const route = routeFor(host, home, regionsById);
+  if (!route) { diplomat.status = 'home'; diplomat.postedRegionId = null; diplomat.route = null; }
+  else {
+    diplomat.status = 'returning'; diplomat.route = route; diplomat.departTick = currentTick;
+    diplomat.arrivalTick = currentTick + Math.max(1, Math.ceil(route.days / 7));
+  }
+  diplomat.expelledByActorId = actorId(host);
+  diplomat.expelledReason = reason;
+  recordGovernmentTrust(home, actorId(host), 'promise_broken', currentTick);
+  return { expelled: true, diplomat, route };
+}
+
+export function detainDiplomat(home, diplomatId, host, currentTick, reason = 'security') {
+  const diplomat = diplomatsFor(home).find((d) => d.id === diplomatId);
+  if (!diplomat || !['posted','en_route'].includes(diplomat.status) || diplomat.postedRegionId !== host?.id) return { detained: false, reason: 'not_available' };
+  diplomat.status = 'detained'; diplomat.detainedSinceTick = currentTick; diplomat.detainedByActorId = actorId(host); diplomat.detainedReason = reason;
+  recordGovernmentTrust(home, actorId(host), 'promise_broken', currentTick);
+  return { detained: true, diplomat };
+}
+
+export function releaseDiplomat(home, diplomatId, host, regions, currentTick) {
+  const diplomat = diplomatsFor(home).find((d) => d.id === diplomatId);
+  if (!diplomat || diplomat.status !== 'detained' || diplomat.postedRegionId !== host?.id) return { released: false, reason: 'not_detained_here' };
+  diplomat.status = 'posted'; delete diplomat.detainedSinceTick; delete diplomat.detainedByActorId; delete diplomat.detainedReason;
+  return recallDiplomat(home, diplomatId, regions, currentTick);
+}
+
+export function foreignGovernmentTrust(home, foreignActorId) { return diplomaticTrustSummary(home, foreignActorId); }
+
 function postObservation(home, host, diplomat, currentTick, rng) {
   home.diplomaticIntelligence ||= [];
   const language = diplomatLanguageComprehension(diplomat, home, host);
   const skill = clamp((diplomat.observationSkill + diplomat.localFamiliarity * 0.25) * (0.62 + language * 0.38));
-  const noise = (rng() - 0.5) * (1 - skill) * 0.8;
+  const turnedForHost = diplomat.turnedByActorId && diplomat.turnedByActorId === actorId(host);
+  const distortion = turnedForHost ? 0.3 + (1 - diplomatReliability(diplomat)) * 0.45 : 0;
+  const directionalBias = turnedForHost ? (rng() < 0.5 ? -1 : 1) * distortion : 0;
+  const noise = (rng() - 0.5) * (1 - skill) * 0.8 + directionalBias;
   const armyEstimate = Math.max(0, Math.round((host.army?.personnel || 0) * (1 + noise)));
   const posture = host.militaryStrategy?.posture || 'unknown';
   const targetRegionId = host.militaryStrategy?.targetRegionId || null;
-  home.diplomaticIntelligence.push({
+  const report = {
     type: 'diplomat_military_observation', diplomatId: diplomat.id, hostRegionId: host.id,
-    hostActorId: actorId(host), estimatedArmy: armyEstimate, observedPosture: posture,
-    observedTargetRegionId: skill >= 0.62 ? targetRegionId : null,
+    hostActorId: actorId(host), estimatedArmy: armyEstimate,
+    observedPosture: turnedForHost && rng() < 0.45 ? 'guarded' : posture,
+    observedTargetRegionId: skill >= 0.62 && !(turnedForHost && rng() < 0.55) ? targetRegionId : null,
     confidence: clamp(0.22 + skill * 0.48 + language * 0.22), languageComprehension: language, learnedTick: currentTick,
-  });
+  };
+  home.diplomaticIntelligence.push(report);
   if (home.diplomaticIntelligence.length > 60) home.diplomaticIntelligence.shift();
+  if (turnedForHost) recordDiplomatPerformance(diplomat, 'false_report', actorId(host));
+  else recordDiplomatPerformance(diplomat, 'accurate_report', actorId(host));
+}
+
+function maybeHostAction(home, host, diplomat, currentTick, elapsedDays, rng, regions) {
+  const hostility = clamp((-attitudeToward(host, home.id) + 1) / 2);
+  const suspicion = clamp(diplomat.suspectedCompromise || 0);
+  const annual = Math.max(0, elapsedDays) / 365.2425;
+  if (hostility > 0.82 && rng() < annual * (0.08 + hostility * 0.18)) {
+    const severe = hostility > 0.94 && rng() < 0.35;
+    return severe ? detainDiplomat(home, diplomat.id, host, currentTick, 'hostile_relations')
+      : expelDiplomat(home, diplomat.id, host, regions, currentTick, 'hostile_relations');
+  }
+  if (!diplomat.turnedByActorId && hostility < 0.7 && rng() < annual * (0.012 + (diplomat.personality?.avarice || 0.5) * 0.025)) {
+    const offer = 2 + rng() * 10;
+    const result = attemptTurnDiplomat(diplomat, actorId(host), offer, suspicion * 0.3, rng);
+    if (!result.success && result.attempted) diplomat.suspectedCompromise = clamp(diplomat.suspectedCompromise + 0.05);
+    return { briberyAttempt: result, offeredValue: offer };
+  }
+  return null;
 }
 
 export function tickDiplomats(regions, currentTick, elapsedDays = 7, rng = Math.random) {
@@ -156,7 +245,7 @@ export function tickDiplomats(regions, currentTick, elapsedDays = 7, rng = Math.
           const hostility = clamp((-attitudeToward(host, home.id) + 1) / 2);
           const detained = hostility > 0.8 && rng() < (hostility - 0.75) * 0.35;
           if (detained) {
-            diplomat.status = 'detained';
+            diplomat.status = 'detained'; diplomat.detainedSinceTick = currentTick; diplomat.detainedByActorId = actorId(host);
             events.push({ type: 'diplomat_detained', homeRegionId: home.id, hostRegionId: host.id, diplomat });
           } else {
             diplomat.status = 'posted'; diplomat.route = null; diplomat.localFamiliarity = 0.12;
@@ -167,7 +256,15 @@ export function tickDiplomats(regions, currentTick, elapsedDays = 7, rng = Math.
         diplomat.localFamiliarity = clamp(diplomat.localFamiliarity + elapsedDays / 365.2425 * 0.18);
         const host = regionsById.get(diplomat.postedRegionId);
         if (host) trainDiplomatLanguage(diplomat, home, host, elapsedDays);
-        if (host && (diplomat.lastReportTick == null || currentTick - diplomat.lastReportTick >= 13)) {
+        if (host) {
+          const hostAction = maybeHostAction(home, host, diplomat, currentTick, elapsedDays, rng, regions);
+          if (hostAction?.detained) events.push({ type: 'diplomat_detained', homeRegionId: home.id, hostRegionId: host.id, diplomat });
+          else if (hostAction?.expelled) events.push({ type: 'diplomat_expelled', homeRegionId: home.id, hostRegionId: host.id, diplomat });
+          else if (hostAction?.briberyAttempt?.attempted && !hostAction.briberyAttempt.success && diplomat.suspectedCompromise > 0.35) {
+            events.push({ type: 'diplomat_compromise_suspected', homeRegionId: home.id, hostRegionId: host.id, diplomat, confidence: diplomat.suspectedCompromise });
+          }
+        }
+        if (diplomat.status === 'posted' && host && (diplomat.lastReportTick == null || currentTick - diplomat.lastReportTick >= 13)) {
           diplomat.lastReportTick = currentTick;
           postObservation(home, host, diplomat, currentTick, rng);
           events.push({ type: 'diplomat_report', homeRegionId: home.id, hostRegionId: host.id, diplomat });
