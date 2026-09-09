@@ -21,9 +21,10 @@ jobs:
           python tools/apply-diplomats-ui.py
           python tools/apply-language-communication.py
           python tools/fix-language-delivery.py
+          python tools/apply-language-test-compat.py
       - name: Syntax checks
         run: |
-          python -m py_compile tools/apply-diplomats-counterintelligence.py tools/apply-diplomats-ui.py tools/apply-language-communication.py tools/fix-language-delivery.py
+          python -m py_compile tools/apply-diplomats-counterintelligence.py tools/apply-diplomats-ui.py tools/apply-language-communication.py tools/fix-language-delivery.py tools/apply-language-test-compat.py
           node --check js/diplomacy/diplomats.js
           node --check js/diplomacy/counterIntelligence.js
           node --check js/diplomacy/languageCommunication.js
@@ -54,7 +55,7 @@ jobs:
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add js/diplomacy/diplomats.js js/diplomacy/counterIntelligence.js js/diplomacy/languageCommunication.js js/diplomacy/couriers.js js/military/playerJointOperationAdvisor.js js/ui/advisors.js js/main.js
+          git add js/diplomacy/diplomats.js js/diplomacy/counterIntelligence.js js/diplomacy/languageCommunication.js js/diplomacy/couriers.js js/military/playerJointOperationAdvisor.js js/ui/advisors.js js/main.js tools/test-joint-operations-command.mjs
           if git diff --cached --quiet; then
             echo 'Diplomat/counter-intelligence integration already materialised'
           else
