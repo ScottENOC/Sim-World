@@ -1,0 +1,57 @@
+name: Population language networks validation
+
+on:
+  push:
+    branches: [population-language-networks-v1]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply integration
+        run: python tools/apply-population-language-networks.py
+      - name: Syntax checks
+        run: |
+          python -m py_compile tools/apply-population-language-networks.py
+          node --check js/diplomacy/languageNetworks.js
+          node --check js/diplomacy/languageCommunication.js
+          node --check js/diplomacy/couriers.js
+      - name: Population language regressions
+        run: node tools/test-population-language-networks.mjs
+      - name: Existing diplomat and military regressions
+        run: |
+          node tools/test-diplomats-counterintelligence.mjs
+          node tools/test-player-joint-operation-advisor.mjs
+          node tools/test-joint-operations-command.mjs
+          node tools/test-allied-battle-coordination.mjs
+          node tools/test-subregional-army-battles.mjs
+          node tools/test-counter-logistics-relief.mjs
+          node tools/test-supply-corridors-ai.mjs
+          node tools/test-expeditionary-logistics.mjs
+          node tools/test-subregional-movement.mjs
+          node tools/test-subregional-control.mjs
+          node tools/test-multi-party-war.mjs
+          node tools/test-strategic-military-planning.mjs
+      - name: Headless world smoke test
+        run: node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 1 --output /tmp/pop-language-smoke.json
+      - name: Diff sanity
+        run: git diff --check
+      - name: Commit integrated source
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'Language network integration already materialised'
+          else
+            git commit -m 'Integrate population language network model'
+            git pull --rebase --autostash
+            git push
+          fi
