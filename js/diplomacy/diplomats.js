@@ -1,5 +1,6 @@
 import { attitudeToward } from './relations.js?v=20260904-save1';
 import { maritimeRouteBetween } from '../world/chokepoints.js?v=20260907-chokepoints1';
+import { diplomatLanguageComprehension, trainDiplomatLanguage } from './languageCommunication.js?v=20260909-language1';
 
 let nextDiplomatId = 1;
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
@@ -22,7 +23,7 @@ function ensureService(region) {
       status: 'home', postedRegionId: null, authority: DIPLOMAT_AUTHORITY.OBSERVE,
       maxMilitaryCommitmentFraction: 0.2,
       negotiationSkill: 0.52, observationSkill: 0.5, secrecy: 0.5, loyalty: 0.72,
-      localFamiliarity: 0, compromised: false, credentialsCompromised: false,
+      localFamiliarity: 0, languageSkills: {}, compromised: false, credentialsCompromised: false,
       route: null, departTick: null, arrivalTick: null,
     });
   }
@@ -125,7 +126,8 @@ export function diplomatCanCommit(diplomat, action, fraction = 0) {
 
 function postObservation(home, host, diplomat, currentTick, rng) {
   home.diplomaticIntelligence ||= [];
-  const skill = clamp(diplomat.observationSkill + diplomat.localFamiliarity * 0.25);
+  const language = diplomatLanguageComprehension(diplomat, home, host);
+  const skill = clamp((diplomat.observationSkill + diplomat.localFamiliarity * 0.25) * (0.62 + language * 0.38));
   const noise = (rng() - 0.5) * (1 - skill) * 0.8;
   const armyEstimate = Math.max(0, Math.round((host.army?.personnel || 0) * (1 + noise)));
   const posture = host.militaryStrategy?.posture || 'unknown';
@@ -134,7 +136,7 @@ function postObservation(home, host, diplomat, currentTick, rng) {
     type: 'diplomat_military_observation', diplomatId: diplomat.id, hostRegionId: host.id,
     hostActorId: actorId(host), estimatedArmy: armyEstimate, observedPosture: posture,
     observedTargetRegionId: skill >= 0.62 ? targetRegionId : null,
-    confidence: clamp(0.35 + skill * 0.55), learnedTick: currentTick,
+    confidence: clamp(0.22 + skill * 0.48 + language * 0.22), languageComprehension: language, learnedTick: currentTick,
   });
   if (home.diplomaticIntelligence.length > 60) home.diplomaticIntelligence.shift();
 }
@@ -164,6 +166,7 @@ export function tickDiplomats(regions, currentTick, elapsedDays = 7, rng = Math.
       } else if (diplomat.status === 'posted') {
         diplomat.localFamiliarity = clamp(diplomat.localFamiliarity + elapsedDays / 365.2425 * 0.18);
         const host = regionsById.get(diplomat.postedRegionId);
+        if (host) trainDiplomatLanguage(diplomat, home, host, elapsedDays);
         if (host && (diplomat.lastReportTick == null || currentTick - diplomat.lastReportTick >= 13)) {
           diplomat.lastReportTick = currentTick;
           postObservation(home, host, diplomat, currentTick, rng);
@@ -173,4 +176,19 @@ export function tickDiplomats(regions, currentTick, elapsedDays = 7, rng = Math.
     }
   }
   return events;
+}
+
+export function chooseNpcDiplomatPosting(home, regions, currentTick, rng = Math.random) {
+  const service = ensureService(home);
+  const diplomat = service.diplomats.find((d) => d.status === 'home');
+  if (!diplomat || rng() > 0.18) return null;
+  const candidates = regions.filter((r) => r.id !== home.id &&
+    ((home.neighbors || []).includes(r.id) || (home.adjacentSeaIds || []).some((id) => (r.adjacentSeaIds || []).includes(id))));
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => Math.abs(attitudeToward(home, b.id)) - Math.abs(attitudeToward(home, a.id)));
+  const target = candidates[0];
+  const feeling = attitudeToward(home, target.id);
+  const authority = feeling > 0.65 ? DIPLOMAT_AUTHORITY.MILITARY : feeling > 0.15 ? DIPLOMAT_AUTHORITY.NEGOTIATE : DIPLOMAT_AUTHORITY.OBSERVE;
+  setDiplomatAuthority(home, diplomat.id, authority, { maxMilitaryCommitmentFraction: feeling > 0.75 ? 0.35 : 0.18 });
+  return dispatchDiplomat(home, target, regions, diplomat.id, currentTick);
 }

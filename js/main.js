@@ -30,7 +30,10 @@ import { tickMaritimeExperience } from './technology/seamanship.js?v=20260906-ma
 import { deployFleet, dockFleet, fleetEventInvolvesActor, formatShipOutcome, initialiseFleets, orderFleetHome, orderFleetToSea, resolveFleetContact, setFleetFlag, setFleetMission, syncNextFleetIds, syncRegionalNavyLedger, tickFleets } from './military/fleets.js?v=20260908-fleets1';
 import { tickTransitControl } from './economy/transitTolls.js?v=20260907-transit1';
 import { MILITARY_POSTURES, ensureMilitaryStrategy, reviewMilitaryStrategy, setMilitaryStrategy } from './military/strategicPlanning.js?v=20260908-strategy1';
-import { sendJointOperationProposal, sendWarInvitation, syncNextDiplomaticMessageId, tickDiplomaticCouriers } from './diplomacy/couriers.js?v=20260909-joint-player1';
+import { sendDeceptionJointOperationLetter, sendForgedJointOperationLetter, sendJointOperationProposal, sendWarInvitation, syncNextDiplomaticMessageId, tickDiplomaticCouriers } from './diplomacy/couriers.js?v=20260909-counterintel1';
+import { dispatchDiplomat, ensureDiplomaticService, recallDiplomat, setDiplomatAuthority, syncNextDiplomatId, tickDiplomats } from './diplomacy/diplomats.js?v=20260909-diplomats1';
+import { ensureCounterIntelligence, setCounterIntelligencePolicy } from './diplomacy/counterIntelligence.js?v=20260909-counterintel1';
+import { ensureCommunicationState, tickCommunicationPractices } from './diplomacy/languageCommunication.js?v=20260909-language1';
 import { resolvePlayerJointOperationAdvice, tickPlayerJointOperationAdvisor } from './military/playerJointOperationAdvisor.js?v=20260909-joint-player1';
 import { WAR_STANCES, participantInWar, setEnemyPriority, setWarStance, syncNextWarId, syncWarTheatres } from './military/warTheatres.js?v=20260908-war1';
 
@@ -75,6 +78,7 @@ async function main() {
   linkSeaAdjacency(regions, seaRegions);
   const fishingContactPairs = buildFishingContactPairs(regions, seaRegions);
   initialiseKnowledge(regions, seaRegions);
+  for (const region of regions) { ensureCommunicationState(region); ensureDiplomaticService(region); ensureCounterIntelligence(region); }
   const toolTypes = await (await fetch('data/world/toolTypes.json?v=20260904-weather1')).json();
 
   console.log(
@@ -172,6 +176,8 @@ async function main() {
     syncNextFleetIds(fleets);
     syncRegionalNavyLedger(regions, fleets);
     syncNextDiplomaticMessageId(regions);
+    syncNextDiplomatId(regions);
+    for (const region of regions) { ensureCommunicationState(region); ensureDiplomaticService(region); ensureCounterIntelligence(region); }
     syncNextProjectId(regions);
     eventQueue.length = 0;
     document.getElementById('event-modal').classList.add('hidden');
@@ -243,6 +249,8 @@ async function main() {
     const breakthroughEvents = tickBreakthroughs(regions, calendarWeek, Math.random, time.elapsedDays);
     const religionEvents = tickReligion(regions, religiousWorld, calendarWeek, activeRaids, activeCampaigns, Math.random, time.elapsedDays);
     tickDemographics(regions, religiousWorld, time.elapsedDays);
+    tickCommunicationPractices(regions, polities, agreements, activeCampaigns, calendarWeek, time.elapsedDays);
+    const diplomatEvents = tickDiplomats(regions, calendarWeek, time.elapsedDays, Math.random);
     const courierEvents = tickDiplomaticCouriers(regions, agreements, fleets, calendarWeek, time.elapsedDays, Math.random);
     const playerCapitalForJointPlan = regionsById.get(playerRegionId);
     const jointOperationAdvisorEvents = tickPlayerJointOperationAdvisor(playerCapitalForJointPlan, agreements, regionsById, activeCampaigns, calendarWeek);
@@ -327,6 +335,7 @@ async function main() {
         return message && (message.senderActorId === activePlayerPolityId || message.targetActorId === activePlayerPolityId || event.interceptingActorId === activePlayerPolityId);
       }),
       ...jointOperationAdvisorEvents,
+      ...diplomatEvents.filter((event) => event.homeRegionId === playerRegionId && event.type !== 'diplomat_report'),
       ...polityEvents.filter((event) => event.regionId === playerRegionId),
       ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),
       ...fleetResult.events.filter((event) => fleetEventInvolvesActor(event, activePlayerPolityId, fleets)),
@@ -397,6 +406,7 @@ async function main() {
     get fleets() { return fleets; },
     get activePlayerPolityId() { return activePlayerPolityId; },
     fleetApi: { deployFleet, dockFleet, orderFleetHome, orderFleetToSea, setFleetFlag, setFleetMission, syncRegionalNavyLedger },
+    diplomatApi: { dispatchDiplomat, recallDiplomat, setDiplomatAuthority, setCounterIntelligencePolicy, sendForgedJointOperationLetter, sendDeceptionJointOperationLetter },
     agreements,
     religiousWorld,
     polities,
@@ -1484,6 +1494,28 @@ function showNextEvent(clock, eventQueue) {
     document.getElementById('btn-joint-plan-no').addEventListener('click', () => finish('no'));
     document.getElementById('event-modal').classList.remove('hidden');
     return;
+  }
+  if (event.type === 'diplomat_posted') {
+    document.getElementById('event-title').textContent = 'Envoy reaches a foreign court';
+    document.getElementById('event-body').textContent = `${event.diplomat.name} has reached the assigned court and begun building local familiarity. Reports will be imperfect and periodic, not omniscient.`;
+    wireEventContinue(clock, eventQueue); return;
+  }
+  if (event.type === 'diplomat_returned') {
+    document.getElementById('event-title').textContent = 'Envoy returns';
+    document.getElementById('event-body').textContent = `${event.diplomat.name} has returned home and is available for reassignment.`;
+    wireEventContinue(clock, eventQueue); return;
+  }
+  if (event.type === 'diplomat_detained') {
+    document.getElementById('event-title').textContent = 'Envoy detained';
+    document.getElementById('event-body').textContent = `${event.diplomat.name} has been detained by the foreign court. Their reporting and delegated authority are unavailable while held.`;
+    wireEventContinue(clock, eventQueue); return;
+  }
+  if (['forged_letter_detected','forged_letter_believed'].includes(event.type)) {
+    document.getElementById('event-title').textContent = event.type === 'forged_letter_detected' ? 'Suspected forged letter' : 'Intelligence from a diplomatic letter';
+    document.getElementById('event-body').textContent = event.type === 'forged_letter_detected'
+      ? 'Our officials found inconsistencies in a letter presented as genuine. The alleged sender may have been impersonated.'
+      : 'A letter has been accepted as probably genuine. Its operational claims remain intelligence, not certainty.';
+    wireEventContinue(clock, eventQueue); return;
   }
   if (event.type === 'campaign_arrived') {
     document.getElementById('event-title').textContent = `Campaign reaches ${event.defenderName}`;

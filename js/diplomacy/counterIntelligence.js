@@ -1,4 +1,5 @@
 import { residentDiplomatFor } from './diplomats.js?v=20260909-diplomats1';
+import { communicationCapabilities } from './languageCommunication.js?v=20260909-language1';
 
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
 const actorId = (region) => region?.governance?.sovereignPolityId || region?.controllingActorId || region?.id;
@@ -6,8 +7,9 @@ const actorId = (region) => region?.governance?.sovereignPolityId || region?.con
 export function ensureCounterIntelligence(region) {
   region.counterIntelligence ||= {};
   const ci = region.counterIntelligence;
-  if (!Number.isFinite(ci.credentialSecurity)) ci.credentialSecurity = 0.38;
-  if (!Number.isFinite(ci.codePractice)) ci.codePractice = 0.16;
+  const caps = communicationCapabilities(region);
+  if (!Number.isFinite(ci.credentialSecurity)) ci.credentialSecurity = caps.seals ? 0.38 : 0.16;
+  if (!Number.isFinite(ci.codePractice)) ci.codePractice = caps.ciphers ? 0.18 : caps.challengePhrases ? 0.07 : 0;
   if (!Number.isFinite(ci.verificationCaution)) ci.verificationCaution = 0.45;
   ci.credentialSecurity = clamp(ci.credentialSecurity);
   ci.codePractice = clamp(ci.codePractice);
@@ -27,8 +29,11 @@ export function setCounterIntelligencePolicy(region, patch = {}) {
 
 export function credentialQuality(region) {
   const ci = ensureCounterIntelligence(region);
+  const caps = communicationCapabilities(region);
   const admin = region.governance?.administrativeControl ?? region.polityAdministration?.recordKeeping ?? 0.25;
-  return clamp(0.24 + ci.credentialSecurity * 0.42 + ci.codePractice * 0.18 + clamp(admin) * 0.16);
+  const seal = caps.seals ? 0.12 + caps.sealPractice * 0.18 : 0;
+  const challenge = caps.challengePhrases ? caps.challengePhrasePractice * 0.08 : 0;
+  return clamp(0.16 + ci.credentialSecurity * 0.34 + clamp(admin) * 0.16 + seal + challenge);
 }
 
 export function genuineAuthentication(sender, options = {}) {
@@ -37,7 +42,8 @@ export function genuineAuthentication(sender, options = {}) {
     actualSenderActorId: actorId(sender),
     claimedSenderActorId: actorId(sender),
     credentialQuality: credentialQuality(sender),
-    coded: Boolean(options.coded),
+    sealed: communicationCapabilities(sender).seals,
+    coded: Boolean(options.coded) && communicationCapabilities(sender).ciphers,
     strategicTruth: options.strategicTruth !== false,
   };
 }
@@ -75,7 +81,10 @@ export function assessMessageAuthenticity(receiver, message, regions = [], rng =
   }
 
   const forgery = clamp(auth.forgeryQuality ?? apparent);
-  const detectChance = clamp(0.08 + defence * 0.72 - forgery * 0.58 + (auth.coded ? ci.codePractice * 0.12 : 0), 0.03, 0.92);
+  const caps = communicationCapabilities(receiver);
+  const sealCheck = auth.sealed && caps.seals ? 0.1 + caps.sealPractice * 0.12 : 0;
+  const codeCheck = auth.coded && caps.ciphers ? 0.08 + caps.cipherPractice * 0.12 : 0;
+  const detectChance = clamp(0.06 + defence * 0.62 + sealCheck + codeCheck - forgery * 0.58, 0.02, 0.94);
   const detected = rng() < detectChance;
   if (detected) {
     ci.detectedForgeries.push({ sourceMessageId: message.id, claimedSenderActorId: auth.claimedSenderActorId, detectedTick: message.receivedTick ?? null });
