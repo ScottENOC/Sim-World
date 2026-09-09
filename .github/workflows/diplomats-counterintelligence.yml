@@ -55,7 +55,7 @@ jobs:
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add js/diplomacy/diplomats.js js/diplomacy/counterIntelligence.js js/diplomacy/languageCommunication.js js/diplomacy/couriers.js js/military/playerJointOperationAdvisor.js js/ui/advisors.js js/main.js tools/test-joint-operations-command.mjs
+          git add -A
           if git diff --cached --quiet; then
             echo 'Diplomat/counter-intelligence integration already materialised'
           else
