@@ -31,7 +31,7 @@ import { deployFleet, dockFleet, fleetEventInvolvesActor, formatShipOutcome, ini
 import { tickTransitControl } from './economy/transitTolls.js?v=20260907-transit1';
 import { MILITARY_POSTURES, ensureMilitaryStrategy, reviewMilitaryStrategy, setMilitaryStrategy } from './military/strategicPlanning.js?v=20260908-strategy1';
 import { sendDeceptionJointOperationLetter, sendForgedJointOperationLetter, sendJointOperationProposal, sendWarInvitation, syncNextDiplomaticMessageId, tickDiplomaticCouriers } from './diplomacy/couriers.js?v=20260909-counterintel1';
-import { dispatchDiplomat, ensureDiplomaticService, recallDiplomat, setDiplomatAuthority, syncNextDiplomatId, tickDiplomats } from './diplomacy/diplomats.js?v=20260909-diplomats1';
+import { attemptBribeDiplomat, diplomatPublicProfile, dispatchDiplomat, ensureDiplomaticService, expelDiplomat, foreignGovernmentTrust, recallDiplomat, releaseDiplomat, resolveDiplomatAuthorityBreach, setDiplomatAuthority, syncNextDiplomatId, tickDiplomats } from './diplomacy/diplomats.js?v=20260909-agent-trust1';
 import { ensureCounterIntelligence, setCounterIntelligencePolicy } from './diplomacy/counterIntelligence.js?v=20260909-counterintel1';
 import { ensureCommunicationState, tickCommunicationPractices } from './diplomacy/languageCommunication.js?v=20260909-language1';
 import { tickGenerationalLanguageChange } from './diplomacy/languageChange.js?v=20260909-language-change1';
@@ -264,6 +264,10 @@ async function main() {
     tickCommunicationPractices(regions, polities, agreements, activeCampaigns, calendarWeek, time.elapsedDays);
     const languageChangeEvents = tickGenerationalLanguageChange(regions, time.elapsedDays);
     const diplomatEvents = tickDiplomats(regions, calendarWeek, time.elapsedDays, Math.random);
+    for (const diplomatEvent of diplomatEvents) {
+      if (diplomatEvent.type !== 'diplomat_authority_breach_reported' || diplomatEvent.homeRegionId !== playerRegionId) continue;
+      diplomatEvent.resolveDecision = (choice) => resolveDiplomatAuthorityBreach(regionsById.get(diplomatEvent.homeRegionId), diplomatEvent.diplomat.id, choice, agreements, calendarWeek);
+    }
     const courierEvents = tickDiplomaticCouriers(regions, agreements, fleets, calendarWeek, time.elapsedDays, Math.random);
     const playerCapitalForJointPlan = regionsById.get(playerRegionId);
     const jointOperationAdvisorEvents = tickPlayerJointOperationAdvisor(playerCapitalForJointPlan, agreements, regionsById, activeCampaigns, calendarWeek);
@@ -423,7 +427,7 @@ async function main() {
     get fleets() { return fleets; },
     get activePlayerPolityId() { return activePlayerPolityId; },
     fleetApi: { deployFleet, dockFleet, orderFleetHome, orderFleetToSea, setFleetFlag, setFleetMission, syncRegionalNavyLedger },
-    diplomatApi: { dispatchDiplomat, recallDiplomat, setDiplomatAuthority, setCounterIntelligencePolicy, sendForgedJointOperationLetter, sendDeceptionJointOperationLetter },
+    diplomatApi: { dispatchDiplomat, recallDiplomat, setDiplomatAuthority, setCounterIntelligencePolicy, sendForgedJointOperationLetter, sendDeceptionJointOperationLetter, attemptBribeDiplomat, expelDiplomat, releaseDiplomat, diplomatPublicProfile, foreignGovernmentTrust },
     campaignCommandApi: { issueCampaignOrder, marshalCampaignAssessment },
     agreements,
     religiousWorld,
@@ -1417,6 +1421,27 @@ function showNextEvent(clock, eventQueue) {
       ? `${event.targetName} has agreed to join the war against ${event.enemyName}. Their commitment is now part of your general's planning assumptions, but actual troops still have to be mobilised and moved.`
       : `${event.targetName} has refused to join the war against ${event.enemyName}. Your general will no longer count on that promised contribution.`;
     wireEventContinue(clock, eventQueue); return;
+  }
+  if (event.type === 'diplomat_authority_breach_reported') {
+    document.getElementById('event-title').textContent = 'Envoy exceeded his mandate';
+    document.getElementById('event-body').textContent = `${event.diplomat?.name || 'Your envoy'} made a commitment beyond the authority you granted. You can ratify the commitment, accepting it as state policy, or repudiate it at the cost of diplomatic credibility and the envoy's standing.`;
+    const options = document.getElementById('event-options');
+    options.innerHTML = '<button id="btn-dip-ratify">Ratify the commitment</button><button id="btn-dip-repudiate">Repudiate it and restrict the envoy</button>';
+    document.getElementById('event-modal').classList.remove('hidden');
+    const finish = (choice) => {
+      const result = event.resolveDecision?.(choice);
+      document.getElementById('event-body').textContent = choice === 'ratify' ? `The commitment is ratified${result?.affectedAgreements ? ` (${result.affectedAgreements} agreement)` : ''}.` : 'The commitment is repudiated and the envoy is reduced to observation authority.';
+      options.innerHTML = '<button id="btn-event-continue">Continue</button>';
+      document.getElementById('btn-event-continue').addEventListener('click', () => { document.getElementById('event-modal').classList.add('hidden'); if (eventQueue.length) showNextEvent(clock,eventQueue); else clock.releaseAutoPause(); });
+    };
+    document.getElementById('btn-dip-ratify').addEventListener('click', () => finish('ratify'));
+    document.getElementById('btn-dip-repudiate').addEventListener('click', () => finish('repudiate'));
+    return;
+  }
+  if (['diplomat_expelled','diplomat_detained','diplomat_compromise_suspected'].includes(event.type)) {
+    document.getElementById('event-title').textContent = event.type === 'diplomat_expelled' ? 'Envoy expelled' : event.type === 'diplomat_detained' ? 'Envoy detained' : 'Spymaster questions an envoy';
+    document.getElementById('event-body').textContent = event.type === 'diplomat_expelled' ? `${event.diplomat?.name || 'Your envoy'} has been ordered to leave the foreign court.` : event.type === 'diplomat_detained' ? `${event.diplomat?.name || 'Your envoy'} has been detained and cannot be recalled normally.` : `There are reasons to doubt ${event.diplomat?.name || 'your envoy'}. This is suspicion, not proof of betrayal.`;
+    wireEventContinue(clock,eventQueue); return;
   }
   if (event.type === 'fleet_contact') {
     document.getElementById('event-title').textContent = 'Fleet sighted';

@@ -1,6 +1,6 @@
 import { attitudeToward, changeAttitude } from './relations.js?v=20260904-save1';
 import { maritimeRouteBetween } from '../world/chokepoints.js?v=20260907-chokepoints1';
-import { diplomatCanCommit, residentDiplomatFor } from './diplomats.js?v=20260909-diplomats1';
+import { diplomatCommitDecision, residentDiplomatFor } from './diplomats.js?v=20260909-agent-trust1';
 import { assessMessageAuthenticity, forgeryAuthentication, genuineAuthentication, intelligenceCredibilityFromMessage } from './counterIntelligence.js?v=20260909-counterintel1';
 import { chooseMessageMedium, communicationCapabilities, courierProfile, interceptedContentChance, languageComprehension, recordLanguageContact } from './languageCommunication.js?v=20260909-language-networks1';
 import { courtLanguageCompetence } from './languageNetworks.js?v=20260909-language-networks1';
@@ -114,11 +114,12 @@ export function sendJointOperationProposal(sender, target, enemy, regions, curre
   const regionsById = new Map(regions.map((r) => [r.id, r]));
   const statedFraction = clamp(options.commitmentFraction ?? 0.55, 0.1, 0.95);
   const residentDiplomat = residentDiplomatFor(target, sender.id);
-  const delegated = diplomatCanCommit(residentDiplomat, 'joint_operation', statedFraction);
+  const leadWeeks = Math.max(2, Math.round(options.leadWeeks ?? 12));
+  const commitDecision = residentDiplomat ? diplomatCommitDecision(residentDiplomat, 'joint_operation', statedFraction, currentTick, { urgency: clamp(1 - leadWeeks / 26), rng: options.rng || Math.random }) : { canCommit: false };
+  const delegated = Boolean(commitDecision.canCommit);
   const route = delegated ? { mode: 'resident', days: 0, diplomatId: residentDiplomat.id } : routeFor(sender, target, regionsById);
   if (!route) return { sent: false, reason: 'no_route' };
   ensureMailbox(sender); ensureMailbox(target);
-  const leadWeeks = Math.max(2, Math.round(options.leadWeeks ?? 12));
   const message = {
     id: `dmsg-${nextMessageId++}`, type: 'joint_operation_proposal',
     senderRegionId: sender.id, senderActorId: actorId(sender),
@@ -135,6 +136,7 @@ export function sendJointOperationProposal(sender, target, enemy, regions, curre
     secrecy: clamp(options.secrecy ?? 0.65), departTick: currentTick,
     arrivalTick: delegated ? currentTick : currentTick + Math.max(1, Math.ceil(route.days / 7)), route,
     residentDiplomatId: delegated ? residentDiplomat.id : null, delegatedAuthority: delegated ? residentDiplomat.authority : null,
+    authorityExceeded: Boolean(delegated && commitDecision.exceededAuthority),
     authentication: genuineAuthentication(sender, { coded: Boolean(options.coded), strategicTruth: options.strategicTruth !== false }),
     status: 'in_transit', intercepted: false, compromised: false, destroyed: false, response: null,
   };
@@ -202,6 +204,7 @@ function createJointOperationAgreement(message, sender, target, agreements, curr
     partnerPrivateIntent: partnerIntent,
     createdTick: currentTick, sourceMessageId: message.id, execution: {},
     sourceDiplomatId: message.residentDiplomatId || null, delegatedAuthority: message.delegatedAuthority || null,
+    authorityExceeded: Boolean(message.authorityExceeded), authorityRatified: !message.authorityExceeded,
   };
   agreements.push(agreement);
   return agreement;
