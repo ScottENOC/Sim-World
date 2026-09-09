@@ -1,3 +1,5 @@
+import { applyPlayerCommandToBattleParticipation } from './campaignCommand.js?v=20260909-command1';
+
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
 
 export function battleParticipationFraction(campaign, region) {
@@ -13,5 +15,5 @@ export function battleParticipationFraction(campaign, region) {
   }
   const posture = region?.militaryStrategy?.posture;
   if (posture === 'emergency_defence' || posture === 'mobilise_war') fraction = Math.max(fraction, 0.92);
-  return clamp(fraction, 0.12, 1);
+  return applyPlayerCommandToBattleParticipation(campaign, clamp(fraction, 0.12, 1));
 }
