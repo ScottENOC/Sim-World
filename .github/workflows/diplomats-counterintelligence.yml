@@ -20,9 +20,10 @@ jobs:
           python tools/apply-diplomats-counterintelligence.py
           python tools/apply-diplomats-ui.py
           python tools/apply-language-communication.py
+          python tools/fix-language-delivery.py
       - name: Syntax checks
         run: |
-          python -m py_compile tools/apply-diplomats-counterintelligence.py tools/apply-diplomats-ui.py tools/apply-language-communication.py
+          python -m py_compile tools/apply-diplomats-counterintelligence.py tools/apply-diplomats-ui.py tools/apply-language-communication.py tools/fix-language-delivery.py
           node --check js/diplomacy/diplomats.js
           node --check js/diplomacy/counterIntelligence.js
           node --check js/diplomacy/languageCommunication.js
