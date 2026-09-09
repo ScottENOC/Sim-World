@@ -196,7 +196,7 @@ button, input, select {
   font-size: 11px;
   color: var(--parchment-dim);
   pointer-events: none;
-  max-width: 140px;
+  max-width: min(94vw, 520px);
 }
 
 .legend.hidden { display: none; }
@@ -206,10 +206,15 @@ button, input, select {
   gap: 4px;
   margin-bottom: 6px;
   pointer-events: auto;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
 }
+.layer-toggle::-webkit-scrollbar { display: none; }
 
 .layer-btn {
-  flex: 1;
+  flex: 0 0 auto;
+  min-width: 50px;
   padding: 4px 6px;
   font-size: 10px;
   border-radius: 5px;
@@ -247,6 +252,9 @@ button, input, select {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  max-height: 112px;
+  overflow-y: auto;
+  pointer-events: auto;
 }
 
 .legend-swatch-row {

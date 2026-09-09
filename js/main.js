@@ -16,6 +16,7 @@ import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID
 import { MapRenderer } from './ui/mapRenderer.js?v=20260904-war1';
 import { AdvisorCouncil } from './ui/advisors.js?v=20260905-projects1';
 import { renderDiplomaticServicePanel } from './ui/diplomaticServicePanel.js?v=20260909-diplomatic-ui1';
+import { buildSocialOverlayLayers } from './ui/socialOverlays.js?v=20260910-social-overlays1';
 import { FogOfWar } from './core/fogOfWar.js?v=20260904-weather1';
 import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260906-scouting1';
 import { startScoutingMission, tickScouting } from './core/scouting.js?v=20260906-scouting1';
@@ -153,6 +154,12 @@ async function main() {
     },
   });
 
+  Object.assign(LAYERS, buildSocialOverlayLayers({
+    regions, religiousWorld, agreements, fogOfWar,
+    getPlayerRegionId: () => playerRegionId,
+    getPlayerPolityId: () => activePlayerPolityId,
+    knowledgeLevel, knowledgeThresholds: KNOWLEDGE_THRESHOLDS,
+  }));
   wireLayerToggle(map);
   map.setLayer(LAYERS.density);
   showLegend(map);
