@@ -27,11 +27,8 @@ function supplyStatus(campaign) {
 
 export function ensureCampaignCommand(campaign) {
   campaign.commandState ||= {
-    order: 'delegate',
-    issuedTick: null,
-    rationale: null,
-    playerIssued: false,
-    previousObjectivePolicy: null,
+    order: 'delegate', issuedTick: null, rationale: null, playerIssued: false,
+    previousObjectivePolicy: null, lastAdvisedRisk: null, lastAdvisedRecommendation: null, lastAdviceTick: null,
   };
   campaign.battleCommand ||= {};
   return campaign.commandState;
@@ -77,29 +74,11 @@ export function marshalCampaignAssessment(campaign, attacker, defender) {
   const position = campaign.subregional?.currentNodeId || (campaign.phase === 'travelling' ? 'on the march' : 'unknown');
   const objective = campaign.subregional?.objectivePolicy || campaign.objective || 'balanced';
   return {
-    campaignId: campaign.id,
-    attackerName: attacker?.name || campaign.attackerId,
-    defenderName: defender?.name || campaign.defenderId,
-    phase: campaign.phase,
-    position,
-    objective,
-    personnel,
-    initialPersonnel: initial,
-    casualties: Number(campaign.attackerCasualties || 0),
-    casualtyShare,
-    morale,
-    supply,
-    supplyWeeks: weeks,
-    supplyStatus: status,
-    corridorReliability: corridor,
-    corridorBrokenNodeId: broken,
-    corridorWeakNodeId: weak,
-    blocked,
-    recommendation,
-    risk,
-    reason,
-    currentOrder: command.order,
-    playerIssued: command.playerIssued,
+    campaignId: campaign.id, attackerName: attacker?.name || campaign.attackerId, defenderName: defender?.name || campaign.defenderId,
+    phase: campaign.phase, position, objective, personnel, initialPersonnel: initial,
+    casualties: Number(campaign.attackerCasualties || 0), casualtyShare, morale, supply, supplyWeeks: weeks,
+    supplyStatus: status, corridorReliability: corridor, corridorBrokenNodeId: broken, corridorWeakNodeId: weak, blocked,
+    recommendation, risk, reason, currentOrder: command.order, playerIssued: command.playerIssued,
     generalIntent: campaign.aiLogisticsDirective || campaign.subregional?.objectivePolicy || 'continue campaign',
   };
 }
@@ -162,4 +141,32 @@ export function applyPlayerCommandToBattleParticipation(campaign, baseFraction) 
   if (posture === 'avoid') return clamp(Math.min(baseFraction, 0.55), 0.12, 1);
   if (posture === 'seek') return clamp(Math.max(baseFraction, 0.95), 0.12, 1);
   return clamp(baseFraction, 0.12, 1);
+}
+
+export function tickCampaignCommandAdvisor(campaigns, regions, playerPolityId, currentTick) {
+  if (!playerPolityId) return [];
+  const byId = new Map((regions || []).map((r) => [r.id, r]));
+  const events = [];
+  for (const campaign of campaigns || []) {
+    if (campaign.completed || campaign.phase === 'returning') continue;
+    const attacker = byId.get(campaign.attackerId);
+    const defender = byId.get(campaign.defenderId);
+    const actor = attacker?.governance?.sovereignPolityId || attacker?.controllingActorId || attacker?.id;
+    if (actor !== playerPolityId) continue;
+    const assessment = marshalCampaignAssessment(campaign, attacker, defender);
+    const state = ensureCampaignCommand(campaign);
+    const urgent = ['high','critical'].includes(assessment.risk);
+    const changed = state.lastAdvisedRisk !== assessment.risk || state.lastAdvisedRecommendation !== assessment.recommendation;
+    const cooldownReady = state.lastAdviceTick === null || currentTick - state.lastAdviceTick >= 8;
+    if (urgent && changed && cooldownReady) {
+      events.push({ type: 'campaign_command_advice', campaignId: campaign.id, campaign, assessment });
+      state.lastAdvisedRisk = assessment.risk;
+      state.lastAdvisedRecommendation = assessment.recommendation;
+      state.lastAdviceTick = currentTick;
+    } else if (!urgent) {
+      state.lastAdvisedRisk = assessment.risk;
+      state.lastAdvisedRecommendation = assessment.recommendation;
+    }
+  }
+  return events;
 }
