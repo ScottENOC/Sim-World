@@ -1,4 +1,5 @@
 import { adoptInstitutionalLanguage, courtLanguageCompetence, dominantLanguageId, ensureLanguageNetwork, languagePopulationProfile, nativeShare } from '../diplomacy/languageNetworks.js?v=20260909-language-policy1';
+import { changeAttitude } from '../diplomacy/relations.js?v=20260904-save1';
 
 export const LANGUAGE_POLICIES = Object.freeze({
   LOCAL: 'local',
@@ -178,10 +179,9 @@ export function tickRegionalLanguagePolicies(regions, polities, currentTick = 0,
     };
     setInstitutionalPolicy(region, assessment);
     region.stability = clamp((region.stability ?? 0.5) + assessment.stabilityWeekly * weekScale * (0.35 + assessment.directness * 0.65));
-    const attitudeTarget = capital.id;
-    if (region.attitudes instanceof Map) {
-      const existing = region.attitudes.get(attitudeTarget) || 0;
-      region.attitudes.set(attitudeTarget, clamp(existing + assessment.attitudeWeekly * weekScale, -1, 1));
+    if (Math.abs(assessment.attitudeWeekly) > 0) {
+      changeAttitude(region, capital.id, assessment.attitudeWeekly * weekScale,
+        assessment.attitudeWeekly >= 0 ? 'language_policy_accommodation' : 'language_policy_imposition', currentTick);
     }
   }
   return events;

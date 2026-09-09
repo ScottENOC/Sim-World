@@ -30,9 +30,10 @@ function minorityRetention(region, network, languageId, share) {
   const institutional = institutionalWeight(network, languageId);
   const religion = network.institutions?.religious?.includes(languageId) ? 0.2 : 0;
   const culture = network.institutions?.cultural?.includes(languageId) ? 0.15 : 0;
+  const policyRetention = Number(network.languagePolicyRetention?.[languageId] || 0);
   const concentration = clamp((share - 0.03) / 0.35);
   const rural = clamp(1 - finite(region?.urbanisation ?? region?.urbanization, 0.15));
-  return clamp(0.22 + concentration * 0.35 + rural * 0.12 + institutional * 0.18 + religion + culture);
+  return clamp(0.22 + concentration * 0.35 + rural * 0.12 + institutional * 0.18 + religion + culture + policyRetention);
 }
 
 export function ensureGenerationalLanguageState(region) {
@@ -46,7 +47,8 @@ export function languageShiftPressure(region, fromLanguageId, toLanguageId) {
   if (fromLanguageId === toLanguageId) return 0;
   const toShare = nativeShare(region, toLanguageId);
   const fromShare = nativeShare(region, fromLanguageId);
-  const attraction = clamp(toShare * 0.28 + institutionalWeight(n, toLanguageId) * 0.32 + prestigeWeight(n, toLanguageId) * 0.22 + secondLanguagePressure(n, toLanguageId) * 0.28);
+  const policyPressure = Math.max(0, Number(n.languagePolicyPressure?.[toLanguageId] || 0));
+  const attraction = clamp(toShare * 0.28 + institutionalWeight(n, toLanguageId) * 0.32 + prestigeWeight(n, toLanguageId) * 0.22 + secondLanguagePressure(n, toLanguageId) * 0.28 + policyPressure * 0.35);
   const retention = minorityRetention(region, n, fromLanguageId, fromShare);
   return clamp(attraction * (1 - retention));
 }

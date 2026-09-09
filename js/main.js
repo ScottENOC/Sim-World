@@ -35,6 +35,7 @@ import { dispatchDiplomat, ensureDiplomaticService, recallDiplomat, setDiplomatA
 import { ensureCounterIntelligence, setCounterIntelligencePolicy } from './diplomacy/counterIntelligence.js?v=20260909-counterintel1';
 import { ensureCommunicationState, tickCommunicationPractices } from './diplomacy/languageCommunication.js?v=20260909-language1';
 import { tickGenerationalLanguageChange } from './diplomacy/languageChange.js?v=20260909-language-change1';
+import { LANGUAGE_POLICIES, ensureRegionalLanguagePolicy, regionalLanguagePolicyAssessment, setRegionalLanguagePolicy, tickRegionalLanguagePolicies } from './politics/languagePolicy.js?v=20260909-language-policy1';
 import { resolvePlayerJointOperationAdvice, tickPlayerJointOperationAdvisor } from './military/playerJointOperationAdvisor.js?v=20260909-joint-player1';
 import { WAR_STANCES, participantInWar, setEnemyPriority, setWarStance, syncNextWarId, syncWarTheatres } from './military/warTheatres.js?v=20260908-war1';
 
@@ -264,6 +265,7 @@ async function main() {
     const diplomacyEvents = tickDiplomacy(regions, agreements, toolTypes, calendarWeek, time.elapsedDays);
     const playerCapitalForPlan = regionsById.get(playerRegionId);
     if (playerCapitalForPlan) reviewMilitaryStrategy(playerCapitalForPlan, { regions, polities, agreements, activeCampaigns, currentTick: calendarWeek });
+    const languagePolicyEvents = tickRegionalLanguagePolicies(regions, polities, calendarWeek, time.elapsedDays, { playerPolityId: activePlayerPolityId });
     const polityEvents = tickPolities(polities, regions, calendarWeek, time.elapsedDays);
     const continuityEvents = tickPoliticalContinuity(polities, regions, time.elapsedDays / 365.2425, calendarWeek, { playerPolityId: activePlayerPolityId });
     tickBanditry(regions, toolTypes, agreements, time.elapsedDays);
@@ -339,6 +341,7 @@ async function main() {
       }),
       ...jointOperationAdvisorEvents,
       ...diplomatEvents.filter((event) => event.homeRegionId === playerRegionId && event.type !== 'diplomat_report'),
+      ...languagePolicyEvents.filter((event) => event.polityId === activePlayerPolityId),
       ...polityEvents.filter((event) => event.regionId === playerRegionId),
       ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),
       ...fleetResult.events.filter((event) => fleetEventInvolvesActor(event, activePlayerPolityId, fleets)),
@@ -1148,6 +1151,9 @@ function renderSubjectRegionControls(region, regions, polities, clock, activeRai
   const history = governance.levyHistory;
   const survival = history.sent > 0 ? history.returned / history.sent : null;
   const reportAge = governance.lastReport ? clock.tickIndex - governance.lastReport.asOfTick : null;
+  const languagePolicy = ensureRegionalLanguagePolicy(region);
+  const languageAssessment = regionalLanguagePolicyAssessment(region, capital, polity);
+  const languageDifference = languageAssessment.mismatch ? 'Local and state languages differ.' : 'Local and state language are currently the same.';
   document.getElementById('region-controls').innerHTML = `
     <div class="raid-status"><strong>${governanceLabel(region)}</strong><br>
       Administrative control ${(governance.administrativeControl * 100).toFixed(0)}% · autonomy ${(governance.autonomy * 100).toFixed(0)}% · estimated corruption ${(governance.corruption * 100).toFixed(0)}%<br>
@@ -1160,6 +1166,18 @@ function renderSubjectRegionControls(region, regions, polities, clock, activeRai
       </select>
     </label>
     <div class="raid-status">Governor: ${governance.governor?.type?.replaceAll('_', ' ') || 'none'} · competence ${((governance.governor?.competence || 0) * 100).toFixed(0)}% · loyalty ${((governance.governor?.loyalty || 0) * 100).toFixed(0)}%</div>
+    <div class="raid-section"><strong>Administrative language</strong>
+      <label class="control-row">Policy
+        <select id="subject-language-policy">
+          <option value="local" ${languagePolicy.mode === 'local' ? 'selected' : ''}>Use the local language</option>
+          <option value="bilingual" ${languagePolicy.mode === 'bilingual' ? 'selected' : ''} ${governance.relationship === 'vassal' ? 'disabled' : ''}>Bilingual administration</option>
+          <option value="state" ${languagePolicy.mode === 'state' ? 'selected' : ''} ${governance.relationship === 'vassal' ? 'disabled' : ''}>Use the state language</option>
+        </select>
+      </label>
+      <div id="subject-language-policy-info" class="raid-status">${languageDifference}<br>
+        Estimated administrative cost ${languageAssessment.costPerWeek.toFixed(2)}/week · control effect ${Math.round((languageAssessment.controlMultiplier - 1) * 100)}% · report delay ${Math.round((languageAssessment.reportDelayMultiplier - 1) * 100)}% · corruption ${languageAssessment.corruptionDelta >= 0 ? '+' : ''}${Math.round(languageAssessment.corruptionDelta * 100)} points.<br>
+        ${languagePolicy.mode === 'local' ? 'Best local legitimacy and language retention, but central oversight is weaker.' : languagePolicy.mode === 'bilingual' ? 'Best compromise when properly staffed, but it consumes more money and scarce bilingual officials.' : 'Cheap and potentially efficient once widely understood, but initially disruptive and assimilationist where the population does not speak it.'}</div>
+    </div>
     <div class="delegated-powers">
       ${Object.entries(governance.delegatedPowers || {}).map(([power, enabled]) => `<label class="control-row"><span>Delegate ${power.replace(/([A-Z])/g, ' $1').toLowerCase()}</span><input type="checkbox" data-delegated-power="${power}" ${enabled ? 'checked' : ''}></label>`).join('')}
     </div>
@@ -1195,6 +1213,10 @@ function renderSubjectRegionControls(region, regions, polities, clock, activeRai
   wirePolicy('subject-tribute', 'subject-tribute-label', 'tributeRate');
   wirePolicy('subject-levy', 'subject-levy-label', 'militaryObligation');
   wirePolicy('subject-autonomy', 'subject-autonomy-label', 'autonomy');
+  document.getElementById('subject-language-policy')?.addEventListener('change', (event) => {
+    const result = setRegionalLanguagePolicy(region, event.target.value, { playerChoice: true, currentTick: clock.tickIndex });
+    if (result.changed) renderRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
+  });
   document.getElementById('subject-form').addEventListener('change', (event) => {
     const result = changeGovernanceForm(region, event.target.value, polity);
     if (result.changed) renderRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
