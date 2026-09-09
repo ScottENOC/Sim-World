@@ -23,6 +23,7 @@ import { chooseNpcMilitaryStrategy } from '../military/strategicPlanning.js?v=20
 import { chooseSupplyAwareCampaignDirective } from '../military/supplyAwareAi.js?v=20260908-supply-ai1';
 import { chooseDefensiveCounterLogistics } from '../military/counterLogisticsAi.js?v=20260909-counter-logistics1';
 import { coordinateExpeditionRelief } from '../military/expeditionReliefAi.js?v=20260909-relief1';
+import { chooseNpcDiplomatPosting } from '../diplomacy/diplomats.js?v=20260909-diplomats1';
 import { activateJointOperations } from '../military/jointOperations.js?v=20260909-joint-ops1';
 
 // A one-percent peacetime levy is supportable while trade and taxation are
@@ -76,6 +77,7 @@ export function tickNationAi(regions, playerRegionId, activeRaids, activeCampaig
     maybeManageTransitTolls(region, regions, rng);
     maybeAdjustTradeEmbargo(region, regionsById, currentTick);
     maybeScout(region, regionsById, currentTick, rng);
+    chooseNpcDiplomatPosting(region, regions, currentTick, rng);
     maybeMakeAgreement(region, regionsById, playerRegionId, agreements, polities, currentTick, toolTypes, rng, chance(DIPLOMACY_CONSIDERATION_CHANCE_PER_WEEK));
     maybeCampaign(region, regionsById, activeCampaigns, polities, religiousWorld, currentTick, toolTypes, rng, chance(CAMPAIGN_CONSIDERATION_CHANCE_PER_WEEK));
     maybeRaid(region, regionsById, activeRaids, polities, religiousWorld, currentTick, toolTypes, rng, chance(RAID_CONSIDERATION_CHANCE_PER_WEEK));

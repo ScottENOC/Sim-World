@@ -3,6 +3,7 @@ import { sendJointOperationProposal, tickDiplomaticCouriers } from '../js/diplom
 import { activateJointOperations } from '../js/military/jointOperations.js';
 import { battleParticipationFraction } from '../js/military/battleCommand.js';
 import { resolveSubregionalArmyBattles } from '../js/military/subregionalArmyBattles.js';
+import { ensureCommunicationState } from '../js/diplomacy/languageCommunication.js';
 
 function region(id, actor, neighbors = []) {
   return {
@@ -23,6 +24,10 @@ sender.relations.set('ally', { attitude: 0.2 });
 ally.relations.set('sender', { attitude: -0.6 });
 ally.relations.set('essex', { attitude: 0.8 });
 const regions = [sender, ally, essex];
+// This regression is about courier timing/betrayal, not first-contact translation.
+// Give the two negotiating courts an already-shared diplomatic language.
+ensureCommunicationState(sender).languageId = 'lang:diplomatic-test';
+ensureCommunicationState(ally).languageId = 'lang:diplomatic-test';
 const agreements = [];
 const proposal = sendJointOperationProposal(sender, ally, essex, regions, 0, {
   attackTick: 12, commitmentFraction: 0.6, secrecy: 0.65,

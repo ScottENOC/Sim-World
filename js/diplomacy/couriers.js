@@ -1,5 +1,8 @@
 import { attitudeToward, changeAttitude } from './relations.js?v=20260904-save1';
 import { maritimeRouteBetween } from '../world/chokepoints.js?v=20260907-chokepoints1';
+import { diplomatCanCommit, residentDiplomatFor } from './diplomats.js?v=20260909-diplomats1';
+import { assessMessageAuthenticity, forgeryAuthentication, genuineAuthentication, intelligenceCredibilityFromMessage } from './counterIntelligence.js?v=20260909-counterintel1';
+import { chooseMessageMedium, communicationCapabilities, courierProfile, interceptedContentChance, languageComprehension, recordLanguageContact } from './languageCommunication.js?v=20260909-language1';
 
 let nextMessageId = 1;
 export function syncNextDiplomaticMessageId(regions = []) {
@@ -10,6 +13,31 @@ export function syncNextDiplomaticMessageId(regions = []) {
 
 function actorId(region) { return region?.governance?.sovereignPolityId || region?.controllingActorId || region?.id; }
 function clamp(v, lo = 0, hi = 1) { return Math.max(lo, Math.min(hi, Number(v) || 0)); }
+
+function prepareCommunication(message, sender, target, complexity = 0.5, options = {}) {
+  const choice = chooseMessageMedium(sender, target, complexity, options);
+  message.medium = choice.medium;
+  message.languageComprehensionAtDispatch = choice.comprehension;
+  message.courier = courierProfile(sender, choice.medium, complexity);
+  message.contentRecovered = null;
+  message.deliveryComprehension = null;
+  if (message.authentication) {
+    const caps = communicationCapabilities(sender);
+    message.authentication.sealed = Boolean(caps.seals && choice.medium === 'sealed_written');
+    message.authentication.coded = Boolean(message.authentication.coded && caps.ciphers);
+  }
+  return message;
+}
+
+function resolveDeliveryLanguage(message, sender, target) {
+  const mode = ['written','sealed_written'].includes(message.medium) ? 'written' : 'spoken';
+  const understood = languageComprehension(target, sender, mode);
+  const memory = message.medium === 'oral_memorised' ? (message.courier?.memoryAccuracy ?? 0.85) : 1;
+  message.deliveryComprehension = clamp(understood * memory);
+  recordLanguageContact(target, sender, 1.4, { written: mode === 'written' });
+  recordLanguageContact(sender, target, 0.6, { written: mode === 'written' });
+  return message.deliveryComprehension;
+}
 
 function ensureMailbox(region) {
   if (!Array.isArray(region.diplomaticMessages)) region.diplomaticMessages = [];
@@ -79,11 +107,13 @@ function routeRisk(route, regionsById, fleets, senderActorId, targetActorId) {
 
 export function sendJointOperationProposal(sender, target, enemy, regions, currentTick, options = {}) {
   const regionsById = new Map(regions.map((r) => [r.id, r]));
-  const route = routeFor(sender, target, regionsById);
+  const statedFraction = clamp(options.commitmentFraction ?? 0.55, 0.1, 0.95);
+  const residentDiplomat = residentDiplomatFor(target, sender.id);
+  const delegated = diplomatCanCommit(residentDiplomat, 'joint_operation', statedFraction);
+  const route = delegated ? { mode: 'resident', days: 0, diplomatId: residentDiplomat.id } : routeFor(sender, target, regionsById);
   if (!route) return { sent: false, reason: 'no_route' };
   ensureMailbox(sender); ensureMailbox(target);
   const leadWeeks = Math.max(2, Math.round(options.leadWeeks ?? 12));
-  const statedFraction = clamp(options.commitmentFraction ?? 0.55, 0.1, 0.95);
   const message = {
     id: `dmsg-${nextMessageId++}`, type: 'joint_operation_proposal',
     senderRegionId: sender.id, senderActorId: actorId(sender),
@@ -98,19 +128,26 @@ export function sendJointOperationProposal(sender, target, enemy, regions, curre
       delayWeeks: Math.max(0, Math.round(options.delayWeeks || 0)),
     },
     secrecy: clamp(options.secrecy ?? 0.65), departTick: currentTick,
-    arrivalTick: currentTick + Math.max(1, Math.ceil(route.days / 7)), route,
+    arrivalTick: delegated ? currentTick : currentTick + Math.max(1, Math.ceil(route.days / 7)), route,
+    residentDiplomatId: delegated ? residentDiplomat.id : null, delegatedAuthority: delegated ? residentDiplomat.authority : null,
+    authentication: genuineAuthentication(sender, { coded: Boolean(options.coded), strategicTruth: options.strategicTruth !== false }),
     status: 'in_transit', intercepted: false, compromised: false, destroyed: false, response: null,
   };
+  prepareCommunication(message, sender, target, 0.82, { interpreterAvailable: Boolean(residentDiplomat) });
   sender.diplomaticMessages.push(message);
   return { sent: true, message };
 }
 
-function jointOperationAcceptance(message, sender, target, enemy) {
+function jointOperationAcceptance(message, sender, target, enemy, authenticity = null) {
   const friend = clamp((attitudeToward(target, sender.id) + 1) / 2);
   const enemyHostility = enemy ? clamp((-attitudeToward(target, enemy.id) + 1) / 2) : 0.45;
   const readiness = clamp((target.army?.personnel || 0) / Math.max(100, (target.population || 1) * 0.012));
   const warning = clamp((message.proposedAttackTick - message.arrivalTick) / 20);
-  return clamp(0.06 + friend * 0.38 + enemyHostility * 0.28 + readiness * 0.16 + warning * 0.12);
+  const delegatedBonus = message.residentDiplomatId ? 0.12 : 0;
+  const authenticityPenalty = authenticity?.verdict === 'uncertain' ? 0.16 : authenticity?.detectedForgery ? 0.8 : 0;
+  const language = clamp(message.deliveryComprehension ?? message.languageComprehensionAtDispatch ?? 0.25);
+  const languagePenalty = language < 0.2 ? 0.38 : language < 0.45 ? 0.17 : 0;
+  return clamp(0.06 + friend * 0.38 + enemyHostility * 0.28 + readiness * 0.16 + warning * 0.12 + delegatedBonus - authenticityPenalty - languagePenalty);
 }
 
 function choosePrivateJointIntent(message, sender, target, enemy, rng) {
@@ -159,13 +196,15 @@ function createJointOperationAgreement(message, sender, target, agreements, curr
     proposerPrivateIntent: message.privateIntent,
     partnerPrivateIntent: partnerIntent,
     createdTick: currentTick, sourceMessageId: message.id, execution: {},
+    sourceDiplomatId: message.residentDiplomatId || null, delegatedAuthority: message.delegatedAuthority || null,
   };
   agreements.push(agreement);
   return agreement;
 }
 
 function sendJointOperationReply(original, sender, target, accepted, agreement, regionsById, currentTick) {
-  const route = routeFor(target, sender, regionsById);
+  const resident = Boolean(original.residentDiplomatId);
+  const route = resident ? { mode: 'resident', days: 0, diplomatId: original.residentDiplomatId } : routeFor(target, sender, regionsById);
   if (!route) return null;
   const reply = {
     id: `dmsg-${nextMessageId++}`, type: 'joint_operation_reply',
@@ -175,11 +214,70 @@ function sendJointOperationReply(original, sender, target, accepted, agreement, 
     inReplyTo: original.id, accepted, jointOperationId: agreement?.id || null,
     declaredCommitmentFraction: agreement?.partnerDeclaredFraction || 0,
     proposedAttackTick: original.proposedAttackTick, secrecy: original.secrecy,
+    departTick: currentTick, arrivalTick: resident ? currentTick : currentTick + Math.max(1, Math.ceil(route.days / 7)), route,
+    residentDiplomatId: original.residentDiplomatId || null,
+    authentication: genuineAuthentication(target, { coded: Boolean(original.authentication?.coded) }),
+    status: 'in_transit', intercepted: false, compromised: false, destroyed: false, response: null,
+  };
+  prepareCommunication(reply, target, sender, 0.55, { interpreterAvailable: Boolean(original.residentDiplomatId) });
+  target.diplomaticMessages.push(reply);
+  return reply;
+}
+
+export function sendForgedJointOperationLetter(forger, purportedSender, target, allegedEnemy, regions, currentTick, options = {}) {
+  const regionsById = new Map(regions.map((r) => [r.id, r]));
+  const route = routeFor(forger, target, regionsById);
+  if (!route) return { sent: false, reason: 'no_route' };
+  ensureMailbox(forger); ensureMailbox(target);
+  const message = {
+    id: `dmsg-${nextMessageId++}`, type: 'forged_joint_operation_letter',
+    senderRegionId: forger.id, senderActorId: actorId(forger),
+    purportedSenderRegionId: purportedSender.id, claimedSenderActorId: actorId(purportedSender),
+    targetRegionId: target.id, targetActorId: actorId(target),
+    enemyRegionId: allegedEnemy.id, enemyActorId: actorId(allegedEnemy),
+    proposedAttackTick: Math.max(currentTick + 2, Math.round(options.attackTick ?? currentTick + 12)),
+    declaredCommitmentFraction: clamp(options.commitmentFraction ?? 0.6, 0.1, 0.95),
+    objective: options.objective || 'subjugation', secrecy: clamp(options.secrecy ?? 0.45),
+    authentication: forgeryAuthentication(forger, purportedSender, options),
     departTick: currentTick, arrivalTick: currentTick + Math.max(1, Math.ceil(route.days / 7)), route,
     status: 'in_transit', intercepted: false, compromised: false, destroyed: false, response: null,
   };
-  target.diplomaticMessages.push(reply);
-  return reply;
+  prepareCommunication(message, forger, target, 0.78);
+  forger.diplomaticMessages.push(message);
+  return { sent: true, message };
+}
+
+export function sendDeceptionJointOperationLetter(sender, target, falseEnemy, regions, currentTick, options = {}) {
+  const regionsById = new Map(regions.map((r) => [r.id, r]));
+  const route = routeFor(sender, target, regionsById);
+  if (!route) return { sent: false, reason: 'no_route' };
+  ensureMailbox(sender); ensureMailbox(target);
+  const message = {
+    id: `dmsg-${nextMessageId++}`, type: 'deception_joint_operation_letter',
+    senderRegionId: sender.id, senderActorId: actorId(sender),
+    targetRegionId: target.id, targetActorId: actorId(target),
+    enemyRegionId: falseEnemy.id, enemyActorId: actorId(falseEnemy),
+    proposedAttackTick: Math.max(currentTick + 2, Math.round(options.attackTick ?? currentTick + 10)),
+    declaredCommitmentFraction: clamp(options.commitmentFraction ?? 0.65, 0.1, 0.95),
+    objective: options.objective || 'subjugation', secrecy: clamp(options.secrecy ?? 0.12),
+    authentication: genuineAuthentication(sender, { coded: Boolean(options.coded), strategicTruth: false }),
+    departTick: currentTick, arrivalTick: currentTick + Math.max(1, Math.ceil(route.days / 7)), route,
+    status: 'in_transit', intercepted: false, compromised: false, destroyed: false, response: null,
+  };
+  prepareCommunication(message, sender, target, 0.72);
+  sender.diplomaticMessages.push(message);
+  return { sent: true, message };
+}
+
+function recordApparentPlan(receiver, message, currentTick, assessment, sourceType) {
+  recordDiplomaticIntelligence(receiver, {
+    type: sourceType, claimedSenderActorId: message.authentication?.claimedSenderActorId || message.claimedSenderActorId || message.senderActorId,
+    actualSenderActorId: assessment.detectedForgery ? message.authentication?.actualSenderActorId || null : null,
+    enemyActorId: message.enemyActorId, enemyRegionId: message.enemyRegionId, attackTick: message.proposedAttackTick,
+    declaredCommitmentFraction: message.declaredCommitmentFraction, authenticityVerdict: assessment.verdict,
+    confidence: assessment.intelligenceConfidence ?? assessment.confidenceAuthentic ?? 0.4,
+    learnedTick: currentTick, sourceMessageId: message.id,
+  });
 }
 
 export function sendWarInvitation(sender, target, enemy, regions, currentTick, options = {}) {
@@ -198,6 +296,7 @@ export function sendWarInvitation(sender, target, enemy, regions, currentTick, o
     enemyActorId: actorId(enemy),
     requestedPersonnel: Math.max(0, Math.round(options.requestedPersonnel || 0)),
     secrecy: clamp(options.secrecy ?? 0.4),
+    authentication: genuineAuthentication(sender, { coded: Boolean(options.coded) }),
     departTick: currentTick,
     arrivalTick: currentTick + Math.max(1, Math.ceil(route.days / 7)),
     route,
@@ -207,6 +306,7 @@ export function sendWarInvitation(sender, target, enemy, regions, currentTick, o
     destroyed: false,
     response: null,
   };
+  prepareCommunication(message, sender, target, 0.68);
   sender.diplomaticMessages.push(message);
   return { sent: true, message };
 }
@@ -259,20 +359,50 @@ export function tickDiplomaticCouriers(regions, agreements, fleets, currentTick,
       if (!message.intercepted && rng() < tickIntercept) {
         message.intercepted = true;
         message.compromised = true;
+        message.contentRecovered = rng() < interceptedContentChance(message, 0.55);
         const interceptingActorId = risk.hostileActors.length ? risk.hostileActors[Math.floor(rng() * risk.hostileActors.length)] : null;
         const destroyed = rng() < 0.38;
         message.destroyed = destroyed;
         if (destroyed) message.status = 'intercepted_lost';
         const interceptorRegion = [...regionsById.values()].find((r) => actorId(r) === interceptingActorId);
-        if (interceptorRegion && ['joint_operation_proposal','joint_operation_reply'].includes(message.type)) {
-          recordDiplomaticIntelligence(interceptorRegion, { type: 'intercepted_joint_operation', senderActorId: message.senderActorId,
-            targetActorId: message.targetActorId, enemyActorId: message.enemyActorId, attackTick: message.proposedAttackTick,
-            accepted: message.accepted ?? null, learnedTick: currentTick, sourceMessageId: message.id });
+        if (message.contentRecovered && interceptorRegion && ['joint_operation_proposal','joint_operation_reply','forged_joint_operation_letter','deception_joint_operation_letter'].includes(message.type)) {
+          const credibility = intelligenceCredibilityFromMessage(interceptorRegion, message, regions, rng);
+          recordApparentPlan(interceptorRegion, message, currentTick, credibility, 'intercepted_joint_operation');
+          if (credibility.detectedForgery) events.push({ type: 'forged_letter_detected', message, detectingActorId: interceptingActorId, assessment: credibility });
         }
         events.push({ type: 'diplomatic_message_intercepted', message, interceptingActorId, destroyed });
         if (destroyed) continue;
       }
       if (currentTick < message.arrivalTick) continue;
+      message.receivedTick = currentTick;
+      resolveDeliveryLanguage(message, sender, target);
+      if (message.type === 'forged_joint_operation_letter') {
+        message.receivedTick = currentTick;
+        const assessment = intelligenceCredibilityFromMessage(target, message, regions, rng);
+        message.authenticityAssessment = assessment;
+        if (assessment.detectedForgery) {
+          message.status = 'forgery_detected';
+          events.push({ type: 'forged_letter_detected', message, detectingActorId: message.targetActorId, assessment });
+        } else {
+          message.status = 'forgery_believed';
+          recordApparentPlan(target, message, currentTick, assessment, 'reported_joint_operation');
+          if ((assessment.intelligenceConfidence || 0) >= 0.48) {
+            target.militaryStrategy ||= {};
+            target.militaryStrategy.posture = 'guarded';
+            target.militaryStrategy.targetRegionId = message.enemyRegionId;
+          }
+          events.push({ type: 'forged_letter_believed', message, assessment });
+        }
+        continue;
+      }
+      if (message.type === 'deception_joint_operation_letter') {
+        message.receivedTick = currentTick;
+        const assessment = intelligenceCredibilityFromMessage(target, message, regions, rng);
+        message.status = 'deception_delivered';
+        recordApparentPlan(target, message, currentTick, assessment, 'reported_joint_operation');
+        events.push({ type: 'deception_letter_delivered', message, assessment });
+        continue;
+      }
       if (message.type === 'joint_operation_reply') {
         message.status = 'delivered';
         message.response = { delivered: true, tick: currentTick, accepted: message.accepted };
@@ -284,7 +414,9 @@ export function tickDiplomaticCouriers(regions, agreements, fleets, currentTick,
         continue;
       }
       if (message.type === 'joint_operation_proposal') {
-        const chance = jointOperationAcceptance(message, sender, target, enemy);
+        message.receivedTick = currentTick;
+        const authenticity = assessMessageAuthenticity(target, message, regions, rng);
+        const chance = jointOperationAcceptance(message, sender, target, enemy, authenticity);
         const accepted = rng() < chance;
         message.status = accepted ? 'accepted_pending_reply' : 'refused_pending_reply';
         const partnerIntent = choosePrivateJointIntent(message, sender, target, enemy, rng);

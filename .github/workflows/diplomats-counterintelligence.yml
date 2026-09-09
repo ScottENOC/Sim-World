@@ -1,0 +1,65 @@
+name: Diplomats and counter-intelligence validation
+
+on:
+  push:
+    branches: [diplomats-counterintelligence-v1]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply integration
+        run: |
+          python tools/apply-diplomats-counterintelligence.py
+          python tools/apply-diplomats-ui.py
+          python tools/apply-language-communication.py
+          python tools/fix-language-delivery.py
+          python tools/apply-language-test-compat.py
+      - name: Syntax checks
+        run: |
+          python -m py_compile tools/apply-diplomats-counterintelligence.py tools/apply-diplomats-ui.py tools/apply-language-communication.py tools/fix-language-delivery.py tools/apply-language-test-compat.py
+          node --check js/diplomacy/diplomats.js
+          node --check js/diplomacy/counterIntelligence.js
+          node --check js/diplomacy/languageCommunication.js
+          node --check js/diplomacy/couriers.js
+          node --check js/military/playerJointOperationAdvisor.js
+          node --check js/ui/advisors.js
+          node --check js/main.js
+      - name: Diplomat, language and counter-intelligence regressions
+        run: node tools/test-diplomats-counterintelligence.mjs
+      - name: Existing diplomacy and military regressions
+        run: |
+          node tools/test-player-joint-operation-advisor.mjs
+          node tools/test-joint-operations-command.mjs
+          node tools/test-allied-battle-coordination.mjs
+          node tools/test-subregional-army-battles.mjs
+          node tools/test-counter-logistics-relief.mjs
+          node tools/test-supply-corridors-ai.mjs
+          node tools/test-expeditionary-logistics.mjs
+          node tools/test-subregional-movement.mjs
+          node tools/test-subregional-control.mjs
+          node tools/test-multi-party-war.mjs
+          node tools/test-strategic-military-planning.mjs
+      - name: Headless world smoke test
+        run: node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 1 --output /tmp/diplomat-counterintel-smoke.json
+      - name: Diff sanity
+        run: git diff --check
+      - name: Commit integrated source
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'Diplomat/counter-intelligence integration already materialised'
+          else
+            git commit -m 'Integrate diplomats, language barriers and counter-intelligence'
+            git pull --rebase
+            git push
+          fi

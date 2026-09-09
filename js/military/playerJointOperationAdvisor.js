@@ -67,15 +67,22 @@ export function jointOperationCouncilAssessment(player, plan, regionsById, activ
   if (allyCampaign) {
     allySignal = 'strong';
     allySummary = `${ally?.name || 'Our ally'} has actually put a field army in motion for the agreed operation.`;
-  } else if (reply?.accepted) {
-    allySignal = 'confirmed_words';
-    allySummary = `${ally?.name || 'Our ally'} formally accepted the plan, but words are not troops; we have not yet confirmed a field army moving.`;
-  } else if (reply && reply.accepted === false) {
-    allySignal = 'refused';
-    allySummary = `${ally?.name || 'Our ally'} refused the operation.`;
-  } else if (relevantIntel.some((entry) => entry.type === 'intercepted_joint_operation' && entry.accepted === true)) {
-    allySignal = 'indirect';
-    allySummary = 'Our intelligence suggests the ally accepted, but the normal reply has not reached us.';
+  } else {
+    const diplomatObservation = [...relevantIntel].reverse().find((entry) => entry.type === 'diplomat_military_observation' && entry.hostRegionId === ally?.id);
+    if (diplomatObservation && ['prepare_war','mobilise_war'].includes(diplomatObservation.observedPosture) &&
+        (!diplomatObservation.observedTargetRegionId || diplomatObservation.observedTargetRegionId === plan.enemyRegionId)) {
+      allySignal = 'physical_signs';
+      allySummary = `Our envoy at ${ally?.name || 'the allied court'} reports visible military preparations${diplomatObservation.observedTargetRegionId === plan.enemyRegionId ? ' consistent with the agreed target' : ''}.`;
+    } else if (reply?.accepted) {
+      allySignal = 'confirmed_words';
+      allySummary = `${ally?.name || 'Our ally'} formally accepted the plan, but words are not troops; we have not yet confirmed a field army moving.`;
+    } else if (reply && reply.accepted === false) {
+      allySignal = 'refused';
+      allySummary = `${ally?.name || 'Our ally'} refused the operation.`;
+    } else if (relevantIntel.some((entry) => entry.type === 'intercepted_joint_operation' && entry.accepted === true)) {
+      allySignal = 'indirect';
+      allySummary = 'Our intelligence suggests the ally accepted, but the normal reply has not reached us.';
+    }
   }
 
   const homeArmy = Math.max(0, player.army?.personnel || 0);
