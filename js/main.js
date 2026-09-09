@@ -37,6 +37,7 @@ import { ensureCommunicationState, tickCommunicationPractices } from './diplomac
 import { tickGenerationalLanguageChange } from './diplomacy/languageChange.js?v=20260909-language-change1';
 import { LANGUAGE_POLICIES, ensureRegionalLanguagePolicy, regionalLanguagePolicyAssessment, setRegionalLanguagePolicy, tickRegionalLanguagePolicies } from './politics/languagePolicy.js?v=20260909-language-policy1';
 import { resolvePlayerJointOperationAdvice, tickPlayerJointOperationAdvisor } from './military/playerJointOperationAdvisor.js?v=20260909-joint-player1';
+import { CAMPAIGN_ORDERS, issueCampaignOrder, marshalCampaignAssessment, tickCampaignCommandAdvisor } from './military/campaignCommand.js?v=20260909-command1';
 import { WAR_STANCES, participantInWar, setEnemyPriority, setWarStance, syncNextWarId, syncWarTheatres } from './military/warTheatres.js?v=20260908-war1';
 
 const START_YEAR = -1300; // target: roughly eighty prosperous years before a c.1220 BCE collapse
@@ -226,6 +227,15 @@ async function main() {
     const calendarWeek = calendarWeekIndex(time.endDay);
     const campaignResult = tickCampaigns(activeCampaigns, regionsById, polities, calendarWeek, toolTypes, Math.random, { playerPolityId: activePlayerPolityId, activeWars, fleets });
     activeCampaigns = campaignResult.remaining;
+    const campaignCommandEvents = tickCampaignCommandAdvisor(activeCampaigns, regions, activePlayerPolityId, calendarWeek);
+    for (const advisoryEvent of campaignCommandEvents) {
+      advisoryEvent.resolveDecision = (choice) => {
+        if (choice !== 'follow') return { changed: false, summary: 'Existing campaign orders remain in force.' };
+        const defender = regionsById.get(advisoryEvent.campaign.defenderId);
+        const result = issueCampaignOrder(advisoryEvent.campaign, advisoryEvent.assessment.recommendation, defender, calendarWeek, { playerIssued: true, rationale: 'marshal_advice' });
+        return { ...result, summary: result.changed ? `Order issued: ${CAMPAIGN_ORDERS[advisoryEvent.assessment.recommendation]?.label || advisoryEvent.assessment.recommendation}.` : 'The order could not be issued.' };
+      };
+    }
     prepareConstructionLabor(regions);
     prepareSiegeWorkforce(regions);
     tickEconomy(regions, seaRegions, toolTypes, Math.random, calendarWeek, time.elapsedDays, time.endDay);
@@ -340,6 +350,7 @@ async function main() {
         return message && (message.senderActorId === activePlayerPolityId || message.targetActorId === activePlayerPolityId || event.interceptingActorId === activePlayerPolityId);
       }),
       ...jointOperationAdvisorEvents,
+      ...campaignCommandEvents,
       ...diplomatEvents.filter((event) => event.homeRegionId === playerRegionId && event.type !== 'diplomat_report'),
       ...languagePolicyEvents.filter((event) => event.polityId === activePlayerPolityId),
       ...polityEvents.filter((event) => event.regionId === playerRegionId),
@@ -413,6 +424,7 @@ async function main() {
     get activePlayerPolityId() { return activePlayerPolityId; },
     fleetApi: { deployFleet, dockFleet, orderFleetHome, orderFleetToSea, setFleetFlag, setFleetMission, syncRegionalNavyLedger },
     diplomatApi: { dispatchDiplomat, recallDiplomat, setDiplomatAuthority, setCounterIntelligencePolicy, sendForgedJointOperationLetter, sendDeceptionJointOperationLetter },
+    campaignCommandApi: { issueCampaignOrder, marshalCampaignAssessment },
     agreements,
     religiousWorld,
     polities,
@@ -826,6 +838,27 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
     .filter((t) => t.possible);
 
   const inFlight = activeRaids.filter((r) => r.attackerId === region.id && !r.completed);
+  const liveCampaigns = window.__worldsim?.activeCampaigns || [];
+  const playerCampaigns = liveCampaigns.filter((campaign) => {
+    if (campaign.completed) return false;
+    const attacker = regions.find((candidate) => candidate.id === campaign.attackerId);
+    return (attacker?.governance?.sovereignPolityId || attacker?.controllingActorId || attacker?.id) === activePlayerPolityId;
+  });
+  const campaignCommandHtml = playerCampaigns.length ? playerCampaigns.map((campaign) => {
+    const attacker = regions.find((candidate) => candidate.id === campaign.attackerId);
+    const defender = regions.find((candidate) => candidate.id === campaign.defenderId);
+    const assessment = marshalCampaignAssessment(campaign, attacker, defender);
+    const weeks = assessment.supplyWeeks === null ? 'n/a' : assessment.supplyWeeks.toFixed(1);
+    const orderOptions = Object.entries(CAMPAIGN_ORDERS).map(([id, cfg]) => `<option value="${id}" ${assessment.currentOrder === id ? 'selected' : ''}>${cfg.label}</option>`).join('');
+    return `<div class="raid-status campaign-command-card" data-campaign-card="${campaign.id}"><strong>${assessment.defenderName}</strong> · ${assessment.phase.replaceAll('_',' ')} · risk ${assessment.risk}<br>
+      ${assessment.personnel.toLocaleString()} troops remaining of ${assessment.initialPersonnel.toLocaleString()} · casualties ${Math.round(assessment.casualtyShare * 100)}% · morale ${Math.round(assessment.morale * 100)}%<br>
+      Supply ${Math.round(assessment.supply * 100)}% · ${weeks} weeks carried food · corridor ${Math.round(assessment.corridorReliability * 100)}%${assessment.corridorBrokenNodeId ? ` · cut at ${assessment.corridorBrokenNodeId}` : ''}<br>
+      General intends: ${String(assessment.generalIntent).replaceAll('_',' ')}.<br><strong>Marshal:</strong> ${assessment.reason}<br>
+      Recommendation: <strong>${CAMPAIGN_ORDERS[assessment.recommendation]?.label || assessment.recommendation}</strong>
+      <label class="control-row">Ruler's operational order<select data-campaign-order-select="${campaign.id}">${orderOptions}</select></label>
+      <button data-apply-campaign-order="${campaign.id}">Issue order</button>
+      <button data-follow-campaign-advice="${campaign.id}">Follow Marshal recommendation</button></div>`;
+  }).join('') : '<div class="raid-status">No field campaign is currently under your command.</div>';
   const diplomaticTargets = (playerState?.status === 'vassal' || playerState?.status === 'governor') ? [] : regions
     .filter((r) => r.id !== region.id && fogOfWar.isVisible(r) && canDiplomaticallyReach(region, r));
   const activeAgreements = agreements.filter((a) => a.active && (a.fromId === region.id || a.toId === region.id));
@@ -867,6 +900,10 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
         <select id="military-ally-assumption">${['none','conservative','normal','optimistic'].map((v) => `<option value="${v}" ${ensureMilitaryStrategy(region).allyAssumption === v ? 'selected' : ''}>${v}</option>`).join('')}</select>
       </label>
       <div id="military-plan-report" class="raid-status"></div>
+    </div>
+    <div class="raid-section campaign-command-section"><strong>Campaign command</strong>
+      <div class="raid-status">Give the general an operational intent rather than moving individual units. The Marshal will interrupt only when the campaign becomes materially dangerous.</div>
+      ${campaignCommandHtml}
     </div>
     <label class="control-row">Target navy size (boats)
       <input type="number" min="0" step="1" id="input-navy" value="${Math.round(region.targetNavySize)}" ${region.isCoastal ? '' : 'disabled title="not a coastal region"'}>
@@ -991,6 +1028,25 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
   ['military-posture','military-plan-target','military-garrison-floor','military-spending-priority','military-prep-weeks','military-vassal-assumption','military-ally-assumption']
     .forEach((id) => document.getElementById(id)?.addEventListener(id.includes('floor') || id.includes('priority') ? 'input' : 'change', refreshMilitaryPlan));
   refreshMilitaryPlan();
+
+  document.querySelectorAll('[data-apply-campaign-order]').forEach((button) => button.addEventListener('click', () => {
+    const id = Number(button.dataset.applyCampaignOrder);
+    const campaign = playerCampaigns.find((item) => Number(item.id) === id);
+    const defender = campaign ? regions.find((candidate) => candidate.id === campaign.defenderId) : null;
+    const select = document.querySelector(`[data-campaign-order-select="${id}"]`);
+    if (campaign && select) issueCampaignOrder(campaign, select.value, defender, calendarWeekIndex(clock.elapsedDays || 0), { playerIssued: true });
+    renderRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
+  }));
+  document.querySelectorAll('[data-follow-campaign-advice]').forEach((button) => button.addEventListener('click', () => {
+    const id = Number(button.dataset.followCampaignAdvice);
+    const campaign = playerCampaigns.find((item) => Number(item.id) === id);
+    if (!campaign) return;
+    const attacker = regions.find((candidate) => candidate.id === campaign.attackerId);
+    const defender = regions.find((candidate) => candidate.id === campaign.defenderId);
+    const assessment = marshalCampaignAssessment(campaign, attacker, defender);
+    issueCampaignOrder(campaign, assessment.recommendation, defender, calendarWeekIndex(clock.elapsedDays || 0), { playerIssued: true, rationale: 'marshal_advice' });
+    renderRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
+  }));
 
   document.getElementById('input-navy').addEventListener('change', (e) => {
     region.targetNavySize = Math.max(0, Number(e.target.value) || 0);
@@ -1485,6 +1541,25 @@ function showNextEvent(clock, eventQueue) {
       document.getElementById('btn-settlement-accept').addEventListener('click', () => { const resolved = event.resolveSettlement('accept'); finish(`You remain in office as a ${resolved?.playerState?.status || 'subject ruler'} under the new sovereign.`); });
       document.getElementById('btn-settlement-reject').addEventListener('click', () => { const resolved = event.resolveSettlement('reject'); finish(`Your government continues in exile with about ${Math.round(resolved?.playerState?.exilePopulation || 0).toLocaleString()} followers.`); });
     }
+    document.getElementById('event-modal').classList.remove('hidden');
+    return;
+  }
+  if (event.type === 'campaign_command_advice') {
+    const assessment = event.assessment || {};
+    const options = document.getElementById('event-options');
+    document.getElementById('event-title').textContent = `Marshal: ${assessment.defenderName || 'campaign'} needs attention`;
+    document.getElementById('event-body').innerHTML = `<strong>Risk: ${assessment.risk || 'unknown'}</strong><br>${assessment.reason || ''}<br><br>` +
+      `${Math.round(assessment.personnel || 0).toLocaleString()} troops remain · morale ${Math.round((assessment.morale || 0) * 100)}% · supply ${Math.round((assessment.supply || 0) * 100)}% · corridor ${Math.round((assessment.corridorReliability || 0) * 100)}%.<br>` +
+      `The Marshal recommends: <strong>${CAMPAIGN_ORDERS[assessment.recommendation]?.label || assessment.recommendation}</strong>.`;
+    options.innerHTML = '<button id="btn-campaign-follow">Follow Marshal recommendation</button><button id="btn-campaign-ignore">Keep current orders</button>';
+    const finish = (choice) => {
+      const result = event.resolveDecision?.(choice);
+      document.getElementById('event-body').textContent = result?.summary || 'Existing orders remain in force.';
+      options.innerHTML = '<button id="btn-event-continue">Continue</button>';
+      document.getElementById('btn-event-continue').addEventListener('click', () => { document.getElementById('event-modal').classList.add('hidden'); if (eventQueue.length) showNextEvent(clock, eventQueue); else clock.releaseAutoPause(); });
+    };
+    document.getElementById('btn-campaign-follow').addEventListener('click', () => finish('follow'));
+    document.getElementById('btn-campaign-ignore').addEventListener('click', () => finish('ignore'));
     document.getElementById('event-modal').classList.remove('hidden');
     return;
   }

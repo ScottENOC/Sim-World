@@ -1,0 +1,53 @@
+from pathlib import Path
+
+p = Path('js/main.js')
+text = p.read_text()
+
+needle = "import { resolvePlayerJointOperationAdvice, tickPlayerJointOperationAdvisor } from './military/playerJointOperationAdvisor.js?v=20260909-joint-player1';"
+replacement = needle + "\nimport { CAMPAIGN_ORDERS, issueCampaignOrder, marshalCampaignAssessment, tickCampaignCommandAdvisor } from './military/campaignCommand.js?v=20260909-command1';"
+if replacement not in text:
+    text = text.replace(needle, replacement, 1)
+
+old = """    const campaignResult = tickCampaigns(activeCampaigns, regionsById, polities, calendarWeek, toolTypes, Math.random, { playerPolityId: activePlayerPolityId, activeWars, fleets });\n    activeCampaigns = campaignResult.remaining;"""
+new = """    const campaignResult = tickCampaigns(activeCampaigns, regionsById, polities, calendarWeek, toolTypes, Math.random, { playerPolityId: activePlayerPolityId, activeWars, fleets });\n    activeCampaigns = campaignResult.remaining;\n    const campaignCommandEvents = tickCampaignCommandAdvisor(activeCampaigns, regions, activePlayerPolityId, calendarWeek);\n    for (const advisoryEvent of campaignCommandEvents) {\n      advisoryEvent.resolveDecision = (choice) => {\n        if (choice !== 'follow') return { changed: false, summary: 'Existing campaign orders remain in force.' };\n        const defender = regionsById.get(advisoryEvent.campaign.defenderId);\n        const result = issueCampaignOrder(advisoryEvent.campaign, advisoryEvent.assessment.recommendation, defender, calendarWeek, { playerIssued: true, rationale: 'marshal_advice' });\n        return { ...result, summary: result.changed ? `Order issued: ${CAMPAIGN_ORDERS[advisoryEvent.assessment.recommendation]?.label || advisoryEvent.assessment.recommendation}.` : 'The order could not be issued.' };\n      };\n    }"""
+if old not in text:
+    raise SystemExit('campaign tick integration anchor not found')
+text = text.replace(old, new, 1)
+
+old = """      ...jointOperationAdvisorEvents,\n      ...diplomatEvents.filter((event) => event.homeRegionId === playerRegionId && event.type !== 'diplomat_report'),"""
+new = """      ...jointOperationAdvisorEvents,\n      ...campaignCommandEvents,\n      ...diplomatEvents.filter((event) => event.homeRegionId === playerRegionId && event.type !== 'diplomat_report'),"""
+if old not in text:
+    raise SystemExit('player event integration anchor not found')
+text = text.replace(old, new, 1)
+
+old = """  const inFlight = activeRaids.filter((r) => r.attackerId === region.id && !r.completed);\n  const diplomaticTargets ="""
+new = """  const inFlight = activeRaids.filter((r) => r.attackerId === region.id && !r.completed);\n  const liveCampaigns = window.__worldsim?.activeCampaigns || [];\n  const playerCampaigns = liveCampaigns.filter((campaign) => {\n    if (campaign.completed) return false;\n    const attacker = regions.find((candidate) => candidate.id === campaign.attackerId);\n    return (attacker?.governance?.sovereignPolityId || attacker?.controllingActorId || attacker?.id) === activePlayerPolityId;\n  });\n  const campaignCommandHtml = playerCampaigns.length ? playerCampaigns.map((campaign) => {\n    const attacker = regions.find((candidate) => candidate.id === campaign.attackerId);\n    const defender = regions.find((candidate) => candidate.id === campaign.defenderId);\n    const assessment = marshalCampaignAssessment(campaign, attacker, defender);\n    const weeks = assessment.supplyWeeks === null ? 'n/a' : assessment.supplyWeeks.toFixed(1);\n    const orderOptions = Object.entries(CAMPAIGN_ORDERS).map(([id, cfg]) => `<option value=\"${id}\" ${assessment.currentOrder === id ? 'selected' : ''}>${cfg.label}</option>`).join('');\n    return `<div class=\"raid-status campaign-command-card\" data-campaign-card=\"${campaign.id}\"><strong>${assessment.defenderName}</strong> · ${assessment.phase.replaceAll('_',' ')} · risk ${assessment.risk}<br>\n      ${assessment.personnel.toLocaleString()} troops remaining of ${assessment.initialPersonnel.toLocaleString()} · casualties ${Math.round(assessment.casualtyShare * 100)}% · morale ${Math.round(assessment.morale * 100)}%<br>\n      Supply ${Math.round(assessment.supply * 100)}% · ${weeks} weeks carried food · corridor ${Math.round(assessment.corridorReliability * 100)}%${assessment.corridorBrokenNodeId ? ` · cut at ${assessment.corridorBrokenNodeId}` : ''}<br>\n      General intends: ${String(assessment.generalIntent).replaceAll('_',' ')}.<br><strong>Marshal:</strong> ${assessment.reason}<br>\n      Recommendation: <strong>${CAMPAIGN_ORDERS[assessment.recommendation]?.label || assessment.recommendation}</strong>\n      <label class=\"control-row\">Ruler's operational order<select data-campaign-order-select=\"${campaign.id}\">${orderOptions}</select></label>\n      <button data-apply-campaign-order=\"${campaign.id}\">Issue order</button>\n      <button data-follow-campaign-advice=\"${campaign.id}\">Follow Marshal recommendation</button></div>`;\n  }).join('') : '<div class=\"raid-status\">No field campaign is currently under your command.</div>';\n  const diplomaticTargets ="""
+if old not in text:
+    raise SystemExit('campaign UI data anchor not found')
+text = text.replace(old, new, 1)
+
+old = """    </div>\n    <label class=\"control-row\">Target navy size (boats)"""
+new = """    </div>\n    <div class=\"raid-section campaign-command-section\"><strong>Campaign command</strong>\n      <div class=\"raid-status\">Give the general an operational intent rather than moving individual units. The Marshal will interrupt only when the campaign becomes materially dangerous.</div>\n      ${campaignCommandHtml}\n    </div>\n    <label class=\"control-row\">Target navy size (boats)"""
+if old not in text:
+    raise SystemExit('campaign UI insertion anchor not found')
+text = text.replace(old, new, 1)
+
+old = """  refreshMilitaryPlan();\n\n  document.getElementById('input-navy').addEventListener('change', (e) => {"""
+new = """  refreshMilitaryPlan();\n\n  document.querySelectorAll('[data-apply-campaign-order]').forEach((button) => button.addEventListener('click', () => {\n    const id = Number(button.dataset.applyCampaignOrder);\n    const campaign = playerCampaigns.find((item) => Number(item.id) === id);\n    const defender = campaign ? regions.find((candidate) => candidate.id === campaign.defenderId) : null;\n    const select = document.querySelector(`[data-campaign-order-select=\"${id}\"]`);\n    if (campaign && select) issueCampaignOrder(campaign, select.value, defender, calendarWeekIndex(clock.elapsedDays || 0), { playerIssued: true });\n    renderRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);\n  }));\n  document.querySelectorAll('[data-follow-campaign-advice]').forEach((button) => button.addEventListener('click', () => {\n    const id = Number(button.dataset.followCampaignAdvice);\n    const campaign = playerCampaigns.find((item) => Number(item.id) === id);\n    if (!campaign) return;\n    const attacker = regions.find((candidate) => candidate.id === campaign.attackerId);\n    const defender = regions.find((candidate) => candidate.id === campaign.defenderId);\n    const assessment = marshalCampaignAssessment(campaign, attacker, defender);\n    issueCampaignOrder(campaign, assessment.recommendation, defender, calendarWeekIndex(clock.elapsedDays || 0), { playerIssued: true, rationale: 'marshal_advice' });\n    renderRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);\n  }));\n\n  document.getElementById('input-navy').addEventListener('change', (e) => {"""
+if old not in text:
+    raise SystemExit('campaign UI wiring anchor not found')
+text = text.replace(old, new, 1)
+
+old = """  if (['joint_operation_mobilise_advice','joint_operation_stage_advice','joint_operation_launch_confirmation'].includes(event.type)) {"""
+new = """  if (event.type === 'campaign_command_advice') {\n    const assessment = event.assessment || {};\n    const options = document.getElementById('event-options');\n    document.getElementById('event-title').textContent = `Marshal: ${assessment.defenderName || 'campaign'} needs attention`;\n    document.getElementById('event-body').innerHTML = `<strong>Risk: ${assessment.risk || 'unknown'}</strong><br>${assessment.reason || ''}<br><br>` +\n      `${Math.round(assessment.personnel || 0).toLocaleString()} troops remain · morale ${Math.round((assessment.morale || 0) * 100)}% · supply ${Math.round((assessment.supply || 0) * 100)}% · corridor ${Math.round((assessment.corridorReliability || 0) * 100)}%.<br>` +\n      `The Marshal recommends: <strong>${CAMPAIGN_ORDERS[assessment.recommendation]?.label || assessment.recommendation}</strong>.`;\n    options.innerHTML = '<button id=\"btn-campaign-follow\">Follow Marshal recommendation</button><button id=\"btn-campaign-ignore\">Keep current orders</button>';\n    const finish = (choice) => {\n      const result = event.resolveDecision?.(choice);\n      document.getElementById('event-body').textContent = result?.summary || 'Existing orders remain in force.';\n      options.innerHTML = '<button id=\"btn-event-continue\">Continue</button>';\n      document.getElementById('btn-event-continue').addEventListener('click', () => { document.getElementById('event-modal').classList.add('hidden'); if (eventQueue.length) showNextEvent(clock, eventQueue); else clock.releaseAutoPause(); });\n    };\n    document.getElementById('btn-campaign-follow').addEventListener('click', () => finish('follow'));\n    document.getElementById('btn-campaign-ignore').addEventListener('click', () => finish('ignore'));\n    document.getElementById('event-modal').classList.remove('hidden');\n    return;\n  }\n  if (['joint_operation_mobilise_advice','joint_operation_stage_advice','joint_operation_launch_confirmation'].includes(event.type)) {"""
+if old not in text:
+    raise SystemExit('campaign advice modal anchor not found')
+text = text.replace(old, new, 1)
+
+old = """    diplomatApi: { dispatchDiplomat, recallDiplomat, setDiplomatAuthority, setCounterIntelligencePolicy, sendForgedJointOperationLetter, sendDeceptionJointOperationLetter },"""
+new = """    diplomatApi: { dispatchDiplomat, recallDiplomat, setDiplomatAuthority, setCounterIntelligencePolicy, sendForgedJointOperationLetter, sendDeceptionJointOperationLetter },\n    campaignCommandApi: { issueCampaignOrder, marshalCampaignAssessment },"""
+if old not in text:
+    raise SystemExit('worldsim API anchor not found')
+text = text.replace(old, new, 1)
+
+p.write_text(text)
