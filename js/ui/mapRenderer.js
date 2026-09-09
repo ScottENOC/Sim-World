@@ -24,6 +24,15 @@ const COLORS = {
 };
 
 const CATEGORICAL_PALETTE = ['#c08a4e', '#4e8ac0', '#8ac04e', '#c04e8a', '#4ec0a8', '#a84ec0', '#c0a84e', '#6a6ac0'];
+function categoricalColor(key, index, total) {
+  if (total <= CATEGORICAL_PALETTE.length) return CATEGORICAL_PALETTE[index % CATEGORICAL_PALETTE.length];
+  let h = 2166136261;
+  for (const ch of String(key)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+  const hue = (h >>> 0) % 360;
+  const sat = 46 + ((h >>> 8) % 24);
+  const light = 48 + ((h >>> 16) % 18);
+  return `hsl(${hue} ${sat}% ${light}%)`;
+}
 const TRADE_COLORS = {
   food: '#d7bc68', wood: '#6d9d64', copper: '#c8754f', tin: '#b8c5c9',
   bronze: '#c08a4e', iron: '#87909a', pottery: '#b56f56', textiles: '#9c76b7',
@@ -182,14 +191,18 @@ export class MapRenderer {
       const values = visibleRegions.map(config.valueFn);
       const unique = [...new Set(values)];
       const colorByKey = new Map(
-        unique.map((k, i) => [k, CATEGORICAL_PALETTE[i % CATEGORICAL_PALETTE.length]])
+        unique.map((k, i) => [k, categoricalColor(k, i, unique.length)])
       );
+      const counts = new Map();
+      for (const value of values) counts.set(value, (counts.get(value) || 0) + 1);
+      const legendKeys = unique.slice().sort((a, b) => (counts.get(b) || 0) - (counts.get(a) || 0)).slice(0, config.legendLimit || 12);
 
       this.layer = {
         type: 'categorical',
         valueFn: config.valueFn,
         label: config.label,
         colorByKey,
+        legendKeys,
         visualOverlay: config.visualOverlay || null,
       };
     } else {
@@ -239,11 +252,13 @@ export class MapRenderer {
     if (!this.layer) return null;
 
     if (this.layer.type === 'categorical') {
-      const { label, colorByKey } = this.layer;
+      const { label, colorByKey, legendKeys } = this.layer;
+      const keys = legendKeys || [...colorByKey.keys()];
       return {
         type: 'categorical',
         label,
-        entries: [...colorByKey.entries()].map(([key, color]) => ({ key, color })),
+        entries: keys.map((key) => ({ key, color: colorByKey.get(key) })),
+        hiddenCategoryCount: Math.max(0, colorByKey.size - keys.length),
       };
     }
 

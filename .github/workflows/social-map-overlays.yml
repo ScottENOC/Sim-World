@@ -1,0 +1,56 @@
+name: Social map overlays validation
+
+on:
+  push:
+    branches: [social-map-overlays-v1]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply integration
+        run: python tools/apply-social-map-overlays.py
+      - name: Syntax checks
+        run: |
+          python -m py_compile tools/apply-social-map-overlays.py
+          node --check js/ui/socialOverlays.js
+          node --check js/ui/mapRenderer.js
+          node --check js/main.js
+      - name: Social overlay regressions
+        run: node tools/test-social-map-overlays.mjs
+      - name: Language, culture and diplomacy regressions
+        run: |
+          node tools/test-population-language-networks.mjs
+          node tools/test-generational-language-change.mjs
+          node tools/test-regional-language-policy.mjs
+          node tools/test-diplomatic-agent-trust.mjs
+          node tools/test-diplomatic-service-ui.mjs
+      - name: Campaign and military regressions
+        run: |
+          node tools/test-campaign-command-advisor.mjs
+          node tools/test-allied-battle-coordination.mjs
+          node tools/test-subregional-army-battles.mjs
+          node tools/test-supply-corridors-ai.mjs
+      - name: Headless world smoke test
+        run: node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 1 --output /tmp/social-overlay-smoke.json
+      - name: Diff sanity
+        run: git diff --check
+      - name: Commit integrated source
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'Social map overlay integration already materialised'
+          else
+            git commit -m 'Integrate social map overlays'
+            git pull --rebase --autostash
+            git push
+          fi
