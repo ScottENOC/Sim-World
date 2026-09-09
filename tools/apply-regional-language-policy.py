@@ -1,5 +1,17 @@
 from pathlib import Path
 
+# Make policy legitimacy feed the existing relationship system.
+p = Path('js/politics/languagePolicy.js')
+text = p.read_text()
+needle = "import { adoptInstitutionalLanguage, courtLanguageCompetence, dominantLanguageId, ensureLanguageNetwork, languagePopulationProfile, nativeShare } from '../diplomacy/languageNetworks.js?v=20260909-language-policy1';"
+replacement = needle + "\nimport { changeAttitude } from '../diplomacy/relations.js?v=20260904-save1';"
+if replacement not in text:
+    text = text.replace(needle, replacement, 1)
+old = """    const attitudeTarget = capital.id;\n    if (region.attitudes instanceof Map) {\n      const existing = region.attitudes.get(attitudeTarget) || 0;\n      region.attitudes.set(attitudeTarget, clamp(existing + assessment.attitudeWeekly * weekScale, -1, 1));\n    }"""
+new = """    if (Math.abs(assessment.attitudeWeekly) > 0) {\n      changeAttitude(region, capital.id, assessment.attitudeWeekly * weekScale,\n        assessment.attitudeWeekly >= 0 ? 'language_policy_accommodation' : 'language_policy_imposition', currentTick);\n    }"""
+text = text.replace(old, new, 1)
+p.write_text(text)
+
 # Wire policy effects into polity administration.
 p = Path('js/politics/polities.js')
 text = p.read_text()
