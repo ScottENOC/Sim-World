@@ -3,6 +3,7 @@ import { effectivePower } from '../military/army.js?v=20260904-kingdom1';
 import { attitudeToward, changeAttitude } from '../diplomacy/relations.js?v=20260904-save1';
 import { learnAbout } from '../core/knowledge.js?v=20260904-kingdom1';
 import { monumentalPrestige } from '../economy/construction.js?v=20260906-prestige1';
+import { languagePolicyAdministrativeEffects } from './languagePolicy.js?v=20260909-language-policy1';
 
 const EXPERIENCE_SCALE = {
   recordKeeping: 1200,
@@ -296,8 +297,9 @@ function desiredAdministrativeControl(region, capital, admin, subjectCount) {
   const governorFactor = governor ? 0.65 + governor.competence * 0.2 + governor.loyalty * 0.15 : 0.65;
   const delegatedCount = Object.values(region.governance.delegatedPowers || {}).filter(Boolean).length;
   const delegationBonus = 1 + delegatedCount * admin.delegation * 0.04;
-  return clamp(institutional * autonomyLimit * governorFactor * delegationBonus /
-    (distanceBurden * scaleBurden * resistance), 0.05, 0.95);
+  const languageEffects = languagePolicyAdministrativeEffects(region);
+  return clamp(institutional * autonomyLimit * governorFactor * delegationBonus *
+    (languageEffects.controlMultiplier || 1) / (distanceBurden * scaleBurden * resistance), 0.05, 0.95);
 }
 
 function transferTribute(subject, capital, amount) {
@@ -340,8 +342,9 @@ export function tickPolities(polities, regions, currentTick, elapsedDays = 7) {
       const desiredControl = desiredAdministrativeControl(subject, capital, admin, subjects.length);
       governance.administrativeControl += (desiredControl - governance.administrativeControl) * controlAdjustment;
       const writing = admin.breakthroughs.has('writing');
+      const languageEffects = languagePolicyAdministrativeEffects(subject);
       governance.reportDelayWeeks = Math.max(1, Math.round((centroidDistanceKm(capital, subject) || 100) /
-        (35 + admin.communications * 100) * (writing ? 0.65 : 1)));
+        (35 + admin.communications * 100) * (writing ? 0.65 : 1) * (languageEffects.reportDelayMultiplier || 1)));
       if (!governance.lastReport || currentTick >= (governance.nextReportTick || 0)) {
         governance.lastReport = {
           asOfTick: currentTick,
@@ -357,7 +360,7 @@ export function tickPolities(polities, regions, currentTick, elapsedDays = 7) {
       }
       governance.corruption = clamp(0.78 - admin.accounting * 0.28 - admin.recordKeeping * 0.25 -
         governance.administrativeControl * 0.2 - (governance.governor?.competence || 0) * 0.08 +
-        (1 - (governance.governor?.loyalty || 0.5)) * 0.08, 0.08, 0.85);
+        (1 - (governance.governor?.loyalty || 0.5)) * 0.08 + (languageEffects.corruptionDelta || 0), 0.08, 0.85);
       const nominal = subject.population * BASE_TRIBUTE_PER_PERSON * governance.tributeRate * 10;
       const demand = nominal * weekScale * (0.25 + governance.administrativeControl * 0.75);
       const collectionFactor = governance.delegatedPowers?.collectTaxes
