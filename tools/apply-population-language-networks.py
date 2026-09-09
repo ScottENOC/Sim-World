@@ -16,5 +16,14 @@ old = """  const mode = ['written','sealed_written'].includes(message.medium) ? 
 new = """  const mode = ['written','sealed_written'].includes(message.medium) ? 'written' : 'spoken';\n  // The recipient must understand the language the message was actually composed in.\n  // Do not silently switch to some other shared language when it arrives.\n  const understood = message.languageId\n    ? courtLanguageCompetence(target, message.languageId, mode)\n    : languageComprehension(target, sender, mode);\n  const memory = message.medium === 'oral_memorised' ? (message.courier?.memoryAccuracy ?? 0.85) : 1;"""
 if old in text:
     text = text.replace(old, new, 1)
+p.write_text(text)
 
+# Institutional adoption can break ties between already-usable languages, but must
+# never manufacture comprehension where neither court has a speaker/interpreter.
+p = Path('js/diplomacy/languageNetworks.js')
+text = p.read_text()
+old = """    const score = competence + (institutional ? 0.035 : 0);\n    if (score > best.competence) best = { languageId, competence: clamp(score), linguaFranca: neitherNative };"""
+new = """    const score = competence > 0 ? competence + (institutional ? 0.035 : 0) : 0;\n    if (score > best.competence) best = { languageId, competence: clamp(score), linguaFranca: neitherNative };"""
+if old in text:
+    text = text.replace(old, new, 1)
 p.write_text(text)
