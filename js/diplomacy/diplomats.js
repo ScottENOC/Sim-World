@@ -256,6 +256,11 @@ export function tickDiplomats(regions, currentTick, elapsedDays = 7, rng = Math.
         diplomat.localFamiliarity = clamp(diplomat.localFamiliarity + elapsedDays / 365.2425 * 0.18);
         const host = regionsById.get(diplomat.postedRegionId);
         if (host) trainDiplomatLanguage(diplomat, home, host, elapsedDays);
+        const pendingBreach = (diplomat.authorityBreaches || []).find((breach) => !breach.reported && currentTick - (breach.currentTick ?? currentTick) >= 4);
+        if (pendingBreach) {
+          pendingBreach.reported = true;
+          events.push({ type: 'diplomat_authority_breach_reported', homeRegionId: home.id, hostRegionId: diplomat.postedRegionId, diplomat, breach: pendingBreach });
+        }
         if (host) {
           const hostAction = maybeHostAction(home, host, diplomat, currentTick, elapsedDays, rng, regions);
           if (hostAction?.detained) events.push({ type: 'diplomat_detained', homeRegionId: home.id, hostRegionId: host.id, diplomat });
@@ -288,4 +293,24 @@ export function chooseNpcDiplomatPosting(home, regions, currentTick, rng = Math.
   const authority = feeling > 0.65 ? DIPLOMAT_AUTHORITY.MILITARY : feeling > 0.15 ? DIPLOMAT_AUTHORITY.NEGOTIATE : DIPLOMAT_AUTHORITY.OBSERVE;
   setDiplomatAuthority(home, diplomat.id, authority, { maxMilitaryCommitmentFraction: feeling > 0.75 ? 0.35 : 0.18 });
   return dispatchDiplomat(home, target, regions, diplomat.id, currentTick);
+}
+
+
+export function resolveDiplomatAuthorityBreach(home, diplomatId, decision, agreements = [], currentTick = null) {
+  const diplomat = diplomatsFor(home).find((d) => d.id === diplomatId);
+  if (!diplomat) return { resolved: false, reason: 'missing_diplomat' };
+  const breach = [...(diplomat.authorityBreaches || [])].reverse().find((b) => b.reported && !b.resolved);
+  if (!breach) return { resolved: false, reason: 'no_pending_breach' };
+  const affected = (agreements || []).filter((a) => a.active && a.sourceDiplomatId === diplomat.id && a.authorityExceeded && !a.authorityRatified);
+  breach.resolved = true; breach.resolution = decision; breach.resolvedTick = currentTick;
+  if (decision === 'ratify') {
+    for (const agreement of affected) { agreement.authorityRatified = true; agreement.ratifiedTick = currentTick; }
+    diplomat.reputation.reliability = clamp(diplomat.reputation.reliability + 0.015);
+    return { resolved: true, ratified: true, affectedAgreements: affected.length };
+  }
+  for (const agreement of affected) { agreement.active = false; agreement.repudiatedForAuthority = true; agreement.repudiatedTick = currentTick; }
+  diplomat.authority = DIPLOMAT_AUTHORITY.OBSERVE;
+  diplomat.loyalty = clamp((diplomat.loyalty ?? 0.5) - 0.08);
+  recordDiplomatPerformance(diplomat, 'authority_breach');
+  return { resolved: true, ratified: false, affectedAgreements: affected.length };
 }
