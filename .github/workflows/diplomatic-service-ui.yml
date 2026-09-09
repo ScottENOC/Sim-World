@@ -26,15 +26,18 @@ jobs:
         run: node tools/test-diplomatic-service-ui.mjs
       - name: Diplomacy and language regressions
         run: |
-          node tools/test-diplomat-personalities.mjs
+          node tools/test-diplomatic-agent-trust.mjs
           node tools/test-diplomats-counterintelligence.mjs
+          node tools/test-player-joint-operation-advisor.mjs
           node tools/test-joint-operations-command.mjs
           node tools/test-population-language-networks.mjs
+          node tools/test-generational-language-change.mjs
       - name: Campaign and military regressions
         run: |
           node tools/test-campaign-command-advisor.mjs
           node tools/test-allied-battle-coordination.mjs
           node tools/test-subregional-army-battles.mjs
+          node tools/test-counter-logistics-relief.mjs
           node tools/test-supply-corridors-ai.mjs
       - name: Headless world smoke test
         run: node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 1 --output /tmp/diplomatic-ui-smoke.json
