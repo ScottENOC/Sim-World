@@ -24,7 +24,9 @@ jobs:
           node --check js/ui/localRegionView.js
           node --check js/main.js
       - name: Spatial continuity regressions
-        run: node tools/test-world-spatial-skeleton.mjs
+        run: |
+          node tools/test-world-spatial-skeleton.mjs
+          node tools/test-world-spatial-real-map.mjs
       - name: Existing subregional regressions
         run: |
           node tools/test-subregional-control.mjs
