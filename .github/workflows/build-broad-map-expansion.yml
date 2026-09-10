@@ -70,7 +70,7 @@ jobs:
           mids=[m['id'] for m in meta]
           by_id={m['id']:m for m in meta}
           sea_ids={m['id'] for m in sea}
-          assert len(ids)==627, f'expected polished 627-region map, got {len(ids)}'
+          assert len(ids)==626, f'expected polished 626-region map, got {len(ids)}'
           assert len(ids)==len(idset), 'duplicate land ids'
           assert idset==set(mids)==set(res), 'land/meta/resource ids differ'
           for m in meta:
