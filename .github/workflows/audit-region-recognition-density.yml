@@ -11,28 +11,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Audit live generated geography
+      - run: python -m pip install --disable-pip-version-check shapely==2.1.1
+      - name: Audit disputed-territory assignments
         run: |
           python - <<'PY'
-          import json, math
+          import json
+          from shapely.geometry import shape, Point
           geo=json.load(open('data/world/regions.geo.json'))['features']
-          meta=json.load(open('data/world/regions.meta.json'))['regions']
-          byid={m['id']:m for m in meta}
-          groups={}
-          for f in geo:
-              p=f.get('properties',{})
-              g=p.get('sourceGroup','?')
-              groups.setdefault(g,[]).append((p.get('name'), byid.get(p.get('id'),{}).get('areaSqKm')))
-          print('GROUP_COUNTS')
-          for g in sorted(groups): print(g, len(groups[g]))
-          print('\nCONTENTIOUS')
-          for g in ('UKR','RUS','KOS','ESH','GEO','MDA','CYP','ISR','PSE','ARM','AZE'):
-              if g in groups:
-                  print(g, [n for n,a in groups[g]])
-          print('\nDENSITY')
-          for g in ('FRA','DEU','GBR-ENG','ESP','ITA','POL'):
-              rows=groups.get(g,[])
-              areas=[a for n,a in rows if isinstance(a,(int,float))]
-              print(g, 'regions',len(rows),'area',round(sum(areas),1),'avg',round(sum(areas)/len(areas),1) if areas else None,'min',round(min(areas),1) if areas else None,'max',round(max(areas),1) if areas else None)
-              print(' names=', [n for n,a in rows])
+          tests={
+            'Pristina/Kosovo':(21.166,42.663),
+            'Sukhumi/Abkhazia':(41.006,43.001),
+            'Tskhinvali/South Ossetia':(43.969,42.227),
+            'Tiraspol/Transnistria':(29.643,46.840),
+            'Nicosia north':(33.365,35.185),
+            'Ramallah/West Bank':(35.204,31.903),
+            'Gaza City':(34.466,31.501),
+          }
+          for label,(lon,lat) in tests.items():
+              p=Point(lon,lat)
+              hits=[]
+              for f in geo:
+                  if shape(f['geometry']).covers(p):
+                      q=f.get('properties',{})
+                      hits.append((q.get('sourceGroup'),q.get('name')))
+              print(label, hits)
           PY
