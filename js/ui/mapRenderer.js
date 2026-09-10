@@ -57,7 +57,7 @@ function clamp01(value) {
 
 export class MapRenderer {
   constructor(canvas, regions, { onSelect, seaRegions = [], isRegionVisible = () => true,
-    isSeaRegionVisible = () => true, getConflictPressure = () => 0 } = {}) {
+    isSeaRegionVisible = () => true, getConflictPressure = () => 0, onInteraction = () => {} } = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.regions = regions;
@@ -67,12 +67,16 @@ export class MapRenderer {
     this.isRegionVisible = isRegionVisible;
     this.isSeaRegionVisible = isSeaRegionVisible;
     this.getConflictPressure = getConflictPressure;
+    this.onInteraction = onInteraction;
     this.selectedId = null;
     this.transform = d3.zoomIdentity;
     this.layer = null;
     this.layerConfig = null;
     this._visualProfileCache = new Map();
     this._animationHandle = null;
+    this._drawQueued = false;
+    this._isInteracting = false;
+    this._lastAnimationDrawAt = 0;
 
     this._resize();
     window.addEventListener('resize', () => this._resize());
@@ -114,6 +118,28 @@ export class MapRenderer {
     };
     this._regionPaths = new Map(this.regions.map((region) => [region.id, makePath(region.feature)]));
     this._seaPaths = new Map(this.seaRegions.map((sea) => [sea.id, makePath(sea.feature)]));
+    const boundsPath = d3.geoPath(this.projection);
+    this._regionBounds = new Map(this.regions.map((region) => [region.id, boundsPath.bounds(region.feature)]));
+    this._seaBounds = new Map(this.seaRegions.map((sea) => [sea.id, boundsPath.bounds(sea.feature)]));
+  }
+
+  _requestDraw() {
+    if (this._drawQueued) return;
+    this._drawQueued = true;
+    requestAnimationFrame(() => {
+      this._drawQueued = false;
+      this.draw();
+    });
+  }
+
+  _boundsOnScreen(bounds, margin = 48) {
+    if (!bounds || this.transform.k <= 1.05) return true;
+    const [[x0, y0], [x1, y1]] = bounds;
+    const k = this.transform.k;
+    const tx = this.transform.x;
+    const ty = this.transform.y;
+    return x1 * k + tx >= -margin && x0 * k + tx <= this.width + margin &&
+      y1 * k + ty >= -margin && y0 * k + ty <= this.height + margin;
   }
 
   _fillAndStroke(feature, cachedPath) {
@@ -135,15 +161,25 @@ export class MapRenderer {
     this.canvas.width = this.width * dpr;
     this.canvas.height = this.height * dpr;
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    if (this.path) this.draw();
+    if (this.path) this._requestDraw();
   }
 
   _setupZoom() {
     const zoom = d3.zoom()
       .scaleExtent([1, 12])
+      .on('start', () => {
+        this._isInteracting = true;
+        this.onInteraction();
+      })
       .on('zoom', (event) => {
         this.transform = event.transform;
-        this.draw();
+        this.onInteraction();
+        this._requestDraw();
+      })
+      .on('end', () => {
+        this._isInteracting = false;
+        this.onInteraction();
+        this._requestDraw();
       });
 
     d3.select(this.canvas).call(zoom);
@@ -151,7 +187,9 @@ export class MapRenderer {
   }
 
   _setupTap() {
+    this.canvas.addEventListener('pointerdown', () => this.onInteraction(), { passive: true });
     this.canvas.addEventListener('click', (event) => {
+      this.onInteraction();
       const rect = this.canvas.getBoundingClientRect();
       const x = event.clientX - rect.left;
       const y = event.clientY - rect.top;
@@ -160,7 +198,7 @@ export class MapRenderer {
       if (hit) {
         this.selectedId = hit.id;
         this.onSelect(hit);
-        this.draw();
+        this._requestDraw();
       }
     });
   }
@@ -177,6 +215,8 @@ export class MapRenderer {
 
     for (const region of this.regions) {
       if (!this.isRegionVisible(region)) continue;
+      const bounds = this._regionBounds?.get(region.id);
+      if (bounds && (px < bounds[0][0] || px > bounds[1][0] || py < bounds[0][1] || py > bounds[1][1])) continue;
       if (d3.geoContains(region.feature, lonLat)) return region;
     }
 
@@ -232,20 +272,20 @@ export class MapRenderer {
     }
 
     this._syncAnimationLoop();
-    this.draw();
+    this._requestDraw();
   }
 
   refreshLayer() {
     this._visualProfileCache.clear();
     if (this.layerConfig) this.setLayer(this.layerConfig);
-    else this.draw();
+    else this._requestDraw();
   }
 
   clearLayer() {
     this.layer = null;
     this.layerConfig = null;
     this._syncAnimationLoop();
-    this.draw();
+    this._requestDraw();
   }
 
   getLegendInfo() {
@@ -670,9 +710,11 @@ export class MapRenderer {
       return;
     }
     if (!shouldAnimate || this._animationHandle !== null) return;
-    const animate = () => {
+    const animate = (now) => {
       this._animationHandle = requestAnimationFrame(animate);
-      this.draw();
+      if (this._isInteracting || now - this._lastAnimationDrawAt < 100) return;
+      this._lastAnimationDrawAt = now;
+      this._requestDraw();
     };
     this._animationHandle = requestAnimationFrame(animate);
   }
@@ -693,7 +735,7 @@ export class MapRenderer {
     ctx.strokeStyle = COLORS.seaBorder;
 
     for (const sea of this.seaRegions) {
-      if (!this.isSeaRegionVisible(sea)) continue;
+      if (!this.isSeaRegionVisible(sea) || !this._boundsOnScreen(this._seaBounds?.get(sea.id))) continue;
 
       const stockFraction = sea.fish.K > 0 ? sea.fish.currentStock / sea.fish.K : 0;
 
@@ -706,7 +748,7 @@ export class MapRenderer {
     }
 
     for (const region of this.regions) {
-      if (!this.isRegionVisible(region)) continue;
+      if (!this.isRegionVisible(region) || !this._boundsOnScreen(this._regionBounds?.get(region.id))) continue;
 
       const selected = region.id === this.selectedId;
       const conflictPressure = Math.max(0, Math.min(1, this.getConflictPressure(region) || 0));
@@ -717,15 +759,15 @@ export class MapRenderer {
       this._fillAndStroke(region.feature, this._regionPaths?.get(region.id));
     }
 
-    if (this.transform.k >= 2.6) {
+    if (!this._isInteracting && this.transform.k >= 2.6) {
       for (const region of this.regions) {
         if (!this.isRegionVisible(region)) continue;
         this._drawRegionalDetail(region);
       }
     }
 
-    if (this.layer?.visualOverlay === 'trade') this._drawTradeOverlay();
-    if (this.layer?.visualOverlay === 'military') this._drawMilitaryOverlay();
+    if (!this._isInteracting && this.layer?.visualOverlay === 'trade') this._drawTradeOverlay();
+    if (!this._isInteracting && this.layer?.visualOverlay === 'military') this._drawMilitaryOverlay();
 
     ctx.restore();
   }

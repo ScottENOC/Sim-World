@@ -126,6 +126,7 @@ async function main() {
 
   const map = new MapRenderer(canvas, regions, {
     seaRegions,
+    onInteraction: () => clock.deferForInteraction(350),
     getConflictPressure: (region) => {
       const campaign = activeCampaigns.find((item) => item.defenderId === region.id && item.phase === 'engaged');
       if (!campaign) return 0;
@@ -186,6 +187,11 @@ async function main() {
     knowledgeLevel, knowledgeThresholds: KNOWLEDGE_THRESHOLDS,
   }));
   wireLayerToggle(map);
+  const deferSimulationForInput = () => clock.deferForInteraction(350);
+  document.addEventListener('pointerdown', deferSimulationForInput, { passive: true, capture: true });
+  document.addEventListener('touchstart', deferSimulationForInput, { passive: true, capture: true });
+  document.addEventListener('input', deferSimulationForInput, true);
+  document.addEventListener('keydown', deferSimulationForInput, true);
   map.setLayer(LAYERS.density);
   showLegend(map);
 

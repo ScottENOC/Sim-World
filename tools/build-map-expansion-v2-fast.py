@@ -135,8 +135,13 @@ def subtract_existing(g):
 def source_features_fast(country, mask, _unused_existing_coverage):
     iso = country['iso']
     min_area = float(country.get('minAreaSqKm', 400))
+    min_lon = country.get('minLongitude')
     max_lon = country.get('maxCentroidLongitude')
-    lon_clip = box(-180, -90, float(max_lon), 90) if max_lon is not None else None
+    if min_lon is not None or max_lon is not None:
+        lon_clip = box(float(min_lon if min_lon is not None else -180), -90,
+                       float(max_lon if max_lon is not None else 180), 90)
+    else:
+        lon_clip = None
     accepted = {iso} | ALIASES.get(iso, set())
 
     candidates = []
