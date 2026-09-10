@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Rebalance France and Germany to a common enduring-region scale.
+"""Rebalance France and Germany to a comparable enduring-region scale.
 
-France starts from the existing department-derived regions and is merged to 39.
+France starts from the existing department-derived regions and is merged to 38.
 Germany starts from GeoBoundaries ADM2 geometry, clipped to the existing Germany
-footprint, and is clustered to 25. New resource endowments are overlap-weighted
-from the old regions so total deposits are approximately conserved.
+footprint, and is clustered to 24. The target is comparable scale, not identical
+region area: future sparse or difficult terrain may deliberately use larger regions.
+New resource endowments are overlap-weighted from the old regions so total deposits
+are approximately conserved.
 """
 from __future__ import annotations
 
@@ -27,7 +29,7 @@ GEOB_API = 'https://www.geoboundaries.org/api/current/gbOpen/{iso}/{level}/'
 USER_AGENT = 'Sim-World region rebalance/1.0'
 GEOD = Geod(ellps='WGS84')
 ADJ_TOL = 0.025
-TARGETS = {'FRA': 39, 'DEU': 25}
+TARGETS = {'FRA': 38, 'DEU': 24}
 
 
 def fetch_json(url: str):
@@ -90,17 +92,23 @@ def cluster(pieces, target):
     return clusters
 
 
-def allocate_counts(parent_rows, target):
+def allocate_counts(parent_rows, source_by_parent, target):
+    """Allocate an exact target across parent regions without exceeding source capacity."""
     areas = {name: area_sqkm(g) for name, g in parent_rows}
-    total = sum(areas.values())
-    counts = {name: max(1, round(target * a / total)) for name, a in areas.items()}
+    capacities = {name: max(1, len(source_by_parent.get(name, []))) for name in areas}
+    if target < len(areas):
+        raise RuntimeError(f'Germany target {target} is below parent-region count {len(areas)}')
+    if target > sum(capacities.values()):
+        raise RuntimeError(f'Germany target {target} exceeds available subdivision capacity {sum(capacities.values())}')
+
+    counts = {name: 1 for name in areas}
     while sum(counts.values()) < target:
-        name = max(areas, key=lambda n: areas[n] / counts[n])
+        choices = [name for name in areas if counts[name] < capacities[name]]
+        if not choices:
+            raise RuntimeError('Germany subdivision allocation exhausted available source pieces')
+        # Add detail where each existing region still has the most land per allocated child.
+        name = max(choices, key=lambda n: areas[n] / counts[n])
         counts[name] += 1
-    while sum(counts.values()) > target:
-        choices = [n for n in areas if counts[n] > 1]
-        name = min(choices, key=lambda n: areas[n] / counts[n])
-        counts[name] -= 1
     return counts
 
 
@@ -211,11 +219,11 @@ def main():
     fra_clusters = cluster(fra_pieces, TARGETS['FRA'])
 
     deu_by_parent, deu_parent_geom = germany_source(old_by_iso['DEU'])
-    allocations = allocate_counts(list(deu_parent_geom.items()), TARGETS['DEU'])
+    allocations = allocate_counts(list(deu_parent_geom.items()), deu_by_parent, TARGETS['DEU'])
     deu_clusters = []
     for parent, pg in deu_parent_geom.items():
         pieces = deu_by_parent.get(parent, [])
-        wanted = min(max(1, allocations[parent]), len(pieces)) if pieces else 1
+        wanted = allocations[parent]
         if not pieces:
             pieces = [{'geometry': pg, 'sourceNames': [parent], 'anchor': parent, 'anchorArea': area_sqkm(pg), 'parent': parent}]
         deu_clusters.extend(cluster(pieces, wanted))
