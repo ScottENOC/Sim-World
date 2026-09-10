@@ -54,6 +54,7 @@ jobs:
         run: git diff --check
       - name: Commit integrated source and immutable geography
         run: |
+          rm -f tools/__pycache__/apply-world-spatial-skeleton*.pyc
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add -A
