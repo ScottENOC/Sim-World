@@ -15,7 +15,7 @@ plan['appendOnlyCountriesWhenRebased'] = append_only
 
 new_countries = [
     {'iso':'DEU','name':'Germany','level':'ADM1','targetRegions':12},
-    {'iso':'NLD','name':'Netherlands','level':'ADM1','targetRegions':4,'minAreaSqKm':150},
+    {'iso':'NLD','name':'Netherlands','level':'ADM1','targetRegions':4,'minAreaSqKm':150,'minLongitude':3.0},
     {'iso':'BEL','name':'Belgium','level':'ADM1','targetRegions':3,'minAreaSqKm':150},
     {'iso':'LUX','name':'Luxembourg','level':'ADM0','targetRegions':1,'minAreaSqKm':100},
 ]
