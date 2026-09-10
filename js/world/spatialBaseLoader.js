@@ -1,6 +1,7 @@
-// Runtime loader for immutable physical geography. Rivers and shared border/coast
-// anchors are generated offline into data/world/spatial.base.json and committed.
-// Games load that file verbatim; they do not regenerate physical geography.
+// Runtime loader for immutable physical geography. Procedural fallback rivers
+// and shared border/coast anchors live in spatial.base.json; selected real-world
+// major river centrelines are committed separately and hydrated once at load.
+import { hydrateRealRivers } from './realRivers.js?v=20260910-rivers1';
 
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
 
@@ -57,6 +58,7 @@ export function hydrateWorldSpatialGraph(base, regions = []) {
   for (const river of base.rivers) {
     const copy = {
       ...river,
+      source: river.source || 'procedural',
       points: (river.points || []).map(p => ({ ...p, point: [...p.point] })),
       regionSegments: (river.regionSegments || []).map(s => ({ ...s, from: [...s.from], to: [...s.to] })),
     };
@@ -95,7 +97,12 @@ export function hydrateWorldSpatialGraph(base, regions = []) {
 }
 
 export async function loadWorldSpatialGraph(regions = []) {
-  const response = await fetch('data/world/spatial.base.json?v=20260910-spatial1');
-  if (!response.ok) throw new Error(`Failed to load immutable world geography (${response.status})`);
-  return hydrateWorldSpatialGraph(await response.json(), regions);
+  const [baseResponse, realRiverResponse] = await Promise.all([
+    fetch('data/world/spatial.base.json?v=20260910-spatial1'),
+    fetch('data/world/majorRivers.real.json?v=20260910-rivers1'),
+  ]);
+  if (!baseResponse.ok) throw new Error(`Failed to load immutable world geography (${baseResponse.status})`);
+  if (!realRiverResponse.ok) throw new Error(`Failed to load real major rivers (${realRiverResponse.status})`);
+  const graph = hydrateWorldSpatialGraph(await baseResponse.json(), regions);
+  return hydrateRealRivers(graph, await realRiverResponse.json(), regions);
 }
