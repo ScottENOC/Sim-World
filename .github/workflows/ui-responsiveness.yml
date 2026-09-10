@@ -1,42 +1,39 @@
 name: UI responsiveness
 
 on:
-  push:
-    branches: [fix-ui-responsiveness]
+  pull_request:
+    paths:
+      - 'js/main.js'
+      - 'js/ui/mapRenderer.js'
+      - 'js/core/clock.js'
+      - 'data/world/**'
+      - 'tools/map-region-plan-v2.json'
+      - 'tools/build-map-expansion-v2-fast.py'
+      - 'tools/test-ui-priority.mjs'
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  apply-and-validate:
+  validate:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Before diagnostic
-        run: node tools/diagnose-ui-performance.mjs
-      - name: Apply UI and geography patch
-        run: python tools/apply-ui-responsiveness.py
-      - name: Regenerate immutable spatial base
-        run: node tools/generate-world-spatial-base.mjs
       - name: Syntax checks
         run: |
           node --check js/main.js
           node --check js/ui/mapRenderer.js
           node --check js/core/clock.js
-          python -m py_compile tools/build-map-expansion-v2-fast.py
-      - name: Verify Chukotka removal and map integrity
+          node --check tools/test-ui-priority.mjs
+      - name: UI-priority regression
+        run: node tools/test-ui-priority.mjs
+      - name: Verify Chukotka absent and map counts aligned
         run: |
-          node tools/diagnose-ui-performance.mjs
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           const meta=JSON.parse(fs.readFileSync('data/world/regions.meta.json','utf8'));
@@ -44,7 +41,7 @@ jobs:
           if (meta.regions.some(r => /chukot/i.test(r.name||''))) throw new Error('Chukotka still in metadata');
           if (geo.features.some(f => /chukot/i.test(f.properties?.name||''))) throw new Error('Chukotka still in geometry');
           if (meta.regions.length !== geo.features.length) throw new Error('metadata/geometry count mismatch');
-          console.log('POST_PATCH_REGIONS='+meta.regions.length);
+          console.log('REGIONS='+meta.regions.length);
           NODE
       - name: Spatial and world regressions
         run: |
@@ -53,16 +50,3 @@ jobs:
           node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 1 --output /tmp/ui-smoke.json
       - name: Diff sanity
         run: git diff --check
-      - name: Commit materialised changes
-        run: |
-          git restore tools/__pycache__ || true
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add js/main.js js/ui/mapRenderer.js js/core/clock.js data/world/regions.geo.json data/world/regions.meta.json data/world/resources.initial.json data/world/terrain.initial.json data/world/seaRegions.meta.json data/world/spatial.base.json tools/map-region-plan-v2.json tools/build-map-expansion-v2-fast.py
-          if git diff --cached --quiet; then
-            echo 'Source already materialised'
-          else
-            git commit -m 'Prioritise UI responsiveness and remove Chukotka'
-            git pull --rebase
-            git push
-          fi
