@@ -565,7 +565,7 @@ export class AdvisorCouncil {
       const months = Math.max(1, Number(document.getElementById('deception-months')?.value) || 3);
       const result = sendDeceptionJointOperationLetter(player, recipient, enemy, this.regions, this.clock.tickIndex, { attackTick: this.clock.tickIndex + Math.round(months * 4.345), secrecy: .12 });
       if (status) status.textContent = result.sent ? 'False operational letter dispatched with genuine credentials.' : `Could not send (${result.reason}).`;
-    }));
+    });
     document.getElementById('send-forged-letter')?.addEventListener('click', () => {
       const purported = this.regions.find((r) => r.id === document.getElementById('forgery-sender')?.value);
       const recipient = this.regions.find((r) => r.id === document.getElementById('forgery-recipient')?.value);
@@ -574,7 +574,7 @@ export class AdvisorCouncil {
       if (!purported || !recipient || !enemy || purported.id === recipient.id) { if (status) status.textContent = 'Choose a purported sender, a different recipient and an alleged target.'; return; }
       const result = sendForgedJointOperationLetter(player, purported, recipient, enemy, this.regions, this.clock.tickIndex, { attackTick: this.clock.tickIndex + 13 });
       if (status) status.textContent = result.sent ? 'Forged letter dispatched. Whether it survives scrutiny is unknown.' : `Could not send (${result.reason}).`;
-    }));
+    });
     if (this.activeAdvisor !== 'marshal') return;
     const army = document.getElementById('council-army-target');
     const navy = document.getElementById('council-navy-target');
