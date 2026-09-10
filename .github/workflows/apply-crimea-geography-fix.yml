@@ -5,6 +5,8 @@ on:
     branches: [expand-germany-low-countries-fix-pinch]
     paths:
       - 'tools/apply-crimea-geography-fix.py'
+      - 'tools/apply-recognition-picker.py'
+      - 'tools/finalise-western-europe-map.py'
       - '.github/workflows/apply-crimea-geography-fix.yml'
   workflow_dispatch:
 
@@ -30,6 +32,7 @@ jobs:
         run: |
           python tools/apply-crimea-geography-fix.py
           python tools/finalise-western-europe-map.py
+          python tools/apply-recognition-picker.py
       - name: Rebuild missing land and seas
         run: |
           rm -rf /tmp/simworld-v2-land /tmp/simworld-v2-sea
@@ -43,7 +46,7 @@ jobs:
           cp /tmp/simworld-v2-sea/seaRegions.meta.json data/world/seaRegions.meta.json
           python tools/build-terrain.py
           node tools/generate-world-spatial-base.mjs
-      - name: Validate Crimea, Western Europe and pinch renderer
+      - name: Validate Ukraine, Western Europe, picker and pinch renderer
         run: |
           python - <<'PY'
           import json
@@ -62,14 +65,27 @@ jobs:
           land=unary_union([shape(f['geometry']) for f in geo['features']])
           sb={f['properties']['id']:shape(f['geometry']) for f in seas['features']}
           water=unary_union([sb['sea_black'],sb['sea_azov']])
-          points=[(34.10,44.95),(33.75,45.20),(34.40,45.35),(35.05,45.05),(35.65,45.30)]
-          for lon,lat in points:
+          crimea_points=[(34.10,44.95),(33.75,45.20),(34.40,45.35),(35.05,45.05),(35.65,45.30)]
+          for lon,lat in crimea_points:
               p=Point(lon,lat)
-              print(f'CRIMEA_POINT {lon},{lat} land={land.covers(p)} sea={water.covers(p)}')
-              assert land.covers(p)
+              covering=[f for f in geo['features'] if shape(f['geometry']).covers(p)]
+              print(f'CRIMEA_POINT {lon},{lat} groups={[f["properties"].get("sourceGroup") for f in covering]} sea={water.covers(p)}')
+              assert any(f['properties'].get('sourceGroup')=='UKR' for f in covering)
               assert not water.covers(p)
           overlap=shape(crimea[0]['geometry']).intersection(water)
           assert overlap.area < 1e-10, f'Crimea overlaps Black Sea/Azov by planar area {overlap.area}'
+          # Australian recognition: Donetsk, Luhansk, Zaporizhzhia and Kherson are Ukraine too.
+          ukraine_points={
+              'Donetsk':(37.80,48.00),
+              'Luhansk':(39.31,48.57),
+              'Zaporizhzhia':(35.14,47.84),
+              'Kherson':(32.62,46.64),
+          }
+          for label,(lon,lat) in ukraine_points.items():
+              p=Point(lon,lat)
+              covering=[f for f in geo['features'] if shape(f['geometry']).covers(p)]
+              print(label, [(f['properties'].get('sourceGroup'),f['properties'].get('name')) for f in covering])
+              assert any(f['properties'].get('sourceGroup')=='UKR' for f in covering), f'{label} is not grouped under Ukraine'
           counts={iso:sum(1 for f in geo['features'] if f['properties'].get('sourceGroup')==iso) for iso in ('DEU','NLD','BEL','LUX')}
           assert counts=={'DEU':12,'NLD':4,'BEL':3,'LUX':1}, counts
           names={iso:sorted(f['properties']['name'] for f in geo['features'] if f['properties'].get('sourceGroup')==iso) for iso in counts}
@@ -79,6 +95,12 @@ jobs:
           grep -q 'CRIMEA_GEOGRAPHIC_MASK=UKR' /tmp/crimea-land.log
           grep -q 'COUNTRY UKR' /tmp/crimea-land.log
           grep -q 'SEA_RECLIP sea_black' /tmp/crimea-sea.log
+          grep -q "'UKR': { continent: 'Europe', country: 'Ukraine' }" js/main.js
+          grep -q "'PSE': { continent: 'Asia', country: 'Palestine' }" js/main.js
+          grep -q "'ESH': { continent: 'Africa', country: 'Western Sahara' }" js/main.js
+          grep -q "'GEO': { continent: 'Asia', country: 'Georgia' }" js/main.js
+          grep -q "'KOS': { continent: 'Europe', country: 'Kosovo' }" js/main.js
+          node --check js/main.js
           node --check js/ui/mapRenderer.js
           node tools/test-ui-priority.mjs
           node tools/test-world-spatial-skeleton.mjs
@@ -89,7 +111,7 @@ jobs:
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add tools/build-map-expansion-v2-fast.py tools/build-sea-expansion-v2.py tools/map-region-plan-v2.json tools/cleanup-region-display-names.py .github/workflows/build-broad-map-expansion.yml js/ui/mapRenderer.js tools/map-resource-plan-v2.json data/world/regions.geo.json data/world/regions.meta.json data/world/resources.initial.json data/world/seaRegions.geo.json data/world/seaRegions.meta.json data/world/terrain.initial.json data/world/spatial.base.json
-          git commit -m 'Restore Crimea land and complete Western Europe expansion'
+          git add js/main.js tools/build-map-expansion-v2-fast.py tools/build-sea-expansion-v2.py tools/map-region-plan-v2.json tools/cleanup-region-display-names.py .github/workflows/build-broad-map-expansion.yml js/ui/mapRenderer.js tools/map-resource-plan-v2.json data/world/regions.geo.json data/world/regions.meta.json data/world/resources.initial.json data/world/seaRegions.geo.json data/world/seaRegions.meta.json data/world/terrain.initial.json data/world/spatial.base.json
+          git commit -m 'Restore Crimea and align modern region picker'
           git pull --rebase
           git push
