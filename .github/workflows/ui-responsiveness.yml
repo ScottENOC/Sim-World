@@ -55,7 +55,7 @@ jobs:
         run: git diff --check
       - name: Commit materialised changes
         run: |
-          rm -rf tools/__pycache__
+          git restore tools/__pycache__ || true
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add js/main.js js/ui/mapRenderer.js js/core/clock.js data/world/regions.geo.json data/world/regions.meta.json data/world/resources.initial.json data/world/terrain.initial.json data/world/seaRegions.meta.json data/world/spatial.base.json tools/map-region-plan-v2.json tools/build-map-expansion-v2-fast.py
