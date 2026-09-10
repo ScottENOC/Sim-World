@@ -707,3 +707,19 @@ button, input, select {
 .picker-option:active {
   background: var(--bronze-dim);
 }
+
+
+/* ---------- Persistent regional spatial view ---------- */
+.local-region-view { position:absolute; inset:0; z-index:28; display:grid; grid-template-rows:auto auto minmax(0,1fr) auto; background:var(--ink); padding-top:max(8px,env(safe-area-inset-top)); }
+.local-region-view.hidden { display:none; }
+.local-region-header { display:flex; align-items:center; justify-content:space-between; padding:8px 14px 6px; }
+.local-region-header small { color:var(--bronze); font-variant:small-caps; letter-spacing:.08em; }
+.local-region-header h2 { margin:2px 0 0; font-size:20px; }
+.local-region-header button { width:36px; height:36px; border-radius:50%; border:1px solid var(--bronze-dim); background:var(--ink-2); color:var(--parchment); font-size:22px; }
+.local-region-modes { display:flex; gap:6px; padding:5px 12px 9px; overflow-x:auto; }
+.local-region-modes button { flex:1 0 auto; min-width:76px; padding:8px; border:1px solid var(--bronze-dim); border-radius:8px; background:var(--ink-2); color:var(--parchment-dim); }
+.local-region-modes button.active { background:var(--bronze); color:var(--ink); border-color:var(--bronze); }
+#local-region-canvas { width:100%; height:100%; min-height:0; touch-action:manipulation; }
+.local-region-detail { min-height:64px; display:flex; flex-direction:column; gap:2px; padding:10px 14px calc(12px + env(safe-area-inset-bottom)); border-top:1px solid var(--bronze-dim); background:var(--ink-2); font-size:12px; color:var(--parchment-dim); }
+.local-region-detail strong { color:var(--parchment); font-size:14px; }
+.region-zoom-button { width:100%; padding:10px; border:1px solid var(--bronze); border-radius:8px; background:var(--bronze); color:var(--ink); font-weight:700; }

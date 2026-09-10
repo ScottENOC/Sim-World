@@ -55,6 +55,20 @@
       <div id="region-controls"></div>
       <div id="region-details"></div>
     </div>
+    <section id="local-region-view" class="local-region-view hidden" aria-label="Regional view">
+      <header class="local-region-header">
+        <div><small>Regional view</small><h2 id="local-region-title">—</h2></div>
+        <button id="btn-close-local-region" aria-label="Return to world map">&times;</button>
+      </header>
+      <nav class="local-region-modes">
+        <button class="active" data-local-mode="overview">Overview</button>
+        <button data-local-mode="economy">Economy</button>
+        <button data-local-mode="control">Control</button>
+        <button data-local-mode="military">Military</button>
+      </nav>
+      <canvas id="local-region-canvas"></canvas>
+      <div id="local-region-detail" class="local-region-detail"></div>
+    </section>
     <div id="menu-modal" class="modal hidden">
       <div class="modal-card menu-card">
         <button id="btn-close-menu" class="menu-close" aria-label="Close menu">&times;</button>
@@ -102,7 +116,7 @@
   <script type="module" src="js/ui/progressiveVisuals.js?v=20260907-progressive2"></script>
   <script type="module" src="js/ui/hazardPolicyUi.js?v=20260907-hazard1"></script>
   <script type="module" src="js/ui/culturalLifeUi.js?v=20260907-art1"></script>
-  <script type="module" src="js/main.js?v=20260908-fleets1"></script>
+  <script type="module" src="js/main.js?v=20260910-spatial1"></script>
   <script type="module" src="js/ui/fleetUi.js?v=20260908-fleets1"></script>
   <script>
     // The Steward's existing construction control uses builder count to set a
