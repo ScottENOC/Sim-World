@@ -1,0 +1,128 @@
+name: Western Europe expansion and pinch fix
+
+on:
+  push:
+    branches: [expand-germany-low-countries-fix-pinch]
+    paths:
+      - 'tools/apply-western-europe-pinch-fix.py'
+      - '.github/workflows/expand-western-europe-pinch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install map dependencies
+        run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2 pyshp==2.3.1
+      - name: Apply source changes
+        run: python tools/apply-western-europe-pinch-fix.py
+      - name: Validate source changes
+        run: |
+          node --check js/ui/mapRenderer.js
+          python -m json.tool tools/map-region-plan-v2.json >/dev/null
+          python -m json.tool tools/map-resource-plan-v2.json >/dev/null
+          node tools/test-ui-priority.mjs
+          grep -q "_gesturePreview = document.createElement('canvas')" js/ui/mapRenderer.js
+          grep -q "this.canvas.style.opacity = '0'" js/ui/mapRenderer.js
+          ! grep -q "this.canvas.style.transform =.*translate3d" js/ui/mapRenderer.js
+          git diff --check
+      - name: Diagnose Black Sea and Crimea before rebuild
+        run: |
+          python - <<'PY'
+          import json
+          from shapely.geometry import shape, box
+          from shapely.ops import unary_union
+          from pyproj import Geod
+          geod=Geod(ellps='WGS84')
+          land=json.load(open('data/world/regions.geo.json'))['features']
+          sea=json.load(open('data/world/seaRegions.geo.json'))['features']
+          bysea={f['properties']['id']:shape(f['geometry']) for f in sea}
+          black=bysea['sea_black']; azov=bysea['sea_azov']
+          crimea_box=box(32.2,44.2,36.8,46.7)
+          crimea_land=[]
+          for f in land:
+              g=shape(f['geometry'])
+              if g.intersects(crimea_box):
+                  crimea_land.append((f['properties'].get('name'),f['properties'].get('sourceGroup'),g))
+          land_union=unary_union([g for _,_,g in crimea_land])
+          overlap=unary_union([black,azov]).intersection(land_union)
+          area=abs(geod.geometry_area_perimeter(overlap)[0])/1e6 if not overlap.is_empty else 0
+          print('CRIMEA_CANDIDATES=' + '; '.join(f'{n}[{s}]' for n,s,_ in crimea_land))
+          print(f'BLACK_AZOV_CRIMEA_LAND_OVERLAP_SQKM={area:.6f}')
+          if area > 2.0:
+              raise SystemExit('Black Sea/Azov substantially overlaps simulated Crimea land')
+          PY
+      - name: Build Germany and Low Countries
+        run: |
+          rm -rf /tmp/simworld-v2-land /tmp/simworld-v2-sea
+          python tools/build-map-expansion-v2-final.py --output-dir /tmp/simworld-v2-land | tee /tmp/v2-land.log
+          cp /tmp/simworld-v2-land/regions.geo.json data/world/regions.geo.json
+          cp /tmp/simworld-v2-land/regions.meta.json data/world/regions.meta.json
+          cp /tmp/simworld-v2-land/resources.initial.json data/world/resources.initial.json
+          python tools/cleanup-region-display-names.py
+          python tools/build-sea-expansion-v2.py --land-geo data/world/regions.geo.json --output-dir /tmp/simworld-v2-sea | tee /tmp/v2-sea.log
+          cp /tmp/simworld-v2-sea/seaRegions.geo.json data/world/seaRegions.geo.json
+          cp /tmp/simworld-v2-sea/seaRegions.meta.json data/world/seaRegions.meta.json
+      - name: Refresh terrain and spatial base
+        run: |
+          python tools/build-terrain.py
+          node tools/generate-world-spatial-base.mjs
+      - name: Validate expansion and sea geometry
+        run: |
+          python - <<'PY'
+          import json
+          from shapely.geometry import shape, box
+          from shapely.ops import unary_union
+          from pyproj import Geod
+          geod=Geod(ellps='WGS84')
+          geo=json.load(open('data/world/regions.geo.json'))
+          meta=json.load(open('data/world/regions.meta.json'))['regions']
+          res=json.load(open('data/world/resources.initial.json'))
+          terrain=json.load(open('data/world/terrain.initial.json'))
+          seas=json.load(open('data/world/seaRegions.geo.json'))['features']
+          sea_meta=json.load(open('data/world/seaRegions.meta.json'))['seaRegions']
+          ids={f['properties']['id'] for f in geo['features']}
+          assert ids=={m['id'] for m in meta}==set(res)==set(terrain), 'land/meta/resource/terrain IDs differ'
+          counts={iso:sum(1 for f in geo['features'] if f['properties'].get('sourceGroup')==iso) for iso in ('DEU','NLD','BEL','LUX')}
+          print('WESTERN_COUNTS='+json.dumps(counts,sort_keys=True))
+          assert counts=={'DEU':12,'NLD':4,'BEL':3,'LUX':1}, counts
+          assert len(ids)==646, f'expected 646 land regions, got {len(ids)}'
+          assert all(m.get('neighbors') for m in meta if next((f for f in geo['features'] if f['properties']['id']==m['id']),{}).get('properties',{}).get('sourceGroup') in counts), 'new region without land neighbour'
+          bysea={f['properties']['id']:shape(f['geometry']) for f in seas}
+          black=bysea['sea_black']; azov=bysea['sea_azov']
+          crimea_box=box(32.2,44.2,36.8,46.7)
+          crimea_geoms=[shape(f['geometry']) for f in geo['features'] if shape(f['geometry']).intersects(crimea_box)]
+          crimea=unary_union(crimea_geoms)
+          overlap=unary_union([black,azov]).intersection(crimea)
+          area=abs(geod.geometry_area_perimeter(overlap)[0])/1e6 if not overlap.is_empty else 0
+          print(f'POSTBUILD_BLACK_AZOV_CRIMEA_OVERLAP_SQKM={area:.6f}')
+          assert area < 2.0, 'sea geometry paints over Crimea'
+          smeta={m['id']:m for m in sea_meta}
+          print('AZOV_COASTALS='+str(len(smeta['sea_azov']['adjacentLand'])))
+          print('BLACK_COASTALS='+str(len(smeta['sea_black']['adjacentLand'])))
+          PY
+          node tools/test-world-spatial-skeleton.mjs
+          node tools/test-world-spatial-real-map.mjs
+          node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 1 --output /tmp/western-smoke.json
+          git diff --check
+      - name: Commit materialised changes
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/ui/mapRenderer.js tools/map-region-plan-v2.json tools/map-resource-plan-v2.json data/world/regions.geo.json data/world/regions.meta.json data/world/resources.initial.json data/world/seaRegions.geo.json data/world/seaRegions.meta.json data/world/terrain.initial.json data/world/spatial.base.json
+          git commit -m 'Add Germany and Low Countries and stabilise pinch zoom'
+          git pull --rebase
+          git push
