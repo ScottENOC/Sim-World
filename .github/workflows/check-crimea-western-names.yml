@@ -1,0 +1,58 @@
+name: Verify Crimea coverage and Western Europe names
+
+on:
+  push:
+    branches: [expand-germany-low-countries-fix-pinch]
+    paths:
+      - '.github/workflows/check-crimea-western-names.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2
+      - name: Check physical Crimea coverage and print new names
+        run: |
+          python - <<'PY'
+          import json, urllib.request
+          from shapely.geometry import shape, Polygon
+          from shapely.ops import unary_union
+          from pyproj import Geod
+          geod=Geod(ellps='WGS84')
+          def area(g):
+              return abs(geod.geometry_area_perimeter(g)[0])/1e6 if not g.is_empty else 0.0
+          geo=json.load(open('data/world/regions.geo.json'))
+          seas=json.load(open('data/world/seaRegions.geo.json'))
+          sim_land=unary_union([shape(f['geometry']) for f in geo['features']])
+          sea_by_id={f['properties']['id']:shape(f['geometry']) for f in seas['features']}
+          black_azov=unary_union([sea_by_id['sea_black'],sea_by_id['sea_azov']])
+          url='https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries_iso.geojson'
+          req=urllib.request.Request(url,headers={'User-Agent':'Sim-World Crimea geography regression'})
+          with urllib.request.urlopen(req,timeout=120) as r: world=json.load(r)
+          global_land=unary_union([shape(f['geometry']) for f in world['features']])
+          # Deliberately follows the peninsula, excluding most adjacent mainland.
+          window=Polygon([(32.35,45.32),(32.75,45.72),(33.35,46.05),(34.15,46.18),(35.05,45.93),(36.68,45.45),(36.42,44.92),(35.45,44.38),(34.25,44.32),(33.25,44.50),(32.42,44.82)])
+          physical=global_land.intersection(window)
+          covered=physical.intersection(sim_land)
+          flooded=physical.intersection(black_azov)
+          pa,ca,fa=area(physical),area(covered),area(flooded)
+          coverage=100*ca/pa if pa else 0
+          print(f'CRIMEA_PHYSICAL_LAND_SQKM={pa:.1f}')
+          print(f'CRIMEA_SIMULATED_LAND_SQKM={ca:.1f}')
+          print(f'CRIMEA_SIMULATED_COVERAGE_PERCENT={coverage:.3f}')
+          print(f'CRIMEA_SEA_OVERLAP_SQKM={fa:.6f}')
+          assert pa > 15000, 'Crimea test window did not capture enough physical peninsula land'
+          assert coverage > 95, f'Crimea is not adequately represented as simulated land: {coverage:.2f}%'
+          assert fa < 2.0, f'Black Sea/Azov paints over physical Crimea land: {fa:.2f} km2'
+          for iso in ('DEU','NLD','BEL','LUX'):
+              rows=[f['properties']['name'] for f in geo['features'] if f['properties'].get('sourceGroup')==iso]
+              print(iso+'_REGIONS='+json.dumps(sorted(rows),ensure_ascii=False))
+          PY
