@@ -13,6 +13,9 @@
     {"id":"sea_gulf_oman","name":"Gulf of Oman","bbox":[55.0,22.0,61.5,27.0]},
     {"id":"sea_arabian","name":"Arabian Sea","bbox":[50.0,10.0,66.0,24.5]},
     {"id":"sea_moroccan_atlantic","name":"Moroccan Atlantic","bbox":[-15.5,27.0,-5.0,36.2]},
+    {"id":"sea_hebrides","name":"Hebrides & Minch","bbox":[-9.2,55.0,-3.5,59.8]},
+    {"id":"sea_faroe_shetland","name":"Faroe-Shetland Channel","bbox":[-7.5,58.0,1.5,63.5]},
+    {"id":"sea_icelandic","name":"Icelandic Waters","bbox":[-25.5,62.3,-12.0,67.8]},
     {"id":"sea_barents","name":"Barents Sea","bbox":[15.0,66.0,61.0,80.0]},
     {"id":"sea_white","name":"White Sea","bbox":[32.0,63.0,44.5,69.5]}
   ]
