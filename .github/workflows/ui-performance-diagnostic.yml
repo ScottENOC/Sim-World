@@ -1,0 +1,20 @@
+name: UI performance diagnostic
+
+on:
+  push:
+    branches: [fix-ui-responsiveness]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Map/UI work diagnostic
+        run: node tools/diagnose-ui-performance.mjs
