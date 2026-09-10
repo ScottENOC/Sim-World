@@ -1,0 +1,38 @@
+name: Audit region recognition and density
+on:
+  push:
+    branches: [expand-germany-low-countries-fix-pinch]
+    paths: ['.github/workflows/audit-region-recognition-density.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audit live generated geography
+        run: |
+          python - <<'PY'
+          import json, math
+          geo=json.load(open('data/world/regions.geo.json'))['features']
+          meta=json.load(open('data/world/regions.meta.json'))['regions']
+          byid={m['id']:m for m in meta}
+          groups={}
+          for f in geo:
+              p=f.get('properties',{})
+              g=p.get('sourceGroup','?')
+              groups.setdefault(g,[]).append((p.get('name'), byid.get(p.get('id'),{}).get('areaSqKm')))
+          print('GROUP_COUNTS')
+          for g in sorted(groups): print(g, len(groups[g]))
+          print('\nCONTENTIOUS')
+          for g in ('UKR','RUS','KOS','ESH','GEO','MDA','CYP','ISR','PSE','ARM','AZE'):
+              if g in groups:
+                  print(g, [n for n,a in groups[g]])
+          print('\nDENSITY')
+          for g in ('FRA','DEU','GBR-ENG','ESP','ITA','POL'):
+              rows=groups.get(g,[])
+              areas=[a for n,a in rows if isinstance(a,(int,float))]
+              print(g, 'regions',len(rows),'area',round(sum(areas),1),'avg',round(sum(areas)/len(areas),1) if areas else None,'min',round(min(areas),1) if areas else None,'max',round(max(areas),1) if areas else None)
+              print(' names=', [n for n,a in rows])
+          PY
