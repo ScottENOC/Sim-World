@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Rebalance France and Germany to a common enduring-region scale.
 
-France starts from the existing department-derived regions and is merged to 40.
+France starts from the existing department-derived regions and is merged to 39.
 Germany starts from GeoBoundaries ADM2 geometry, clipped to the existing Germany
-footprint, and is clustered to 26. New resource endowments are overlap-weighted
+footprint, and is clustered to 25. New resource endowments are overlap-weighted
 from the old regions so total deposits are approximately conserved.
 """
 from __future__ import annotations
@@ -27,7 +27,7 @@ GEOB_API = 'https://www.geoboundaries.org/api/current/gbOpen/{iso}/{level}/'
 USER_AGENT = 'Sim-World region rebalance/1.0'
 GEOD = Geod(ellps='WGS84')
 ADJ_TOL = 0.025
-TARGETS = {'FRA': 40, 'DEU': 26}
+TARGETS = {'FRA': 39, 'DEU': 25}
 
 
 def fetch_json(url: str):
@@ -191,7 +191,6 @@ def main():
     meta_doc = json.loads(META_PATH.read_text())
     resources = json.loads(RES_PATH.read_text())
     features = geo['features']
-    meta_by_id = {m['id']: m for m in meta_doc['regions']}
 
     old_by_iso = {iso: [f for f in features if f.get('properties', {}).get('sourceGroup') == iso] for iso in TARGETS}
     if len(old_by_iso['FRA']) < TARGETS['FRA']:
@@ -205,15 +204,12 @@ def main():
         for iso, rows in old_by_iso.items()
     }
 
-    # France: merge the existing department-derived geography to 40.
     fra_pieces = []
     for f in old_by_iso['FRA']:
         g = repair(shape(f['geometry']))
         fra_pieces.append({'geometry': g, 'sourceNames': [f['properties']['name']], 'anchor': f['properties']['name'], 'anchorArea': area_sqkm(g)})
     fra_clusters = cluster(fra_pieces, TARGETS['FRA'])
 
-    # Germany: subdivide each existing large durable region using ADM2 source units,
-    # preserving those larger boundaries as parents while reaching the common scale.
     deu_by_parent, deu_parent_geom = germany_source(old_by_iso['DEU'])
     allocations = allocate_counts(list(deu_parent_geom.items()), TARGETS['DEU'])
     deu_clusters = []
@@ -223,8 +219,6 @@ def main():
         if not pieces:
             pieces = [{'geometry': pg, 'sourceNames': [parent], 'anchor': parent, 'anchorArea': area_sqkm(pg), 'parent': parent}]
         deu_clusters.extend(cluster(pieces, wanted))
-    # If sparse source coverage left us under target, split allocation pressure was
-    # insufficient; fail rather than silently shipping another coarse Germany.
     if len(deu_clusters) != TARGETS['DEU']:
         raise RuntimeError(f'Germany produced {len(deu_clusters)} regions, expected {TARGETS["DEU"]}')
 
@@ -259,7 +253,6 @@ def main():
                 'resources': scale_and_merge_resources(c['geometry'], old_resource_rows[iso], resources),
             })
 
-    # Remove old France/Germany and append the rebalanced regions.
     features[:] = [f for f in features if f['properties']['id'] not in old_ids]
     meta_doc['regions'][:] = [m for m in meta_doc['regions'] if m['id'] not in old_ids]
     for m in meta_doc['regions']:
@@ -272,7 +265,6 @@ def main():
         meta_doc['regions'].append({'id': r['id'], 'name': r['name'], 'centroid': r['centroid'], 'areaSqKm': r['areaSqKm'], 'neighbors': []})
         resources[r['id']] = r['resources']
 
-    # Rebuild adjacency involving the replacement regions only.
     geom_by_id = {f['properties']['id']: repair(shape(f['geometry'])) for f in features}
     meta_by_id = {m['id']: m for m in meta_doc['regions']}
     new_ids = {r['id'] for r in new_regions}
