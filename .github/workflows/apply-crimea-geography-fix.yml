@@ -1,0 +1,95 @@
+name: Apply Crimea geography repair
+
+on:
+  push:
+    branches: [expand-germany-low-countries-fix-pinch]
+    paths:
+      - 'tools/apply-crimea-geography-fix.py'
+      - '.github/workflows/apply-crimea-geography-fix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2 pyshp==2.3.1
+      - name: Apply durable source fixes
+        run: |
+          python tools/apply-crimea-geography-fix.py
+          python tools/finalise-western-europe-map.py
+      - name: Rebuild missing land and seas
+        run: |
+          rm -rf /tmp/simworld-v2-land /tmp/simworld-v2-sea
+          python tools/build-map-expansion-v2-final.py --output-dir /tmp/simworld-v2-land | tee /tmp/crimea-land.log
+          cp /tmp/simworld-v2-land/regions.geo.json data/world/regions.geo.json
+          cp /tmp/simworld-v2-land/regions.meta.json data/world/regions.meta.json
+          cp /tmp/simworld-v2-land/resources.initial.json data/world/resources.initial.json
+          python tools/cleanup-region-display-names.py
+          python tools/build-sea-expansion-v2.py --land-geo data/world/regions.geo.json --output-dir /tmp/simworld-v2-sea | tee /tmp/crimea-sea.log
+          cp /tmp/simworld-v2-sea/seaRegions.geo.json data/world/seaRegions.geo.json
+          cp /tmp/simworld-v2-sea/seaRegions.meta.json data/world/seaRegions.meta.json
+          python tools/build-terrain.py
+          node tools/generate-world-spatial-base.mjs
+      - name: Validate Crimea, Western Europe and pinch renderer
+        run: |
+          python - <<'PY'
+          import json
+          from shapely.geometry import shape, Point
+          from shapely.ops import unary_union
+          geo=json.load(open('data/world/regions.geo.json'))
+          meta=json.load(open('data/world/regions.meta.json'))['regions']
+          res=json.load(open('data/world/resources.initial.json'))
+          terrain=json.load(open('data/world/terrain.initial.json'))
+          seas=json.load(open('data/world/seaRegions.geo.json'))
+          ids={f['properties']['id'] for f in geo['features']}
+          assert len(ids)==647, len(ids)
+          assert ids=={m['id'] for m in meta}==set(res)==set(terrain)
+          crimea=[f for f in geo['features'] if f['properties'].get('sourceGroup')=='UKR' and f['properties'].get('name')=='Crimea']
+          assert len(crimea)==1, f'expected one Crimea gameplay region, got {len(crimea)}'
+          land=unary_union([shape(f['geometry']) for f in geo['features']])
+          sb={f['properties']['id']:shape(f['geometry']) for f in seas['features']}
+          water=unary_union([sb['sea_black'],sb['sea_azov']])
+          points=[(34.10,44.95),(33.75,45.20),(34.40,45.35),(35.05,45.05),(35.65,45.30)]
+          for lon,lat in points:
+              p=Point(lon,lat)
+              print(f'CRIMEA_POINT {lon},{lat} land={land.covers(p)} sea={water.covers(p)}')
+              assert land.covers(p)
+              assert not water.covers(p)
+          overlap=shape(crimea[0]['geometry']).intersection(water)
+          assert overlap.area < 1e-10, f'Crimea overlaps Black Sea/Azov by planar area {overlap.area}'
+          counts={iso:sum(1 for f in geo['features'] if f['properties'].get('sourceGroup')==iso) for iso in ('DEU','NLD','BEL','LUX')}
+          assert counts=={'DEU':12,'NLD':4,'BEL':3,'LUX':1}, counts
+          names={iso:sorted(f['properties']['name'] for f in geo['features'] if f['properties'].get('sourceGroup')==iso) for iso in counts}
+          for iso,rows in names.items(): print(iso+'_REGIONS='+json.dumps(rows,ensure_ascii=False))
+          assert not any('hinterland' in n.lower() for rows in names.values() for n in rows)
+          PY
+          grep -q 'CRIMEA_GEOGRAPHIC_MASK=UKR' /tmp/crimea-land.log
+          grep -q 'COUNTRY UKR' /tmp/crimea-land.log
+          grep -q 'SEA_RECLIP sea_black' /tmp/crimea-sea.log
+          node --check js/ui/mapRenderer.js
+          node tools/test-ui-priority.mjs
+          node tools/test-world-spatial-skeleton.mjs
+          node tools/test-world-spatial-real-map.mjs
+          node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 1 --output /tmp/crimea-smoke.json
+          git diff --check
+      - name: Commit repaired world
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add tools/build-map-expansion-v2-fast.py tools/build-sea-expansion-v2.py tools/map-region-plan-v2.json tools/cleanup-region-display-names.py .github/workflows/build-broad-map-expansion.yml js/ui/mapRenderer.js tools/map-resource-plan-v2.json data/world/regions.geo.json data/world/regions.meta.json data/world/resources.initial.json data/world/seaRegions.geo.json data/world/seaRegions.meta.json data/world/terrain.initial.json data/world/spatial.base.json
+          git commit -m 'Restore Crimea land and complete Western Europe expansion'
+          git pull --rebase
+          git push
