@@ -1,0 +1,34 @@
+name: Materialise modern picker labels
+on:
+  push:
+    branches: [rebalance-france-germany]
+    paths:
+      - '.github/workflows/materialise-picker.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply picker aliases
+        run: |
+          python tools/apply-recognition-picker.py
+          node --check js/main.js
+          grep -q "'UKR': { continent: 'Europe', country: 'Ukraine' }" js/main.js
+          grep -q "'DEU': { continent: 'Europe', country: 'Germany' }" js/main.js
+          grep -q "'PSE': { continent: 'Asia', country: 'Palestine' }" js/main.js
+          git diff --check
+      - name: Commit picker update
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/main.js
+          git commit -m 'Align modern region picker labels'
+          git pull --rebase
+          git push
