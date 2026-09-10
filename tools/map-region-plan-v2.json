@@ -3,7 +3,11 @@
   "purpose": "Second-layer geographic expansion from the live 598-region map. Existing simulated land is subtracted before new regions are created, so already-covered countries are never duplicated.",
   "targetExistingRegionCount": 598,
   "appendOnlyCountriesWhenRebased": [
-    "CHE"
+    "CHE",
+    "DEU",
+    "NLD",
+    "BEL",
+    "LUX"
   ],
   "principles": [
     "Modern borders are geometry sources, not historical political borders.",
@@ -180,6 +184,34 @@
       "name": "Iceland",
       "level": "ADM1",
       "targetRegions": 4
+    },
+    {
+      "iso": "DEU",
+      "name": "Germany",
+      "level": "ADM1",
+      "targetRegions": 12
+    },
+    {
+      "iso": "NLD",
+      "name": "Netherlands",
+      "level": "ADM1",
+      "targetRegions": 4,
+      "minAreaSqKm": 150,
+      "minLongitude": 3.0
+    },
+    {
+      "iso": "BEL",
+      "name": "Belgium",
+      "level": "ADM1",
+      "targetRegions": 3,
+      "minAreaSqKm": 150
+    },
+    {
+      "iso": "LUX",
+      "name": "Luxembourg",
+      "level": "ADM0",
+      "targetRegions": 1,
+      "minAreaSqKm": 100
     },
     {
       "iso": "AND",
