@@ -34,7 +34,7 @@ jobs:
       - name: Commit fixed source
         run: |
           git restore tools/__pycache__ 2>/dev/null || true
-          rm -f tools/__pycache__/fix-advisors-syntax*.pyc tools/__pycache__/apply-diplomats-ui*.pyc
+          git clean -f tools/__pycache__
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add js/ui/advisors.js tools/apply-diplomats-ui.py
@@ -42,6 +42,5 @@ jobs:
             echo 'Advisor source and generator syntax already fixed'
           else
             git commit -m 'Fix advisor deception button syntax'
-            git pull --rebase
             git push
           fi
