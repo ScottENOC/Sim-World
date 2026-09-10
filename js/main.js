@@ -17,7 +17,8 @@ import { MapRenderer } from './ui/mapRenderer.js?v=20260904-war1';
 import { AdvisorCouncil } from './ui/advisors.js?v=20260905-projects1';
 import { renderDiplomaticServicePanel } from './ui/diplomaticServicePanel.js?v=20260909-diplomatic-ui1';
 import { buildSocialOverlayLayers } from './ui/socialOverlays.js?v=20260910-social-overlays1';
-import { buildWorldSpatialGraph, syncRegionSpatialSites } from './world/spatialGraph.js?v=20260910-spatial1';
+import { loadWorldSpatialGraph } from './world/spatialBaseLoader.js?v=20260910-spatial1';
+import { syncRegionSpatialSites } from './world/spatialGraph.js?v=20260910-spatial1';
 import { createLocalRegionView } from './ui/localRegionView.js?v=20260910-spatial1';
 import { ensureSubregionalControl } from './military/subregionalControl.js?v=20260908-subregion1';
 import { FogOfWar } from './core/fogOfWar.js?v=20260904-weather1';
@@ -84,7 +85,7 @@ async function main() {
   initialisePoliticalContinuity(polities, regions, 0);
   const seaRegions = await loadSeaWorld();
   linkSeaAdjacency(regions, seaRegions);
-  const spatialGraph = buildWorldSpatialGraph(regions, seaRegions);
+  const spatialGraph = await loadWorldSpatialGraph(regions);
   for (const region of regions) syncRegionSpatialSites(spatialGraph, region, ensureSubregionalControl(region).places);
   const fishingContactPairs = buildFishingContactPairs(regions, seaRegions);
   initialiseKnowledge(regions, seaRegions);
