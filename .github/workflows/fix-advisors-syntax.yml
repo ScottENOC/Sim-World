@@ -19,7 +19,7 @@ jobs:
         run: python tools/fix-advisors-syntax.py
       - name: Syntax checks
         run: |
-          python -m py_compile tools/fix-advisors-syntax.py
+          python -m py_compile tools/fix-advisors-syntax.py tools/apply-diplomats-ui.py
           node --check js/ui/advisors.js
           node --check js/main.js
       - name: Relevant regressions
@@ -35,9 +35,9 @@ jobs:
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add js/ui/advisors.js
+          git add js/ui/advisors.js tools/apply-diplomats-ui.py
           if git diff --cached --quiet; then
-            echo 'Advisors syntax already fixed'
+            echo 'Advisor source and generator syntax already fixed'
           else
             git commit -m 'Fix advisor deception button syntax'
             git pull --rebase
