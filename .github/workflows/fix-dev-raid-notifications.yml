@@ -1,0 +1,43 @@
+name: Dev raid notification hotfix
+
+on:
+  push:
+    branches: [fix-dev-raid-notifications]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply hotfix
+        run: python tools/fix-dev-raid-notifications.py
+      - name: Syntax checks
+        run: |
+          python -m py_compile tools/fix-dev-raid-notifications.py
+          node --check js/main.js
+          node --check js/military/raiding.js
+      - name: Raid and world smoke tests
+        run: |
+          node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 1 --output /tmp/dev-raid-hotfix-smoke.json
+      - name: Diff sanity
+        run: git diff --check
+      - name: Commit materialised source
+        run: |
+          git restore tools/__pycache__ 2>/dev/null || true
+          rm -f tools/__pycache__/fix-dev-raid-notifications*.pyc
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/main.js
+          if git diff --cached --quiet; then
+            echo 'Main source already fixed'
+          else
+            git commit -m 'Keep dev mode out of player raid notifications'
+            git pull --rebase
+            git push
+          fi
