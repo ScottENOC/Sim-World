@@ -1,12 +1,20 @@
 name: World spatial skeleton validation
 
 on:
+  pull_request:
+    paths:
+      - 'data/world/**'
+      - 'js/world/**'
+      - 'js/ui/localRegionView.js'
+      - 'tools/*world-spatial*'
+      - 'tools/test-real-river-navigation.mjs'
+      - '.github/workflows/world-spatial-skeleton.yml'
   push:
-    branches: [world-spatial-skeleton-v1]
+    branches: [main, real-rivers-navigation-v1]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   validate:
@@ -29,13 +37,17 @@ jobs:
           python -m py_compile tools/apply-world-spatial-skeleton.py
           node --check js/world/spatialGraph.js
           node --check js/world/spatialBaseLoader.js
+          node --check js/world/realRivers.js
+          node --check js/world/riverNavigation.js
           node --check js/ui/localRegionView.js
           node --check tools/generate-world-spatial-base.mjs
+          node --check tools/test-real-river-navigation.mjs
           node --check js/main.js
       - name: Spatial continuity regressions
         run: |
           node tools/test-world-spatial-skeleton.mjs
           node tools/test-world-spatial-real-map.mjs
+          node tools/test-real-river-navigation.mjs
       - name: Existing subregional regressions
         run: |
           node tools/test-subregional-control.mjs
@@ -51,17 +63,6 @@ jobs:
       - name: Headless world smoke test
         run: node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 1 --output /tmp/spatial-smoke.json
       - name: Diff sanity
-        run: git diff --check
-      - name: Commit integrated source and immutable geography
         run: |
-          rm -f tools/__pycache__/apply-world-spatial-skeleton*.pyc
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add -A
-          if git diff --cached --quiet; then
-            echo 'World spatial skeleton integration already materialised'
-          else
-            git commit -m 'Integrate fixed world geography and regional zoom'
-            git pull --rebase --autostash
-            git push
-          fi
+          git diff --check
+          git diff --exit-code
