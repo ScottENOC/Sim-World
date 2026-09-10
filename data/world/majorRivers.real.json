@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "source": {
+    "name": "Natural Earth",
+    "dataset": "Rivers + lake centerlines",
+    "licence": "public domain",
+    "note": "Coordinates are simplified from Natural Earth centreline geometry. Navigation metadata is a Sim-World gameplay abstraction, not an historical draught table."
+  },
+  "rivers": [
+    {
+      "id": "river:real:thames",
+      "name": "Thames",
+      "geometrySource": "natural-earth",
+      "points": [[-2.0219,51.6859],[-1.5620,51.7002],[-1.2815,51.7590],[-1.1102,51.5252],[-0.9439,51.4788],[-0.7057,51.5213],[-0.5033,51.4157],[-0.3136,51.4547],[-0.0488,51.5009],[0.3845,51.4531],[0.4245,51.4656]],
+      "navigation": {"naturalCapacity":0.38,"baseMaxDraftM":1.3,"baseMaxDisplacementT":80,"flowVariability":0.25,"freezePropensity":0.18,"naturalShelter":0.78}
+    },
+    {
+      "id": "river:real:seine",
+      "name": "Seine",
+      "geometrySource": "natural-earth",
+      "points": [[4.7077,47.5779],[4.4084,48.0818],[3.9692,48.4274],[3.5612,48.5257],[3.0384,48.3931],[2.6867,48.4924],[2.4301,48.7657],[2.2963,48.8521],[2.1376,48.9480],[1.9076,49.0060],[1.4969,49.0842],[1.2381,49.2442],[0.9722,49.3781],[0.7188,49.4804],[0.4393,49.4732]],
+      "navigation": {"naturalCapacity":0.50,"baseMaxDraftM":1.7,"baseMaxDisplacementT":180,"flowVariability":0.22,"freezePropensity":0.12,"naturalShelter":0.80}
+    },
+    {
+      "id": "river:real:danube",
+      "name": "Danube",
+      "geometrySource": "natural-earth",
+      "points": [[8.2198,48.0468],[10.7199,48.6487],[13.4867,48.5818],[15.6344,48.3746],[17.4885,47.8675],[19.0257,47.6682],[18.8823,46.2797],[19.3086,45.3135],[20.5420,44.8018],[22.1451,44.4784],[22.9448,43.8238],[25.5693,43.6884],[27.2424,44.1760],[28.0528,44.4094],[28.1574,45.3959],[28.6798,45.3040],[29.6033,45.2933]],
+      "navigation": {"naturalCapacity":0.75,"baseMaxDraftM":2.3,"baseMaxDisplacementT":900,"flowVariability":0.30,"freezePropensity":0.48,"naturalShelter":0.76}
+    },
+    {
+      "id": "river:real:nile",
+      "name": "Nile",
+      "geometrySource": "natural-earth",
+      "points": [[33.2069,0.2615],[32.0159,3.6137],[31.6728,5.9300],[30.2884,8.5731],[31.7839,9.6339],[32.7786,12.6343],[32.3172,14.1246],[32.4901,15.6345],[33.8773,18.1973],[32.9170,19.4004],[30.4945,19.0245],[30.3649,20.5287],[31.4336,22.0967],[32.8968,23.6598],[32.8413,24.8859],[31.7852,26.4905],[30.8374,28.0377],[31.1686,29.3025],[31.2376,30.1207],[31.0335,31.5318]],
+      "navigation": {"naturalCapacity":0.83,"baseMaxDraftM":2.5,"baseMaxDisplacementT":1100,"flowVariability":0.28,"freezePropensity":0.01,"naturalShelter":0.82}
+    }
+  ]
+}
