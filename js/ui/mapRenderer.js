@@ -77,6 +77,8 @@ export class MapRenderer {
     this._drawQueued = false;
     this._isInteracting = false;
     this._lastAnimationDrawAt = 0;
+    this._lastRenderedTransform = d3.zoomIdentity;
+    this._gesturePreviewActive = false;
 
     this._resize();
     window.addEventListener('resize', () => this._resize());
@@ -132,6 +134,27 @@ export class MapRenderer {
     });
   }
 
+  _applyGesturePreview(nextTransform) {
+    // Immediate compositor-only feedback: move/scale the already-painted
+    // canvas while the expensive accurate map redraw waits for gesture end.
+    const base = this._lastRenderedTransform || d3.zoomIdentity;
+    const scale = nextTransform.k / Math.max(0.0001, base.k);
+    const x = nextTransform.x - base.x * scale;
+    const y = nextTransform.y - base.y * scale;
+    this.canvas.style.transformOrigin = '0 0';
+    this.canvas.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
+    this.canvas.style.willChange = 'transform';
+    this._gesturePreviewActive = true;
+  }
+
+  _clearGesturePreview() {
+    if (!this._gesturePreviewActive) return;
+    this.canvas.style.transform = '';
+    this.canvas.style.transformOrigin = '';
+    this.canvas.style.willChange = '';
+    this._gesturePreviewActive = false;
+  }
+
   _boundsOnScreen(bounds, margin = 48) {
     if (!bounds || this.transform.k <= 1.05) return true;
     const [[x0, y0], [x1, y1]] = bounds;
@@ -174,11 +197,12 @@ export class MapRenderer {
       .on('zoom', (event) => {
         this.transform = event.transform;
         this.onInteraction();
-        this._requestDraw();
+        this._applyGesturePreview(event.transform);
       })
       .on('end', () => {
         this._isInteracting = false;
         this.onInteraction();
+        // Keep the preview visible until the accurate frame has been painted.
         this._requestDraw();
       });
 
@@ -770,5 +794,10 @@ export class MapRenderer {
     if (!this._isInteracting && this.layer?.visualOverlay === 'military') this._drawMilitaryOverlay();
 
     ctx.restore();
+
+    // The canvas now exactly represents the current transform, so swap out
+    // the temporary compositor preview without changing the apparent view.
+    this._lastRenderedTransform = this.transform;
+    this._clearGesturePreview();
   }
 }
