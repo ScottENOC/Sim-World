@@ -25,6 +25,7 @@ export class Clock {
     this._pendingResponseRequired = 0;
     this._rafHandle = null;
     this._estimatedTickMs = null;
+    this._deferUntil = 0;
     this._now = now;
     this._requestFrame = requestFrame;
     this._cancelFrame = cancelFrame;
@@ -82,6 +83,10 @@ export class Clock {
 
   get daysPerTick() { return this.resolution.daysPerTick; }
 
+  deferForInteraction(ms = 300) {
+    this._deferUntil = Math.max(this._deferUntil, this._now() + Math.max(0, ms));
+  }
+
   _targetIntervalMs(speed = this.speed) { return MS_PER_TICK_AT_1X / speed; }
 
   _recordTickDuration(durationMs) {
@@ -103,6 +108,11 @@ export class Clock {
         if (this._nextTickAt === null) {
           this._nextTickAt = frameTime + this._targetIntervalMs();
         } else if (frameTime >= this._nextTickAt) {
+          if (frameTime < this._deferUntil) {
+            this._nextTickAt = this._deferUntil;
+            this._rafHandle = this._requestFrame(loop);
+            return;
+          }
           const startedAt = this._now();
           const startDay = this.elapsedDays;
           const elapsedDays = this.daysPerTick;
