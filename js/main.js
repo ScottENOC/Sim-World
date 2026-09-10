@@ -326,18 +326,18 @@ async function main() {
     const { remaining, events } = tickRaids(activeRaids, regionsById, calendarWeek, toolTypes, Math.random);
     activeRaids = remaining;
 
-    // The player does not get a global news feed. Only raids involving their
-    // own region are shown; other AI conflicts remain behind the fog.
-    const playerRaidEvents = fogOfWar.devMode
-      ? events
-      : events.filter((event) => {
-        const playerPolityId = regionsById.get(playerRegionId)?.governance?.sovereignPolityId;
-        const attacker = regionsById.get(event.raid.attackerId);
-        const defender = regionsById.get(event.raid.defenderId);
-        return event.raid.attackerId === playerRegionId || event.raid.defenderId === playerRegionId ||
-          attacker?.governance?.sovereignPolityId === playerPolityId ||
-          defender?.governance?.sovereignPolityId === playerPolityId;
-      });
+    // Dev mode reveals diagnostic/map state, but it must not become a global
+    // player notification feed. Raid modals are always limited to the player's
+    // own region/polity so unrelated AI wars cannot pause or block the game.
+    const playerRaidEvents = events.filter((event) => {
+      const playerPolityId = regionsById.get(playerRegionId)?.governance?.sovereignPolityId;
+      if (!playerRegionId || !playerPolityId) return false;
+      const attacker = regionsById.get(event.raid.attackerId);
+      const defender = regionsById.get(event.raid.defenderId);
+      return event.raid.attackerId === playerRegionId || event.raid.defenderId === playerRegionId ||
+        attacker?.governance?.sovereignPolityId === playerPolityId ||
+        defender?.governance?.sovereignPolityId === playerPolityId;
+    });
     for (const retreatEvent of campaignResult.events.filter((event) => event.type === 'claimant_retreat')) {
       if (retreatEvent.defeatedPolityId === activePlayerPolityId && retreatEvent.newSeatRegionId) {
         playerRegionId = retreatEvent.newSeatRegionId;
