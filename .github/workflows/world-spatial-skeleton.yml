@@ -1,0 +1,67 @@
+name: World spatial skeleton validation
+
+on:
+  push:
+    branches: [world-spatial-skeleton-v1]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply integration
+        run: python tools/apply-world-spatial-skeleton.py
+      - name: Generate immutable geography
+        run: |
+          node tools/generate-world-spatial-base.mjs
+          cp data/world/spatial.base.json /tmp/spatial.base.first.json
+          node tools/generate-world-spatial-base.mjs
+          cmp /tmp/spatial.base.first.json data/world/spatial.base.json
+          ls -lh data/world/spatial.base.json
+      - name: Syntax checks
+        run: |
+          python -m py_compile tools/apply-world-spatial-skeleton.py
+          node --check js/world/spatialGraph.js
+          node --check js/world/spatialBaseLoader.js
+          node --check js/ui/localRegionView.js
+          node --check tools/generate-world-spatial-base.mjs
+          node --check js/main.js
+      - name: Spatial continuity regressions
+        run: |
+          node tools/test-world-spatial-skeleton.mjs
+          node tools/test-world-spatial-real-map.mjs
+      - name: Existing subregional regressions
+        run: |
+          node tools/test-subregional-control.mjs
+          node tools/test-subregional-movement.mjs
+          node tools/test-subregional-army-battles.mjs
+          node tools/test-supply-corridors-ai.mjs
+          node tools/test-campaign-command-advisor.mjs
+      - name: Social and diplomacy regressions
+        run: |
+          node tools/test-social-map-overlays.mjs
+          node tools/test-population-language-networks.mjs
+          node tools/test-diplomatic-service-ui.mjs
+      - name: Headless world smoke test
+        run: node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 1 --output /tmp/spatial-smoke.json
+      - name: Diff sanity
+        run: git diff --check
+      - name: Commit integrated source and immutable geography
+        run: |
+          rm -f tools/__pycache__/apply-world-spatial-skeleton*.pyc
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'World spatial skeleton integration already materialised'
+          else
+            git commit -m 'Integrate fixed world geography and regional zoom'
+            git pull --rebase --autostash
+            git push
+          fi

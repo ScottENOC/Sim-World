@@ -17,6 +17,10 @@ import { MapRenderer } from './ui/mapRenderer.js?v=20260904-war1';
 import { AdvisorCouncil } from './ui/advisors.js?v=20260905-projects1';
 import { renderDiplomaticServicePanel } from './ui/diplomaticServicePanel.js?v=20260909-diplomatic-ui1';
 import { buildSocialOverlayLayers } from './ui/socialOverlays.js?v=20260910-social-overlays1';
+import { loadWorldSpatialGraph } from './world/spatialBaseLoader.js?v=20260910-spatial1';
+import { syncRegionSpatialSites } from './world/spatialGraph.js?v=20260910-spatial1';
+import { createLocalRegionView } from './ui/localRegionView.js?v=20260910-spatial1';
+import { ensureSubregionalControl } from './military/subregionalControl.js?v=20260908-subregion1';
 import { FogOfWar } from './core/fogOfWar.js?v=20260904-weather1';
 import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260906-scouting1';
 import { startScoutingMission, tickScouting } from './core/scouting.js?v=20260906-scouting1';
@@ -81,6 +85,8 @@ async function main() {
   initialisePoliticalContinuity(polities, regions, 0);
   const seaRegions = await loadSeaWorld();
   linkSeaAdjacency(regions, seaRegions);
+  const spatialGraph = await loadWorldSpatialGraph(regions);
+  for (const region of regions) syncRegionSpatialSites(spatialGraph, region, ensureSubregionalControl(region).places);
   const fishingContactPairs = buildFishingContactPairs(regions, seaRegions);
   initialiseKnowledge(regions, seaRegions);
   for (const region of regions) { ensureCommunicationState(region); ensureDiplomaticService(region); ensureCounterIntelligence(region); }
@@ -106,6 +112,17 @@ async function main() {
   const agreements = [];
   const eventQueue = [];
   let council;
+  let localRegionView = null;
+  const addRegionZoomButton = (region) => {
+    const controls = document.getElementById('region-controls');
+    if (!controls || controls.querySelector('#btn-zoom-local-region')) return;
+    const button = document.createElement('button');
+    button.id = 'btn-zoom-local-region';
+    button.className = 'region-zoom-button';
+    button.textContent = 'Zoom to region';
+    button.addEventListener('click', () => localRegionView?.open(region));
+    controls.prepend(button);
+  };
 
   const map = new MapRenderer(canvas, regions, {
     seaRegions,
@@ -127,6 +144,7 @@ async function main() {
     onSelect: (region) => {
       selectedRegion = region;
       renderRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
+      addRegionZoomButton(region);
       appendCampaignShortcut(region, activeCampaigns, regionsById, playerRegionId, council);
       updateRegionStats(region, seaRegionsById, fogOfWar, regions, playerRegionId);
       document.getElementById('region-sheet').classList.remove('hidden');
@@ -147,11 +165,18 @@ async function main() {
       selectedRegion = region;
       map.selectedId = region.id;
       renderRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
+      addRegionZoomButton(region);
       appendCampaignShortcut(region, activeCampaigns, regionsById, playerRegionId, council);
       updateRegionStats(region, seaRegionsById, fogOfWar, regions, playerRegionId);
       document.getElementById('region-sheet').classList.remove('hidden');
       map.draw();
     },
+  });
+
+  localRegionView = createLocalRegionView({
+    graph: spatialGraph, regions,
+    getCampaigns: () => activeCampaigns,
+    getFleets: () => fleets,
   });
 
   Object.assign(LAYERS, buildSocialOverlayLayers({
@@ -188,7 +213,10 @@ async function main() {
     syncRegionalNavyLedger(regions, fleets);
     syncNextDiplomaticMessageId(regions);
     syncNextDiplomatId(regions);
-    for (const region of regions) { ensureCommunicationState(region); ensureDiplomaticService(region); ensureCounterIntelligence(region); }
+    for (const region of regions) {
+      ensureCommunicationState(region); ensureDiplomaticService(region); ensureCounterIntelligence(region);
+      syncRegionSpatialSites(spatialGraph, region, ensureSubregionalControl(region).places);
+    }
     syncNextProjectId(regions);
     eventQueue.length = 0;
     document.getElementById('event-modal').classList.add('hidden');
@@ -199,6 +227,7 @@ async function main() {
     council.close();
     if (selectedRegion) {
       renderRegionControls(selectedRegion, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
+      addRegionZoomButton(selectedRegion);
       updateRegionStats(selectedRegion, seaRegionsById, fogOfWar, regions, playerRegionId);
       document.getElementById('region-sheet').classList.remove('hidden');
     }
