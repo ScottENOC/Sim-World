@@ -1,8 +1,6 @@
 name: Final map integration check
 
 on:
-  push:
-    branches: [rebalance-france-germany]
   pull_request:
     branches: [main]
 
