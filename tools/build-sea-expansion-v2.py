@@ -58,9 +58,23 @@ def main():
     sea_meta = json.loads(BASE_SEA_META.read_text())
     world_land = fetch_json(WORLD_LAND_URL)
     global_land = repair(unary_union([repair(shape(f['geometry'])) for f in world_land.get('features', [])]))
+    simulated_land = occupied_geometry(land_geo.get('features', []))
 
     feature_by_id = {f['properties']['id']: f for f in sea_geo.get('features', [])}
     meta_by_id = {m['id']: m for m in sea_meta.get('seaRegions', [])}
+    if simulated_land is not None:
+        for sea_id, feature in feature_by_id.items():
+            old_water = repair(shape(feature['geometry']))
+            clipped = repair(old_water.difference(simulated_land))
+            if clipped.is_empty or area_sqkm(clipped) < 100:
+                raise RuntimeError(f'{sea_id}: simulated-land clipping consumed sea region')
+            if not clipped.equals(old_water):
+                feature['geometry'] = mapping(clipped)
+                meta = meta_by_id.get(sea_id)
+                if meta is not None:
+                    update_meta_geometry(meta, clipped)
+                removed = max(0.0, area_sqkm(old_water) - area_sqkm(clipped))
+                print(f'SEA_RECLIP {sea_id} removedLandOverlap={removed:.1f} km²')
     existing_ids = set(feature_by_id)
     new_count = 0
 

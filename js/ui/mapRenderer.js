@@ -79,6 +79,15 @@ export class MapRenderer {
     this._lastAnimationDrawAt = 0;
     this._lastRenderedTransform = d3.zoomIdentity;
     this._gesturePreviewActive = false;
+    this._gesturePreviewBaseTransform = d3.zoomIdentity;
+    this._gesturePreview = document.createElement('canvas');
+    this._gesturePreview.setAttribute('aria-hidden', 'true');
+    Object.assign(this._gesturePreview.style, {
+      position: 'absolute', inset: '0', width: '100%', height: '100%',
+      pointerEvents: 'none', display: 'none', transformOrigin: '0 0',
+    });
+    this.canvas.insertAdjacentElement('afterend', this._gesturePreview);
+    this._gesturePreviewCtx = this._gesturePreview.getContext('2d');
 
     this._resize();
     window.addEventListener('resize', () => this._resize());
@@ -134,24 +143,43 @@ export class MapRenderer {
     });
   }
 
+  _captureGesturePreview() {
+    // Snapshot the last accurate frame onto a non-interactive sibling canvas.
+    // D3 continues measuring touches against the real canvas, whose bounds stay
+    // completely fixed throughout the gesture. This avoids an iOS feedback loop
+    // where scaling the input element also changes the coordinates of the fingers.
+    const preview = this._gesturePreview;
+    const ctx = this._gesturePreviewCtx;
+    if (!preview || !ctx) return;
+    if (preview.width !== this.canvas.width) preview.width = this.canvas.width;
+    if (preview.height !== this.canvas.height) preview.height = this.canvas.height;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, preview.width, preview.height);
+    ctx.drawImage(this.canvas, 0, 0);
+    this._gesturePreviewBaseTransform = this._lastRenderedTransform || d3.zoomIdentity;
+    preview.style.transform = '';
+    preview.style.display = 'block';
+    preview.style.willChange = 'transform';
+    this.canvas.style.opacity = '0';
+    this._gesturePreviewActive = true;
+  }
+
   _applyGesturePreview(nextTransform) {
-    // Immediate compositor-only feedback: move/scale the already-painted
-    // canvas while the expensive accurate map redraw waits for gesture end.
-    const base = this._lastRenderedTransform || d3.zoomIdentity;
+    if (!this._gesturePreviewActive) this._captureGesturePreview();
+    if (!this._gesturePreviewActive) return;
+    const base = this._gesturePreviewBaseTransform || d3.zoomIdentity;
     const scale = nextTransform.k / Math.max(0.0001, base.k);
     const x = nextTransform.x - base.x * scale;
     const y = nextTransform.y - base.y * scale;
-    this.canvas.style.transformOrigin = '0 0';
-    this.canvas.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
-    this.canvas.style.willChange = 'transform';
-    this._gesturePreviewActive = true;
+    this._gesturePreview.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
   }
 
   _clearGesturePreview() {
     if (!this._gesturePreviewActive) return;
-    this.canvas.style.transform = '';
-    this.canvas.style.transformOrigin = '';
-    this.canvas.style.willChange = '';
+    this._gesturePreview.style.transform = '';
+    this._gesturePreview.style.willChange = '';
+    this._gesturePreview.style.display = 'none';
+    this.canvas.style.opacity = '';
     this._gesturePreviewActive = false;
   }
 
@@ -192,6 +220,7 @@ export class MapRenderer {
       .scaleExtent([1, 12])
       .on('start', () => {
         this._isInteracting = true;
+        this._captureGesturePreview();
         this.onInteraction();
       })
       .on('zoom', (event) => {

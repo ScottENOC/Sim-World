@@ -1,0 +1,65 @@
+name: Final map integration check
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2
+      - name: Validate map, picker and UI
+        run: |
+          node --check js/main.js
+          node --check js/ui/mapRenderer.js
+          node tools/test-ui-priority.mjs
+          node tools/test-world-spatial-skeleton.mjs
+          node tools/test-world-spatial-real-map.mjs
+          python - <<'PY'
+          import json
+          from shapely.geometry import Point, shape
+          from shapely.ops import unary_union
+          geo=json.load(open('data/world/regions.geo.json'))['features']
+          meta=json.load(open('data/world/regions.meta.json'))['regions']
+          res=json.load(open('data/world/resources.initial.json'))
+          terrain=json.load(open('data/world/terrain.initial.json'))
+          ids={f['properties']['id'] for f in geo}
+          source={f['properties']['id']:f['properties'].get('sourceGroup') for f in geo}
+          assert ids=={m['id'] for m in meta}==set(res)==set(terrain)
+          counts={iso:sum(1 for f in geo if f['properties'].get('sourceGroup')==iso) for iso in ('FRA','DEU','NLD','BEL','LUX')}
+          print('REGION_COUNTS', counts)
+          assert counts=={'FRA':38,'DEU':24,'NLD':4,'BEL':3,'LUX':1}, counts
+          rows={iso:[m for m in meta if source[m['id']]==iso] for iso in ('FRA','DEU')}
+          avg={iso:sum(m['areaSqKm'] for m in group)/len(group) for iso,group in rows.items()}
+          print('AVERAGE_REGION_AREA', avg)
+          assert abs(avg['FRA']-avg['DEU'])/((avg['FRA']+avg['DEU'])/2) < 0.25
+          crimea=[f for f in geo if f['properties'].get('sourceGroup')=='UKR' and f['properties'].get('name')=='Crimea']
+          assert len(crimea)==1, len(crimea)
+          seas=json.load(open('data/world/seaRegions.geo.json'))['features']
+          sea={f['properties']['id']:shape(f['geometry']) for f in seas}
+          water=unary_union([sea['sea_black'], sea['sea_azov']])
+          for lon,lat in [(34.10,44.95),(33.75,45.20),(35.05,45.05)]:
+              p=Point(lon,lat)
+              assert any(f['properties'].get('sourceGroup')=='UKR' and shape(f['geometry']).covers(p) for f in geo)
+              assert not water.covers(p)
+          for label,(lon,lat) in {'Donetsk':(37.80,48.00),'Luhansk':(39.31,48.57),'Zaporizhzhia':(35.14,47.84),'Kherson':(32.62,46.64)}.items():
+              p=Point(lon,lat)
+              assert any(f['properties'].get('sourceGroup')=='UKR' and shape(f['geometry']).covers(p) for f in geo), label
+          PY
+          grep -q "'UKR': { continent: 'Europe', country: 'Ukraine' }" js/main.js
+          grep -q "'DEU': { continent: 'Europe', country: 'Germany' }" js/main.js
+          git diff --check
+      - name: One-year simulation smoke test
+        run: node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 1 --output /tmp/final-map-smoke.json

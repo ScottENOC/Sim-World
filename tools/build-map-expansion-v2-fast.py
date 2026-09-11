@@ -50,7 +50,23 @@ def country_masks_with_hosts(admin0, wanted):
         if iso in HOST_ISO:
             expanded.add(HOST_ISO[iso])
         expanded.update(ALIASES.get(iso, set()))
-    return original_country_masks(admin0, expanded)
+    masks = original_country_masks(admin0, expanded)
+    if 'UKR' in expanded:
+        crimea_parts = []
+        for f in natural_earth_admin1().get('features', []):
+            subdivision = str((f.get('properties') or {}).get('iso_3166_2') or '').upper()
+            if subdivision in {'UA-43', 'UA-40'}:
+                crimea_parts.append(map_v2.repair(shape(f['geometry'])))
+        if crimea_parts:
+            crimea = map_v2.repair(unary_union(crimea_parts))
+            if masks.get('UKR') is not None:
+                masks['UKR'] = map_v2.repair(unary_union([masks['UKR'], crimea]))
+            else:
+                masks['UKR'] = crimea
+            if masks.get('RUS') is not None:
+                masks['RUS'] = map_v2.repair(masks['RUS'].difference(crimea))
+            print('CRIMEA_GEOGRAPHIC_MASK=UKR UA-43+UA-40')
+    return masks
 
 
 def absorb_microstates_hosted(base_geo, base_meta, masks, specs):
@@ -97,6 +113,9 @@ def absorb_microstates_hosted(base_geo, base_meta, masks, specs):
 
 def feature_iso_codes(feature):
     p = feature.get('properties') or {}
+    subdivision = str(p.get('iso_3166_2') or '').upper()
+    if subdivision in {'UA-43', 'UA-40'}:
+        return {'UKR'}
     keys = ('adm0_a3','ADM0_A3','sov_a3','SOV_A3','gu_a3','GU_A3')
     return {str(p.get(k,'')).upper() for k in keys if p.get(k)}
 
@@ -157,6 +176,12 @@ def source_features_fast(country, mask, _unused_existing_coverage):
             candidates.append((name, map_v2.clean(shape(f['geometry']))))
         if not candidates and mask is not None:
             candidates = [(country['name'], mask)]
+
+    if iso == 'UKR':
+        crimea = [(name, geom) for name, geom in candidates if name.casefold() in {'crimea', 'sevastopol'}]
+        if crimea:
+            candidates = [(name, geom) for name, geom in candidates if name.casefold() not in {'crimea', 'sevastopol'}]
+            candidates.append(('Crimea', map_v2.repair(unary_union([geom for _, geom in crimea]))))
 
     pieces = []
     for name, geom in candidates:
