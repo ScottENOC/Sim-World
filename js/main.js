@@ -266,6 +266,9 @@ async function main() {
     },
   });
 
+  let communicationElapsedDays = 0;
+  let languageChangeElapsedDays = 0;
+
   clock.onTick((time) => {
     profiler.beginTick(time);
     // Legacy systems that store durations in weeks receive a calendar-week
@@ -310,8 +313,23 @@ async function main() {
     const breakthroughEvents = profiler.measure('Technology breakthroughs', () => tickBreakthroughs(regions, calendarWeek, Math.random, time.elapsedDays));
     const religionEvents = profiler.measure('Religion', () => tickReligion(regions, religiousWorld, calendarWeek, activeRaids, activeCampaigns, Math.random, time.elapsedDays));
     profiler.measure('Demographics', () => tickDemographics(regions, religiousWorld, time.elapsedDays));
-    profiler.measure('Communication practices', () => tickCommunicationPractices(regions, polities, agreements, activeCampaigns, calendarWeek, time.elapsedDays));
-    const languageChangeEvents = profiler.measure('Language change', () => tickGenerationalLanguageChange(regions, time.elapsedDays));
+    // These are slow-moving social processes. The world clock may tick monthly
+    // (and later weekly/daily), but recomputing them on every world tick wastes
+    // CPU without adding meaningful temporal resolution.
+    communicationElapsedDays += time.elapsedDays;
+    if (communicationElapsedDays >= 90) {
+      const elapsedCommunicationDays = communicationElapsedDays;
+      communicationElapsedDays = 0;
+      profiler.measure('Communication practices', () => tickCommunicationPractices(regions, polities, agreements, activeCampaigns, calendarWeek, elapsedCommunicationDays));
+    }
+
+    languageChangeElapsedDays += time.elapsedDays;
+    let languageChangeEvents = [];
+    if (languageChangeElapsedDays >= 365.2425) {
+      const elapsedLanguageDays = languageChangeElapsedDays;
+      languageChangeElapsedDays = 0;
+      languageChangeEvents = profiler.measure('Language change', () => tickGenerationalLanguageChange(regions, elapsedLanguageDays));
+    }
     const diplomatEvents = profiler.measure('Diplomats', () => tickDiplomats(regions, calendarWeek, time.elapsedDays, Math.random));
     for (const diplomatEvent of diplomatEvents) {
       if (diplomatEvent.type !== 'diplomat_authority_breach_reported' || diplomatEvent.homeRegionId !== playerRegionId) continue;
