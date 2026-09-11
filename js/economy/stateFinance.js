@@ -1,4 +1,5 @@
 import { effectiveInfrastructureCount, operationalInfrastructure } from './construction.js?v=20260907-classical1';
+import { currencyFiscalModifiers } from './currency.js?v=20260912-currency1';
 
 // State finance connects the commercial collapse to military failure. Taxes
 // are transfers from populace wealth, not newly-created money; wages and
@@ -45,11 +46,13 @@ function classicalFiscalProfile(region) {
   const coinage = region.unlockedTechIds?.has('coinage') ? 1 : 0;
   const mint = operationalInfrastructure(region, 'mint') ? 1 : 0;
   const relays = operationalInfrastructure(region, 'relay_stations') ? 1 : 0;
+  const currency = currencyFiscalModifiers(region);
   return {
-    collection: 1 + standardWeights * 0.08 + formalTaxation * 0.14 + coinage * 0.05 + mint * 0.05,
-    tradeDuty: 1 + standardWeights * 0.1 + coinage * 0.08 + mint * 0.07,
-    adminEfficiency: 1 + formalTaxation * 0.10 + relays * 0.08 + mint * 0.03,
-    payrollEfficiency: 1 + coinage * 0.06 + mint * 0.06,
+    collection: (1 + standardWeights * 0.08 + formalTaxation * 0.14 + coinage * 0.05 + mint * 0.05) * currency.collection,
+    tradeDuty: (1 + standardWeights * 0.1 + coinage * 0.08 + mint * 0.07) * currency.tradeDuty,
+    adminEfficiency: (1 + formalTaxation * 0.10 + relays * 0.08 + mint * 0.03) * currency.adminEfficiency,
+    payrollEfficiency: (1 + coinage * 0.06 + mint * 0.06) * currency.payrollEfficiency,
+    currency,
   };
 }
 

@@ -11,6 +11,7 @@ import { navalMissionProfile, postureProfile } from '../military/policies.js?v=2
 import { maritimeSkillMultiplier, MARITIME_SKILLS } from '../technology/seamanship.js?v=20260906-maritime1';
 import { maritimeRouteBetween } from '../world/chokepoints.js?v=20260907-chokepoints1';
 import { collectTransitTolls, estimateTransitToll } from './transitTolls.js?v=20260907-transit1';
+import { currencyTradeFriction } from './currency.js?v=20260912-currency1';
 
 const LAND_ADJACENT_COST = 0.02;
 const SEA_COST_PER_KM = 0.0002;
@@ -299,12 +300,12 @@ export function routeCost(regionA, regionB) {
   const geometry = routeGeometry(regionA, regionB);
   const landTransport = Math.max(horseTransportMultiplier(regionA) * overlandInfrastructureMultiplier(regionA),
     horseTransportMultiplier(regionB) * overlandInfrastructureMultiplier(regionB));
-  if (geometry.adjacent) return LAND_ADJACENT_COST / landTransport;
+  if (geometry.adjacent) return LAND_ADJACENT_COST / landTransport * currencyTradeFriction(regionA, regionB);
   if (geometry.sharedSea) {
     const passageFactor = 1 + (geometry.maritime?.physicalFriction || 0);
-    return SEA_COST_PER_KM * geometry.distanceKm * seaTransportProfile(regionA, regionB).costMultiplier * passageFactor;
+    return SEA_COST_PER_KM * geometry.distanceKm * seaTransportProfile(regionA, regionB).costMultiplier * passageFactor * currencyTradeFriction(regionA, regionB);
   }
-  return (LAND_ADJACENT_COST * 2 + SEA_COST_PER_KM * geometry.distanceKm * 0.25) / landTransport;
+  return (LAND_ADJACENT_COST * 2 + SEA_COST_PER_KM * geometry.distanceKm * 0.25) / landTransport * currencyTradeFriction(regionA, regionB);
 }
 
 function ventureRouteProfile(origin, dest, regionsById) {
@@ -326,7 +327,7 @@ function ventureRouteProfile(origin, dest, regionsById) {
       transportMultiplier: sea.capacityMultiplier,
       reliability: routeReliability(origin, dest) * Math.max(0.72, 1 - passageCount * 0.05) *
         Math.max(0.08, 1 - Math.max(origin.navalBlockadePressure || 0, dest.navalBlockadePressure || 0) * 0.82),
-      cost: SEA_COST_PER_KM * geometry.distanceKm * sea.costMultiplier * (1 + physicalFriction),
+      cost: SEA_COST_PER_KM * geometry.distanceKm * sea.costMultiplier * (1 + physicalFriction) * currencyTradeFriction(origin, dest),
       seaIds: geometry.maritime?.seaIds || [],
       passageIds: geometry.maritime?.passageIds || [],
     };
@@ -337,9 +338,10 @@ function ventureRouteProfile(origin, dest, regionsById) {
   const directLandTransport = Math.max(
     horseTransportMultiplier(origin) * overlandInfrastructureMultiplier(origin),
     horseTransportMultiplier(dest) * overlandInfrastructureMultiplier(dest));
+  const moneyFriction = currencyTradeFriction(origin, dest);
   const cost = geometry.adjacent
-    ? LAND_ADJACENT_COST / directLandTransport
-    : (LAND_ADJACENT_COST * 2 + SEA_COST_PER_KM * geometry.distanceKm * 0.25) / directLandTransport;
+    ? LAND_ADJACENT_COST / directLandTransport * moneyFriction
+    : (LAND_ADJACENT_COST * 2 + SEA_COST_PER_KM * geometry.distanceKm * 0.25) / directLandTransport * moneyFriction;
   return {
     mode: 'land',
     oneWayDays,
