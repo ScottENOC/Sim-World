@@ -11,7 +11,7 @@ import { navalMissionProfile, postureProfile } from '../military/policies.js?v=2
 import { maritimeSkillMultiplier, MARITIME_SKILLS } from '../technology/seamanship.js?v=20260906-maritime1';
 import { maritimeRouteBetween } from '../world/chokepoints.js?v=20260907-chokepoints1';
 import { collectTransitTolls, estimateTransitToll } from './transitTolls.js?v=20260907-transit1';
-import { currencyTradeFriction } from './currency.js?v=20260912-currency1';
+import { currencyTradeFriction, recordCurrencyContact } from './currency.js?v=20260912-currency2';
 
 const LAND_ADJACENT_COST = 0.02;
 const SEA_COST_PER_KM = 0.0002;
@@ -480,6 +480,7 @@ function settleReturnedVenture(origin, dest, venture, currentTick) {
     dest.recentTradePartners.set(origin.id, currentTick);
     recordRouteHabit(origin, venture, payment, currentTick, profitable);
     recordDirectTrade(origin, dest, venture.soldVolume, currentTick);
+    recordCurrencyContact(origin, dest, currentTick);
     recordDiplomaticTrade(origin, dest, payment, currentTick);
   } else {
     recordRouteHabit(origin, venture, 0, currentTick, false);
