@@ -32,7 +32,8 @@ export function relationToward(region, otherId) {
 }
 
 export function attitudeToward(region, otherId) {
-  return relationToward(region, otherId).attitude;
+  const relations = ensureDiplomacy(region);
+  return relations.get(otherId)?.attitude || 0;
 }
 
 export function changeAttitude(region, otherId, amount, cause, currentTick = null) {
@@ -170,6 +171,13 @@ export function tickDiplomacy(regions, agreements, toolTypes, currentTick, elaps
     ensureDiplomacy(region);
     region.diplomacyReport = { paid: 0, received: 0, woodTaken: 0, support: 0 };
     for (const [otherId, relation] of region.relations.entries()) {
+      // Older builds created neutral relationship records merely by reading an
+      // attitude during trade-route evaluation. They carry no simulation state
+      // and make diplomacy maintenance trend toward an all-to-all graph.
+      if (!relation.lastCause && Math.abs(Number(relation.attitude) || 0) < 1e-12) {
+        region.relations.delete(otherId);
+        continue;
+      }
       relation.attitude *= attitudeRetention;
       const other = regionsById.get(otherId);
       if (other) {
