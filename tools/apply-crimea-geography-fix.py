@@ -45,11 +45,4 @@ assert old in s, 'sea clipping hook not found'
 s=s.replace(old,new,1)
 sea.write_text(s)
 
-# The finalisation helper is temporary, but let it patch the durable broad-map
-# workflow to the final 647-region baseline after Crimea is restored.
-finalise=ROOT/'tools'/'finalise-western-europe-map.py'
-if finalise.exists():
-    f=finalise.read_text().replace('expected polished 646-region map','expected polished 647-region map').replace('assert len(ids)==646','assert len(ids)==647')
-    finalise.write_text(f)
-
 print('Prepared durable Crimea geographic classification and sea re-clipping')
