@@ -268,6 +268,7 @@ async function main() {
 
   let communicationElapsedDays = 0;
   let languageChangeElapsedDays = 0;
+  let diplomacyRelationshipElapsedDays = 0;
 
   clock.onTick((time) => {
     profiler.beginTick(time);
@@ -343,7 +344,11 @@ async function main() {
     }
     const warEvents = profiler.measure('War theatres', () => syncWarTheatres(activeWars, activeCampaigns, regions, agreements, calendarWeek));
     preparePlayerWarEntryEvents(warEvents, activeWars, activePlayerPolityId, regions);
-    const diplomacyEvents = profiler.measure('Diplomacy', () => tickDiplomacy(regions, agreements, toolTypes, calendarWeek, time.elapsedDays, profiler));
+    diplomacyRelationshipElapsedDays += time.elapsedDays;
+    const maintainDiplomaticRelationships = diplomacyRelationshipElapsedDays >= 90;
+    const diplomacyElapsedDays = maintainDiplomaticRelationships ? diplomacyRelationshipElapsedDays : time.elapsedDays;
+    const diplomacyEvents = profiler.measure('Diplomacy', () => tickDiplomacy(regions, agreements, toolTypes, calendarWeek, diplomacyElapsedDays, profiler, { maintainRelationships: maintainDiplomaticRelationships }));
+    if (maintainDiplomaticRelationships) diplomacyRelationshipElapsedDays = 0;
     const playerCapitalForPlan = regionsById.get(playerRegionId);
     if (playerCapitalForPlan) profiler.measure('Military strategy review', () => reviewMilitaryStrategy(playerCapitalForPlan, { regions, polities, agreements, activeCampaigns, currentTick: calendarWeek }));
     const languagePolicyEvents = profiler.measure('Language policy', () => tickRegionalLanguagePolicies(regions, polities, calendarWeek, time.elapsedDays, { playerPolityId: activePlayerPolityId }));

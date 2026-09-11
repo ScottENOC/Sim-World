@@ -3,6 +3,8 @@ import { routeCost } from '../economy/trade.js?v=20260905-infra1';
 import { knownRegionIds } from '../core/knowledge.js?v=20260904-weather1';
 
 const DENSITY_REFERENCE = 6; // people/km² — same "crowded" threshold gathering uses
+const MAX_MIGRATION_DESTINATIONS = 4;
+const MIN_MIGRANT_COHORT = 5;
 
 // How attractive is `dest` to someone fleeing famine? Peace = stability.
 // Land = room to actually settle (inverse of how crowded it already is).
@@ -30,8 +32,18 @@ export function chooseEmigrationDestinations(region, regionsById, emigrantCount)
     })
     .filter((s) => s.score > 0);
 
-  const totalScore = scored.reduce((sum, s) => sum + s.score, 0);
+  scored.sort((a, b) => b.score - a.score);
+  const selected = scored.slice(0, MAX_MIGRATION_DESTINATIONS);
+  const totalScore = selected.reduce((sum, s) => sum + s.score, 0);
   if (totalScore <= 0) return [];
 
-  return scored.map((s) => ({ dest: s.dest, count: emigrantCount * (s.score / totalScore) }));
+  let routes = selected.map((s) => ({ dest: s.dest, count: emigrantCount * (s.score / totalScore) }))
+    .filter((route) => route.count >= MIN_MIGRANT_COHORT);
+  if (!routes.length && selected.length && emigrantCount > 0) routes = [{ dest: selected[0].dest, count: emigrantCount }];
+  const retained = routes.reduce((sum, route) => sum + route.count, 0);
+  if (retained > 0 && retained < emigrantCount) {
+    const scale = emigrantCount / retained;
+    routes = routes.map((route) => ({ ...route, count: route.count * scale }));
+  }
+  return routes;
 }

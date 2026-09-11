@@ -162,7 +162,7 @@ function transferFunds(payer, receiver, amount) {
   return fromTreasury + fromWallet;
 }
 
-export function tickDiplomacy(regions, agreements, toolTypes, currentTick, elapsedDays = 7, profiler = null) {
+export function tickDiplomacy(regions, agreements, toolTypes, currentTick, elapsedDays = 7, profiler = null, options = {}) {
   const weekScale = Math.max(0.01, elapsedDays / 7);
   const attitudeRetention = Math.pow(1 - ATTITUDE_DECAY_PER_WEEK, weekScale);
   const cultureAdjustment = 1 - Math.pow(1 - CULTURE_BIAS_ADJUSTMENT_PER_WEEK, weekScale);
@@ -174,6 +174,7 @@ export function tickDiplomacy(regions, agreements, toolTypes, currentTick, elaps
   for (const region of regions) {
     ensureDiplomacy(region);
     region.diplomacyReport = { paid: 0, received: 0, woodTaken: 0, support: 0 };
+    if (options.maintainRelationships === false) continue;
     for (const [otherId, relation] of region.relations.entries()) {
       // Older builds created neutral relationship records merely by reading an
       // attitude during trade-route evaluation. They carry no simulation state
