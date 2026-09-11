@@ -34,7 +34,7 @@ jobs:
           git diff --check
           grep -q 'MAX_MIGRATION_DESTINATIONS = 4' js/society/migration.js
           grep -q 'maintainRelationships' js/diplomacy/relations.js
-          grep -q 'diplomacyRelationshipAccumulatedDays' js/main.js
+          grep -q 'diplomacyRelationshipElapsedDays' js/main.js
       - name: Commit cleaned source change
         run: |
           rm tools/apply-migration-diplomacy-fix.py .github/workflows/apply-migration-diplomacy-fix.yml
