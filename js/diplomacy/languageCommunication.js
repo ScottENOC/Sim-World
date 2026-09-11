@@ -55,9 +55,6 @@ export function communicationCapabilities(region) {
   };
 }
 
-// Compatibility API: this no longer means a percentage of the whole population.
-// It means whether the observer's court can find people capable of communicating
-// with the foreign court, potentially through a third/shared language.
 export function languageComprehension(observer, foreign, mode = 'spoken') {
   if (!observer || !foreign) return 0;
   ensureCommunicationState(observer); ensureCommunicationState(foreign);
@@ -71,9 +68,9 @@ export function communicationLanguage(observer, foreign, mode = 'spoken') {
   return sharedCommunicationLanguage(observer, foreign, mode);
 }
 
-export function recordLanguageContact(observer, foreign, weight = 1, channels = {}) {
+export function recordLanguageContact(observer, foreign, weight = 1, channels = {}, prepared = false) {
   if (!observer || !foreign || observer.id === foreign.id) return;
-  ensureCommunicationState(observer); ensureCommunicationState(foreign);
+  if (!prepared) { ensureCommunicationState(observer); ensureCommunicationState(foreign); }
   let channel = 'trade';
   if (channels.diplomacy) channel = 'diplomacy';
   else if (channels.war) channel = 'war';
@@ -147,7 +144,11 @@ export function interceptedContentChance(message, pressure = 0.5) {
 }
 
 function culturalMedium(source) {
-  const practices = updateCulturalLanguageReach(source, 7);
+  // updateCulturalLanguageReach is intentionally called once per source region
+  // in tickCommunicationPractices. Contacts should only read the resulting
+  // medium; mutating it once per contact made work and prestige scale with
+  // network degree.
+  const practices = ensureLanguageNetwork(source).mediaPractices || {};
   const entries = Object.entries(practices).sort((a,b) => b[1] - a[1]);
   return entries[0]?.[0] || 'oral';
 }
@@ -156,6 +157,7 @@ export function tickCommunicationPractices(regions, polities = [], agreements = 
   const polityById = new Map(polities.map((p) => [p.id, p]));
   const byId = new Map(regions.map((r) => [r.id, r]));
   const weekScale = Math.max(0.01, elapsedDays / 7);
+  const writingById = new Map();
 
   for (const region of regions) {
     const state = ensureCommunicationState(region);
@@ -163,6 +165,7 @@ export function tickCommunicationPractices(regions, polities = [], agreements = 
     const admin = polity?.administration;
     state.writingAvailable = Boolean(admin?.breakthroughs?.has?.('writing') || region.education?.writingTradition || region.unlockedTechIds?.has?.('writing'));
     state.archiveAvailable = Boolean(admin?.breakthroughs?.has?.('palace_archives'));
+    writingById.set(region.id, state.writingAvailable);
     const tradeWeight = Math.log1p(Math.max(0, region.tradeEconomy?.weeklyImports || 0) + Math.max(0, region.tradeEconomy?.weeklyExports || 0));
     const traffic = (region.diplomaticMessages || []).filter((m) => (m.departTick ?? -Infinity) >= currentTick - 52).length;
     state.diplomaticTraffic += traffic * 0.025 * weekScale;
@@ -189,7 +192,7 @@ export function tickCommunicationPractices(regions, polities = [], agreements = 
     const recent = region.recentTradePartners instanceof Map ? [...region.recentTradePartners.keys()] : [...(region.tradePartnerIds || [])];
     for (const otherId of recent.slice(0, 12)) {
       const other = byId.get(otherId); if (!other) continue;
-      recordLanguageContact(region, other, 0.35 * weekScale, { written: communicationCapabilities(region).writing && communicationCapabilities(other).writing });
+      recordLanguageContact(region, other, 0.35 * weekScale, { written: Boolean(writingById.get(region.id) && writingById.get(other.id)) }, true);
       const medium = culturalMedium(other);
       const prestige = ensureLanguageNetwork(other).culturalPrestige[dominantLanguageId(other)] || 0.05;
       recordCulturalExposure(region, other, (0.12 + prestige) * weekScale, medium);
@@ -200,22 +203,19 @@ export function tickCommunicationPractices(regions, polities = [], agreements = 
     const a = byId.get(agreement.fromId || agreement.proposerRegionId);
     const b = byId.get(agreement.toId || agreement.partnerRegionId);
     if (a && b) {
-      recordLanguageContact(a, b, 0.45 * weekScale, { written: true, diplomacy: true });
-      recordLanguageContact(b, a, 0.45 * weekScale, { written: true, diplomacy: true });
+      recordLanguageContact(a, b, 0.45 * weekScale, { written: true, diplomacy: true }, true);
+      recordLanguageContact(b, a, 0.45 * weekScale, { written: true, diplomacy: true }, true);
     }
   }
   for (const campaign of campaigns || []) {
     if (campaign.completed) continue;
     const a = byId.get(campaign.attackerId); const b = byId.get(campaign.defenderId);
     if (a && b) {
-      recordLanguageContact(a, b, 0.22 * weekScale, { war: true });
-      recordLanguageContact(b, a, 0.3 * weekScale, { war: true });
+      recordLanguageContact(a, b, 0.22 * weekScale, { war: true }, true);
+      recordLanguageContact(b, a, 0.3 * weekScale, { war: true }, true);
     }
   }
 
-  // High-prestige oral/cultural traditions travel beyond political borders through
-  // neighbouring populations and existing contact networks without requiring
-  // widespread bilingualism. Later media technologies naturally amplify this.
   for (const source of regions) {
     const network = ensureLanguageNetwork(source);
     const prestige = network.culturalPrestige[dominantLanguageId(source)] || 0;
