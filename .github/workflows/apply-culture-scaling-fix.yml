@@ -1,0 +1,44 @@
+name: Apply bounded culture scaling fix
+
+on:
+  push:
+    branches: [fix-migration-fanout-diplomacy-cadence]
+    paths:
+      - 'tools/apply-culture-scaling-fix.py'
+      - '.github/workflows/apply-culture-scaling-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply culture scaling fix
+        run: python tools/apply-culture-scaling-fix.py
+      - name: Validate
+        run: |
+          node --check js/society/culture.js
+          node tools/test-ui-priority.mjs
+          node tools/test-world-spatial-skeleton.mjs
+          node tools/test-diplomacy-readonly.mjs
+          git diff --check
+          grep -q 'MIN_GROUP_SHARE = 0.005' js/society/culture.js
+          grep -q 'SALIENT_CULTURE_COVERAGE = 0.95' js/society/culture.js
+          grep -q 'MAX_SALIENT_CULTURE_GROUPS = 6' js/society/culture.js
+      - name: Commit cleaned source change
+        run: |
+          rm tools/apply-culture-scaling-fix.py .github/workflows/apply-culture-scaling-fix.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m 'Bound live culture groups and affinity comparisons'
+          git pull --rebase
+          git push
