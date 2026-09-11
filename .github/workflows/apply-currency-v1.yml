@@ -1,0 +1,51 @@
+name: Apply currency v1 integration
+
+on:
+  push:
+    branches: [medieval-currency-v1]
+    paths:
+      - 'js/economy/currency.js'
+      - 'js/ui/currencyUi.js'
+      - 'tools/apply-currency-v1.py'
+      - '.github/workflows/apply-currency-v1.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply integration
+        run: python tools/apply-currency-v1.py
+      - name: Validate
+        run: |
+          node --check js/economy/currency.js
+          node --check js/ui/currencyUi.js
+          node --check js/economy/stateFinance.js
+          node --check js/economy/trade.js
+          node --check js/politics/polities.js
+          node tools/test-ui-priority.mjs
+          node tools/test-world-spatial-skeleton.mjs
+          node tools/test-diplomacy-readonly.mjs
+          git diff --check
+          grep -q 'currencyFiscalModifiers' js/economy/stateFinance.js
+          grep -q 'currencyTradeFriction' js/economy/trade.js
+          grep -q 'tickCurrencyInstitution' js/politics/polities.js
+          grep -q 'currencyUi.js' index.html
+      - name: Commit cleaned source change
+        run: |
+          rm tools/apply-currency-v1.py .github/workflows/apply-currency-v1.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m 'Add legitimacy-gated currency and debasement'
+          git pull --rebase
+          git push
