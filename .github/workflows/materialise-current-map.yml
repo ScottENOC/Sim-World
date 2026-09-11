@@ -24,6 +24,20 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2 pyshp==2.3.1
+      - name: Finalise rebase policy
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('tools/map-region-plan-v2.json')
+          d=json.loads(p.read_text())
+          done={'DEU','NLD','BEL','LUX'}
+          before=list(d.get('appendOnlyCountriesWhenRebased', []))
+          d['appendOnlyCountriesWhenRebased']=[iso for iso in before if iso not in done]
+          p.write_text(json.dumps(d, ensure_ascii=False, indent=2)+'\n')
+          print('APPEND_ONLY_BEFORE', before)
+          print('APPEND_ONLY_AFTER', d['appendOnlyCountriesWhenRebased'])
+          PY
       - name: Rebuild durable map outputs
         run: |
           set -o pipefail
@@ -77,7 +91,7 @@ jobs:
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add data/world/regions.geo.json data/world/regions.meta.json data/world/resources.initial.json data/world/seaRegions.geo.json data/world/seaRegions.meta.json data/world/terrain.initial.json data/world/spatial.base.json
+          git add tools/map-region-plan-v2.json data/world/regions.geo.json data/world/regions.meta.json data/world/resources.initial.json data/world/seaRegions.geo.json data/world/seaRegions.meta.json data/world/terrain.initial.json data/world/spatial.base.json
           git commit -m 'Regenerate map with Crimea geography fix'
           git pull --rebase
           git push
