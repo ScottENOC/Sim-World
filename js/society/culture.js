@@ -5,7 +5,9 @@ const identities = new Map();
 let cultureRevision = 1;
 const CULTURE_TICK_YEARS = 1;
 const BASE_ASSIMILATION_RATE = 0.012;
-const MIN_GROUP_SHARE = 0.0005;
+const MIN_GROUP_SHARE = 0.005;
+const SALIENT_CULTURE_COVERAGE = 0.95;
+const MAX_SALIENT_CULTURE_GROUPS = 6;
 const FUSION_MIN_SHARE = 0.16;
 const FUSION_MIN_COHABITATION_YEARS = 90;
 const BRANCH_MIN_IDENTITY_AGE = 140;
@@ -151,12 +153,28 @@ function ensureRegionCulture(region) {
 }
 
 function normaliseGroups(region) {
+  // Tiny minorities remain part of historical ancestry, but are not retained as
+  // live simulation groups forever. At world scale a 0.05% cutoff allowed
+  // migration to create dozens of computationally significant groups per region.
   const groups = region.cultureGroups.filter((group) => group.share >= MIN_GROUP_SHARE);
   const total = groups.reduce((sum, group) => sum + Math.max(0, group.share || 0), 0);
   if (total <= 0) return initialiseRegionCulture(region);
   for (const group of groups) group.share = Math.max(0, group.share || 0) / total;
   region.cultureGroups = groups;
   return groups;
+}
+
+function salientGroups(groups, coverage = SALIENT_CULTURE_COVERAGE, maxGroups = MAX_SALIENT_CULTURE_GROUPS) {
+  const sorted = [...groups].filter((group) => (group.share || 0) > 0).sort((a, b) => b.share - a.share);
+  const out = [];
+  let covered = 0;
+  for (const group of sorted) {
+    if (out.length >= maxGroups) break;
+    out.push(group);
+    covered += group.share || 0;
+    if (covered >= coverage) break;
+  }
+  return out;
 }
 
 function dominantGroup(region) {
@@ -182,13 +200,17 @@ function groupSimilarity(groupA, groupB) {
 
 export function cultureAffinity(regionA, regionB) {
   if (!regionA || !regionB) return 0.5;
-  const groupsA = ensureRegionCulture(regionA);
-  const groupsB = ensureRegionCulture(regionB);
+  const groupsA = salientGroups(ensureRegionCulture(regionA));
+  const groupsB = salientGroups(ensureRegionCulture(regionB));
   regionA._cultureAffinityCache ||= {};
   const cached = regionA._cultureAffinityCache[regionB.id];
   if (cached && cached.aRevision === regionA._cultureRevision && cached.bRevision === regionB._cultureRevision) return cached.value;
+  const totalA = Math.max(1e-9, groupsA.reduce((sum, group) => sum + group.share, 0));
+  const totalB = Math.max(1e-9, groupsB.reduce((sum, group) => sum + group.share, 0));
   let affinity = 0;
-  for (const a of groupsA) for (const b of groupsB) affinity += a.share * b.share * groupSimilarity(a, b);
+  for (const a of groupsA) for (const b of groupsB) {
+    affinity += (a.share / totalA) * (b.share / totalB) * groupSimilarity(a, b);
+  }
   affinity = clamp01(affinity);
   regionA._cultureAffinityCache[regionB.id] = {
     aRevision: regionA._cultureRevision,
@@ -418,14 +440,18 @@ function decayFamiliarity(region, years) {
 
 export function migrateCulture(origin, destination, count) {
   if (!origin || !destination || count <= 0) return;
-  const originGroups = ensureRegionCulture(origin);
+  // Migrants carry the culturally salient mixture, not an arbitrarily long tail
+  // of tiny minorities. Re-normalising preserves the whole migrant cohort while
+  // preventing every destination from inheriting every historical micro-group.
+  const originGroups = salientGroups(ensureRegionCulture(origin));
+  const originSalientShare = Math.max(1e-9, originGroups.reduce((sum, group) => sum + group.share, 0));
   const destGroups = ensureRegionCulture(destination);
   const destPopulationBefore = Math.max(0, destination.population - count);
   const totalAfter = Math.max(1, destPopulationBefore + count);
   const migrantShareOfDestination = count / totalAfter;
   for (const group of destGroups) group.share *= 1 - migrantShareOfDestination;
   for (const source of originGroups) {
-    const incomingShare = migrantShareOfDestination * source.share;
+    const incomingShare = migrantShareOfDestination * (source.share / originSalientShare);
     let target = destGroups.find((group) => group.identityId === source.identityId &&
       JSON.stringify(group.affiliations || []) === JSON.stringify(source.affiliations || []));
     if (!target) {
