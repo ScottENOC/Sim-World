@@ -1,4 +1,5 @@
 import { Clock } from './core/clock.js?v=20260904-weather1';
+import { createPerformanceProfiler } from './core/performanceProfiler.js?v=20260911-ios-profiler1';
 import { calendarWeekIndex } from './core/simTime.js?v=20260905-time2';
 import { EventBus } from './core/eventBus.js?v=20260904-weather1';
 import { loadWorld } from './world/region.js?v=20260905-infra1';
@@ -77,6 +78,8 @@ let activePlayerPolityId = null;
 async function main() {
   const bus = new EventBus();
   const clock = new Clock();
+  const profiler = createPerformanceProfiler();
+  profiler.mount();
   const regions = await loadWorld();
   console.log(`Simulation map loaded: ${regions.length} permanent land regions`);
   seedCensus(regions);
@@ -264,13 +267,14 @@ async function main() {
   });
 
   clock.onTick((time) => {
+    profiler.beginTick(time);
     // Legacy systems that store durations in weeks receive a calendar-week
     // index derived from absolute simulated time. The expensive scheduler can
     // therefore tick monthly without turning 104 historical weeks into 104 months.
     const calendarWeek = calendarWeekIndex(time.endDay);
-    const campaignResult = tickCampaigns(activeCampaigns, regionsById, polities, calendarWeek, toolTypes, Math.random, { playerPolityId: activePlayerPolityId, activeWars, fleets });
+    const campaignResult = profiler.measure('Campaigns', () => tickCampaigns(activeCampaigns, regionsById, polities, calendarWeek, toolTypes, Math.random, { playerPolityId: activePlayerPolityId, activeWars, fleets }));
     activeCampaigns = campaignResult.remaining;
-    const campaignCommandEvents = tickCampaignCommandAdvisor(activeCampaigns, regions, activePlayerPolityId, calendarWeek);
+    const campaignCommandEvents = profiler.measure('Campaign command advisor', () => tickCampaignCommandAdvisor(activeCampaigns, regions, activePlayerPolityId, calendarWeek));
     for (const advisoryEvent of campaignCommandEvents) {
       advisoryEvent.resolveDecision = (choice) => {
         if (choice !== 'follow') return { changed: false, summary: 'Existing campaign orders remain in force.' };
@@ -279,13 +283,15 @@ async function main() {
         return { ...result, summary: result.changed ? `Order issued: ${CAMPAIGN_ORDERS[advisoryEvent.assessment.recommendation]?.label || advisoryEvent.assessment.recommendation}.` : 'The order could not be issued.' };
       };
     }
-    prepareConstructionLabor(regions);
-    prepareSiegeWorkforce(regions);
-    tickEconomy(regions, seaRegions, toolTypes, Math.random, calendarWeek, time.elapsedDays, time.endDay);
-    pruneKnowledge(regions, calendarWeek);
-    tickFishingKnowledge(fishingContactPairs, calendarWeek);
-    tickScouting(regions, calendarWeek, Math.random);
-    const fleetResult = tickFleets(fleets, regions, seaRegions, agreements, calendarWeek, time.elapsedDays, Math.random, { playerActorId: activePlayerPolityId });
+    profiler.measure('Construction + siege prep', () => {
+      prepareConstructionLabor(regions);
+      prepareSiegeWorkforce(regions);
+    });
+    profiler.measure('Economy', () => tickEconomy(regions, seaRegions, toolTypes, Math.random, calendarWeek, time.elapsedDays, time.endDay));
+    profiler.measure('Knowledge pruning', () => pruneKnowledge(regions, calendarWeek));
+    profiler.measure('Knowledge diffusion', () => tickFishingKnowledge(fishingContactPairs, calendarWeek));
+    profiler.measure('Scouting', () => tickScouting(regions, calendarWeek, Math.random));
+    const fleetResult = profiler.measure('Fleets', () => tickFleets(fleets, regions, seaRegions, agreements, calendarWeek, time.elapsedDays, Math.random, { playerActorId: activePlayerPolityId }));
     for (const fleetEvent of fleetResult.events) {
       if (fleetEvent.type !== 'fleet_contact' || !fleetEventInvolvesActor(fleetEvent, activePlayerPolityId, fleets)) continue;
       fleetEvent.resolveDecision = (choice) => {
@@ -294,42 +300,42 @@ async function main() {
         return generated;
       };
     }
-    tickTransitControl(regions, time.elapsedDays);
-    tickTrade(regions, calendarWeek, time, agreements);
-    tickMaritimeExperience(regions, activeRaids, time.elapsedDays);
-    tickStateFinance(regions, time.elapsedDays);
-    tickInfrastructureMaintenance(regions, time.elapsedDays);
-    const constructionEvents = tickConstruction(regions, calendarWeek, time.elapsedDays);
-    tickSiegeEquipment(regions, time.elapsedDays);
-    const breakthroughEvents = tickBreakthroughs(regions, calendarWeek, Math.random, time.elapsedDays);
-    const religionEvents = tickReligion(regions, religiousWorld, calendarWeek, activeRaids, activeCampaigns, Math.random, time.elapsedDays);
-    tickDemographics(regions, religiousWorld, time.elapsedDays);
-    tickCommunicationPractices(regions, polities, agreements, activeCampaigns, calendarWeek, time.elapsedDays);
-    const languageChangeEvents = tickGenerationalLanguageChange(regions, time.elapsedDays);
-    const diplomatEvents = tickDiplomats(regions, calendarWeek, time.elapsedDays, Math.random);
+    profiler.measure('Transit control', () => tickTransitControl(regions, time.elapsedDays));
+    profiler.measure('Trade', () => tickTrade(regions, calendarWeek, time, agreements));
+    profiler.measure('Maritime experience', () => tickMaritimeExperience(regions, activeRaids, time.elapsedDays));
+    profiler.measure('State finance', () => tickStateFinance(regions, time.elapsedDays));
+    profiler.measure('Infrastructure maintenance', () => tickInfrastructureMaintenance(regions, time.elapsedDays));
+    const constructionEvents = profiler.measure('Construction', () => tickConstruction(regions, calendarWeek, time.elapsedDays));
+    profiler.measure('Siege equipment', () => tickSiegeEquipment(regions, time.elapsedDays));
+    const breakthroughEvents = profiler.measure('Technology breakthroughs', () => tickBreakthroughs(regions, calendarWeek, Math.random, time.elapsedDays));
+    const religionEvents = profiler.measure('Religion', () => tickReligion(regions, religiousWorld, calendarWeek, activeRaids, activeCampaigns, Math.random, time.elapsedDays));
+    profiler.measure('Demographics', () => tickDemographics(regions, religiousWorld, time.elapsedDays));
+    profiler.measure('Communication practices', () => tickCommunicationPractices(regions, polities, agreements, activeCampaigns, calendarWeek, time.elapsedDays));
+    const languageChangeEvents = profiler.measure('Language change', () => tickGenerationalLanguageChange(regions, time.elapsedDays));
+    const diplomatEvents = profiler.measure('Diplomats', () => tickDiplomats(regions, calendarWeek, time.elapsedDays, Math.random));
     for (const diplomatEvent of diplomatEvents) {
       if (diplomatEvent.type !== 'diplomat_authority_breach_reported' || diplomatEvent.homeRegionId !== playerRegionId) continue;
       diplomatEvent.resolveDecision = (choice) => resolveDiplomatAuthorityBreach(regionsById.get(diplomatEvent.homeRegionId), diplomatEvent.diplomat.id, choice, agreements, calendarWeek);
     }
-    const courierEvents = tickDiplomaticCouriers(regions, agreements, fleets, calendarWeek, time.elapsedDays, Math.random);
+    const courierEvents = profiler.measure('Diplomatic couriers', () => tickDiplomaticCouriers(regions, agreements, fleets, calendarWeek, time.elapsedDays, Math.random));
     const playerCapitalForJointPlan = regionsById.get(playerRegionId);
-    const jointOperationAdvisorEvents = tickPlayerJointOperationAdvisor(playerCapitalForJointPlan, agreements, regionsById, activeCampaigns, calendarWeek);
+    const jointOperationAdvisorEvents = profiler.measure('Joint operation advisor', () => tickPlayerJointOperationAdvisor(playerCapitalForJointPlan, agreements, regionsById, activeCampaigns, calendarWeek));
     for (const advisoryEvent of jointOperationAdvisorEvents) {
       advisoryEvent.resolveDecision = (choice) => resolvePlayerJointOperationAdvice(advisoryEvent, choice, playerCapitalForJointPlan, regionsById, activeCampaigns, polities, calendarWeek);
     }
-    const warEvents = syncWarTheatres(activeWars, activeCampaigns, regions, agreements, calendarWeek);
+    const warEvents = profiler.measure('War theatres', () => syncWarTheatres(activeWars, activeCampaigns, regions, agreements, calendarWeek));
     preparePlayerWarEntryEvents(warEvents, activeWars, activePlayerPolityId, regions);
-    const diplomacyEvents = tickDiplomacy(regions, agreements, toolTypes, calendarWeek, time.elapsedDays);
+    const diplomacyEvents = profiler.measure('Diplomacy', () => tickDiplomacy(regions, agreements, toolTypes, calendarWeek, time.elapsedDays));
     const playerCapitalForPlan = regionsById.get(playerRegionId);
-    if (playerCapitalForPlan) reviewMilitaryStrategy(playerCapitalForPlan, { regions, polities, agreements, activeCampaigns, currentTick: calendarWeek });
-    const languagePolicyEvents = tickRegionalLanguagePolicies(regions, polities, calendarWeek, time.elapsedDays, { playerPolityId: activePlayerPolityId });
-    const polityEvents = tickPolities(polities, regions, calendarWeek, time.elapsedDays);
-    const continuityEvents = tickPoliticalContinuity(polities, regions, time.elapsedDays / 365.2425, calendarWeek, { playerPolityId: activePlayerPolityId });
-    tickBanditry(regions, toolTypes, agreements, time.elapsedDays);
-    tickNationAi(regions, playerRegionId, activeRaids, activeCampaigns, agreements, polities,
-      religiousWorld, calendarWeek, toolTypes, Math.random, time.elapsedDays, { fleets, seaRegions });
+    if (playerCapitalForPlan) profiler.measure('Military strategy review', () => reviewMilitaryStrategy(playerCapitalForPlan, { regions, polities, agreements, activeCampaigns, currentTick: calendarWeek }));
+    const languagePolicyEvents = profiler.measure('Language policy', () => tickRegionalLanguagePolicies(regions, polities, calendarWeek, time.elapsedDays, { playerPolityId: activePlayerPolityId }));
+    const polityEvents = profiler.measure('Polities', () => tickPolities(polities, regions, calendarWeek, time.elapsedDays));
+    const continuityEvents = profiler.measure('Political continuity', () => tickPoliticalContinuity(polities, regions, time.elapsedDays / 365.2425, calendarWeek, { playerPolityId: activePlayerPolityId }));
+    profiler.measure('Banditry', () => tickBanditry(regions, toolTypes, agreements, time.elapsedDays));
+    profiler.measure('Nation AI', () => tickNationAi(regions, playerRegionId, activeRaids, activeCampaigns, agreements, polities,
+      religiousWorld, calendarWeek, toolTypes, Math.random, time.elapsedDays, { fleets, seaRegions }));
 
-    const { remaining, events } = tickRaids(activeRaids, regionsById, calendarWeek, toolTypes, Math.random);
+    const { remaining, events } = profiler.measure('Raids', () => tickRaids(activeRaids, regionsById, calendarWeek, toolTypes, Math.random));
     activeRaids = remaining;
 
     // Dev mode reveals diagnostic/map state, but it must not become a global
@@ -419,12 +425,13 @@ async function main() {
     }
 
     document.getElementById('hud-date').textContent = clock.formatDate(START_YEAR);
-    map.draw();
+    profiler.measure('UI world-map draw', () => map.draw());
 
     if (selectedRegion && fogOfWar.isVisible(selectedRegion)) {
-      updateRegionStats(selectedRegion, seaRegionsById, fogOfWar, regions, playerRegionId);
+      profiler.measure('UI region stats', () => updateRegionStats(selectedRegion, seaRegionsById, fogOfWar, regions, playerRegionId));
     }
-    council.refresh();
+    profiler.measure('UI council refresh', () => council.refresh());
+    profiler.endTick();
   });
 
   document.getElementById('hud-date').textContent = clock.formatDate(START_YEAR);
@@ -477,6 +484,7 @@ async function main() {
     polities,
     map,
     fogOfWar,
+    profiler,
     setDevMode: (enabled) => setDevMode(enabled),
   };
 
