@@ -42,11 +42,15 @@ export function ensureGenerationalLanguageState(region) {
   return n.generational;
 }
 
-export function languageShiftPressure(region, fromLanguageId, toLanguageId) {
-  const n = ensureLanguageNetwork(region);
+export function languageShiftPressure(region, fromLanguageId, toLanguageId, network = null, shares = null) {
+  const n = network || ensureLanguageNetwork(region);
   if (fromLanguageId === toLanguageId) return 0;
-  const toShare = nativeShare(region, toLanguageId);
-  const fromShare = nativeShare(region, fromLanguageId);
+  // During the generational tick we already have a current, normalised language
+  // population snapshot. Reuse it rather than rebuilding native communities for
+  // every from-language x to-language comparison.
+  const currentShares = shares || n.communityShares || {};
+  const toShare = Number(currentShares[toLanguageId] || 0);
+  const fromShare = Number(currentShares[fromLanguageId] || 0);
   const policyPressure = Math.max(0, Number(n.languagePolicyPressure?.[toLanguageId] || 0));
   const attraction = clamp(toShare * 0.28 + institutionalWeight(n, toLanguageId) * 0.32 + prestigeWeight(n, toLanguageId) * 0.22 + secondLanguagePressure(n, toLanguageId) * 0.28 + policyPressure * 0.35);
   const retention = minorityRetention(region, n, fromLanguageId, fromShare);
@@ -121,7 +125,7 @@ export function tickGenerationalLanguageChange(regions, elapsedDays = 7) {
         if ((shares[from] || 0) < 0.005) continue;
         let best = null;
         for (const to of languages) {
-          const pressure = languageShiftPressure(region, from, to);
+          const pressure = languageShiftPressure(region, from, to, n, shares);
           if (!best || pressure > best.pressure) best = { to, pressure };
         }
         if (!best || best.pressure < 0.04) continue;
