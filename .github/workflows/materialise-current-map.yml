@@ -1,0 +1,83 @@
+name: Materialise fixed current map
+
+on:
+  push:
+    branches: [rebalance-france-germany]
+    paths:
+      - '.github/workflows/materialise-current-map.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2 pyshp==2.3.1
+      - name: Rebuild durable map outputs
+        run: |
+          set -o pipefail
+          rm -rf /tmp/simworld-land /tmp/simworld-sea
+          python tools/build-map-expansion-v2-final.py --output-dir /tmp/simworld-land | tee /tmp/map-build.log
+          cp /tmp/simworld-land/regions.geo.json data/world/regions.geo.json
+          cp /tmp/simworld-land/regions.meta.json data/world/regions.meta.json
+          cp /tmp/simworld-land/resources.initial.json data/world/resources.initial.json
+          python tools/cleanup-region-display-names.py
+          python tools/build-sea-expansion-v2.py --land-geo data/world/regions.geo.json --output-dir /tmp/simworld-sea
+          cp /tmp/simworld-sea/seaRegions.geo.json data/world/seaRegions.geo.json
+          cp /tmp/simworld-sea/seaRegions.meta.json data/world/seaRegions.meta.json
+          python tools/build-terrain.py
+          node tools/generate-world-spatial-base.mjs
+      - name: Validate regenerated map
+        run: |
+          python - <<'PY'
+          import json
+          from shapely.geometry import Point, shape
+          from shapely.ops import unary_union
+          geo=json.load(open('data/world/regions.geo.json'))['features']
+          meta=json.load(open('data/world/regions.meta.json'))['regions']
+          res=json.load(open('data/world/resources.initial.json'))
+          terrain=json.load(open('data/world/terrain.initial.json'))
+          ids={f['properties']['id'] for f in geo}
+          source={f['properties']['id']:f['properties'].get('sourceGroup') for f in geo}
+          assert ids=={m['id'] for m in meta}==set(res)==set(terrain)
+          counts={iso:sum(1 for f in geo if f['properties'].get('sourceGroup')==iso) for iso in ('FRA','DEU','NLD','BEL','LUX')}
+          print('COUNTS', counts)
+          assert counts=={'FRA':38,'DEU':24,'NLD':4,'BEL':3,'LUX':1}, counts
+          crimea=[f for f in geo if f['properties'].get('sourceGroup')=='UKR' and f['properties'].get('name')=='Crimea']
+          print('CRIMEA_COUNT', len(crimea))
+          assert len(crimea)==1
+          seas=json.load(open('data/world/seaRegions.geo.json'))['features']
+          sea={f['properties']['id']:shape(f['geometry']) for f in seas}
+          water=unary_union([sea['sea_black'], sea['sea_azov']])
+          for lon,lat in [(34.10,44.95),(33.75,45.20),(35.05,45.05)]:
+              p=Point(lon,lat)
+              assert any(f['properties'].get('sourceGroup')=='UKR' and shape(f['geometry']).covers(p) for f in geo)
+              assert not water.covers(p)
+          rows={iso:[m for m in meta if source[m['id']]==iso] for iso in ('FRA','DEU')}
+          avg={iso:sum(m['areaSqKm'] for m in group)/len(group) for iso,group in rows.items()}
+          print('AVERAGE_REGION_AREA', avg)
+          assert abs(avg['FRA']-avg['DEU'])/((avg['FRA']+avg['DEU'])/2) < 0.25
+          PY
+          node tools/test-world-spatial-skeleton.mjs
+          node tools/test-world-spatial-real-map.mjs
+          node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 1 --output /tmp/map-smoke.json
+          git diff --check
+      - name: Commit regenerated map
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add data/world/regions.geo.json data/world/regions.meta.json data/world/resources.initial.json data/world/seaRegions.geo.json data/world/seaRegions.meta.json data/world/terrain.initial.json data/world/spatial.base.json
+          git commit -m 'Regenerate map with Crimea geography fix'
+          git pull --rebase
+          git push
