@@ -707,7 +707,10 @@ function candidateMarketIds(region, regionsById, knownIds, hubIds, currentTick) 
   return candidateIds;
 }
 
-export function tickTrade(regions, currentTick = null, time = null, agreements = []) {
+export function tickTrade(regions, currentTick = null, time = null, agreements = [], profiler = null) {
+  const measureDetail = (label, fn) => profiler?.measureDetail ? profiler.measureDetail(label, fn) : fn();
+  const metric = (label, value) => profiler?.metric?.(label, value);
+  measureDetail('Trade: initialise regions', () => {
   for (const region of regions) {
     region.tradeLinks = new Map();
     beginTradeWeek(region);
@@ -715,16 +718,19 @@ export function tickTrade(regions, currentTick = null, time = null, agreements =
     // compute it once rather than once for every candidate route.
     region._tradeSecurityThisTick = routeSecurity(region);
   }
+  });
   const regionsById = new Map(regions.map((region) => [region.id, region]));
-  processVentures(regions, regionsById, currentTick, time);
-  for (const region of regions) reconcileMerchantOccupation(region);
+  measureDetail('Trade: process ventures', () => processVentures(regions, regionsById, currentTick, time));
+  measureDetail('Trade: reconcile merchants', () => { for (const region of regions) reconcileMerchantOccupation(region); });
 
-  const knownIdsByRegion = new Map(regions.map((region) => [region.id, knownRegionIds(region)]));
-  const hubIds = majorTradeHubIds(regions, currentTick);
-  const pricesByRegion = new Map(regions.map((region) => [region.id,
-    Object.fromEntries(TRADABLE_RESOURCES.map((resource) => [resource, localPrice(region, resource)]))
-  ]));
-
+  let knownIdsByRegion; let hubIds; let pricesByRegion;
+  measureDetail('Trade: knowledge hubs and prices', () => {
+    knownIdsByRegion = new Map(regions.map((region) => [region.id, knownRegionIds(region)]));
+    hubIds = majorTradeHubIds(regions, currentTick);
+    pricesByRegion = new Map(regions.map((region) => [region.id, Object.fromEntries(TRADABLE_RESOURCES.map((resource) => [resource, localPrice(region, resource)]))]));
+  });
+  let candidateMarketsChecked = 0; let opportunitiesFound = 0; let searchingRegions = 0;
+  measureDetail('Trade: market search and launch', () => {
   for (const region of regions) {
     const economy = ensureTradeEconomy(region);
     const idle = Math.max(0, economy.merchantPopulation - activeMerchants(region));
@@ -732,14 +738,28 @@ export function tickTrade(regions, currentTick = null, time = null, agreements =
     const knownIds = knownIdsByRegion.get(region.id);
     const candidateIds = candidateMarketIds(region, regionsById, knownIds, hubIds, currentTick);
     const candidates = [...candidateIds].map((id) => regionsById.get(id)).filter(Boolean);
+    candidateMarketsChecked += candidates.length; searchingRegions += 1;
     if (!candidates.length) continue;
     const opportunities = findOpportunities(region, candidates, knownIdsByRegion, pricesByRegion, regionsById, regions, agreements);
+    opportunitiesFound += opportunities.length;
     launchVentures(region, opportunities, currentTick, time, regionsById);
   }
+  });
 
+  measureDetail('Trade: careers and history', () => {
   for (const region of regions) {
     adjustMerchantCareerPopulation(region);
     finishTradeWeek(region);
   }
-  diffuseTradeNetworkKnowledge(regions, currentTick);
+  });
+  measureDetail('Trade: diffuse network knowledge', () => diffuseTradeNetworkKnowledge(regions, currentTick));
+  metric('Trade active ventures', regions.reduce((sum,r)=>sum+(r.tradeEconomy?.ventures?.length||0),0));
+  metric('Trade route habits', regions.reduce((sum,r)=>sum+Object.keys(r.tradeEconomy?.routeHabits||{}).length,0));
+  metric('Trade recent partner links', regions.reduce((sum,r)=>sum+(r.recentTradePartners instanceof Map?r.recentTradePartners.size:0),0));
+  metric('Trade known-region links', [...knownIdsByRegion.values()].reduce((sum,set)=>sum+set.size,0));
+  metric('Trade candidate markets checked', candidateMarketsChecked);
+  metric('Trade opportunities found', opportunitiesFound);
+  metric('Trade searching regions', searchingRegions);
+  metric('Trade route geometry cache entries', regions.reduce((sum,r)=>sum+(r._routeGeometryCache instanceof Map?r._routeGeometryCache.size:0),0));
+  metric('Trade land path cache entries', regions.reduce((sum,r)=>sum+(r._tradeLandPathCache instanceof Map?r._tradeLandPathCache.size:0),0));
 }

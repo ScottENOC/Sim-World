@@ -1,14 +1,14 @@
 import { Clock } from './core/clock.js?v=20260904-weather1';
-import { createPerformanceProfiler } from './core/performanceProfiler.js?v=20260911-ios-profiler1';
+import { createPerformanceProfiler } from './core/performanceProfiler.js?v=20260912-deep-profiler1';
 import { calendarWeekIndex } from './core/simTime.js?v=20260905-time2';
 import { EventBus } from './core/eventBus.js?v=20260904-weather1';
 import { loadWorld } from './world/region.js?v=20260905-infra1';
 import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260904-weather1';
 import { seedCensus, densityPerKm2 } from './society/census.js?v=20260904-weather1';
 import { tickEconomy } from './economy/labor.js?v=20260905-projects1';
-import { tickTrade } from './economy/trade.js?v=20260905-projects1';
+import { tickTrade } from './economy/trade.js?v=20260912-deep-profiler1';
 import { tickStateFinance } from './economy/stateFinance.js?v=20260905-projects1';
-import { tickDemographics } from './society/demographics.js?v=20260904-weather1';
+import { tickDemographics } from './society/demographics.js?v=20260912-deep-profiler1';
 import { tickBanditry } from './military/banditry.js?v=20260905-projects1';
 import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable, syncNextRaidId } from './military/raiding.js?v=20260905-projects1';
 import { tickNationAi } from './ai/nationAi.js?v=20260905-projects1';
@@ -25,7 +25,7 @@ import { ensureSubregionalControl } from './military/subregionalControl.js?v=202
 import { FogOfWar } from './core/fogOfWar.js?v=20260904-weather1';
 import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260906-scouting1';
 import { startScoutingMission, tickScouting } from './core/scouting.js?v=20260906-scouting1';
-import { attitudeLabel, attitudeToward, canDiplomaticallyReach, endAgreement, proposeAgreement, syncNextAgreementId, tickDiplomacy } from './diplomacy/relations.js?v=20260904-save1';
+import { attitudeLabel, attitudeToward, canDiplomaticallyReach, endAgreement, proposeAgreement, syncNextAgreementId, tickDiplomacy } from './diplomacy/relations.js?v=20260912-deep-profiler1';
 import { availableVassalLevies, changeGovernanceForm, demandVassalage, governanceFormAvailability, governanceLabel, initialisePolities, musterVassalLevies, polityById, setDelegatedPower, setGovernancePolicy, sovereignPolity, tickPolities } from './politics/polities.js?v=20260904-war1';
 import { SETTLEMENT_TYPES, acceptSettlementOffer, createConquestSettlementOffer, grantRegionalAutonomy, initialisePoliticalContinuity, lobbyForRestoration, plausibleGovernedRegions, rejectSettlementOffer, restorationBacking, resolveNpcSettlement, tickPoliticalContinuity, transferRegion } from './politics/continuity.js?v=20260907-continuity1';
 import { createGameSnapshot, readSave, restoreGameSnapshot, saveSummary, writeSave } from './core/saveGame.js?v=20260904-war1';
@@ -304,7 +304,7 @@ async function main() {
       };
     }
     profiler.measure('Transit control', () => tickTransitControl(regions, time.elapsedDays));
-    profiler.measure('Trade', () => tickTrade(regions, calendarWeek, time, agreements));
+    profiler.measure('Trade', () => tickTrade(regions, calendarWeek, time, agreements, profiler));
     profiler.measure('Maritime experience', () => tickMaritimeExperience(regions, activeRaids, time.elapsedDays));
     profiler.measure('State finance', () => tickStateFinance(regions, time.elapsedDays));
     profiler.measure('Infrastructure maintenance', () => tickInfrastructureMaintenance(regions, time.elapsedDays));
@@ -312,7 +312,7 @@ async function main() {
     profiler.measure('Siege equipment', () => tickSiegeEquipment(regions, time.elapsedDays));
     const breakthroughEvents = profiler.measure('Technology breakthroughs', () => tickBreakthroughs(regions, calendarWeek, Math.random, time.elapsedDays));
     const religionEvents = profiler.measure('Religion', () => tickReligion(regions, religiousWorld, calendarWeek, activeRaids, activeCampaigns, Math.random, time.elapsedDays));
-    profiler.measure('Demographics', () => tickDemographics(regions, religiousWorld, time.elapsedDays));
+    profiler.measure('Demographics', () => tickDemographics(regions, religiousWorld, time.elapsedDays, profiler));
     // These are slow-moving social processes. The world clock may tick monthly
     // (and later weekly/daily), but recomputing them on every world tick wastes
     // CPU without adding meaningful temporal resolution.
@@ -343,7 +343,7 @@ async function main() {
     }
     const warEvents = profiler.measure('War theatres', () => syncWarTheatres(activeWars, activeCampaigns, regions, agreements, calendarWeek));
     preparePlayerWarEntryEvents(warEvents, activeWars, activePlayerPolityId, regions);
-    const diplomacyEvents = profiler.measure('Diplomacy', () => tickDiplomacy(regions, agreements, toolTypes, calendarWeek, time.elapsedDays));
+    const diplomacyEvents = profiler.measure('Diplomacy', () => tickDiplomacy(regions, agreements, toolTypes, calendarWeek, time.elapsedDays, profiler));
     const playerCapitalForPlan = regionsById.get(playerRegionId);
     if (playerCapitalForPlan) profiler.measure('Military strategy review', () => reviewMilitaryStrategy(playerCapitalForPlan, { regions, polities, agreements, activeCampaigns, currentTick: calendarWeek }));
     const languagePolicyEvents = profiler.measure('Language policy', () => tickRegionalLanguagePolicies(regions, polities, calendarWeek, time.elapsedDays, { playerPolityId: activePlayerPolityId }));

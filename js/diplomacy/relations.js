@@ -162,11 +162,15 @@ function transferFunds(payer, receiver, amount) {
   return fromTreasury + fromWallet;
 }
 
-export function tickDiplomacy(regions, agreements, toolTypes, currentTick, elapsedDays = 7) {
+export function tickDiplomacy(regions, agreements, toolTypes, currentTick, elapsedDays = 7, profiler = null) {
   const weekScale = Math.max(0.01, elapsedDays / 7);
   const attitudeRetention = Math.pow(1 - ATTITUDE_DECAY_PER_WEEK, weekScale);
   const cultureAdjustment = 1 - Math.pow(1 - CULTURE_BIAS_ADJUSTMENT_PER_WEEK, weekScale);
   const regionsById = new Map(regions.map((region) => [region.id, region]));
+  const measureDetail = (label, fn) => profiler?.measureDetail ? profiler.measureDetail(label, fn) : fn();
+  const metric = (label, value) => profiler?.metric?.(label, value);
+  metric('Diplomacy relationship records before', regions.reduce((sum,r)=>sum+(r.relations instanceof Map?r.relations.size:0),0));
+  measureDetail('Diplomacy: relationship maintenance', () => {
   for (const region of regions) {
     ensureDiplomacy(region);
     region.diplomacyReport = { paid: 0, received: 0, woodTaken: 0, support: 0 };
@@ -187,8 +191,12 @@ export function tickDiplomacy(regions, agreements, toolTypes, currentTick, elaps
       }
     }
   }
+  });
+  metric('Diplomacy relationship records', regions.reduce((sum,r)=>sum+(r.relations instanceof Map?r.relations.size:0),0));
+  metric('Diplomacy active agreements', agreements.filter((a)=>a.active).length);
 
   const events = [];
+  measureDetail('Diplomacy: agreements and payments', () => {
   for (const agreement of agreements) {
     if (!agreement.active) continue;
     const from = regionsById.get(agreement.fromId);
@@ -239,5 +247,6 @@ export function tickDiplomacy(regions, agreements, toolTypes, currentTick, elaps
       }
     }
   }
+  });
   return events;
 }
