@@ -37,6 +37,8 @@ export function createPerformanceProfiler() {
       endDay: time?.endDay ?? null,
       elapsedDays: time?.elapsedDays ?? null,
       stages: Object.create(null),
+      details: Object.create(null),
+      metrics: Object.create(null),
     };
   }
 
@@ -50,6 +52,19 @@ export function createPerformanceProfiler() {
     }
   }
 
+  function measureDetail(label, fn) {
+    if (!active || !current) return fn();
+    const start = now();
+    try { return fn(); }
+    finally { current.details[label] = (current.details[label] || 0) + (now() - start); }
+  }
+
+  function metric(label, value) {
+    if (!active || !current) return;
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) current.metrics[label] = numeric;
+  }
+
   function endTick() {
     if (!active || !current) return;
     const total = now() - current.start;
@@ -60,6 +75,8 @@ export function createPerformanceProfiler() {
       endDay: current.endDay,
       elapsedDays: current.elapsedDays,
       stages: current.stages,
+      details: current.details,
+      metrics: current.metrics,
     });
     if (samples.length > MAX_SAMPLES) samples = samples.slice(samples.length - MAX_SAMPLES);
     current = null;
@@ -100,6 +117,22 @@ export function createPerformanceProfiler() {
     return rows;
   }
 
+  function detailRows() {
+    const labels = new Set(samples.flatMap((sample) => Object.keys(sample.details || {})));
+    return [...labels].map((label) => {
+      const values = samples.map((sample) => sample.details?.[label] || 0);
+      return { label, avg: average(values), p95: percentile(values,95), max: Math.max(0,...values) };
+    }).sort((a,b) => b.avg-a.avg);
+  }
+
+  function metricRows() {
+    const labels = new Set(samples.flatMap((sample) => Object.keys(sample.metrics || {})));
+    return [...labels].map((label) => {
+      const values = samples.map((sample) => sample.metrics?.[label]).filter(Number.isFinite);
+      return { label, last: values.at(-1) ?? 0, avg: average(values), max: Math.max(0,...values) };
+    }).sort((a,b) => b.last-a.last);
+  }
+
   function buildReport() {
     const totals = samples.map((sample) => sample.total);
     const unattributed = samples.map((sample) => sample.unattributed);
@@ -137,9 +170,19 @@ export function createPerformanceProfiler() {
       `  ${formatMs(average(unattributed)).padStart(10)} | ${formatMs(percentile(unattributed, 95)).padStart(10)} | ${formatMs(Math.max(...unattributed)).padStart(10)} | ${((average(unattributed) / Math.max(0.0001, average(totals))) * 100).toFixed(1).padStart(6)}% | Unattributed/event plumbing`
     );
     lines.push('');
+    lines.push('HOTSPOT DETAILS (nested inside subsystem totals)');
+    lines.push('  avg | p95 | max | detail');
+    for (const row of detailRows()) lines.push(`  ${formatMs(row.avg).padStart(10)} | ${formatMs(row.p95).padStart(10)} | ${formatMs(row.max).padStart(10)} | ${row.label}`);
+    lines.push('');
+    lines.push('STATE METRICS');
+    lines.push('  last | avg | max | metric');
+    for (const row of metricRows()) lines.push(`  ${row.last.toFixed(0).padStart(8)} | ${row.avg.toFixed(1).padStart(8)} | ${row.max.toFixed(0).padStart(8)} | ${row.label}`);
+    lines.push('');
     lines.push('RECENT TICKS');
     for (const sample of samples.slice(-20)) {
-      lines.push(`  ${formatMs(sample.total)}${sample.endDay == null ? '' : ` at sim day ${sample.endDay}`}`);
+      const m = sample.metrics || {};
+      const state = [`rel=${m['Diplomacy relationship records'] ?? '-'}`, `ventures=${m['Trade active ventures'] ?? '-'}`, `known=${m['Trade known-region links'] ?? '-'}`, `candidates=${m['Trade candidate markets checked'] ?? '-'}`].join(' ');
+      lines.push(`  ${formatMs(sample.total)}${sample.endDay == null ? '' : ` at sim day ${sample.endDay}`} · ${state}`);
     }
     lines.push('');
     lines.push('Interpretation: if one subsystem has a much larger share/p95 on iOS than expected, optimise that path first. If most rows scale up similarly, the issue is broader JavaScript/device/browser throughput rather than one system.');
@@ -269,6 +312,8 @@ export function createPerformanceProfiler() {
     mount,
     beginTick,
     measure,
+    measureDetail,
+    metric,
     endTick,
     reset,
     setActive,

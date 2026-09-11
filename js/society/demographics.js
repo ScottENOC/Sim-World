@@ -31,22 +31,28 @@ const FAMINE_BANDIT_SHARE = 0.25;
 
 function clamp01(v) { return Math.max(0, Math.min(1, v)); }
 
-export function tickDemographics(regions, religiousWorld = null, elapsedDays = 7) {
-  tickEducation(regions, null, elapsedDays);
+export function tickDemographics(regions, religiousWorld = null, elapsedDays = 7, profiler = null) {
+  const measureDetail = (label, fn) => profiler?.measureDetail ? profiler.measureDetail(label, fn) : fn();
+  const metric = (label, value) => profiler?.metric?.(label, value);
+  measureDetail('Demographics: education', () => tickEducation(regions, null, elapsedDays));
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   for (const region of regions) {
-    tickUrbanisation(region, elapsedDays);
-    tickSettlements(region);
-    tickArts(region, regionsById, elapsedDays);
-    tickStatePatronage(region, elapsedDays);
-    tickCulturalMemory(region, elapsedDays);
-    tickMilitaryFormations(region, elapsedDays);
-    tickExternalities(region, elapsedDays);
-    applyBaselineDemographics(region, elapsedDays);
+    measureDetail('Demographics: urbanisation', () => tickUrbanisation(region, elapsedDays));
+    measureDetail('Demographics: settlements', () => tickSettlements(region));
+    measureDetail('Demographics: arts', () => tickArts(region, regionsById, elapsedDays));
+    measureDetail('Demographics: state patronage', () => tickStatePatronage(region, elapsedDays));
+    measureDetail('Demographics: cultural memory', () => tickCulturalMemory(region, elapsedDays));
+    measureDetail('Demographics: military formations', () => tickMilitaryFormations(region, elapsedDays));
+    measureDetail('Demographics: externalities', () => tickExternalities(region, elapsedDays));
+    measureDetail('Demographics: births deaths aging', () => applyBaselineDemographics(region, elapsedDays));
   }
-  tickArtistMigration(regions, elapsedDays);
-  for (const region of regions) applyFamineResponse(region, regionsById, religiousWorld, elapsedDays);
-  tickCulture(regions, elapsedDays);
+  measureDetail('Demographics: artist migration', () => tickArtistMigration(regions, elapsedDays));
+  let famineRegions = 0;
+  measureDetail('Demographics: famine and migration', () => { for (const region of regions) { if ((region.stockpile?.food||0)<-0.5) famineRegions++; applyFamineResponse(region, regionsById, religiousWorld, elapsedDays); } });
+  measureDetail('Demographics: culture', () => tickCulture(regions, elapsedDays));
+  metric('Demographics total population', regions.reduce((sum,r)=>sum+(r.population||0),0));
+  metric('Demographics famine regions', famineRegions);
+  metric('Demographics culture groups', regions.reduce((sum,r)=>sum+(Array.isArray(r.cultureGroups)?r.cultureGroups.length:0),0));
 }
 
 function applyBaselineDemographics(region, elapsedDays) {
