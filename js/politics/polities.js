@@ -4,6 +4,7 @@ import { attitudeToward, changeAttitude } from '../diplomacy/relations.js?v=2026
 import { learnAbout } from '../core/knowledge.js?v=20260904-kingdom1';
 import { monumentalPrestige } from '../economy/construction.js?v=20260906-prestige1';
 import { languagePolicyAdministrativeEffects } from './languagePolicy.js?v=20260909-language-policy1';
+import { ensureCurrencyInstitution, tickCurrencyInstitution } from '../economy/currency.js?v=20260912-currency1';
 
 const EXPERIENCE_SCALE = {
   recordKeeping: 1200,
@@ -49,6 +50,7 @@ export function initialisePolities(regions) {
       },
       report: { tributeReceived: 0, subjectCount: 0, administrativeLoad: 0, administrativeCapacity: 0 },
     };
+    ensureCurrencyInstitution(polity);
     polities.push(polity);
     region.polityId = polity.id;
     region.governance = {
@@ -335,6 +337,7 @@ export function tickPolities(polities, regions, currentTick, elapsedDays = 7) {
     const subjects = territories.length <= 1 ? [] : territories.filter((region) => region.id !== capital.id);
     polity.report = { tributeReceived: 0, subjectCount: subjects.length, administrativeLoad: 0, administrativeCapacity: 0 };
     updateCapabilities(polity, capital, subjects);
+    events.push(...tickCurrencyInstitution(polity, capital, regions, elapsedDays, currentTick));
     const admin = polity.administration;
 
     for (const subject of subjects) {
