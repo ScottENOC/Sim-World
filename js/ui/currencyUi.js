@@ -1,4 +1,4 @@
-import { currencyAvailability, currencyStatus, debaseCurrency, foundCurrency } from '../economy/currency.js?v=20260912-currency1';
+import { abandonCurrency, currencyAvailability, currencyStatus, debaseCurrency, foundCurrency, reformCurrency } from '../economy/currency.js?v=20260912-currency2';
 
 function fmt(value) {
   return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 1 });
@@ -16,6 +16,14 @@ function currentTick(world) {
   return Math.floor((world.clock?.elapsedDays || 0) / 7);
 }
 
+function addText(host, text, className = 'save-status') {
+  const p = document.createElement('p');
+  p.className = className;
+  p.textContent = text;
+  host.appendChild(p);
+  return p;
+}
+
 function render(host) {
   const state = playerState();
   host.replaceChildren();
@@ -29,15 +37,14 @@ function render(host) {
   }
   const { world, polity, capital } = state;
   const status = currencyStatus(polity);
-  const description = document.createElement('p');
-  description.className = 'save-status';
 
   if (!status.active) {
     const availability = currencyAvailability(polity, capital);
-    description.textContent = availability.available
-      ? `Your kingdom has enough legitimacy to found a currency. A trusted coin improves tax collection and trade settlement, but creates a reputation you can later damage.`
-      : `Currency not yet available. ${availability.reason}`;
-    host.appendChild(description);
+    addText(host, availability.available
+      ? 'Your kingdom has enough legitimacy to found its own currency. Merchants can still use trusted foreign money instead.'
+      : `No domestic currency. Merchants may barter or use foreign money they encounter through trade. ${availability.reason}`);
+    const market = capital.currencyUse;
+    if (market?.active) addText(host, `Capital markets currently use ${market.name} · trust ${(market.trust * 100).toFixed(0)}%.`, 'save-status');
     const button = document.createElement('button');
     button.type = 'button';
     button.textContent = 'Found currency';
@@ -50,13 +57,21 @@ function render(host) {
     return;
   }
 
-  description.textContent = `${status.name} · trust ${(status.trust * 100).toFixed(0)}% · fineness ${(status.fineness * 100).toFixed(0)}% · total seigniorage ${fmt(status.seigniorageRaised)}.`;
-  host.appendChild(description);
+  addText(host, `${status.name} · issuer trust ${(status.trust * 100).toFixed(0)}% · fineness ${(status.fineness * 100).toFixed(0)}% · total seigniorage ${fmt(status.seigniorageRaised)}.`);
+
+  const market = capital.currencyUse;
+  if (!market?.active) {
+    addText(host, 'Capital markets have fallen back to barter/commodity settlement.', 'save-status');
+  } else if (market.id !== status.id) {
+    addText(host, `Capital markets prefer foreign money: ${market.name} · trust ${(market.trust * 100).toFixed(0)}%. Your state still issues ${status.name}.`, 'save-status');
+  } else {
+    addText(host, `Capital markets currently accept the domestic currency.`, 'save-status');
+  }
 
   const help = document.createElement('small');
   help.textContent = status.undisclosedDebasement > 0
-    ? `The latest debasement has not yet become widely known. Merchants and administrators may discover it as scrutiny accumulates.`
-    : `Debasement creates immediate treasury revenue by issuing more nominal money from the same metal. If discovered, trust falls and the tax/trade advantage can reverse.`;
+    ? 'The latest debasement is still hidden. Once merchants discover it, trust can fall enough that markets switch to foreign money or barter.'
+    : 'Currency trust belongs to this monetary regime, not permanently to the kingdom. Reform can replace a failed currency with a new generation if legitimacy and treasury capacity are sufficient.';
   host.appendChild(help);
 
   const actions = document.createElement('div');
@@ -65,20 +80,43 @@ function render(host) {
   light.type = 'button';
   light.textContent = 'Debase 10%';
   light.addEventListener('click', () => {
-    const result = debaseCurrency(polity, capital, world.regions, 0.1, currentTick(world));
-    if (result.changed) light.textContent = `Raised ${fmt(result.windfall)}`;
+    debaseCurrency(polity, capital, world.regions, 0.1, currentTick(world));
     render(host);
   });
   const heavy = document.createElement('button');
   heavy.type = 'button';
   heavy.textContent = 'Debase 25%';
   heavy.addEventListener('click', () => {
-    const result = debaseCurrency(polity, capital, world.regions, 0.25, currentTick(world));
-    if (result.changed) heavy.textContent = `Raised ${fmt(result.windfall)}`;
+    debaseCurrency(polity, capital, world.regions, 0.25, currentTick(world));
     render(host);
   });
   actions.append(light, heavy);
   host.appendChild(actions);
+
+  const regimeActions = document.createElement('div');
+  regimeActions.className = 'save-actions';
+  const reform = document.createElement('button');
+  reform.type = 'button';
+  reform.textContent = 'Reform currency';
+  reform.addEventListener('click', () => {
+    const result = reformCurrency(polity, capital, world.regions, currentTick(world));
+    if (!result.changed) reform.textContent = result.reason || 'Reform unavailable';
+    render(host);
+  });
+  const abandon = document.createElement('button');
+  abandon.type = 'button';
+  abandon.textContent = 'Stop issuing';
+  abandon.addEventListener('click', () => {
+    abandonCurrency(polity, world.regions, currentTick(world));
+    render(host);
+  });
+  regimeActions.append(reform, abandon);
+  host.appendChild(regimeActions);
+
+  if (status.history?.length) {
+    const latest = status.history[status.history.length - 1];
+    addText(host, `Previous regime: ${latest.name} ended at ${(latest.endingTrust * 100).toFixed(0)}% trust (${latest.reason}).`, 'save-status');
+  }
 }
 
 function mount() {
