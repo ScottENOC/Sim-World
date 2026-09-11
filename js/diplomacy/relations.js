@@ -1,6 +1,6 @@
 import { hasDirectContact } from '../core/knowledge.js?v=20260904-diplomacy1';
 import { effectivePower } from '../military/army.js?v=20260904-diplomacy1';
-import { cultureDiplomaticBias, cultureTradeMultiplier, recordCulturalContact } from '../society/culture.js?v=20260907-culture1';
+import { cultureDiplomaticBias, cultureTradeMultiplier, recordCulturalContact } from '../society/culture.js?v=20260912-culture-scale1';
 
 const ATTITUDE_DECAY_PER_WEEK = 0.0015;
 const TRADE_WARMING_PER_VALUE = 0.000002;
