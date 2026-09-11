@@ -16,7 +16,7 @@ jobs:
       - name: Apply durable source fix
         run: |
           python tools/apply-crimea-geography-fix.py
-          python -m py_compile tools/build-map-expansion-v2-fast.py tools/build-sea-expansion-v2.py
+          PYTHONPYCACHEPREFIX=/tmp/pycache python -m py_compile tools/build-map-expansion-v2-fast.py tools/build-sea-expansion-v2.py
           git diff --check
       - name: Commit source fix
         run: |
