@@ -18,15 +18,6 @@ function formatMs(value) {
   return `${value.toFixed(2)} ms`;
 }
 
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
-}
-
 export function createPerformanceProfiler() {
   let active = false;
   let current = null;
@@ -191,6 +182,21 @@ export function createPerformanceProfiler() {
     status.textContent = 'Report selected — use Copy from the iOS selection menu.';
   }
 
+  async function shareReport() {
+    if (!navigator.share) {
+      reportBox?.focus();
+      reportBox?.select();
+      status.textContent = 'Share sheet unavailable — report selected instead.';
+      return;
+    }
+    try {
+      await navigator.share({ title: 'Sim-World performance profile', text: buildReport() });
+      status.textContent = `Shared report · ${samples.length} ticks sampled`;
+    } catch (error) {
+      if (error?.name !== 'AbortError') status.textContent = 'Could not open share sheet; use Select text instead.';
+    }
+  }
+
   function mount() {
     if (document.getElementById('performance-profiler-modal')) return;
 
@@ -224,13 +230,14 @@ export function createPerformanceProfiler() {
       <div class="modal-card">
         <button id="perf-profiler-close" class="menu-close" aria-label="Close profiler">&times;</button>
         <h2>Performance profiler</h2>
-        <p class="perf-profiler-help">Measures real tick time on this device. Profiling is off unless you start it. For a useful comparison, run 20-50 ticks at 1× without interacting, then stop and copy the report.</p>
+        <p class="perf-profiler-help">Measures real tick time on this device. Profiling is off unless you start it. For a useful comparison, run 20-50 ticks at 1× without interacting, then stop and share the report.</p>
         <div id="perf-profiler-status" class="perf-profiler-status"></div>
         <div class="perf-profiler-actions">
           <button id="perf-profiler-start" type="button">Start profiling</button>
           <button id="perf-profiler-stop" type="button">Stop</button>
           <button id="perf-profiler-reset" type="button">Reset</button>
           <button id="perf-profiler-copy" type="button">Copy report</button>
+          <button id="perf-profiler-share" type="button">Share report</button>
           <button id="perf-profiler-select" type="button">Select text</button>
         </div>
         <textarea id="perf-profiler-report" class="perf-profiler-report" readonly spellcheck="false" aria-label="Copyable performance report"></textarea>
@@ -249,6 +256,7 @@ export function createPerformanceProfiler() {
     modal.querySelector('#perf-profiler-stop')?.addEventListener('click', () => setActive(false));
     modal.querySelector('#perf-profiler-reset')?.addEventListener('click', reset);
     modal.querySelector('#perf-profiler-copy')?.addEventListener('click', copyReport);
+    modal.querySelector('#perf-profiler-share')?.addEventListener('click', shareReport);
     modal.querySelector('#perf-profiler-select')?.addEventListener('click', () => {
       reportBox.focus();
       reportBox.select();
