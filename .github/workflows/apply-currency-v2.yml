@@ -1,0 +1,47 @@
+name: Apply currency v2 integration
+
+on:
+  push:
+    branches: [medieval-currency-v2]
+    paths:
+      - 'tools/apply-currency-v2.py'
+      - '.github/workflows/apply-currency-v2.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply integration patch
+        run: python tools/apply-currency-v2.py
+      - name: Validate
+        run: |
+          node --check js/economy/currency.js
+          node --check js/ui/currencyUi.js
+          node --check js/economy/trade.js
+          node --check js/economy/stateFinance.js
+          node --check js/politics/polities.js
+          node --check js/main.js
+          node tools/test-currency.mjs
+          node tools/test-ui-priority.mjs
+          node tools/test-world-spatial-skeleton.mjs
+          node tools/test-diplomacy-readonly.mjs
+          git diff --check
+      - name: Commit source changes and remove temporary helpers
+        run: |
+          rm tools/apply-currency-v2.py .github/workflows/apply-currency-v2.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m 'Integrate currency competition and monetary reform'
+          git pull --rebase
+          git push
