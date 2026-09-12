@@ -45,6 +45,7 @@ import { prepareSiegeWorkforce, tickSiegeEquipment } from './military/siegeEquip
 import { createReligiousWorld, initialiseReligions, tickReligion } from './society/religion.js?v=20260905-religion1';
 import { tickReligiousInstitutions } from './society/religiousInstitutions.js?v=20260912-medieval-politics1';
 import { tickMedievalReligiousPolitics } from './society/medievalReligiousPolitics.js?v=20260912-medieval2';
+import { handleReligiousPoliticsEvent } from './ui/religiousPoliticsEventUi.js?v=20260913-religious-politics2';
 import { tickMaritimeExperience } from './technology/seamanship.js?v=20260906-maritime1';
 import { deployFleet, dockFleet, fleetEventInvolvesActor, formatShipOutcome, initialiseFleets, orderFleetHome, orderFleetToSea, resolveFleetContact, setFleetFlag, setFleetMission, syncNextFleetIds, syncRegionalNavyLedger, tickFleets } from './military/fleets.js?v=20260908-fleets1';
 import { tickTransitControl } from './economy/transitTolls.js?v=20260907-transit1';
@@ -373,7 +374,7 @@ async function main() {
     const medievalStateEvents = profiler.measure('Medieval state systems', () => tickMedievalStateSystems(polities, regions, calendarWeek, time.elapsedDays, Math.random));
     profiler.measure('Medieval commerce', () => tickMedievalCommercialInstitutions(regions, polities, time.elapsedDays));
     profiler.measure('Medieval doctrine', () => tickMedievalDoctrine(regions, time.elapsedDays));
-    const medievalReligiousEvents = profiler.measure('Religious politics', () => tickMedievalReligiousPolitics(regions, religiousWorld, polities, calendarWeek, time.elapsedDays, Math.random));
+    const medievalReligiousEvents = profiler.measure('Religious politics', () => tickMedievalReligiousPolitics(regions, religiousWorld, polities, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId, activeWars }));
     const organisationEvents = profiler.measure('Non-state organisations', () => tickNonStateOrganisations(regions, polities, religiousWorld, calendarWeek, time.elapsedDays, Math.random, { agreements, activeRaids }));
     const privateMilitaryEvents = profiler.measure('Private military actors', () => tickPrivateMilitaryActors(regions, polities, religiousWorld, activeCampaigns, calendarWeek, time.elapsedDays, Math.random));
     const organisationInteractionEvents = profiler.measure('Organisation relations', () => tickOrganisationInteractions(regions, polities, religiousWorld, time.elapsedDays));
@@ -458,7 +459,7 @@ async function main() {
       ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),
       ...medievalPoliticalEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId || event.rebelPolityId === activePlayerPolityId),
       ...medievalStateEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId || event.claimantPolityId === activePlayerPolityId),
-      ...medievalReligiousEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),
+      ...medievalReligiousEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId || event.targetPolityId === activePlayerPolityId || event.polityIds?.includes?.(activePlayerPolityId)),
       ...organisationEvents.filter((event) => event.regionId === playerRegionId || event.organisation?.memberPolityIds?.has?.(activePlayerPolityId) || event.polityIds?.includes?.(activePlayerPolityId)),
       ...privateMilitaryEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),
       ...organisationInteractionEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),
@@ -1505,6 +1506,7 @@ function showNextEvent(clock, eventQueue) {
   if (eventQueue.length === 0) return;
 
   const event = eventQueue.shift();
+  if (handleReligiousPoliticsEvent(event, clock, eventQueue, showNextEvent)) return;
   if (event.type === 'war_participant_joined') {
     const options = document.getElementById('event-options');
     document.getElementById('event-title').textContent = `${event.entrantName} enters the war`;
