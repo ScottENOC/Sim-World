@@ -16,13 +16,17 @@ jobs:
         with:
           ref: civil-war-factions-v2
           fetch-depth: 0
-      - name: Fix focused regression fixtures
+      - name: Fix implementation and focused regression fixtures
         run: |
           python - <<'PY'
           from pathlib import Path
           p = Path('tools/apply-civil-war-factions-v2.py')
           text = p.read_text()
           replacements = [
+            (
+              "const duration = currentTick - (parent.succession?.crisis?.startedTick || currentTick);",
+              "const duration = currentTick - (parent.succession?.crisis?.startedTick ?? currentTick);"
+            ),
             (
               "let events = tickCivilWarFactionPolitics(parent, polities, regions, 20, 120, () => 0);\nassert.equal(parent.succession.crisis.factionPolitics.contestedRegionIds.length, 3, 'civil war should retain the whole contested realm');\nassert(events.some((event) => event.type === 'civil_war_defection'), 'regional elites should be able to defect between claimant factions');",
               "let events = tickCivilWarFactionPolitics(parent, polities, regions, 20, 120, () => 0);\nassert.equal(parent.succession.crisis.factionPolitics.contestedRegionIds.length, 3, 'civil war should retain the whole contested realm');\nevents = tickCivilWarFactionPolitics(parent, polities, regions, 40, 120, () => 0);\nassert(events.some((event) => event.type === 'civil_war_defection'), 'regional elites should be able to defect between claimant factions');"
@@ -50,7 +54,7 @@ jobs:
           ]
           for old, new in replacements:
               if old not in text:
-                  raise SystemExit(f'regression fixture anchor not found: {old[:70]}')
+                  raise SystemExit(f'integration anchor not found: {old[:70]}')
               text = text.replace(old, new, 1)
           p.write_text(text)
           PY
