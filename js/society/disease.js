@@ -65,8 +65,6 @@ export function quarantineTradeFriction(region) {
 }
 
 function reservoirSeed(region, pathogenId) {
-  // Stable sparse reservoirs prevent every new game from beginning with a world-wide
-  // epidemic while allowing old diseases to exist before long-distance trade connects them.
   const population = Math.max(0, Number(region.population) || 0);
   if (population < 3000) return 0;
   const density = population / Math.max(100, Number(region.areaSqKm) || 10000);
@@ -99,6 +97,22 @@ function contactPressure(region, pathogenId, regionsById, snapshot) {
     pressure += (snapshot.get(contact.region.id)?.[pathogenId] || 0) * PATHOGENS[pathogenId].tradeWeight * contact.strength;
   }
   return Math.min(0.35, pressure);
+}
+
+function knownNearbyOutbreak(region, regionsById, snapshot) {
+  const contacts = [];
+  for (const neighborId of region.neighbors || []) {
+    const neighbor = regionsById.get(neighborId);
+    if (neighbor) contacts.push(neighbor);
+  }
+  for (const contact of routeHabitContacts(region, regionsById)) contacts.push(contact.region);
+  for (const other of contacts) {
+    const otherState = ensureDiseaseState(other);
+    for (const id of PATHOGEN_IDS) {
+      if (otherState.pathogens[id].recognised && (snapshot.get(other.id)?.[id] || 0) >= 0.003) return true;
+    }
+  }
+  return false;
 }
 
 function removeDeaths(region, count) {
@@ -136,7 +150,8 @@ export function tickDisease(regions, elapsedDays = 30, rng = Math.random) {
     const populationBefore = Math.max(1, Number(region.population) || 1);
     const localBurden = PATHOGEN_IDS.reduce((sum, id) => sum + state.pathogens[id].prevalence, 0);
     const recognisedBurden = PATHOGEN_IDS.reduce((sum, id) => sum + (state.pathogens[id].recognised ? state.pathogens[id].prevalence : 0), 0);
-    const desiredQuarantine = recognisedBurden > 0.003 ? state.quarantinePolicy : 0;
+    const outbreakKnown = recognisedBurden > 0.003 || knownNearbyOutbreak(region, regionsById, snapshot);
+    const desiredQuarantine = outbreakKnown ? state.quarantinePolicy : 0;
     state.effectiveQuarantine += (desiredQuarantine - state.effectiveQuarantine) * Math.min(1, days / 30);
 
     for (const id of PATHOGEN_IDS) {
