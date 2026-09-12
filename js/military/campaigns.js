@@ -224,8 +224,12 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   campaign.defenderMorale = clamp(campaign.defenderMorale + defenderWater);
 
   const terrain = campaign.battlefield?.terrain || 'plains';
-  const attackerFirearms = firearmCombatProfile(attacker, defender, campaign.personnel, { consumeSupplies: true, elapsedDays: 7 });
-  const defenderFirearms = firearmCombatProfile(defender, attacker, defender.army.personnel, { consumeSupplies: true, elapsedDays: 7 });
+  const attackerFirearms = firearmCombatProfile(attacker, defender, campaign.personnel, {
+    consumeSupplies: true, elapsedDays: 7, logisticsSupply: campaign.supply,
+  });
+  const defenderFirearms = firearmCombatProfile(defender, attacker, defender.army.personnel, {
+    consumeSupplies: true, elapsedDays: 7, logisticsSupply: 1,
+  });
   let attackerPower = combatPower(attacker, campaign.personnel, toolTypes, 'attacker', campaign.supply,
     campaign.attackerMorale, null, terrain) * (expedition?.combatMultiplier ?? 1) * attackerFirearms.multiplier;
   const defenderArmyPower = combatPower(defender, defender.army.personnel, toolTypes, 'defender', 1,
