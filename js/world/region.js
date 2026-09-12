@@ -87,8 +87,8 @@ export class Region {
 export async function loadWorld() {
   const [geoRes, metaRes, resourcesRes, terrainRes] = await Promise.all([
     fetch('data/world/regions.geo.json'), fetch('data/world/regions.meta.json'),
-    fetch('data/world/resources.initial.json?v=20260904-weather1'),
-    fetch('data/world/terrain.initial.json?v=20260908-terrain1'),
+    fetch('data/world/resources.initial.json?v=20260912-silkroad1'),
+    fetch('data/world/terrain.initial.json?v=20260912-silkroad1'),
   ]);
   const geo = await geoRes.json(); const meta = await metaRes.json(); const resources = await resourcesRes.json();
   const terrain = await terrainRes.json();
@@ -102,6 +102,7 @@ export async function loadWorld() {
     if (!terrain[id]) throw new Error(`Missing terrain composition for region ${id} (${region.name})`);
     region.terrain = terrain[id];
     region.landQuality = endowment.landQuality;
+    region.specialResources = { ...(endowment.specialResources || {}) };
     const K = region.areaSqKm * endowment.forestFraction;
     region.forest = { currentStock: K * endowment.forestStartCoverage, K };
     region.deposits = {};
