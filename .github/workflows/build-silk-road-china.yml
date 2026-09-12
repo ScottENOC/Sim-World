@@ -7,6 +7,8 @@ on:
       - '.github/workflows/build-silk-road-china.yml'
       - 'tools/build-silk-road-expansion.py'
       - 'tools/build-silk-road-seas.py'
+      - 'tools/apply-silk-road-runtime.py'
+      - 'tools/test-silk-road-runtime.mjs'
       - 'tools/map-region-plan-silk-road.json'
       - 'tools/map-resource-plan-silk-road.json'
       - 'tools/sea-region-plan-silk-road.json'
@@ -32,7 +34,7 @@ jobs:
         run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2 pyshp==2.3.1
       - name: Validate plans and scripts
         run: |
-          python -m py_compile tools/build-silk-road-expansion.py tools/build-silk-road-seas.py tools/build-sea-expansion-v2.py tools/build-terrain.py
+          python -m py_compile tools/build-silk-road-expansion.py tools/build-silk-road-seas.py tools/build-sea-expansion-v2.py tools/build-terrain.py tools/apply-silk-road-runtime.py
           python -m json.tool tools/map-region-plan-silk-road.json >/dev/null
           python -m json.tool tools/map-resource-plan-silk-road.json >/dev/null
           python -m json.tool tools/sea-region-plan-silk-road.json >/dev/null
@@ -91,15 +93,30 @@ jobs:
           PY
           grep -q 'ISOLATED_NEW_REGIONS=0' /tmp/silk-land.log
           git diff --check
-      - name: Commit generated world
+      - name: Apply Silk Road runtime integration
+        run: python tools/apply-silk-road-runtime.py
+      - name: Test runtime integration
+        run: |
+          node tools/test-silk-road-runtime.mjs
+          node --check js/main.js
+          node --check js/world/region.js
+          node --check js/world/seaRegion.js
+          node --check js/economy/tradeGoods.js
+          node --check js/economy/prices.js
+          node --check js/economy/trade.js
+          node --check js/economy/laborCore.js
+          node tools/test-ui-priority.mjs
+          node tools/test-world-spatial-skeleton.mjs
+          git diff --check
+      - name: Commit generated world and runtime integration
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add data/world/regions.geo.json data/world/regions.meta.json data/world/resources.initial.json data/world/terrain.initial.json data/world/seaRegions.geo.json data/world/seaRegions.meta.json data/world/spatial.base.json
+          git add data/world/regions.geo.json data/world/regions.meta.json data/world/resources.initial.json data/world/terrain.initial.json data/world/seaRegions.geo.json data/world/seaRegions.meta.json data/world/spatial.base.json js/main.js js/world/region.js js/world/seaRegion.js js/economy/tradeGoods.js js/economy/prices.js js/economy/trade.js js/economy/laborCore.js
           if git diff --cached --quiet; then
-            echo 'Generated eastern map already current'
+            echo 'Silk Road map and runtime integration already current'
           else
-            git commit -m 'Generate Silk Road and China world geography'
+            git commit -m 'Integrate Silk Road geography and economy'
             git pull --rebase
             git push
           fi
