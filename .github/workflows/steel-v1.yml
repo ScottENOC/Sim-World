@@ -1,0 +1,40 @@
+name: Steel validation
+on:
+  push:
+    branches: [medieval-steel-v1]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Apply integration
+        if: github.event_name == 'push'
+        run: python tools/apply-steel-v1.py
+      - name: Validate
+        run: |
+          node --check js/technology/steel.js
+          node --check js/technology/breakthroughs.js
+          node --check js/military/formations.js
+          node --check js/economy/tradeGoods.js
+          node tools/test-steel.mjs
+          node tools/test-ui-priority.mjs
+          node tools/test-world-spatial-skeleton.mjs
+          git diff --check
+      - name: Commit integration
+        if: github.event_name == 'push'
+        run: |
+          rm -f tools/apply-steel-v1.py .github/workflows/steel-v1.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m 'Integrate emergent medieval steelmaking'
+            git push origin HEAD:medieval-steel-v1
+          fi
