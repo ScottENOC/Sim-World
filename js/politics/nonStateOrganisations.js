@@ -8,6 +8,7 @@ export const ORGANISATION_TYPES = Object.freeze({
   FREE_CITY: 'free_city',
   PIRATE_HAVEN: 'pirate_haven',
   MERCENARY_COMPANY: 'mercenary_company',
+  PRIVATE_MILITARY_COMPANY: 'private_military_company',
   MERCHANT_LEAGUE: 'merchant_league',
   CHARTERED_COMPANY: 'chartered_company',
   INTERSTATE_LEAGUE: 'interstate_league',
