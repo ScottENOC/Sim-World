@@ -30,12 +30,14 @@ import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFish
 import { startScoutingMission, tickScouting } from './core/scouting.js?v=20260906-scouting1';
 import { attitudeLabel, attitudeToward, canDiplomaticallyReach, endAgreement, proposeAgreement, syncNextAgreementId, tickDiplomacy } from './diplomacy/relations.js?v=20260912-migration-diplomacy1';
 import { availableVassalLevies, changeGovernanceForm, demandVassalage, governanceFormAvailability, governanceLabel, initialisePolities, musterVassalLevies, polityById, setDelegatedPower, setGovernancePolicy, sovereignPolity, tickPolities } from './politics/polities.js?v=20260912-currency2';
+import { tickMedievalInstitutions } from './politics/medievalInstitutions.js?v=20260912-medieval-politics1';
 import { SETTLEMENT_TYPES, acceptSettlementOffer, createConquestSettlementOffer, grantRegionalAutonomy, initialisePoliticalContinuity, lobbyForRestoration, plausibleGovernedRegions, rejectSettlementOffer, restorationBacking, resolveNpcSettlement, tickPoliticalContinuity, transferRegion } from './politics/continuity.js?v=20260907-continuity1';
 import { createGameSnapshot, readSave, restoreGameSnapshot, saveSummary, writeSave } from './core/saveGame.js?v=20260904-war1';
 import { syncNextCampaignId, tickCampaigns } from './military/campaigns.js?v=20260912-medieval1';
 import { prepareConstructionLabor, syncNextProjectId, tickConstruction, tickInfrastructureMaintenance } from './economy/construction.js?v=20260905-projects1';
 import { prepareSiegeWorkforce, tickSiegeEquipment } from './military/siegeEquipment.js?v=20260905-projects1';
 import { createReligiousWorld, initialiseReligions, tickReligion } from './society/religion.js?v=20260905-religion1';
+import { tickReligiousInstitutions } from './society/religiousInstitutions.js?v=20260912-medieval-politics1';
 import { tickMaritimeExperience } from './technology/seamanship.js?v=20260906-maritime1';
 import { deployFleet, dockFleet, fleetEventInvolvesActor, formatShipOutcome, initialiseFleets, orderFleetHome, orderFleetToSea, resolveFleetContact, setFleetFlag, setFleetMission, syncNextFleetIds, syncRegionalNavyLedger, tickFleets } from './military/fleets.js?v=20260908-fleets1';
 import { tickTransitControl } from './economy/transitTolls.js?v=20260907-transit1';
@@ -317,6 +319,7 @@ async function main() {
     profiler.measure('Siege equipment', () => tickSiegeEquipment(regions, time.elapsedDays));
     const breakthroughEvents = profiler.measure('Technology breakthroughs', () => tickBreakthroughs(regions, calendarWeek, Math.random, time.elapsedDays));
     const religionEvents = profiler.measure('Religion', () => tickReligion(regions, religiousWorld, calendarWeek, activeRaids, activeCampaigns, Math.random, time.elapsedDays));
+    const religiousInstitutionEvents = profiler.measure('Religious institutions', () => tickReligiousInstitutions(regions, religiousWorld, polities, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));
     const diseaseEvents = profiler.measure('Disease', () => tickDisease(regions, time.elapsedDays, Math.random));
     profiler.measure('Demographics', () => tickDemographics(regions, religiousWorld, time.elapsedDays, profiler));
     // These are slow-moving social processes. The world clock may tick monthly
@@ -359,6 +362,7 @@ async function main() {
     const languagePolicyEvents = profiler.measure('Language policy', () => tickRegionalLanguagePolicies(regions, polities, calendarWeek, time.elapsedDays, { playerPolityId: activePlayerPolityId }));
     const polityEvents = profiler.measure('Polities', () => tickPolities(polities, regions, calendarWeek, time.elapsedDays));
     const continuityEvents = profiler.measure('Political continuity', () => tickPoliticalContinuity(polities, regions, time.elapsedDays / 365.2425, calendarWeek, { playerPolityId: activePlayerPolityId }));
+    const medievalPoliticalEvents = profiler.measure('Medieval politics', () => tickMedievalInstitutions(polities, regions, calendarWeek, time.elapsedDays, { playerPolityId: activePlayerPolityId }));
     profiler.measure('Banditry', () => tickBanditry(regions, toolTypes, agreements, time.elapsedDays));
     profiler.measure('Nation AI', () => tickNationAi(regions, playerRegionId, activeRaids, activeCampaigns, agreements, polities,
       religiousWorld, calendarWeek, toolTypes, Math.random, time.elapsedDays, { fleets, seaRegions }));
@@ -422,6 +426,7 @@ async function main() {
       ...breakthroughEvents.filter((event) => event.regionId === playerRegionId),
       ...constructionEvents.filter((event) => event.regionId === playerRegionId),
       ...religionEvents.filter((event) => event.regionId === playerRegionId),
+      ...religiousInstitutionEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),
       ...diseaseEvents.filter((event) => event.regionId === playerRegionId),
       ...languageChangeEvents.filter((event) => event.regionId === playerRegionId),
       ...playerRaidEvents,
@@ -437,6 +442,7 @@ async function main() {
       ...languagePolicyEvents.filter((event) => event.polityId === activePlayerPolityId),
       ...polityEvents.filter((event) => event.regionId === playerRegionId),
       ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),
+      ...medievalPoliticalEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId || event.rebelPolityId === activePlayerPolityId),
       ...fleetResult.events.filter((event) => fleetEventInvolvesActor(event, activePlayerPolityId, fleets)),
       ...campaignResult.events.filter((event) => {
         if (event.type === 'settlement_required') return event.attackerPolityId === activePlayerPolityId || event.defenderPolityId === activePlayerPolityId;
@@ -1497,6 +1503,54 @@ function showNextEvent(clock, eventQueue) {
       if (eventQueue.length) showNextEvent(clock, eventQueue); else clock.releaseAutoPause();
     }));
     return;
+  }
+  if (event.type === 'religious_seat_offer') {
+    document.getElementById('event-title').textContent = `${event.religionName} requests an autonomous sacred seat`;
+    document.getElementById('event-body').textContent = `The organised religious authority asks for a protected enclave inside ${event.regionName}. You would surrender a small part of the local tax base and direct territorial control, but hosting the seat can greatly increase religious legitimacy, pilgrimage income and influence over believers in other states.`;
+    const options = document.getElementById('event-options');
+    if (event.resolveDecision) {
+      options.innerHTML = '<button id="btn-seat-grant">Grant the autonomous seat</button><button id="btn-seat-refuse">Keep direct control</button>';
+      const finish = (choice) => {
+        const result = event.resolveDecision(choice);
+        document.getElementById('event-body').textContent = result?.established ? 'The sacred seat is established as an autonomous enclave inside the region. Its religious authority is now politically distinct from your government.' : 'You refuse to surrender territory. The religious hierarchy remains organised, but without an autonomous seat here.';
+        options.innerHTML = '<button id="btn-event-continue">Continue</button>';
+        document.getElementById('btn-event-continue').addEventListener('click', () => { document.getElementById('event-modal').classList.add('hidden'); if (eventQueue.length) showNextEvent(clock,eventQueue); else clock.releaseAutoPause(); });
+      };
+      document.getElementById('btn-seat-grant').addEventListener('click', () => finish('grant'));
+      document.getElementById('btn-seat-refuse').addEventListener('click', () => finish('refuse'));
+      document.getElementById('event-modal').classList.remove('hidden');
+      return;
+    }
+    wireEventContinue(clock,eventQueue); return;
+  }
+  if (event.type === 'religious_schism') {
+    document.getElementById('event-title').textContent = 'Organised religious schism';
+    document.getElementById('event-body').textContent = `${event.regionName} has become the centre of a durable institutional split. The new communion belongs to the same religious family but now has its own hierarchy and political patrons. This can sharpen regional identity and destabilise states that span both institutions.`;
+    wireEventContinue(clock,eventQueue); return;
+  }
+  if (event.type === 'medieval_autonomy_demand') {
+    document.getElementById('event-title').textContent = `${event.regionName} demands greater autonomy`;
+    document.getElementById('event-body').textContent = `Local elites now command their own garrison, fiscal machinery and political networks. They ask for greater control over taxation and defence. Granting autonomy reduces immediate secession pressure but further entrenches local power.`;
+    const options = document.getElementById('event-options');
+    if (event.resolveDecision) {
+      options.innerHTML = '<button id="btn-autonomy-grant">Grant autonomy</button><button id="btn-autonomy-refuse">Refuse the demand</button>';
+      const finish = (choice) => {
+        const result = event.resolveDecision(choice);
+        document.getElementById('event-body').textContent = result?.granted ? 'The province receives greater autonomy, lower tribute and control over its own military and tax administration.' : 'The demand is refused. Local grievance and independence pressure rise.';
+        options.innerHTML = '<button id="btn-event-continue">Continue</button>';
+        document.getElementById('btn-event-continue').addEventListener('click', () => { document.getElementById('event-modal').classList.add('hidden'); if (eventQueue.length) showNextEvent(clock,eventQueue); else clock.releaseAutoPause(); });
+      };
+      document.getElementById('btn-autonomy-grant').addEventListener('click', () => finish('grant'));
+      document.getElementById('btn-autonomy-refuse').addEventListener('click', () => finish('refuse'));
+      document.getElementById('event-modal').classList.remove('hidden');
+      return;
+    }
+    wireEventContinue(clock,eventQueue); return;
+  }
+  if (event.type === 'medieval_civil_war') {
+    document.getElementById('event-title').textContent = `Civil war: ${event.regionName} breaks away`;
+    document.getElementById('event-body').textContent = `A local government with its own garrison, stronghold and tax apparatus has stopped recognising the former sovereign. This is not a spontaneous rebel stack: institutions built during years of local self-defence have become an independent government.`;
+    wireEventContinue(clock,eventQueue); return;
   }
   if (event.type === 'diplomatic_message_intercepted') {
     document.getElementById('event-title').textContent = event.destroyed ? 'Diplomatic courier lost' : 'Secret message compromised';
