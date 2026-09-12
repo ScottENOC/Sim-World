@@ -92,12 +92,15 @@ export function adjustNavyCrew(region, availableLabor) {
 
 // Combat/suppression power — personnel scaled by equipment. Navy counts for
 // less on land (boats don't chase inland bandits) — a placeholder weighting
-// until piracy gets its own dedicated sea-safety mechanic.
+// until piracy gets its own dedicated sea-safety mechanic. Contracted
+// mercenaries are tracked separately from the home population army so a
+// contract ending cannot accidentally delete local soldiers after casualties.
 const NAVY_LAND_CONTRIBUTION = 0.3;
 
 export function effectivePower(region, toolTypes) {
   const soldierEfficiency = toolEfficiencyMultiplier(region, 'soldier', toolTypes.soldier, region.unlockedTechIds);
-  const armyPower = region.army.personnel * soldierEfficiency * horseMilitaryMultiplier(region);
+  const mercenaries = Math.max(0, Number(region.nonStateSupport?.mercenaryPersonnel) || 0);
+  const armyPower = (region.army.personnel + mercenaries) * soldierEfficiency * horseMilitaryMultiplier(region);
   const navyPower = region.navy.personnel * soldierEfficiency * NAVY_LAND_CONTRIBUTION;
   return (armyPower + navyPower) * militaryReadiness(region) * armyCohesionMultiplier(region);
 }
