@@ -110,7 +110,8 @@ export function tickHorseEconomy(region, workingAge, elapsedDays = 7) {
   const cavalryPrestige = clamp01(memory.cavalryPrestige || 0);
   const civilScale = 1.2 - horsePriority * 0.65;
   const transportScale = 1.1 - horsePriority * 0.45;
-  const doctrineDemand = region.unlockedTechIds?.has('mounted_cavalry') ? 1.45
+  const doctrineDemand = region.unlockedTechIds?.has('heavy_cavalry') ? 1.85
+    : region.unlockedTechIds?.has('mounted_cavalry') ? 1.45
     : region.unlockedTechIds?.has('light_chariotry') ? 1.25 : 1;
   // A society that defines elite status through mounted traditions breeds and
   // trains more war horses. This is costly: those animals, trainers and pasture

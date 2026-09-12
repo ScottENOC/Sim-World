@@ -12,7 +12,7 @@ import { recordCampaignMemories } from '../society/culturalMemory.js?v=20260907-
 import { effectiveInfrastructureCount, hillFortDefenceMultiplier, overlandInfrastructureMultiplier, settlementDefenceMultiplier } from '../economy/construction.js?v=20260905-projects1';
 import { returnSiegeTrain, survivingFortBenefit, takeSiegeTrain } from './siegeEquipment.js?v=20260905-siege1';
 import { chooseBattlefield, recordCombatExperience, terrainCombatMultiplier } from './terrain.js?v=20260908-terrain1';
-import { formationAmphibiousBonus, formationMobilityBonus, formationSiegeBonus } from './formations.js?v=20260908-prof1';
+import { formationAmphibiousBonus, formationCombatMultiplier, formationMobilityBonus, formationSiegeBonus } from './formations.js?v=20260912-medieval1';
 import { marchSpeedMultiplier, moraleShockMultiplier, professionalLogisticsMultiplier, retreatLossMultiplier } from './professionalisation.js?v=20260908-prof1';
 import { advanceCampaignControl, establishCampaignFootprint, occupationSummary, releaseUnsupportedOccupation } from './subregionalControl.js?v=20260908-subregion1';
 import { attemptPhysicalOccupation, initialiseCampaignMovement, resolveCampaignNodeInteractions, setCampaignSubregionalObjective, tickCampaignMovement } from './subregionalMovement.js?v=20260908-movement1';
@@ -144,7 +144,7 @@ function combatPower(region, personnel, toolTypes, role, supply = 1, morale = 1,
     ? DEFENDER_HOME_ADVANTAGE * postureProfile(region).raidDefence * fortMultiplier : 1;
   const terrainMultiplier = terrain ? terrainCombatMultiplier(region, terrain) : 1;
   return personnel * equipment * militaryReadiness(region) * armyCohesionMultiplier(region) *
-    horseMilitaryMultiplier(region) * terrainMultiplier * homeAdvantage *
+    horseMilitaryMultiplier(region) * formationCombatMultiplier(region, terrain) * terrainMultiplier * homeAdvantage *
     (0.55 + 0.45 * supply) * (0.65 + 0.35 * morale);
 }
 

@@ -30,6 +30,18 @@ export const FORMATION_ARCHETYPES = Object.freeze({
     mobilityBonus: 0.09, annualMetalPerSoldier: 0.003, annualTreasuryPerSoldier: 0.0022,
     terrain: { plains: 1.06, hills: 0.94, mountains: 0.70, forest: 0.76, wetland: 0.68 },
   },
+  crossbow_companies: {
+    id: 'crossbow_companies', label: 'Crossbow companies', minArmy: 180,
+    discoveryYears: 10, maxCoverage: 0.32, combatBonus: 0.18, cohesionBonus: 0.05,
+    annualMetalPerSoldier: 0.0025, annualTreasuryPerSoldier: 0.0022,
+    terrain: { plains: 1.02, hills: 1.04, mountains: 0.98, forest: 0.94, wetland: 0.90 },
+  },
+  knightly_retinues: {
+    id: 'knightly_retinues', label: 'Knightly heavy-cavalry retinues', minArmy: 240,
+    discoveryYears: 18, maxCoverage: 0.20, combatBonus: 0.28, cohesionBonus: 0.08, mobilityBonus: 0.08,
+    annualMetalPerSoldier: 0.009, annualTreasuryPerSoldier: 0.0055,
+    terrain: { plains: 1.10, hills: 0.96, mountains: 0.68, forest: 0.72, wetland: 0.60 },
+  },
   siege_engineer_corps: {
     id: 'siege_engineer_corps', label: 'Siege engineer corps', minArmy: 350,
     discoveryYears: 16, maxCoverage: 0.16, combatBonus: 0.04, cohesionBonus: 0.04,
@@ -99,6 +111,15 @@ function conditionsFor(region, archetypeId) {
     return { ...base, eligible: hasTech(region, 'mounted_cavalry') && hasTech(region, 'military_drill') && drill &&
       warHorses >= Math.max(35, army * 0.08) && army >= 250 };
   }
+  if (archetypeId === 'crossbow_companies') {
+    return { ...base, eligible: hasTech(region, 'crossbows') && arsenal && army >= 180 &&
+      base.metalAdequacy >= 0.18 };
+  }
+  if (archetypeId === 'knightly_retinues') {
+    const warHorses = Math.max(0, region.horseEconomy?.war || 0);
+    return { ...base, eligible: hasTech(region, 'heavy_cavalry') && drill && arsenal &&
+      warHorses >= Math.max(45, army * 0.12) && base.metalAdequacy >= 0.35 && army >= 240 };
+  }
   if (archetypeId === 'siege_engineer_corps') {
     return { ...base, eligible: hasTech(region, 'military_drill') && arsenal && drill && army >= 350 &&
       ((region.siegeEquipment?.experience || 0) >= 0.15 || siegeInventory(region) >= 2) };
@@ -121,6 +142,8 @@ function formationName(region, archetypeId) {
     standardised_heavy_infantry: `${place} Heavy Cohorts`,
     elite_chariot_formation: `${place} Chariot Guard`,
     cavalry_corps: `${place} Horse Corps`,
+    crossbow_companies: `${place} Crossbow Companies`,
+    knightly_retinues: `${place} Knightly Retinue`,
     siege_engineer_corps: `${place} Siege Corps`,
     naval_infantry: `${place} Sea Guard`,
     professional_cohorts: `${place} Professional Cohorts`,

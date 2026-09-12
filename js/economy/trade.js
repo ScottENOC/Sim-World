@@ -9,6 +9,7 @@ import { horseTransportMultiplier } from './horses.js?v=20260904-weather1';
 import { recordDiplomaticTrade, tradeRelationMultiplier } from '../diplomacy/relations.js?v=20260904-save1';
 import { navalMissionProfile, postureProfile } from '../military/policies.js?v=20260904-policy1';
 import { maritimeSkillMultiplier, MARITIME_SKILLS } from '../technology/seamanship.js?v=20260906-maritime1';
+import { oceanSailingProfile } from '../technology/medievalTransition.js?v=20260912-medieval1';
 import { maritimeRouteBetween } from '../world/chokepoints.js?v=20260907-chokepoints1';
 import { collectTransitTolls, estimateTransitToll } from './transitTolls.js?v=20260907-transit1';
 import { currencyTradeFriction, recordCurrencyContact } from './currency.js?v=20260912-currency3';
@@ -94,7 +95,7 @@ function sharesSea(regionA, regionB) {
   return (regionA.adjacentSeaIds || []).some((id) => (regionB.adjacentSeaIds || []).includes(id));
 }
 
-function seaTransportProfile(regionA, regionB) {
+export function seaTransportProfile(regionA, regionB) {
   const canDockAdvanced = operationalInfrastructure(regionA, 'harbour') && operationalInfrastructure(regionB, 'harbour');
   const merchantFleet = regionA.tradeEconomy;
   const merchantShare = merchantFleet?.merchantBoats > 0
@@ -104,12 +105,16 @@ function seaTransportProfile(regionA, regionB) {
   const advancedShare = canDockAdvanced ? Math.max(merchantShare, legacyShare) : 0;
   const sailingSkill = maritimeSkillMultiplier(regionA, MARITIME_SKILLS.TRADE);
   const skillBonus = sailingSkill - 1;
+  const ocean = oceanSailingProfile(regionA);
+  const oceanCapable = ocean.known && advancedShare >= 0.35;
+  const oceanRange = oceanCapable ? ocean.rangeMultiplier : 1;
+  const oceanSpeed = oceanCapable ? ocean.speedMultiplier : 1;
   return {
-    advancedShare,
-    rangeKm: (BASIC_SEA_RANGE_KM + (ADVANCED_SEA_RANGE_KM - BASIC_SEA_RANGE_KM) * advancedShare) * (1 + skillBonus * 0.45),
-    capacityMultiplier: (1 + advancedShare * 1.5) * (1 + skillBonus * 0.35),
-    costMultiplier: (1 - advancedShare * 0.45) * (1 - skillBonus * 0.35),
-    speedMultiplier: (1 + advancedShare * 0.9) * sailingSkill,
+    advancedShare, oceanCapable,
+    rangeKm: (BASIC_SEA_RANGE_KM + (ADVANCED_SEA_RANGE_KM - BASIC_SEA_RANGE_KM) * advancedShare) * (1 + skillBonus * 0.45) * oceanRange,
+    capacityMultiplier: (1 + advancedShare * 1.5) * (1 + skillBonus * 0.35) * (oceanCapable ? 1.15 : 1),
+    costMultiplier: (1 - advancedShare * 0.45) * (1 - skillBonus * 0.35) * (oceanCapable ? 0.90 : 1),
+    speedMultiplier: (1 + advancedShare * 0.9) * sailingSkill * oceanSpeed,
   };
 }
 

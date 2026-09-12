@@ -1,5 +1,6 @@
 import { effectiveExperience } from './learningByDoing.js?v=20260906-education1';
 import { tickClassicalBreakthroughs } from './classicalTransition.js?v=20260907-classical1';
+import { tickMedievalBreakthroughs } from './medievalTransition.js?v=20260912-medieval1';
 import { GUNPOWDER_TECH_ID } from '../military/firearms.js?v=20260912-gunpowder1';
 
 export { GUNPOWDER_TECH_ID };
@@ -278,5 +279,6 @@ export function tickBreakthroughs(regions, currentTick, rng = Math.random, elaps
     region.ironWorkingExposure = Math.max(0, (region.ironWorkingExposure || 0) * Math.pow(0.99, weekScale));
   }
   events.push(...tickClassicalBreakthroughs(regions, currentTick, rng, elapsedDays));
+  events.push(...tickMedievalBreakthroughs(regions, currentTick, rng, elapsedDays));
   return events;
 }

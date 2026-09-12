@@ -10,6 +10,7 @@ import { hillFortDefenceMultiplier, overlandInfrastructureMultiplier, settlement
 import { findLandStagingRegion, recordContingentReturns } from '../politics/polities.js?v=20260904-kingdom1';
 import { armyCohesionMultiplier, navalMissionProfile, postureProfile } from './policies.js?v=20260904-policy1';
 import { maritimeSkillMultiplier, MARITIME_SKILLS } from '../technology/seamanship.js?v=20260906-maritime1';
+import { formationCombatMultiplier } from './formations.js?v=20260912-medieval1';
 import { firearmCombatProfile } from './firearms.js?v=20260912-gunpowder1';
 
 const LAND_SPEED_KM_PER_WEEK = 120;
@@ -147,11 +148,11 @@ function resolveCombat(attacker, defender, raidingPersonnel, toolTypes, rng, via
   const attackerFirearms = firearmCombatProfile(attacker, defender, raidingPersonnel, { consumeSupplies: true, elapsedDays: 7 });
   const defenderFirearms = firearmCombatProfile(defender, attacker, defender.army.personnel, { consumeSupplies: true, elapsedDays: 7 });
   const attackerPower = raidingPersonnel * attackerEquip * maritimeAssaultBonus * attackerSeaSkill * militaryReadiness(attacker) *
-    armyCohesionMultiplier(attacker) * (viaSea ? 1 : horseMilitaryMultiplier(attacker)) * attackerFirearms.multiplier;
+    armyCohesionMultiplier(attacker) * (viaSea ? 1 : horseMilitaryMultiplier(attacker)) * formationCombatMultiplier(attacker) * attackerFirearms.multiplier;
   const defenderPower = defender.army.personnel * defenderEquip * DEFENDER_HOME_ADVANTAGE * defenderSeaSkill *
     postureProfile(defender).raidDefence * militaryReadiness(defender) *
     armyCohesionMultiplier(defender) * horseMilitaryMultiplier(defender) * hillFortDefenceMultiplier(defender) *
-    settlementDefenceMultiplier(defender) * defenderFirearms.multiplier;
+    settlementDefenceMultiplier(defender) * formationCombatMultiplier(defender) * defenderFirearms.multiplier;
   const totalPower = attackerPower + defenderPower;
   const attackerRatio = totalPower > 0 ? attackerPower / totalPower : 0.5;
   const variance = () => 0.7 + rng() * 0.6;
