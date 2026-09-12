@@ -1,0 +1,62 @@
+name: Apply non-state organisation integration
+on:
+  push:
+    branches: [non-state-organisations-v1]
+permissions:
+  contents: write
+jobs:
+  apply-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: non-state-organisations-v1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Integrate organisation system
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('js/main.js'); s=p.read_text()
+          anchor="import { tickMedievalInstitutions } from './politics/medievalInstitutions.js?v=20260912-medieval-politics1';"
+          assert anchor in s
+          s=s.replace(anchor, anchor+"\nimport { tickNonStateOrganisations } from './politics/nonStateOrganisations.js?v=20260912-organisations1';")
+          old="    const medievalPoliticalEvents = profiler.measure('Medieval politics', () => tickMedievalInstitutions(polities, regions, calendarWeek, time.elapsedDays, { playerPolityId: activePlayerPolityId }));"
+          assert old in s
+          new=old+"\n    const organisationEvents = profiler.measure('Non-state organisations', () => tickNonStateOrganisations(regions, polities, religiousWorld, calendarWeek, time.elapsedDays, Math.random, { agreements, activeRaids }));"
+          s=s.replace(old,new)
+          old="      ...medievalPoliticalEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId || event.rebelPolityId === activePlayerPolityId),"
+          assert old in s
+          new=old+"\n      ...organisationEvents.filter((event) => event.regionId === playerRegionId || event.organisation?.memberPolityIds?.has?.(activePlayerPolityId) || event.polityIds?.includes?.(activePlayerPolityId)),"
+          s=s.replace(old,new)
+          marker="  if (event.type === 'religious_seat_offer') {"
+          assert marker in s
+          handlers="""  if (event.type === 'organisation_founded') {\n    const organisation = event.organisation;\n    document.getElementById('event-title').textContent = `${organisation?.name || 'A new organisation'} emerges`;\n    const labels = { free_city: 'an autonomous commercial city', pirate_haven: 'a pirate haven', mercenary_company: 'a mercenary company', merchant_league: 'a merchant league', chartered_company: 'a chartered territorial company', interstate_league: 'an interstate league' };\n    document.getElementById('event-body').textContent = `${organisation?.name || 'A new organisation'} has emerged as ${labels[organisation?.type] || organisation?.type || 'a political organisation'}. It is not automatically a sovereign country: its power comes from its treasury, members, armed capacity, legal privileges and any places it controls.`;\n    wireEventContinue(clock,eventQueue); return;\n  }\n  if (event.type === 'organisation_evolved') {\n    document.getElementById('event-title').textContent = 'States pool sovereignty';\n    document.getElementById('event-body').textContent = `${event.organisation?.name || 'An interstate organisation'} has developed enough common authority to become a supranational union. Member states still exist, but some sovereignty is now exercised collectively.`;\n    wireEventContinue(clock,eventQueue); return;\n  }\n"""
+          s=s.replace(marker,handlers+marker)
+          p.write_text(s)
+          q=Path('index.html'); t=q.read_text()
+          import re
+          t2=re.sub(r'js/main\.js\?v=[^\"\']+', 'js/main.js?v=20260912-organisations1', t)
+          if t2==t and 'js/main.js' in t:
+              t2=t.replace('js/main.js', 'js/main.js?v=20260912-organisations1', 1)
+          q.write_text(t2)
+          PY
+          node --check js/politics/nonStateOrganisations.js
+          node --check js/main.js
+          node tools/test-non-state-organisations.mjs
+          node tools/test-ui-priority.mjs
+          node tools/test-world-spatial-skeleton.mjs
+          git diff --check
+      - name: Commit integrated runtime changes
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/main.js index.html
+          git commit -m "Integrate emergent non-state organisations" || true
+          git push
+      - name: Remove temporary workflow
+        run: |
+          git rm .github/workflows/apply-non-state-organisations-v1.yml
+          git commit -m "Remove temporary organisation integration workflow"
+          git push
