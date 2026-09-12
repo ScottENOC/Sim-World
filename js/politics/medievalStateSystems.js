@@ -1,6 +1,7 @@
 import { ensureMedievalPoliticalState } from './medievalInstitutions.js?v=20260912-medieval-politics1';
 import { ensureSubregionalControl } from '../military/subregionalControl.js?v=20260908-subregion1';
 import { linkSuccessionClaimant, reconcileSuccessionContinuity } from './successionContinuityBridge.js?v=20260913-succession-continuity1';
+import { tickCivilWarFactionPolitics } from './civilWarFactions.js?v=20260913-civil-war2';
 
 const DAYS_PER_YEAR = 365.2425;
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
@@ -225,7 +226,7 @@ function escalateCivilWar(polity, regions, polities, currentTick) {
   return { type: 'succession_civil_war', polityId: polity.id, claimantPolityId: claimantPolity.id, claimantId: rival.id, regionId: capital.id, regionName: capital.name };
 }
 
-export function tickMedievalStateSystems(polities, regions, currentTick, elapsedDays = 30, rng = Math.random) {
+export function tickMedievalStateSystems(polities, regions, currentTick, elapsedDays = 30, rng = Math.random, options = {}) {
   const years = Math.max(0.001, elapsedDays / DAYS_PER_YEAR); const events = [];
   for (const polity of polities) {
     const territories = polityTerritories(polity, regions);
@@ -241,6 +242,7 @@ export function tickMedievalStateSystems(polities, regions, currentTick, elapsed
       const event = escalateCivilWar(polity, regions, polities, currentTick); if (event) events.push(event);
     }
     if (succession.crisis?.escalated) {
+      events.push(...tickCivilWarFactionPolitics(polity, polities, regions, currentTick, elapsedDays, rng, options));
       const continuityEvent = reconcileSuccessionContinuity(polity, polities, regions, currentTick);
       if (continuityEvent) events.push(continuityEvent);
     }

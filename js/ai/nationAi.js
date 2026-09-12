@@ -25,6 +25,7 @@ import { chooseDefensiveCounterLogistics } from '../military/counterLogisticsAi.
 import { coordinateExpeditionRelief } from '../military/expeditionReliefAi.js?v=20260909-relief1';
 import { chooseNpcDiplomatPosting } from '../diplomacy/diplomats.js?v=20260909-diplomats1';
 import { activateJointOperations } from '../military/jointOperations.js?v=20260909-joint-ops1';
+import { maybeLaunchCivilWarCampaign } from '../politics/civilWarFactions.js?v=20260913-civil-war2';
 
 // A one-percent peacetime levy is supportable while trade and taxation are
 // healthy. Threatened states still expand this through the safety multiplier;
@@ -79,7 +80,8 @@ export function tickNationAi(regions, playerRegionId, activeRaids, activeCampaig
     maybeScout(region, regionsById, currentTick, rng);
     chooseNpcDiplomatPosting(region, regions, currentTick, rng);
     maybeMakeAgreement(region, regionsById, playerRegionId, agreements, polities, currentTick, toolTypes, rng, chance(DIPLOMACY_CONSIDERATION_CHANCE_PER_WEEK));
-    maybeCampaign(region, regionsById, activeCampaigns, polities, religiousWorld, currentTick, toolTypes, rng, chance(CAMPAIGN_CONSIDERATION_CHANCE_PER_WEEK));
+    const launchedCivilWarCampaign = maybeLaunchCivilWarCampaign(region, regionsById, activeCampaigns, polities, currentTick, rng);
+    if (!launchedCivilWarCampaign) maybeCampaign(region, regionsById, activeCampaigns, polities, religiousWorld, currentTick, toolTypes, rng, chance(CAMPAIGN_CONSIDERATION_CHANCE_PER_WEEK));
     maybeRaid(region, regionsById, activeRaids, polities, religiousWorld, currentTick, toolTypes, rng, chance(RAID_CONSIDERATION_CHANCE_PER_WEEK));
   }
 }

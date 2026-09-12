@@ -255,18 +255,18 @@ function maybeIssueWarOrPeaceCall(authority, religion, polities, regions, curren
       events.push({ type:'religious_peace_call', authorityId:authority.id, religionId:religion.id, warId:war.id, polityIds:[aId,bId], strength });
       continue;
     }
-    const protected = aFollowers > 0.45 && aInf > 0.24 ? a : bFollowers > 0.45 && bInf > 0.24 ? b : null;
-    const target = protected?.id === aId ? b : protected?.id === bId ? a : null;
-    if (!protected || !target || currentTick - p.lastWarCallTick <= 52) continue;
+    const protectedPolity = aFollowers > 0.45 && aInf > 0.24 ? a : bFollowers > 0.45 && bInf > 0.24 ? b : null;
+    const target = protectedPolity?.id === aId ? b : protectedPolity?.id === bId ? a : null;
+    if (!protectedPolity || !target || currentTick - p.lastWarCallTick <= 52) continue;
     const targetFollowers = followerShareInPolity(religion.id,target.id,regions);
     if (targetFollowers > 0.18) continue; // not a generic licence for intra-faith warfare
     if (rng() < chanceForYears(0.045 * authority.diplomaticInfluence * aInf, years)) {
-      const strength = clamp(authority.diplomaticInfluence * followerShareInPolity(religion.id,protected.id,regions));
-      const state = ensurePolityReligiousPolitics(protected);
+      const strength = clamp(authority.diplomaticInfluence * followerShareInPolity(religion.id,protectedPolity.id,regions));
+      const state = ensurePolityReligiousPolitics(protectedPolity);
       state.holyWarMandates[target.id] = Math.max(state.holyWarMandates[target.id] || 0, strength);
-      protected.administration.legitimacy = clamp((protected.administration.legitimacy || 0) + strength * 0.012);
-      p.holyWarCalls.push({ tick:currentTick, warId:war.id, protectedPolityId:protected.id, targetPolityId:target.id, strength, key:warKey }); p.lastWarCallTick = currentTick;
-      events.push({ type:'religious_war_call', authorityId:authority.id, religionId:religion.id, warId:war.id, polityId:protected.id, targetPolityId:target.id, strength });
+      protectedPolity.administration.legitimacy = clamp((protectedPolity.administration.legitimacy || 0) + strength * 0.012);
+      p.holyWarCalls.push({ tick:currentTick, warId:war.id, protectedPolityId:protectedPolity.id, targetPolityId:target.id, strength, key:warKey }); p.lastWarCallTick = currentTick;
+      events.push({ type:'religious_war_call', authorityId:authority.id, religionId:religion.id, warId:war.id, polityId:protectedPolity.id, targetPolityId:target.id, strength });
     }
   }
 }
