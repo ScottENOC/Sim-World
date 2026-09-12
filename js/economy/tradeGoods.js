@@ -26,6 +26,7 @@ export const TRADE_GOODS = {
   silk:       { label: 'Silk', basePrice: 18, referenceStock: 250, category: 'luxury', cargoKgPerUnit: 0.15 },
   bronze:     { label: 'Bronze', basePrice: 60, referenceStock: 500, category: 'material', cargoKgPerUnit: 1 },
   iron:       { label: 'Iron', basePrice: 24, referenceStock: 1500, category: 'material', cargoKgPerUnit: 1 },
+  steel:      { label: 'Steel', basePrice: 70, referenceStock: 350, category: 'material', strategic: true, cargoKgPerUnit: 1 },
   clay:       { label: 'Clay', basePrice: 0.08, referenceStock: 5000, category: 'bulk', cargoKgPerUnit: 5 },
   pottery:    { label: 'Pottery', basePrice: 1.2, referenceStock: 3000, category: 'manufactured', cargoKgPerUnit: 1.5 },
   pitch:      { label: 'Pitch', basePrice: 2.5, referenceStock: 300, category: 'manufactured', cargoKgPerUnit: 1 },

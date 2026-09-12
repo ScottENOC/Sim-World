@@ -1,5 +1,5 @@
-import { localPrice, TRADABLE_RESOURCES } from './prices.js?v=20260912-gunpowder1';
-import { cargoKgPerUnit } from './tradeGoods.js?v=20260912-gunpowder1';
+import { localPrice, TRADABLE_RESOURCES } from './prices.js?v=20260912-steel1';
+import { cargoKgPerUnit } from './tradeGoods.js?v=20260912-steel1';
 import { tradeAllowed } from './tradePolicy.js?v=20260905-policy1';
 import { directContactIds, knownRegionIds, recordDirectTrade, diffuseTradeNetworkKnowledge } from '../core/knowledge.js?v=20260904-weather1';
 import { centroidDistanceKm } from '../world/distance.js?v=20260904-weather1';
