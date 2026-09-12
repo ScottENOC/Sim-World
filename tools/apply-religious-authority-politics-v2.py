@@ -1,5 +1,17 @@
 from pathlib import Path
 
+religious = Path('js/society/medievalReligiousPolitics.js')
+r = religious.read_text()
+r = r.replace('const protected = aFollowers > 0.45 && aInf > 0.24 ? a : bFollowers > 0.45 && bInf > 0.24 ? b : null;', 'const favouredPolity = aFollowers > 0.45 && aInf > 0.24 ? a : bFollowers > 0.45 && bInf > 0.24 ? b : null;')
+r = r.replace('const target = protected?.id === aId ? b : protected?.id === bId ? a : null;', 'const target = favouredPolity?.id === aId ? b : favouredPolity?.id === bId ? a : null;')
+r = r.replace('if (!protected || !target || currentTick - p.lastWarCallTick <= 52) continue;', 'if (!favouredPolity || !target || currentTick - p.lastWarCallTick <= 52) continue;')
+r = r.replace('followerShareInPolity(religion.id,protected.id,regions)', 'followerShareInPolity(religion.id,favouredPolity.id,regions)')
+r = r.replace('ensurePolityReligiousPolitics(protected)', 'ensurePolityReligiousPolitics(favouredPolity)')
+r = r.replace('protected.administration.legitimacy', 'favouredPolity.administration.legitimacy')
+r = r.replace('protectedPolityId:protected.id', 'protectedPolityId:favouredPolity.id')
+r = r.replace('polityId:protected.id', 'polityId:favouredPolity.id')
+religious.write_text(r)
+
 p = Path('js/main.js')
 s = p.read_text()
 
