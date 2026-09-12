@@ -1,4 +1,4 @@
-import { TRADE_GOODS, TRADABLE_RESOURCES } from './tradeGoods.js?v=20260905-goods1';
+import { TRADE_GOODS, TRADABLE_RESOURCES } from './tradeGoods.js?v=20260912-silkroad1';
 
 // No full market yet, so this isn't a cleared price — it's a scarcity proxy:
 // price falls smoothly as a region's own stock of something rises, and

@@ -64,7 +64,7 @@ const BRONZE_PER_SMITH = 2.0;
 // wanted, not by what's numerically biggest. There's no full price/market
 // system yet (that's the trade system), so this is a placeholder stand-in
 // for background (non-tool-demand) mining priority.
-const ORE_PRIORITY = { copper: 3, tin: 3, ironOre: 2, clay: 1, gold: 2, stone: 1 };
+const ORE_PRIORITY = { copper: 3, tin: 3, ironOre: 2, clay: 1, gold: 2, saltpetre: 1.4, sulfur: 1.2, stone: 1 };
 const MINE_SALE_BUFFER = { copper: 2000, tin: 1000, ironOre: 3000, clay: 1000 };
 const METAL_SALE_BUFFER = { copper: 200, tin: 100 };
 
@@ -664,8 +664,13 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng, elapsedDays 
   const textileTargetWorkers = Math.min(textileAvailable,
     textilesWanted / (TEXTILES_PER_WORKER * skillMultiplier(region, 'textiles')));
   const textileWorkers = persistentWorkforce(region, 'textileWorker', textileTargetWorkers, textileAvailable);
-  const textilesMade = textileWorkers * TEXTILES_PER_WORKER * weekScale * skillMultiplier(region, 'textiles');
+  const rawTextileOutput = textileWorkers * TEXTILES_PER_WORKER * weekScale * skillMultiplier(region, 'textiles');
+  const silkPotential = Math.max(0, Number(region.specialResources?.silk) || 0);
+  const silkLaborShare = Math.min(0.45, silkPotential * 0.25);
+  const textilesMade = rawTextileOutput * (1 - silkLaborShare);
+  const silkMade = rawTextileOutput * silkLaborShare * 0.6;
   region.stockpile.textiles = (region.stockpile.textiles || 0) + textilesMade;
+  region.stockpile.silk = (region.stockpile.silk || 0) + silkMade;
   accumulateExperience(region, 'textiles', textileWorkers);
   remainingSurplus -= pitchWorkers + textileWorkers;
   const tailorAvailable = Math.max(0, Math.min(remainingSurplus * 0.05,
@@ -680,7 +685,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng, elapsedDays 
   accumulateExperience(region, 'textiles', tailors * 0.5);
   remainingSurplus -= tailors;
   report.materialCrafts = { workers: Math.round(pitchWorkers + textileWorkers + tailors),
-    pitch: pitchMade, textiles: textilesMade, clothes: clothesMade, tailors: Math.round(tailors) };
+    pitch: pitchMade, textiles: textilesMade, silk: silkMade, clothes: clothesMade, tailors: Math.round(tailors) };
 
   // --- Boat-making: needs a sea border, wood, and labor. Crew for navy
   // boats was already recruited above once boats existed to justify it;
@@ -938,7 +943,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng, elapsedDays 
   // background priority mining —
   // this is the "keep stockpiling in case it's useful" behavior from before.
   if (budgetLeft > 0.01) {
-    const backgroundResources = openResources.filter((key) => key === 'gold' || key === 'stone');
+    const backgroundResources = openResources.filter((key) => ['gold', 'stone', 'saltpetre', 'sulfur'].includes(key));
     const items = backgroundResources.map((key) => ({
       key,
       cap: activeTiers[key].maxWorkers - minerAllocation[key],

@@ -2,11 +2,11 @@ import { Clock } from './core/clock.js?v=20260904-weather1';
 import { createPerformanceProfiler } from './core/performanceProfiler.js?v=20260912-deep-profiler1';
 import { calendarWeekIndex } from './core/simTime.js?v=20260905-time2';
 import { EventBus } from './core/eventBus.js?v=20260904-weather1';
-import { loadWorld } from './world/region.js?v=20260905-infra1';
-import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260904-weather1';
+import { loadWorld } from './world/region.js?v=20260912-silkroad1';
+import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260912-silkroad1';
 import { seedCensus, densityPerKm2 } from './society/census.js?v=20260904-weather1';
-import { tickEconomy } from './economy/labor.js?v=20260905-projects1';
-import { tickTrade } from './economy/trade.js?v=20260912-currency2';
+import { tickEconomy } from './economy/labor.js?v=20260912-silkroad1';
+import { tickTrade } from './economy/trade.js?v=20260912-silkroad1';
 import { tickStateFinance } from './economy/stateFinance.js?v=20260912-currency2';
 import { tickDemographics } from './society/demographics.js?v=20260912-culture-scale1';
 import { tickDisease } from './society/disease.js?v=20260912-disease1';
@@ -602,6 +602,15 @@ function showRegionPicker(regions, onChosen) {
       'JOR': { continent: 'Asia', country: 'Transjordan' },
       'IRQ': { continent: 'Asia', country: 'Mesopotamia' },
       'IRN': { continent: 'Asia', country: 'Western Iran' },
+      'KAZ': { continent: 'Asia', country: 'Kazakh Steppe' },
+      'TKM': { continent: 'Asia', country: 'Turkmenistan' },
+      'UZB': { continent: 'Asia', country: 'Transoxiana' },
+      'KGZ': { continent: 'Asia', country: 'Tian Shan Valleys' },
+      'TJK': { continent: 'Asia', country: 'Pamir & Tajik Valleys' },
+      'AFG': { continent: 'Asia', country: 'Afghanistan' },
+      'PAK': { continent: 'Asia', country: 'Indus & Northwest' },
+      'CHN': { continent: 'Asia', country: 'China' },
+      'MNG': { continent: 'Asia', country: 'Mongolian Steppe' },
       'EGY': { continent: 'Africa', country: 'Egypt' },
       'LBY': { continent: 'Africa', country: 'Libya' },
       'TUN': { continent: 'Africa', country: 'Tunisia' },

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "purpose": "East Asian coastal waters needed by the Silk Road and China expansion.",
+  "coastalToleranceDegrees": 0.06,
+  "regions": [
+    {"id":"sea_bohai","name":"Bohai Sea","bbox":[117.0,37.0,122.0,41.2]},
+    {"id":"sea_yellow","name":"Yellow Sea","bbox":[119.0,31.5,126.5,39.5]},
+    {"id":"sea_gulf_tonkin","name":"Gulf of Tonkin","bbox":[105.0,17.0,111.5,22.5]},
+    {"id":"sea_east_china","name":"East China Sea","bbox":[118.0,23.0,130.0,33.5]},
+    {"id":"sea_south_china","name":"South China Sea","bbox":[105.0,14.0,121.5,24.0]}
+  ]
+}

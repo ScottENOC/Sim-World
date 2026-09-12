@@ -21,8 +21,8 @@ const FISH_START_COVERAGE = 0.7;  // pre-exploitation seas start well-stocked, n
 
 export async function loadSeaWorld() {
   const [geoRes, metaRes] = await Promise.all([
-    fetch('data/world/seaRegions.geo.json'),
-    fetch('data/world/seaRegions.meta.json'),
+    fetch('data/world/seaRegions.geo.json?v=20260912-silkroad1'),
+    fetch('data/world/seaRegions.meta.json?v=20260912-silkroad1'),
   ]);
   const geo = await geoRes.json();
   const meta = await metaRes.json();

@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "purpose": "Physical endowments for the Central Asian Silk Road, China and Mongolia expansion.",
+  "defaultsByISO": {
+    "KAZ":{"landQuality":0.62,"forestFraction":0.12,"forestStartCoverage":0.72,"deposits":{"stone":"major","ironOre":"major","copper":"major","gold":"minor","silver":"minor","salt":"major"},"specialResources":{"pastoralHorses":1.35}},
+    "TKM":{"landQuality":0.24,"forestFraction":0.025,"forestStartCoverage":0.68,"deposits":{"stone":"moderate","ironOre":"minor","salt":"major","sulfur":"moderate"},"specialResources":{"oasisTrade":1.2}},
+    "UZB":{"landQuality":0.72,"forestFraction":0.07,"forestStartCoverage":0.72,"deposits":{"stone":"moderate","copper":"moderate","gold":"moderate","silver":"minor","salt":"major","saltpetre":"moderate"},"specialResources":{"oasisTrade":1.4,"silk":0.35}},
+    "KGZ":{"landQuality":0.55,"forestFraction":0.22,"forestStartCoverage":0.78,"deposits":{"stone":"major","ironOre":"moderate","copper":"moderate","gold":"minor","salt":"minor"},"specialResources":{"pastoralHorses":1.4}},
+    "TJK":{"landQuality":0.46,"forestFraction":0.08,"forestStartCoverage":0.74,"deposits":{"stone":"very_major","ironOre":"minor","silver":"moderate","gold":"minor","salt":"minor","saltpetre":"minor"},"specialResources":{"oasisTrade":1.15}},
+    "AFG":{"landQuality":0.48,"forestFraction":0.12,"forestStartCoverage":0.76,"deposits":{"stone":"very_major","ironOre":"major","copper":"major","tin":"minor","gold":"minor","silver":"minor","salt":"moderate","sulfur":"minor"},"specialResources":{"mountainCorridor":1.25}},
+    "PAK":{"landQuality":0.92,"forestFraction":0.13,"forestStartCoverage":0.74,"deposits":{"stone":"major","ironOre":"moderate","copper":"moderate","gold":"minor","salt":"very_major","saltpetre":"moderate","sulfur":"minor"},"specialResources":{"indusAgriculture":1.35,"silk":0.2}},
+    "CHN":{"landQuality":1.08,"forestFraction":0.36,"forestStartCoverage":0.82,"deposits":{"stone":"major","fineStone":"moderate","ironOre":"very_major","copper":"major","tin":"major","gold":"moderate","silver":"moderate","lead":"major","salt":"major","saltpetre":"major","sulfur":"major"},"specialResources":{"silk":1.5,"porcelainClays":1.2}},
+    "MNG":{"landQuality":0.38,"forestFraction":0.11,"forestStartCoverage":0.78,"deposits":{"stone":"major","ironOre":"major","copper":"major","gold":"moderate","salt":"major"},"specialResources":{"pastoralHorses":1.6}}
+  }
+}
