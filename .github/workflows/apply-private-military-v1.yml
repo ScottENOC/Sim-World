@@ -14,94 +14,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Integrate private military actors
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          p=Path('js/politics/nonStateOrganisations.js')
-          s=p.read_text()
-          old="  MERCENARY_COMPANY: 'mercenary_company',"
-          assert old in s
-          s=s.replace(old, old+"\n  PRIVATE_MILITARY_COMPANY: 'private_military_company',",1)
-          p.write_text(s)
-
-          p=Path('js/military/campaigns.js')
-          s=p.read_text()
-          marker="import { firearmCombatProfile } from './firearms.js?v=20260912-gunpowder1';"
-          assert marker in s
-          s=s.replace(marker, marker+"\nimport { campaignExternalSupport, applyExternalCampaignLosses } from '../politics/privateMilitaryActors.js?v=20260912-pmc1';",1)
-          old="  let attackerPower = combatPower(attacker, campaign.personnel, toolTypes, 'attacker', campaign.supply,\n    campaign.attackerMorale, null, terrain) * (expedition?.combatMultiplier ?? 1) * attackerFirearms.multiplier;"
-          assert old in s
-          new="  const externalSupport = campaignExternalSupport(campaign, options.nonStateWorld);\n  const effectiveExternal = externalSupport.personnel * externalSupport.quality;\n  let attackerPower = combatPower(attacker, campaign.personnel + effectiveExternal, toolTypes, 'attacker', campaign.supply,\n    campaign.attackerMorale, null, terrain) * (expedition?.combatMultiplier ?? 1) * attackerFirearms.multiplier;"
-          s=s.replace(old,new,1)
-          old="  const attackerLosses = combatAttackerLosses + logisticsLosses;"
-          assert old in s
-          new=old+"\n  const externalLossRate = (combatAttackerLosses + logisticsLosses) / Math.max(1, campaign.personnel + externalSupport.personnel);\n  const externalLosses = applyExternalCampaignLosses(campaign, options.nonStateWorld, externalLossRate);"
-          s=s.replace(old,new,1)
-          old="    attackerLosses, logisticsLosses, defenderLosses, militiaLosses, civilianDeaths, attackerMorale: campaign.attackerMorale,"
-          assert old in s
-          s=s.replace(old,"    attackerLosses, externalLosses, externalPersonnel: externalSupport.personnel, logisticsLosses, defenderLosses, militiaLosses, civilianDeaths, attackerMorale: campaign.attackerMorale,",1)
-          p.write_text(s)
-
-          p=Path('js/main.js')
-          s=p.read_text()
-          marker="import { tickNonStateOrganisations } from './politics/nonStateOrganisations.js?v=20260912-organisations1';"
-          assert marker in s
-          s=s.replace(marker, marker+"\nimport { tickPrivateMilitaryActors } from './politics/privateMilitaryActors.js?v=20260912-pmc1';",1)
-          old="const campaignResult = profiler.measure('Campaigns', () => tickCampaigns(activeCampaigns, regionsById, polities, calendarWeek, toolTypes, Math.random, { playerPolityId: activePlayerPolityId, activeWars, fleets }));"
-          assert old in s
-          s=s.replace(old,"const campaignResult = profiler.measure('Campaigns', () => tickCampaigns(activeCampaigns, regionsById, polities, calendarWeek, toolTypes, Math.random, { playerPolityId: activePlayerPolityId, activeWars, fleets, nonStateWorld: religiousWorld }));",1)
-          old="const organisationEvents = profiler.measure('Non-state organisations', () => tickNonStateOrganisations(regions, polities, religiousWorld, calendarWeek, time.elapsedDays, Math.random, { agreements, activeRaids }));"
-          assert old in s
-          s=s.replace(old,old+"\n    const privateMilitaryEvents = profiler.measure('Private military actors', () => tickPrivateMilitaryActors(regions, polities, religiousWorld, activeCampaigns, calendarWeek, time.elapsedDays, Math.random));",1)
-          old="      ...organisationEvents.filter((event) => event.regionId === playerRegionId || event.organisation?.memberPolityIds?.has?.(activePlayerPolityId) || event.polityIds?.includes?.(activePlayerPolityId)),"
-          assert old in s
-          s=s.replace(old,old+"\n      ...privateMilitaryEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),",1)
-          p.write_text(s)
-
-          p=Path('js/ui/nonStateOrganisationsUi.js')
-          s=p.read_text()
-          s=s.replace("} from '../politics/nonStateInteractions.js?v=20260912-organisations2';", "} from '../politics/nonStateInteractions.js?v=20260912-organisations2';\nimport { assignMercenaryContractToCampaign, assignPmcMission, endPmcMission, privateMilitaryActions, revokePmcSponsorship } from '../politics/privateMilitaryActors.js?v=20260912-pmc1';",1)
-          s=s.replace("    interstate_league: 'Interstate league', supranational_union: 'Supranational union',", "    interstate_league: 'Interstate league', supranational_union: 'Supranational union', private_military_company: 'Private military company',",1)
-          old="  const rows = organisationActions(world.religiousWorld, polity.id, world.regions, world.polities)\n    .filter((row) => row.isHostSovereign || row.isMember || row.contract || row.canHire || row.canJoin || row.canRecognise);"
-          assert old in s
-          new="  const militaryRows = new Map(privateMilitaryActions(world.religiousWorld, polity.id, world.activeCampaigns || []).map((row) => [row.organisation.id, row]));\n  const rows = organisationActions(world.religiousWorld, polity.id, world.regions, world.polities)\n    .filter((row) => row.isHostSovereign || row.isMember || row.contract || row.canHire || row.canJoin || row.canRecognise || militaryRows.has(row.organisation.id));\n  for (const militaryRow of militaryRows.values()) if (!rows.some((row) => row.organisation.id === militaryRow.organisation.id)) rows.push({ organisation: militaryRow.organisation });"
-          s=s.replace(old,new,1)
-          old="    const org = row.organisation;"
-          assert old in s
-          s=s.replace(old,old+"\n    const military = militaryRows.get(org.id);",1)
-          old="    if (row.contract) addStatus(card, `You hire ${Math.round(row.contract.personnel).toLocaleString()} personnel for ${row.contract.monthlyCost.toFixed(1)} treasury/month.`);"
-          assert old in s
-          s=s.replace(old,old+"\n    if (org.type === 'private_military_company') addStatus(card, `Sponsor ${org.sponsorPolityId || 'none'} · equipment access ${Math.round((org.equipmentAccess || 0) * 100)}% · deniability ${Math.round((org.deniability || 0) * 100)}%.`);",1)
-          insert="""
-    if (military?.contract && military.assignableCampaigns?.length) {
-      for (const campaign of military.assignableCampaigns.slice(0, 3)) {
-        actions.appendChild(button(`Assign to campaign ${campaign.id}`, () => run(() => assignMercenaryContractToCampaign(world.religiousWorld, org.id, polity.id, campaign.id))));
-      }
-    }
-    if (military?.contract?.assignedCampaignId != null) actions.appendChild(button('Return mercenaries to reserve', () => run(() => assignMercenaryContractToCampaign(world.religiousWorld, org.id, polity.id, null))));
-    if (military?.isSponsor) {
-      for (const campaign of (world.activeCampaigns || []).filter((c) => !c.completed).slice(0, 2)) {
-        actions.appendChild(button(`PMC support campaign ${campaign.id}`, () => run(() => assignPmcMission(world.religiousWorld, org.id, polity.id, 'campaign_support', campaign.id, { currentTick: currentTick(world) }))));
-      }
-      actions.appendChild(button('PMC train capital forces', () => run(() => assignPmcMission(world.religiousWorld, org.id, polity.id, 'training', capital.id, { currentTick: currentTick(world) }))));
-      actions.appendChild(button('PMC guard capital resources', () => run(() => assignPmcMission(world.religiousWorld, org.id, polity.id, 'resource_security', capital.id, { currentTick: currentTick(world) }))));
-      actions.appendChild(button('End state sponsorship', () => run(() => revokePmcSponsorship(world.religiousWorld, org.id, polity.id))));
-    }
-    for (const mission of military?.activeMissions || []) actions.appendChild(button(`Recall: ${String(mission.type).replaceAll('_',' ')}`, () => run(() => endPmcMission(world.religiousWorld, org.id, mission.id))));
-"""
-          marker="    if (row.canHire) actions.appendChild(button('Hire company'"
-          idx=s.find(marker)
-          assert idx>=0
-          s=s[:idx]+insert+s[idx:]
-          p.write_text(s)
-
-          p=Path('index.html')
-          s=p.read_text()
-          s=s.replace('js/ui/nonStateOrganisationsUi.js?v=20260912-organisations2','js/ui/nonStateOrganisationsUi.js?v=20260912-pmc1')
-          p.write_text(s)
-          PY
+      - name: Integrate
+        run: python tools/apply-private-military-v1.py
       - name: Validate
         run: |
           node tools/test-private-military-actors.mjs
@@ -122,8 +36,8 @@ jobs:
           git add js index.html tools
           git commit -m 'Integrate mercenary contingents and sponsored PMCs' || true
           git push origin HEAD:mercenaries-pmcs-v1
-      - name: Remove temporary workflow
+      - name: Remove temporary workflow and applicator
         run: |
-          git rm .github/workflows/apply-private-military-v1.yml
-          git commit -m 'Remove temporary private military integration workflow'
+          git rm .github/workflows/apply-private-military-v1.yml tools/apply-private-military-v1.py
+          git commit -m 'Remove temporary private military integration helpers'
           git push origin HEAD:mercenaries-pmcs-v1
