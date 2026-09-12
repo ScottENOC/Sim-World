@@ -1,0 +1,51 @@
+name: Civil war factions v2 validation
+
+on:
+  push:
+    branches: [civil-war-factions-v2]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  integrate-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: civil-war-factions-v2
+          fetch-depth: 0
+      - name: Apply civil war factions integration
+        run: python tools/apply-civil-war-factions-v2.py
+      - name: Syntax checks
+        run: |
+          node --check js/politics/civilWarFactions.js
+          node --check js/politics/medievalStateSystems.js
+          node --check js/ai/nationAi.js
+          node --check js/main.js
+      - name: Civil war regressions
+        run: |
+          node tools/test-civil-war-factions-v2.mjs
+          node tools/test-medieval-systems-v2.mjs
+          node tools/test-succession-continuity-bridge.mjs
+          node tools/test-multi-party-war.mjs
+      - name: Existing military and UI regressions
+        run: |
+          node tools/test-medieval-politics.mjs
+          node tools/test-strategic-military-planning.mjs
+          node tools/test-ui-priority.mjs
+          node tools/test-world-spatial-skeleton.mjs
+      - name: Diff sanity
+        run: git diff --check
+      - name: Commit integrated implementation
+        run: |
+          if git diff --quiet; then
+            echo "No generated changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/politics/civilWarFactions.js js/politics/medievalStateSystems.js js/ai/nationAi.js js/main.js tools/test-civil-war-factions-v2.mjs
+          git commit -m "Implement civil war factions v2"
+          git push origin HEAD:civil-war-factions-v2
