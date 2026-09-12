@@ -28,15 +28,18 @@ jobs:
           python-version: '3.12'
       - name: Apply integration
         run: python tools/apply-medieval-disease.py
-      - name: Validate
+      - name: Syntax checks
         run: |
           node --check js/society/disease.js
           node --check js/ui/diseasePolicyUi.js
           node --check js/economy/trade.js
           node --check js/main.js
-          node tools/test-disease.mjs
-          node tools/test-ui-priority.mjs
-          git diff --check
+      - name: Disease regression tests
+        run: node tools/test-disease.mjs
+      - name: Existing UI regression
+        run: node tools/test-ui-priority.mjs
+      - name: Diff check
+        run: git diff --check
       - name: Commit integrated files
         run: |
           git config user.name github-actions[bot]
