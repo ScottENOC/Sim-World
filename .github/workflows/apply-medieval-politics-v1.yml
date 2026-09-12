@@ -1,7 +1,8 @@
 name: Apply medieval politics integration
 on:
   push:
-    branches: [medieval-politics-v1]
+    branches:
+      - medieval-politics-v1
 permissions:
   contents: write
 jobs:
@@ -14,124 +15,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Integrate medieval systems
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          p=Path('js/main.js')
-          s=p.read_text()
-          s=s.replace("import { availableVassalLevies, changeGovernanceForm, demandVassalage, governanceFormAvailability, governanceLabel, initialisePolities, musterVassalLevies, polityById, setDelegatedPower, setGovernancePolicy, sovereignPolity, tickPolities } from './politics/polities.js?v=20260912-currency2';",
-          "import { availableVassalLevies, changeGovernanceForm, demandVassalage, governanceFormAvailability, governanceLabel, initialisePolities, musterVassalLevies, polityById, setDelegatedPower, setGovernancePolicy, sovereignPolity, tickPolities } from './politics/polities.js?v=20260912-currency2';\nimport { tickMedievalInstitutions } from './politics/medievalInstitutions.js?v=20260912-medieval-politics1';")
-          s=s.replace("import { createReligiousWorld, initialiseReligions, tickReligion } from './society/religion.js?v=20260905-religion1';",
-          "import { createReligiousWorld, initialiseReligions, tickReligion } from './society/religion.js?v=20260905-religion1';\nimport { tickReligiousInstitutions } from './society/religiousInstitutions.js?v=20260912-medieval-politics1';")
-          old="const religionEvents = profiler.measure('Religion', () => tickReligion(regions, religiousWorld, calendarWeek, activeRaids, activeCampaigns, Math.random, time.elapsedDays));"
-          new=old+"\n    const religiousInstitutionEvents = profiler.measure('Religious institutions', () => tickReligiousInstitutions(regions, religiousWorld, polities, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));"
-          assert old in s
-          s=s.replace(old,new)
-          old="const continuityEvents = profiler.measure('Political continuity', () => tickPoliticalContinuity(polities, regions, time.elapsedDays / 365.2425, calendarWeek, { playerPolityId: activePlayerPolityId }));"
-          new=old+"\n    const medievalPoliticalEvents = profiler.measure('Medieval politics', () => tickMedievalInstitutions(polities, regions, calendarWeek, time.elapsedDays, { playerPolityId: activePlayerPolityId }));"
-          assert old in s
-          s=s.replace(old,new)
-          old="      ...religionEvents.filter((event) => event.regionId === playerRegionId),"
-          new=old+"\n      ...religiousInstitutionEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),"
-          assert old in s
-          s=s.replace(old,new)
-          old="      ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),"
-          new=old+"\n      ...medievalPoliticalEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId || event.rebelPolityId === activePlayerPolityId),"
-          assert old in s
-          s=s.replace(old,new)
-          marker="  if (event.type === 'diplomatic_message_intercepted') {"
-          handlers=r'''  if (event.type === 'religious_seat_offer') {
-    document.getElementById('event-title').textContent = `${event.religionName} requests an autonomous sacred seat`;
-    document.getElementById('event-body').textContent = `The organised religious authority asks for a protected enclave inside ${event.regionName}. You would surrender a small part of the local tax base and direct territorial control, but hosting the seat can greatly increase religious legitimacy, pilgrimage income and influence over believers in other states.`;
-    const options = document.getElementById('event-options');
-    if (event.resolveDecision) {
-      options.innerHTML = '<button id="btn-seat-grant">Grant the autonomous seat</button><button id="btn-seat-refuse">Keep direct control</button>';
-      const finish = (choice) => {
-        const result = event.resolveDecision(choice);
-        document.getElementById('event-body').textContent = result?.established ? 'The sacred seat is established as an autonomous enclave inside the region. Its religious authority is now politically distinct from your government.' : 'You refuse to surrender territory. The religious hierarchy remains organised, but without an autonomous seat here.';
-        options.innerHTML = '<button id="btn-event-continue">Continue</button>';
-        document.getElementById('btn-event-continue').addEventListener('click', () => { document.getElementById('event-modal').classList.add('hidden'); if (eventQueue.length) showNextEvent(clock,eventQueue); else clock.releaseAutoPause(); });
-      };
-      document.getElementById('btn-seat-grant').addEventListener('click', () => finish('grant'));
-      document.getElementById('btn-seat-refuse').addEventListener('click', () => finish('refuse'));
-      document.getElementById('event-modal').classList.remove('hidden');
-      return;
-    }
-    wireEventContinue(clock,eventQueue); return;
-  }
-  if (event.type === 'religious_schism') {
-    document.getElementById('event-title').textContent = 'Organised religious schism';
-    document.getElementById('event-body').textContent = `${event.regionName} has become the centre of a durable institutional split. The new communion belongs to the same religious family but now has its own hierarchy and political patrons. This can sharpen regional identity and destabilise states that span both institutions.`;
-    wireEventContinue(clock,eventQueue); return;
-  }
-  if (event.type === 'medieval_autonomy_demand') {
-    document.getElementById('event-title').textContent = `${event.regionName} demands greater autonomy`;
-    document.getElementById('event-body').textContent = `Local elites now command their own garrison, fiscal machinery and political networks. They ask for greater control over taxation and defence. Granting autonomy reduces immediate secession pressure but further entrenches local power.`;
-    const options = document.getElementById('event-options');
-    if (event.resolveDecision) {
-      options.innerHTML = '<button id="btn-autonomy-grant">Grant autonomy</button><button id="btn-autonomy-refuse">Refuse the demand</button>';
-      const finish = (choice) => {
-        const result = event.resolveDecision(choice);
-        document.getElementById('event-body').textContent = result?.granted ? 'The province receives greater autonomy, lower tribute and control over its own military and tax administration.' : 'The demand is refused. Local grievance and independence pressure rise.';
-        options.innerHTML = '<button id="btn-event-continue">Continue</button>';
-        document.getElementById('btn-event-continue').addEventListener('click', () => { document.getElementById('event-modal').classList.add('hidden'); if (eventQueue.length) showNextEvent(clock,eventQueue); else clock.releaseAutoPause(); });
-      };
-      document.getElementById('btn-autonomy-grant').addEventListener('click', () => finish('grant'));
-      document.getElementById('btn-autonomy-refuse').addEventListener('click', () => finish('refuse'));
-      document.getElementById('event-modal').classList.remove('hidden');
-      return;
-    }
-    wireEventContinue(clock,eventQueue); return;
-  }
-  if (event.type === 'medieval_civil_war') {
-    document.getElementById('event-title').textContent = `Civil war: ${event.regionName} breaks away`;
-    document.getElementById('event-body').textContent = `A local government with its own garrison, stronghold and tax apparatus has stopped recognising the former sovereign. This is not a spontaneous rebel stack: institutions built during years of local self-defence have become an independent government.`;
-    wireEventContinue(clock,eventQueue); return;
-  }
-'''
-          assert marker in s
-          s=s.replace(marker, handlers+marker, 1)
-          p.write_text(s)
-          PY
-      - name: Add focused regression
-        run: |
-          cat > tools/test-medieval-politics.mjs <<'EOF'
-          import assert from 'node:assert/strict';
-          import { ensureMedievalPoliticalState, medievalPoliticalAssessment, grantMedievalAutonomy, declareMedievalSecession } from '../js/politics/medievalInstitutions.js';
-          import { establishAutonomousReligiousSeat, religiousInstitutionScore, religiousSchismPressure, createInstitutionalSchism } from '../js/society/religiousInstitutions.js';
-
-          function region(id, polityId, localPolityId, culture, religion, pop=20000) {
-            return { id, name:id, population:pop, stability:0.65, centroid:[0,0], polityId:localPolityId,
-              governance:{ sovereignPolityId:polityId, localPolityId, relationship: polityId===localPolityId?'core':'vassal', autonomy:polityId===localPolityId?0:0.8, administrativeControl:polityId===localPolityId?1:0.15, tributeRate:0.12, militaryObligation:0.4, delegatedPowers:{collectTaxes:true,commandArmy:true,appointOfficials:true,judgeDisputes:true}},
-              cultureGroups:[{id:culture,population:pop}], religion:{shares:{[religion]:1},stateReligionId:religion,tolerance:0.6,unrest:0,conflictHistory:{}},
-              army:{personnel:300,away:0}, militaryThreat:{recentRaids:3}, banditPopulation:100, tradeEconomy:{weeklyExports:150,weeklyImports:120},
-              treasury:100, militaryFinance:{weeklyTaxRevenue:20}, urbanisation:{urbanPopulation:5000}, construction:{assets:[]}, settlements:{principalId:null,places:[]},
-            };
-          }
-          const capital=region('capital','empire','empire','culture_a','faith',50000); capital.army.personnel=800;
-          const subject=region('frontier','empire','frontier_polity','culture_b','faith_alt',25000); subject.centroid=[10,0];
-          const empire={id:'empire',capitalRegionId:'capital',administration:{legitimacy:0.35,communications:0.15}};
-          const local={id:'frontier_polity',capitalRegionId:'frontier',subjectToPolityId:'empire',administration:{legitimacy:0.3}};
-          const state=ensureMedievalPoliticalState(subject); state.localDefence=.7; state.eliteOrganisation=.65; state.localFiscalCapacity=.7; state.yearsUnderOwnDefence=30;
-          const assessment=medievalPoliticalAssessment(subject,capital,empire);
-          assert(assessment.independencePressure>0.15,'neglected divergent province should have meaningful independence pressure');
-          const oldAutonomy=subject.governance.autonomy; assert(grantMedievalAutonomy(subject)); assert(subject.governance.autonomy>oldAutonomy); assert(subject.governance.tributeRate<.12);
-          const secession=declareMedievalSecession(subject,[empire,local],[capital,subject],1000); assert(secession); assert.equal(subject.governance.sovereignPolityId,'frontier_polity'); assert.equal(local.subjectToPolityId,null);
-
-          const seat=region('seat','host','host','culture_a','faith',60000); seat.religion.shares={faith:1}; seat.religion.stateReligionId='faith';
-          const foreign=region('foreign','foreign','foreign','culture_b','faith',50000); foreign.religion.shares={faith:.8,other:.2};
-          const religion={id:'faith',name:'Universal Communion',familyId:'faith',parentId:null,holyCityRegionId:'seat',adminCentreRegionId:'seat',authority:.65,leader:{name:'High Keeper',opinionOfRegions:{},influence:{},currentDirectiveId:null},active:true,spreadMode:'organised'};
-          const world={religions:[religion],directives:[],grievances:{},nextReligionId:2,nextDirectiveId:1,observedConflicts:new Set()};
-          const host={id:'host',capitalRegionId:'seat',administration:{legitimacy:.5}}; const foreignPolity={id:'foreign',capitalRegionId:'foreign',administration:{legitimacy:.5}};
-          assert(religiousInstitutionScore(religion,[seat,foreign])>0.4);
-          const authority=establishAutonomousReligiousSeat(religion,seat,world,[host,foreignPolity],100); assert(authority); assert(world.authorities.length===1);
-          assert(seat.subregionalControl.places.some(p=>p.kind==='religious_capital' && p.controllerActorId===authority.id),'religious seat should be a subregional autonomous enclave');
-          assert(host.administration.legitimacy>.5,'hosting sacred seat should provide legitimacy');
-          const schismPressure=religiousSchismPressure(religion,[seat,foreign],[host,foreignPolity]); assert(schismPressure.candidateRegionId==='foreign');
-          const child=createInstitutionalSchism(religion,foreign,world,800); assert(child && child.parentId==='faith'); assert(foreign.religion.shares[child.id]>0);
-          console.log('medieval politics regression passed');
-          EOF
+      - name: Apply integration
+        run: python tools/apply-medieval-politics-v1.py
       - name: Validate
         run: |
           node --check js/politics/medievalInstitutions.js
@@ -141,12 +26,12 @@ jobs:
           node tools/test-ui-priority.mjs
           node tools/test-world-spatial-skeleton.mjs
           git diff --check
-      - name: Commit integration and remove temporary workflow
+      - name: Commit integration
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add js/main.js tools/test-medieval-politics.mjs
+          git add js/main.js tools/test-medieval-politics.mjs js/politics/medievalInstitutions.js js/society/religiousInstitutions.js
           git commit -m 'Integrate medieval religious and political institutions' || true
-          git rm .github/workflows/apply-medieval-politics-v1.yml
+          git rm tools/apply-medieval-politics-v1.py .github/workflows/apply-medieval-politics-v1.yml
           git commit -m 'Remove temporary medieval integration workflow'
           git push origin HEAD:medieval-politics-v1
