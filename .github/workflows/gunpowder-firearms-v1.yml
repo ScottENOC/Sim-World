@@ -1,0 +1,68 @@
+name: Gunpowder and firearms validation
+
+on:
+  push:
+    branches: [gunpowder-firearms-v1]
+    paths:
+      - '.github/workflows/gunpowder-firearms-v1.yml'
+      - 'js/military/firearms.js'
+      - 'tools/apply-gunpowder-firearms.py'
+      - 'tools/test-gunpowder-firearms.mjs'
+  pull_request:
+    paths:
+      - 'js/military/firearms.js'
+      - 'js/technology/breakthroughs.js'
+      - 'js/military/campaigns.js'
+      - 'js/military/raiding.js'
+      - 'js/economy/tradeGoods.js'
+      - 'js/economy/prices.js'
+      - 'js/economy/trade.js'
+      - 'js/main.js'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply integration on feature branch
+        if: github.event_name == 'push'
+        run: python tools/apply-gunpowder-firearms.py
+      - name: Validate
+        run: |
+          python -m py_compile tools/apply-gunpowder-firearms.py
+          node --check js/military/firearms.js
+          node --check js/technology/breakthroughs.js
+          node --check js/military/campaigns.js
+          node --check js/military/raiding.js
+          node --check js/economy/tradeGoods.js
+          node --check js/economy/prices.js
+          node --check js/economy/trade.js
+          node --check js/main.js
+          node tools/test-gunpowder-firearms.mjs
+          node tools/test-ui-priority.mjs
+          node tools/test-world-spatial-skeleton.mjs
+          git diff --check
+      - name: Commit integration
+        if: github.event_name == 'push'
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/technology/breakthroughs.js js/military/campaigns.js js/military/raiding.js js/economy/tradeGoods.js js/economy/prices.js js/economy/trade.js js/main.js
+          if git diff --cached --quiet; then
+            echo 'Gunpowder integration already current'
+          else
+            git commit -m 'Integrate gunpowder breakthrough and firearm warfare'
+            git pull --rebase
+            git push
+          fi
