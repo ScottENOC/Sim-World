@@ -4,7 +4,7 @@ import { attitudeToward, changeAttitude } from '../diplomacy/relations.js?v=2026
 import { learnAbout } from '../core/knowledge.js?v=20260904-kingdom1';
 import { monumentalPrestige } from '../economy/construction.js?v=20260906-prestige1';
 import { languagePolicyAdministrativeEffects } from './languagePolicy.js?v=20260909-language-policy1';
-import { ensureCurrencyInstitution, tickCurrencyInstitution } from '../economy/currency.js?v=20260912-currency2';
+import { ensureCurrencyInstitution, tickCurrencyInstitution } from '../economy/currency.js?v=20260912-currency3';
 
 const EXPERIENCE_SCALE = {
   recordKeeping: 1200,

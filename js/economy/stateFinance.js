@@ -1,5 +1,5 @@
 import { effectiveInfrastructureCount, operationalInfrastructure } from './construction.js?v=20260907-classical1';
-import { currencyFiscalModifiers } from './currency.js?v=20260912-currency2';
+import { currencyFiscalModifiers } from './currency.js?v=20260912-currency3';
 
 // State finance connects the commercial collapse to military failure. Taxes
 // are transfers from populace wealth, not newly-created money; wages and

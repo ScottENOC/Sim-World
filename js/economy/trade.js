@@ -11,7 +11,7 @@ import { navalMissionProfile, postureProfile } from '../military/policies.js?v=2
 import { maritimeSkillMultiplier, MARITIME_SKILLS } from '../technology/seamanship.js?v=20260906-maritime1';
 import { maritimeRouteBetween } from '../world/chokepoints.js?v=20260907-chokepoints1';
 import { collectTransitTolls, estimateTransitToll } from './transitTolls.js?v=20260907-transit1';
-import { currencyTradeFriction, recordCurrencyContact } from './currency.js?v=20260912-currency2';
+import { currencyTradeFriction, recordCurrencyContact } from './currency.js?v=20260912-currency3';
 
 const LAND_ADJACENT_COST = 0.02;
 const SEA_COST_PER_KM = 0.0002;
