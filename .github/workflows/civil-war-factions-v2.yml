@@ -16,17 +16,35 @@ jobs:
         with:
           ref: civil-war-factions-v2
           fetch-depth: 0
-      - name: Fix defection regression cadence
+      - name: Fix focused regression fixtures
         run: |
           python - <<'PY'
           from pathlib import Path
           p = Path('tools/apply-civil-war-factions-v2.py')
           text = p.read_text()
-          old = "let events = tickCivilWarFactionPolitics(parent, polities, regions, 20, 120, () => 0);\nassert.equal(parent.succession.crisis.factionPolitics.contestedRegionIds.length, 3, 'civil war should retain the whole contested realm');\nassert(events.some((event) => event.type === 'civil_war_defection'), 'regional elites should be able to defect between claimant factions');"
-          new = "let events = tickCivilWarFactionPolitics(parent, polities, regions, 20, 120, () => 0);\nassert.equal(parent.succession.crisis.factionPolitics.contestedRegionIds.length, 3, 'civil war should retain the whole contested realm');\nevents = tickCivilWarFactionPolitics(parent, polities, regions, 40, 120, () => 0);\nassert(events.some((event) => event.type === 'civil_war_defection'), 'regional elites should be able to defect between claimant factions');"
-          if old not in text:
-              raise SystemExit('defection regression anchor not found')
-          p.write_text(text.replace(old, new, 1))
+          replacements = [
+            (
+              "let events = tickCivilWarFactionPolitics(parent, polities, regions, 20, 120, () => 0);\nassert.equal(parent.succession.crisis.factionPolitics.contestedRegionIds.length, 3, 'civil war should retain the whole contested realm');\nassert(events.some((event) => event.type === 'civil_war_defection'), 'regional elites should be able to defect between claimant factions');",
+              "let events = tickCivilWarFactionPolitics(parent, polities, regions, 20, 120, () => 0);\nassert.equal(parent.succession.crisis.factionPolitics.contestedRegionIds.length, 3, 'civil war should retain the whole contested realm');\nevents = tickCivilWarFactionPolitics(parent, polities, regions, 40, 120, () => 0);\nassert(events.some((event) => event.type === 'civil_war_defection'), 'regional elites should be able to defect between claimant factions');"
+            ),
+            (
+              "import { tickCivilWarFactionPolitics, maybeLaunchCivilWarCampaign } from '../js/politics/civilWarFactions.js';",
+              "import { tickCivilWarFactionPolitics, maybeLaunchCivilWarCampaign } from '../js/politics/civilWarFactions.js';\nimport { KnowledgeLedger } from '../js/core/knowledge.js';"
+            ),
+            (
+              "militaryPolicy: {}, recentTradePartners: new Map(), knowledge: new Map(),",
+              "militaryPolicy: {}, recentTradePartners: new Map(), knowledge: new KnowledgeLedger(id),"
+            ),
+            (
+              "r2.knowledge.set('r1', { level: 1 }); r1.knowledge.set('r2', { level: 1 });\nr2.knowledge.set('r0', { level: 1 }); r0.knowledge.set('r2', { level: 1 });",
+              "r2.knowledge.directContactIds.add('r1'); r1.knowledge.directContactIds.add('r2');\nr2.knowledge.directContactIds.add('r0'); r0.knowledge.directContactIds.add('r2');"
+            ),
+          ]
+          for old, new in replacements:
+              if old not in text:
+                  raise SystemExit(f'regression fixture anchor not found: {old[:70]}')
+              text = text.replace(old, new, 1)
+          p.write_text(text)
           PY
       - name: Apply civil war factions integration
         run: python tools/apply-civil-war-factions-v2.py
