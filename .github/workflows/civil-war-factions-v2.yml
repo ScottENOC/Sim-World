@@ -71,11 +71,15 @@ jobs:
           if old not in text:
               raise SystemExit('stale protected-variable syntax anchor not found')
           text = text.replace(old, new, 1)
-          text = text.replace("followerShareInPolity(religion.id,protected.id,regions)", "followerShareInPolity(religion.id,protectedPolity.id,regions)", 1)
-          text = text.replace("ensurePolityReligiousPolitics(protected)", "ensurePolityReligiousPolitics(protectedPolity)", 1)
-          text = text.replace("protected.administration.legitimacy", "protectedPolity.administration.legitimacy", 1)
-          text = text.replace("protectedPolityId:protected.id", "protectedPolityId:protectedPolity.id", 1)
-          text = text.replace("polityId:protected.id", "polityId:protectedPolity.id", 1)
+          for old_ref, new_ref in [
+              ("followerShareInPolity(religion.id,protected.id,regions)", "followerShareInPolity(religion.id,protectedPolity.id,regions)"),
+              ("ensurePolityReligiousPolitics(protected)", "ensurePolityReligiousPolitics(protectedPolity)"),
+              ("protected.administration.legitimacy", "protectedPolity.administration.legitimacy"),
+              ("(protected.administration.legitimacy || 0)", "(protectedPolity.administration.legitimacy || 0)"),
+              ("protectedPolityId:protected.id", "protectedPolityId:protectedPolity.id"),
+              ("polityId:protected.id", "polityId:protectedPolity.id"),
+          ]:
+              text = text.replace(old_ref, new_ref)
           p.write_text(text)
           PY
       - name: Syntax checks
