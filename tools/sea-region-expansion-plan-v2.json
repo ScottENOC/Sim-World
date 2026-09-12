@@ -1,6 +1,6 @@
 {
-  "version": 2,
-  "purpose": "Additional water regions needed when Europe, northwest Africa and the modern Middle East are completed. Existing sea regions are preserved except where an explicitly distinct sea is carved from an older coarse polygon.",
+  "version": 3,
+  "purpose": "Additional water regions needed for the expanded Europe, Middle East, North Atlantic and East Asian map. Existing sea regions are preserved except where an explicitly distinct sea is carved from an older coarse polygon.",
   "coastalToleranceDegrees": 0.06,
   "regions": [
     {"id":"sea_baltic","name":"Baltic Sea","bbox":[9.0,53.0,24.0,61.5]},
@@ -17,6 +17,11 @@
     {"id":"sea_faroe_shetland","name":"Faroe-Shetland Channel","bbox":[-7.5,58.0,1.5,63.5]},
     {"id":"sea_icelandic","name":"Icelandic Waters","bbox":[-25.5,62.3,-12.0,67.8]},
     {"id":"sea_barents","name":"Barents Sea","bbox":[15.0,66.0,61.0,80.0]},
-    {"id":"sea_white","name":"White Sea","bbox":[32.0,63.0,44.5,69.5]}
+    {"id":"sea_white","name":"White Sea","bbox":[32.0,63.0,44.5,69.5]},
+    {"id":"sea_bohai","name":"Bohai Sea","bbox":[117.0,37.0,122.0,41.2]},
+    {"id":"sea_yellow","name":"Yellow Sea","bbox":[119.0,31.5,126.5,39.5]},
+    {"id":"sea_east_china","name":"East China Sea","bbox":[118.0,23.0,130.0,33.5]},
+    {"id":"sea_south_china","name":"South China Sea","bbox":[105.0,14.0,121.5,24.0]},
+    {"id":"sea_gulf_tonkin","name":"Gulf of Tonkin","bbox":[105.0,17.0,111.5,22.5]}
   ]
 }
