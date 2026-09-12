@@ -1,0 +1,105 @@
+name: Build Silk Road and China map
+
+on:
+  push:
+    branches: [silk-road-china-v2]
+    paths:
+      - '.github/workflows/build-silk-road-china.yml'
+      - 'tools/build-silk-road-expansion.py'
+      - 'tools/build-silk-road-seas.py'
+      - 'tools/map-region-plan-silk-road.json'
+      - 'tools/map-resource-plan-silk-road.json'
+      - 'tools/sea-region-plan-silk-road.json'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install map dependencies
+        run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2 pyshp==2.3.1
+      - name: Validate plans and scripts
+        run: |
+          python -m py_compile tools/build-silk-road-expansion.py tools/build-silk-road-seas.py tools/build-sea-expansion-v2.py tools/build-terrain.py
+          python -m json.tool tools/map-region-plan-silk-road.json >/dev/null
+          python -m json.tool tools/map-resource-plan-silk-road.json >/dev/null
+          python -m json.tool tools/sea-region-plan-silk-road.json >/dev/null
+      - name: Build Silk Road land
+        run: |
+          rm -rf /tmp/simworld-silk-road /tmp/simworld-silk-seas
+          time python tools/build-silk-road-expansion.py --output-dir /tmp/simworld-silk-road | tee /tmp/silk-land.log
+          cp /tmp/simworld-silk-road/regions.geo.json data/world/regions.geo.json
+          cp /tmp/simworld-silk-road/regions.meta.json data/world/regions.meta.json
+          cp /tmp/simworld-silk-road/resources.initial.json data/world/resources.initial.json
+      - name: Build East Asian seas
+        run: |
+          time python tools/build-silk-road-seas.py --land-geo data/world/regions.geo.json --output-dir /tmp/simworld-silk-seas | tee /tmp/silk-sea.log
+          cp /tmp/simworld-silk-seas/seaRegions.geo.json data/world/seaRegions.geo.json
+          cp /tmp/simworld-silk-seas/seaRegions.meta.json data/world/seaRegions.meta.json
+      - name: Rebuild terrain and spatial geography
+        run: |
+          python tools/build-terrain.py --geo data/world/regions.geo.json --resources data/world/resources.initial.json --output data/world/terrain.initial.json
+          node tools/generate-world-spatial-base.mjs
+      - name: Sanity check expanded world
+        run: |
+          python - <<'PY'
+          import json
+          geo=json.load(open('data/world/regions.geo.json'))
+          meta=json.load(open('data/world/regions.meta.json'))['regions']
+          res=json.load(open('data/world/resources.initial.json'))
+          terrain=json.load(open('data/world/terrain.initial.json'))
+          seas=json.load(open('data/world/seaRegions.meta.json'))['seaRegions']
+          ids=[f['properties']['id'] for f in geo['features']]
+          assert len(ids)==720, f'expected 720 land regions, got {len(ids)}'
+          assert len(ids)==len(set(ids)), 'duplicate land ids'
+          assert set(ids)=={m['id'] for m in meta}==set(res)==set(terrain), 'land/meta/resource/terrain mismatch'
+          by_id={m['id']:m for m in meta}
+          for m in meta:
+              for n in m.get('neighbors',[]):
+                  assert n in by_id, f'dead neighbour {n} from {m["name"]}'
+                  assert m['id'] in by_id[n].get('neighbors',[]), f'non-reciprocal {m["name"]} -> {by_id[n]["name"]}'
+          expected={'KAZ':12,'TKM':5,'UZB':7,'KGZ':4,'TJK':4,'AFG':8,'PAK':10,'CHN':36,'MNG':8}
+          groups={}
+          for f in geo['features']:
+              g=f.get('properties',{}).get('sourceGroup')
+              if g in expected: groups[g]=groups.get(g,0)+1
+          assert groups==expected, f'unexpected eastern counts {groups}'
+          sea_by={s['id']:s for s in seas}
+          for sid in ('sea_bohai','sea_yellow','sea_gulf_tonkin','sea_east_china','sea_south_china'):
+              assert sid in sea_by, f'missing {sid}'
+              assert sea_by[sid].get('adjacentLand'), f'{sid} has no simulated coast'
+          for iso in expected:
+              sample=next(r for f,r in ((f,res[f['properties']['id']]) for f in geo['features']) if f.get('properties',{}).get('sourceGroup')==iso)
+              assert 'specialResources' in sample, f'{iso} special resources missing'
+          assert any('saltpetre' in r.get('deposits',{}) for r in res.values()), 'saltpetre missing'
+          assert any('sulfur' in r.get('deposits',{}) for r in res.values()), 'sulfur missing'
+          print('LAND_REGIONS='+str(len(ids)))
+          print('EASTERN_COUNTS='+json.dumps(groups,sort_keys=True))
+          print('SEA_REGIONS='+str(len(seas)))
+          PY
+          grep -q 'ISOLATED_NEW_REGIONS=0' /tmp/silk-land.log
+          git diff --check
+      - name: Commit generated world
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add data/world/regions.geo.json data/world/regions.meta.json data/world/resources.initial.json data/world/terrain.initial.json data/world/seaRegions.geo.json data/world/seaRegions.meta.json data/world/spatial.base.json
+          if git diff --cached --quiet; then
+            echo 'Generated eastern map already current'
+          else
+            git commit -m 'Generate Silk Road and China world geography'
+            git pull --rebase
+            git push
+          fi
