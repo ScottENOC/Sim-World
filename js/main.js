@@ -31,6 +31,7 @@ import { startScoutingMission, tickScouting } from './core/scouting.js?v=2026090
 import { attitudeLabel, attitudeToward, canDiplomaticallyReach, endAgreement, proposeAgreement, syncNextAgreementId, tickDiplomacy } from './diplomacy/relations.js?v=20260912-migration-diplomacy1';
 import { availableVassalLevies, changeGovernanceForm, demandVassalage, governanceFormAvailability, governanceLabel, initialisePolities, musterVassalLevies, polityById, setDelegatedPower, setGovernancePolicy, sovereignPolity, tickPolities } from './politics/polities.js?v=20260912-currency2';
 import { tickMedievalInstitutions } from './politics/medievalInstitutions.js?v=20260912-medieval-politics1';
+import { tickNonStateOrganisations } from './politics/nonStateOrganisations.js?v=20260912-organisations1';
 import { SETTLEMENT_TYPES, acceptSettlementOffer, createConquestSettlementOffer, grantRegionalAutonomy, initialisePoliticalContinuity, lobbyForRestoration, plausibleGovernedRegions, rejectSettlementOffer, restorationBacking, resolveNpcSettlement, tickPoliticalContinuity, transferRegion } from './politics/continuity.js?v=20260907-continuity1';
 import { createGameSnapshot, readSave, restoreGameSnapshot, saveSummary, writeSave } from './core/saveGame.js?v=20260904-war1';
 import { syncNextCampaignId, tickCampaigns } from './military/campaigns.js?v=20260912-medieval1';
@@ -363,6 +364,7 @@ async function main() {
     const polityEvents = profiler.measure('Polities', () => tickPolities(polities, regions, calendarWeek, time.elapsedDays));
     const continuityEvents = profiler.measure('Political continuity', () => tickPoliticalContinuity(polities, regions, time.elapsedDays / 365.2425, calendarWeek, { playerPolityId: activePlayerPolityId }));
     const medievalPoliticalEvents = profiler.measure('Medieval politics', () => tickMedievalInstitutions(polities, regions, calendarWeek, time.elapsedDays, { playerPolityId: activePlayerPolityId }));
+    const organisationEvents = profiler.measure('Non-state organisations', () => tickNonStateOrganisations(regions, polities, religiousWorld, calendarWeek, time.elapsedDays, Math.random, { agreements, activeRaids }));
     profiler.measure('Banditry', () => tickBanditry(regions, toolTypes, agreements, time.elapsedDays));
     profiler.measure('Nation AI', () => tickNationAi(regions, playerRegionId, activeRaids, activeCampaigns, agreements, polities,
       religiousWorld, calendarWeek, toolTypes, Math.random, time.elapsedDays, { fleets, seaRegions }));
@@ -443,6 +445,7 @@ async function main() {
       ...polityEvents.filter((event) => event.regionId === playerRegionId),
       ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),
       ...medievalPoliticalEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId || event.rebelPolityId === activePlayerPolityId),
+      ...organisationEvents.filter((event) => event.regionId === playerRegionId || event.organisation?.memberPolityIds?.has?.(activePlayerPolityId) || event.polityIds?.includes?.(activePlayerPolityId)),
       ...fleetResult.events.filter((event) => fleetEventInvolvesActor(event, activePlayerPolityId, fleets)),
       ...campaignResult.events.filter((event) => {
         if (event.type === 'settlement_required') return event.attackerPolityId === activePlayerPolityId || event.defenderPolityId === activePlayerPolityId;
@@ -1503,6 +1506,18 @@ function showNextEvent(clock, eventQueue) {
       if (eventQueue.length) showNextEvent(clock, eventQueue); else clock.releaseAutoPause();
     }));
     return;
+  }
+  if (event.type === 'organisation_founded') {
+    const organisation = event.organisation;
+    document.getElementById('event-title').textContent = `${organisation?.name || 'A new organisation'} emerges`;
+    const labels = { free_city: 'an autonomous commercial city', pirate_haven: 'a pirate haven', mercenary_company: 'a mercenary company', merchant_league: 'a merchant league', chartered_company: 'a chartered territorial company', interstate_league: 'an interstate league' };
+    document.getElementById('event-body').textContent = `${organisation?.name || 'A new organisation'} has emerged as ${labels[organisation?.type] || organisation?.type || 'a political organisation'}. It is not automatically a sovereign country: its power comes from its treasury, members, armed capacity, legal privileges and any places it controls.`;
+    wireEventContinue(clock,eventQueue); return;
+  }
+  if (event.type === 'organisation_evolved') {
+    document.getElementById('event-title').textContent = 'States pool sovereignty';
+    document.getElementById('event-body').textContent = `${event.organisation?.name || 'An interstate organisation'} has developed enough common authority to become a supranational union. Member states still exist, but some sovereignty is now exercised collectively.`;
+    wireEventContinue(clock,eventQueue); return;
   }
   if (event.type === 'religious_seat_offer') {
     document.getElementById('event-title').textContent = `${event.religionName} requests an autonomous sacred seat`;
