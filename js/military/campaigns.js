@@ -22,6 +22,7 @@ import { desperateAttackProfile } from './supplyAwareAi.js?v=20260908-supply-ai1
 import { resolveSubregionalArmyBattles } from './subregionalArmyBattles.js?v=20260909-nodebattle1';
 import { counterLogisticsCombatProfile } from './counterLogisticsAi.js?v=20260909-counter-logistics1';
 import { firearmCombatProfile } from './firearms.js?v=20260912-gunpowder1';
+import { campaignExternalSupport, applyExternalCampaignLosses } from '../politics/privateMilitaryActors.js?v=20260912-pmc1';
 
 export const CAMPAIGN_OBJECTIVES = Object.freeze({
   devastation: { label: 'Destroy the region', pressureRate: 0.8, damageRate: 1.8 },
@@ -230,7 +231,9 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   const defenderFirearms = firearmCombatProfile(defender, attacker, defender.army.personnel, {
     consumeSupplies: true, elapsedDays: 7, logisticsSupply: 1,
   });
-  let attackerPower = combatPower(attacker, campaign.personnel, toolTypes, 'attacker', campaign.supply,
+  const externalSupport = campaignExternalSupport(campaign, options.nonStateWorld);
+  const effectiveExternal = externalSupport.personnel * externalSupport.quality;
+  let attackerPower = combatPower(attacker, campaign.personnel + effectiveExternal, toolTypes, 'attacker', campaign.supply,
     campaign.attackerMorale, null, terrain) * (expedition?.combatMultiplier ?? 1) * attackerFirearms.multiplier;
   const defenderArmyPower = combatPower(defender, defender.army.personnel, toolTypes, 'defender', 1,
     campaign.defenderMorale, campaign.siegeEquipment, terrain) * defenderFirearms.multiplier;
@@ -255,6 +258,8 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   const supplyAttrition = (expedition?.attritionRate ?? 0) + counterLogistics.extraAttackerAttritionRate;
   const logisticsLosses = Math.min(Math.max(0, campaign.personnel - combatAttackerLosses), Math.round(campaign.personnel * supplyAttrition));
   const attackerLosses = combatAttackerLosses + logisticsLosses;
+  const externalLossRate = (combatAttackerLosses + logisticsLosses) / Math.max(1, campaign.personnel + externalSupport.personnel);
+  const externalLosses = applyExternalCampaignLosses(campaign, options.nonStateWorld, externalLossRate);
   const defenderLossPool = Math.round((defender.army.personnel + campaign.militia) *
     intensity * attackerShare * variance());
   const militiaWeight = campaign.militia * 1.8;
@@ -303,7 +308,7 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
     }
   }
   const week = { tick: currentTick, stage: campaign.stage, terrain, pressureDelta, pressure: campaign.pressure,
-    attackerLosses, logisticsLosses, defenderLosses, militiaLosses, civilianDeaths, attackerMorale: campaign.attackerMorale,
+    attackerLosses, externalLosses, externalPersonnel: externalSupport.personnel, logisticsLosses, defenderLosses, militiaLosses, civilianDeaths, attackerMorale: campaign.attackerMorale,
     defenderMorale: campaign.defenderMorale, supply: campaign.supply, strengthRatio, navalControl: control,
     logisticsStatus: campaign.logisticsState?.status || null, routeReliability: campaign.logisticsState?.routeReliability ?? null,
     attackerFirearms, defenderFirearms };
