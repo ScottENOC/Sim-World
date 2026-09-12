@@ -9,6 +9,8 @@ import { tickEconomy } from './economy/labor.js?v=20260905-projects1';
 import { tickTrade } from './economy/trade.js?v=20260912-currency2';
 import { tickStateFinance } from './economy/stateFinance.js?v=20260912-currency2';
 import { tickDemographics } from './society/demographics.js?v=20260912-culture-scale1';
+import { tickDisease } from './society/disease.js?v=20260912-disease1';
+import './ui/diseasePolicyUi.js?v=20260912-disease1';
 import { tickBanditry } from './military/banditry.js?v=20260905-projects1';
 import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable, syncNextRaidId } from './military/raiding.js?v=20260905-projects1';
 import { tickNationAi } from './ai/nationAi.js?v=20260905-projects1';
@@ -313,6 +315,7 @@ async function main() {
     profiler.measure('Siege equipment', () => tickSiegeEquipment(regions, time.elapsedDays));
     const breakthroughEvents = profiler.measure('Technology breakthroughs', () => tickBreakthroughs(regions, calendarWeek, Math.random, time.elapsedDays));
     const religionEvents = profiler.measure('Religion', () => tickReligion(regions, religiousWorld, calendarWeek, activeRaids, activeCampaigns, Math.random, time.elapsedDays));
+    const diseaseEvents = profiler.measure('Disease', () => tickDisease(regions, time.elapsedDays, Math.random));
     profiler.measure('Demographics', () => tickDemographics(regions, religiousWorld, time.elapsedDays, profiler));
     // These are slow-moving social processes. The world clock may tick monthly
     // (and later weekly/daily), but recomputing them on every world tick wastes
@@ -417,6 +420,7 @@ async function main() {
       ...breakthroughEvents.filter((event) => event.regionId === playerRegionId),
       ...constructionEvents.filter((event) => event.regionId === playerRegionId),
       ...religionEvents.filter((event) => event.regionId === playerRegionId),
+      ...diseaseEvents.filter((event) => event.regionId === playerRegionId),
       ...languageChangeEvents.filter((event) => event.regionId === playerRegionId),
       ...playerRaidEvents,
       ...diplomacyEvents.filter((event) => event.agreement.fromId === playerRegionId || event.agreement.toId === playerRegionId),

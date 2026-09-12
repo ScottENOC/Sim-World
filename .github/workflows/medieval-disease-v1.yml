@@ -1,0 +1,54 @@
+name: Medieval disease v1
+
+on:
+  push:
+    branches: [medieval-disease-v1]
+    paths:
+      - 'js/society/disease.js'
+      - 'js/ui/diseasePolicyUi.js'
+      - 'tools/test-disease.mjs'
+      - 'tools/apply-medieval-disease.py'
+      - '.github/workflows/medieval-disease-v1.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  integrate-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply integration
+        run: python tools/apply-medieval-disease.py
+      - name: Syntax checks
+        run: |
+          node --check js/society/disease.js
+          node --check js/ui/diseasePolicyUi.js
+          node --check js/economy/trade.js
+          node --check js/main.js
+      - name: Disease regression tests
+        run: node tools/test-disease.mjs
+      - name: Existing UI regression
+        run: node tools/test-ui-priority.mjs
+      - name: Diff check
+        run: git diff --check
+      - name: Commit integrated files
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/main.js js/economy/trade.js index.html
+          if git diff --cached --quiet; then
+            echo 'Integration already current'
+          else
+            git commit -m 'Integrate disease and quarantine into simulation'
+            git pull --rebase
+            git push
+          fi
