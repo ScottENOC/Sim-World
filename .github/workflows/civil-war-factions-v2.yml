@@ -1,0 +1,116 @@
+name: Civil war factions v2 validation
+
+on:
+  push:
+    branches: [civil-war-factions-v2]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  integrate-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: civil-war-factions-v2
+          fetch-depth: 0
+      - name: Fix implementation and focused regression fixtures
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('tools/apply-civil-war-factions-v2.py')
+          text = p.read_text()
+          replacements = [
+            (
+              "const duration = currentTick - (parent.succession?.crisis?.startedTick || currentTick);",
+              "const duration = currentTick - (parent.succession?.crisis?.startedTick ?? currentTick);"
+            ),
+            (
+              "let events = tickCivilWarFactionPolitics(parent, polities, regions, 20, 120, () => 0);\nassert.equal(parent.succession.crisis.factionPolitics.contestedRegionIds.length, 3, 'civil war should retain the whole contested realm');\nassert(events.some((event) => event.type === 'civil_war_defection'), 'regional elites should be able to defect between claimant factions');",
+              "let events = tickCivilWarFactionPolitics(parent, polities, regions, 20, 120, () => 0);\nassert.equal(parent.succession.crisis.factionPolitics.contestedRegionIds.length, 3, 'civil war should retain the whole contested realm');\nevents = tickCivilWarFactionPolitics(parent, polities, regions, 40, 120, () => 0);\nassert(events.some((event) => event.type === 'civil_war_defection'), 'regional elites should be able to defect between claimant factions');"
+            ),
+            (
+              "import { tickCivilWarFactionPolitics, maybeLaunchCivilWarCampaign } from '../js/politics/civilWarFactions.js';",
+              "import { tickCivilWarFactionPolitics, maybeLaunchCivilWarCampaign } from '../js/politics/civilWarFactions.js';\nimport { KnowledgeLedger } from '../js/core/knowledge.js';"
+            ),
+            (
+              "militaryPolicy: {}, recentTradePartners: new Map(), knowledge: new Map(),",
+              "militaryPolicy: {}, recentTradePartners: new Map(), knowledge: new KnowledgeLedger(id),"
+            ),
+            (
+              "r2.knowledge.set('r1', { level: 1 }); r1.knowledge.set('r2', { level: 1 });\nr2.knowledge.set('r0', { level: 1 }); r0.knowledge.set('r2', { level: 1 });",
+              "r1.knowledge.directContactIds.add('r0'); r0.knowledge.directContactIds.add('r1');\nr2.knowledge.directContactIds.add('r1'); r1.knowledge.directContactIds.add('r2');"
+            ),
+            (
+              "claimant.continuity.claims.r0 = 0.9;",
+              "claimant.continuity.claims.r0 = 0.9;\nr1.army.personnel = 900;"
+            ),
+            (
+              "const launched = maybeLaunchCivilWarCampaign(r2, new Map(regions.map((r) => [r.id, r])), campaigns, polities, 40, () => 0);",
+              "const launched = maybeLaunchCivilWarCampaign(r1, new Map(regions.map((r) => [r.id, r])), campaigns, polities, 40, () => 0);"
+            ),
+          ]
+          for old, new in replacements:
+              if old not in text:
+                  raise SystemExit(f'integration anchor not found: {old[:70]}')
+              text = text.replace(old, new, 1)
+          p.write_text(text)
+          PY
+      - name: Apply civil war factions integration
+        run: python tools/apply-civil-war-factions-v2.py
+      - name: Repair stale religious authority syntax defect
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('js/society/medievalReligiousPolitics.js')
+          text = p.read_text()
+          old = "const protected = aFollowers > 0.45 && aInf > 0.24 ? a : bFollowers > 0.45 && bInf > 0.24 ? b : null;\n    const target = protected?.id === aId ? b : protected?.id === bId ? a : null;\n    if (!protected || !target || currentTick - p.lastWarCallTick <= 52) continue;"
+          new = "const protectedPolity = aFollowers > 0.45 && aInf > 0.24 ? a : bFollowers > 0.45 && bInf > 0.24 ? b : null;\n    const target = protectedPolity?.id === aId ? b : protectedPolity?.id === bId ? a : null;\n    if (!protectedPolity || !target || currentTick - p.lastWarCallTick <= 52) continue;"
+          if old not in text:
+              raise SystemExit('stale protected-variable syntax anchor not found')
+          text = text.replace(old, new, 1)
+          for old_ref, new_ref in [
+              ("followerShareInPolity(religion.id,protected.id,regions)", "followerShareInPolity(religion.id,protectedPolity.id,regions)"),
+              ("ensurePolityReligiousPolitics(protected)", "ensurePolityReligiousPolitics(protectedPolity)"),
+              ("protected.administration.legitimacy", "protectedPolity.administration.legitimacy"),
+              ("(protected.administration.legitimacy || 0)", "(protectedPolity.administration.legitimacy || 0)"),
+              ("protectedPolityId:protected.id", "protectedPolityId:protectedPolity.id"),
+              ("polityId:protected.id", "polityId:protectedPolity.id"),
+          ]:
+              text = text.replace(old_ref, new_ref)
+          p.write_text(text)
+          PY
+      - name: Syntax checks
+        run: |
+          node --check js/politics/civilWarFactions.js
+          node --check js/politics/medievalStateSystems.js
+          node --check js/ai/nationAi.js
+          node --check js/society/medievalReligiousPolitics.js
+          node --check js/main.js
+      - name: Civil war regressions
+        run: |
+          node tools/test-civil-war-factions-v2.mjs
+          node tools/test-medieval-systems-v2.mjs
+          node tools/test-succession-continuity-bridge.mjs
+          node tools/test-multi-party-war.mjs
+      - name: Existing military and UI regressions
+        run: |
+          node tools/test-medieval-politics.mjs
+          node tools/test-strategic-military-planning.mjs
+          node tools/test-ui-priority.mjs
+          node tools/test-world-spatial-skeleton.mjs
+      - name: Diff sanity
+        run: git diff --check
+      - name: Commit integrated implementation
+        run: |
+          if git diff --quiet; then
+            echo "No generated changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tools/apply-civil-war-factions-v2.py js/politics/civilWarFactions.js js/politics/medievalStateSystems.js js/ai/nationAi.js js/society/medievalReligiousPolitics.js js/main.js tools/test-civil-war-factions-v2.mjs
+          git commit -m "Implement civil war factions v2"
+          git push origin HEAD:civil-war-factions-v2

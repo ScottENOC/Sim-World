@@ -13,7 +13,7 @@ import { tickDisease } from './society/disease.js?v=20260912-disease1';
 import './ui/diseasePolicyUi.js?v=20260912-disease1';
 import { tickBanditry } from './military/banditry.js?v=20260905-projects1';
 import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable, syncNextRaidId } from './military/raiding.js?v=20260912-medieval1';
-import { tickNationAi } from './ai/nationAi.js?v=20260905-projects1';
+import { tickNationAi } from './ai/nationAi.js?v=20260913-civil-war2';
 import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260904-weather1';
 import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID, CATAPULT_TECH_ID } from './technology/breakthroughs.js?v=20260912-medieval1';
 import { tickGunpowderIndustry } from './military/firearms.js?v=20260912-gunpowder1';
@@ -31,7 +31,7 @@ import { startScoutingMission, tickScouting } from './core/scouting.js?v=2026090
 import { attitudeLabel, attitudeToward, canDiplomaticallyReach, endAgreement, proposeAgreement, syncNextAgreementId, tickDiplomacy } from './diplomacy/relations.js?v=20260912-migration-diplomacy1';
 import { availableVassalLevies, changeGovernanceForm, demandVassalage, governanceFormAvailability, governanceLabel, initialisePolities, musterVassalLevies, polityById, setDelegatedPower, setGovernancePolicy, sovereignPolity, tickPolities } from './politics/polities.js?v=20260912-currency2';
 import { tickMedievalInstitutions } from './politics/medievalInstitutions.js?v=20260912-medieval-politics1';
-import { tickMedievalStateSystems } from './politics/medievalStateSystems.js?v=20260912-medieval2';
+import { tickMedievalStateSystems } from './politics/medievalStateSystems.js?v=20260913-civil-war2';
 import { tickMedievalCommercialInstitutions } from './economy/medievalCommercialInstitutions.js?v=20260912-medieval2';
 import { tickMedievalDoctrine } from './military/medievalDoctrine.js?v=20260912-medieval2';
 import { tickNonStateOrganisations } from './politics/nonStateOrganisations.js?v=20260912-organisations1';
@@ -371,7 +371,7 @@ async function main() {
     const polityEvents = profiler.measure('Polities', () => tickPolities(polities, regions, calendarWeek, time.elapsedDays));
     const continuityEvents = profiler.measure('Political continuity', () => tickPoliticalContinuity(polities, regions, time.elapsedDays / 365.2425, calendarWeek, { playerPolityId: activePlayerPolityId }));
     const medievalPoliticalEvents = profiler.measure('Medieval politics', () => tickMedievalInstitutions(polities, regions, calendarWeek, time.elapsedDays, { playerPolityId: activePlayerPolityId }));
-    const medievalStateEvents = profiler.measure('Medieval state systems', () => tickMedievalStateSystems(polities, regions, calendarWeek, time.elapsedDays, Math.random));
+    const medievalStateEvents = profiler.measure('Medieval state systems', () => tickMedievalStateSystems(polities, regions, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));
     profiler.measure('Medieval commerce', () => tickMedievalCommercialInstitutions(regions, polities, time.elapsedDays));
     profiler.measure('Medieval doctrine', () => tickMedievalDoctrine(regions, time.elapsedDays));
     const medievalReligiousEvents = profiler.measure('Religious politics', () => tickMedievalReligiousPolitics(regions, religiousWorld, polities, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId, activeWars }));
