@@ -1,0 +1,41 @@
+name: Apply succession continuity bridge
+on:
+  push:
+    branches: [succession-continuity-bridge-v1]
+permissions:
+  contents: write
+jobs:
+  apply-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: succession-continuity-bridge-v1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply bridge integration
+        run: python tools/apply-succession-continuity-bridge.py
+      - name: Validate
+        run: |
+          node tools/test-succession-continuity-bridge.mjs
+          node tools/test-medieval-systems-v2.mjs
+          node tools/test-medieval-politics.mjs
+          node tools/test-ui-priority.mjs
+          node tools/test-world-spatial-skeleton.mjs
+          node --check js/politics/successionContinuityBridge.js
+          node --check js/politics/medievalStateSystems.js
+          node --check js/main.js
+          git diff --check
+      - name: Commit integration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js tools
+          git commit -m 'Integrate succession crises with political continuity' || true
+          git push origin HEAD:succession-continuity-bridge-v1
+      - name: Remove temporary workflow
+        run: |
+          git rm .github/workflows/apply-succession-continuity-bridge.yml
+          git commit -m 'Remove temporary succession continuity workflow'
+          git push origin HEAD:succession-continuity-bridge-v1
