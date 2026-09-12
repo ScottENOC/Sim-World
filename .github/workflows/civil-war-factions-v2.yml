@@ -37,11 +37,15 @@ jobs:
             ),
             (
               "r2.knowledge.set('r1', { level: 1 }); r1.knowledge.set('r2', { level: 1 });\nr2.knowledge.set('r0', { level: 1 }); r0.knowledge.set('r2', { level: 1 });",
-              "r2.knowledge.directContactIds.add('r1'); r1.knowledge.directContactIds.add('r2');\nr2.knowledge.directContactIds.add('r0'); r0.knowledge.directContactIds.add('r2');"
+              "r1.knowledge.directContactIds.add('r0'); r0.knowledge.directContactIds.add('r1');\nr2.knowledge.directContactIds.add('r1'); r1.knowledge.directContactIds.add('r2');"
             ),
             (
               "claimant.continuity.claims.r0 = 0.9;",
-              "claimant.continuity.claims.r0 = 0.9;\nr2.army.personnel = 900;"
+              "claimant.continuity.claims.r0 = 0.9;\nr1.army.personnel = 900;"
+            ),
+            (
+              "const launched = maybeLaunchCivilWarCampaign(r2, new Map(regions.map((r) => [r.id, r])), campaigns, polities, 40, () => 0);",
+              "const launched = maybeLaunchCivilWarCampaign(r1, new Map(regions.map((r) => [r.id, r])), campaigns, polities, 40, () => 0);"
             ),
           ]
           for old, new in replacements:
