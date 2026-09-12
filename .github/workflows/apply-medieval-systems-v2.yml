@@ -14,6 +14,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Preflight fixes
+        run: python tools/fix-medieval-systems-v2.py
       - name: Apply integration
         run: python tools/apply-medieval-systems-v2.py
       - name: Validate
