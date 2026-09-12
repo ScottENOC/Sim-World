@@ -1,4 +1,5 @@
 import { abandonCurrency, currencyAvailability, currencyStatus, debaseCurrency, foundCurrency, reformCurrency } from '../economy/currency.js?v=20260912-currency2';
+import { knownForexQuotes, moneyChangerCapability } from '../economy/forex.js?v=20260912-forex1';
 
 function fmt(value) {
   return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 1 });
@@ -24,6 +25,23 @@ function addText(host, text, className = 'save-status') {
   return p;
 }
 
+function appendForex(host, capital) {
+  const market = capital.currencyUse;
+  if (!market?.active) return;
+  const quotes = knownForexQuotes(capital);
+  const capability = moneyChangerCapability(capital);
+  addText(host, `Money changing capability ${(capability * 100).toFixed(0)}%. Quotes improve with coinage knowledge, customs houses, mints and active trade.`, 'save-status');
+  if (!quotes.length) {
+    addText(host, 'No foreign currency quotes yet. Merchants learn foreign coins through actual trade contact.', 'save-status');
+    return;
+  }
+  for (const { currency, quote } of quotes) {
+    addText(host,
+      `1 ${market.name} → ${quote.rate.toFixed(2)} ${currency.name} · changer spread ${(quote.spread * 100).toFixed(1)}% · ${currency.name} trust ${(currency.trust * 100).toFixed(0)}%.`,
+      'save-status');
+  }
+}
+
 function render(host) {
   const state = playerState();
   host.replaceChildren();
@@ -45,6 +63,7 @@ function render(host) {
       : `No domestic currency. Merchants may barter or use foreign money they encounter through trade. ${availability.reason}`);
     const market = capital.currencyUse;
     if (market?.active) addText(host, `Capital markets currently use ${market.name} · trust ${(market.trust * 100).toFixed(0)}%.`, 'save-status');
+    appendForex(host, capital);
     const button = document.createElement('button');
     button.type = 'button';
     button.textContent = 'Found currency';
@@ -65,12 +84,13 @@ function render(host) {
   } else if (market.id !== status.id) {
     addText(host, `Capital markets prefer foreign money: ${market.name} · trust ${(market.trust * 100).toFixed(0)}%. Your state still issues ${status.name}.`, 'save-status');
   } else {
-    addText(host, `Capital markets currently accept the domestic currency.`, 'save-status');
+    addText(host, 'Capital markets currently accept the domestic currency.', 'save-status');
   }
+  appendForex(host, capital);
 
   const help = document.createElement('small');
   help.textContent = status.undisclosedDebasement > 0
-    ? 'The latest debasement is still hidden. Once merchants discover it, trust can fall enough that markets switch to foreign money or barter.'
+    ? 'The latest debasement is still hidden. Once merchants discover it, trust can fall enough that markets switch to foreign money or barter. Foreign exchange quotes will also worsen as changers discount the coin.'
     : 'Currency trust belongs to this monetary regime, not permanently to the kingdom. Reform can replace a failed currency with a new generation if legitimacy and treasury capacity are sufficient.';
   host.appendChild(help);
 
