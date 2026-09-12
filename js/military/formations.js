@@ -2,6 +2,7 @@ import { operationalInfrastructure } from '../economy/construction.js?v=20260907
 import { ensureMilitaryPolicy } from './policies.js?v=20260904-policy1';
 import { culturalMemoryEffects } from '../society/culturalMemory.js?v=20260907-memory1';
 import { recordSocietalMemory } from '../society/societalMemoryEvents.js?v=20260907-memory2';
+import { steelMilitaryQualityMultiplier } from '../technology/steel.js?v=20260912-steel1';
 import {
   militaryExperienceProfile,
   officerSchoolStatus,
@@ -248,7 +249,7 @@ function summedFormationEffect(region, key, terrain = null) {
 }
 
 export function formationCombatMultiplier(region, terrain = null) {
-  return 1 + Math.min(0.34, summedFormationEffect(region, 'combatBonus', terrain));
+  return (1 + Math.min(0.34, summedFormationEffect(region, 'combatBonus', terrain))) * steelMilitaryQualityMultiplier(region);
 }
 export function formationCohesionBonus(region) { return Math.min(0.22, summedFormationEffect(region, 'cohesionBonus')); }
 export function formationMobilityBonus(region) { return Math.min(0.15, summedFormationEffect(region, 'mobilityBonus')); }

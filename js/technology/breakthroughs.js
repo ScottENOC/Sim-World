@@ -2,8 +2,9 @@ import { effectiveExperience } from './learningByDoing.js?v=20260906-education1'
 import { tickClassicalBreakthroughs } from './classicalTransition.js?v=20260907-classical1';
 import { tickMedievalBreakthroughs } from './medievalTransition.js?v=20260912-medieval1';
 import { GUNPOWDER_TECH_ID } from '../military/firearms.js?v=20260912-gunpowder1';
+import { STEELMAKING_TECH_ID, steelmakingBreakthroughChance, tickSteelIndustry, tickSteelMilitaryAdoption } from './steel.js?v=20260912-steel1';
 
-export { GUNPOWDER_TECH_ID };
+export { GUNPOWDER_TECH_ID, STEELMAKING_TECH_ID };
 
 export const IRON_SMELTING_TECH_ID = 'iron_smelting';
 export const ADVANCED_BOATBUILDING_TECH_ID = 'advanced_boatbuilding';
@@ -223,6 +224,7 @@ export function tickBreakthroughs(regions, currentTick, rng = Math.random, elaps
   const shaftDiscoveries = regions.filter((region) => rng() < chance(shaftMiningChance(region, regionsById)));
   const drainageDiscoveries = regions.filter((region) => rng() < chance(mineDrainageChance(region, regionsById)));
   const gunpowderDiscoveries = regions.filter((region) => rng() < chance(gunpowderBreakthroughChance(region, regionsById, currentTick)));
+  const steelDiscoveries = regions.filter((region) => rng() < chance(steelmakingBreakthroughChance(region, regionsById, currentTick)));
   for (const region of ironDiscoveries) {
     region.unlockedTechIds.add(IRON_SMELTING_TECH_ID);
     region.ironWorkingReadiness = Math.max(0.02, region.ironWorkingReadiness || 0);
@@ -241,6 +243,12 @@ export function tickBreakthroughs(regions, currentTick, rng = Math.random, elaps
       regionName: region.name,
       tick: currentTick,
     });
+  }
+  for (const region of steelDiscoveries) {
+    region.unlockedTechIds.add(STEELMAKING_TECH_ID);
+    region.steelIndustry ||= {};
+    region.steelIndustry.readiness = Math.max(0.03, region.steelIndustry.readiness || 0);
+    events.push({ type: 'steelmaking_breakthrough', regionId: region.id, regionName: region.name, tick: currentTick });
   }
   for (const region of gunpowderDiscoveries) {
     region.unlockedTechIds.add(GUNPOWDER_TECH_ID);
