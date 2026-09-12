@@ -1,0 +1,68 @@
+name: Apply non-state interaction integration
+on:
+  push:
+    branches: [non-state-interactions-v1]
+permissions:
+  contents: write
+jobs:
+  apply-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: non-state-interactions-v1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Integrate organisation interactions
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('js/main.js')
+          s=p.read_text()
+          old="import { tickNonStateOrganisations } from './politics/nonStateOrganisations.js?v=20260912-organisations1';"
+          new=old+"\nimport { tickOrganisationInteractions } from './politics/nonStateInteractions.js?v=20260912-organisations2';"
+          assert old in s and "tickOrganisationInteractions" not in s
+          s=s.replace(old,new)
+          old="    const organisationEvents = profiler.measure('Non-state organisations', () => tickNonStateOrganisations(regions, polities, religiousWorld, calendarWeek, time.elapsedDays, Math.random, { agreements, activeRaids }));"
+          new=old+"\n    const organisationInteractionEvents = profiler.measure('Organisation relations', () => tickOrganisationInteractions(regions, polities, religiousWorld, time.elapsedDays));"
+          assert old in s
+          s=s.replace(old,new)
+          old="      ...organisationEvents.filter((event) => event.regionId === playerRegionId || event.organisation?.memberPolityIds?.has?.(activePlayerPolityId) || event.polityIds?.includes?.(activePlayerPolityId)),"
+          new=old+"\n      ...organisationInteractionEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),"
+          assert old in s
+          s=s.replace(old,new)
+          p.write_text(s)
+
+          p=Path('index.html')
+          s=p.read_text()
+          old='  <script type="module" src="js/ui/currencyUi.js?v=20260912-forex1"></script>'
+          new=old+'\n  <script type="module" src="js/ui/nonStateOrganisationsUi.js?v=20260912-organisations2"></script>'
+          assert old in s and 'nonStateOrganisationsUi.js' not in s
+          s=s.replace(old,new)
+          p.write_text(s)
+          PY
+      - name: Validate
+        run: |
+          node tools/test-non-state-interactions.mjs
+          node tools/test-medieval-politics.mjs
+          node tools/test-ui-priority.mjs
+          node tools/test-world-spatial-skeleton.mjs
+          node --check js/politics/nonStateInteractions.js
+          node --check js/ui/nonStateOrganisationsUi.js
+          node --check js/main.js
+          node --check js/military/army.js
+          git diff --check
+      - name: Commit integration
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/main.js index.html
+          git commit -m "Wire non-state organisation interactions into simulation" || true
+          git push
+      - name: Remove temporary workflow
+        run: |
+          git pull --ff-only
+          git rm .github/workflows/apply-non-state-interactions-v1.yml
+          git commit -m "Remove temporary organisation interaction workflow"
+          git push
