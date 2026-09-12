@@ -93,11 +93,15 @@ export function tickGunpowderIndustry(regions, elapsedDays = 30) {
   return reports;
 }
 
-export function firearmCombatProfile(region, opponent, personnel, { consumeSupplies = true, elapsedDays = 7 } = {}) {
+export function firearmCombatProfile(region, opponent, personnel, {
+  consumeSupplies = true,
+  elapsedDays = 7,
+  logisticsSupply = 1,
+} = {}) {
   const state = ensureFirearmsState(region);
   const opponentState = ensureFirearmsState(opponent);
   if (!region.unlockedTechIds?.has(GUNPOWDER_TECH_ID) || personnel <= 0) {
-    return { multiplier: 1, firearmShare: 0, suppliedShare: 0, surpriseBonus: 0, dryPenalty: 0, powderUsed: 0, shotMetalUsed: 0 };
+    return { multiplier: 1, firearmShare: 0, suppliedShare: 0, surpriseBonus: 0, dryPenalty: 0, powderUsed: 0, shotMetalUsed: 0, supplyFraction: 1 };
   }
 
   region.stockpile ||= {};
@@ -108,7 +112,8 @@ export function firearmCombatProfile(region, opponent, personnel, { consumeSuppl
   const metalNeeded = personnel * firearmShare * SHOT_METAL_PER_FIREARM_WEEK * weeks;
   const powderFraction = powderNeeded > 0 ? clamp01((region.stockpile.gunpowder || 0) / powderNeeded) : 1;
   const metalFraction = metalNeeded > 0 ? clamp01(availableMetal(region) / metalNeeded) : 1;
-  const supplyFraction = Math.min(powderFraction, metalFraction);
+  // Stock at home is not enough: campaign logistics must actually deliver it.
+  const supplyFraction = Math.min(powderFraction, metalFraction, clamp01(logisticsSupply));
   const suppliedShare = firearmShare * supplyFraction;
 
   let powderUsed = 0;
