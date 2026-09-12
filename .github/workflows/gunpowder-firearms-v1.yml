@@ -8,6 +8,7 @@ on:
       - 'js/military/firearms.js'
       - 'tools/apply-gunpowder-firearms.py'
       - 'tools/test-gunpowder-firearms.mjs'
+      - 'js/military/campaigns.js'
   pull_request:
     paths:
       - 'js/military/firearms.js'
@@ -35,9 +36,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Apply integration on feature branch
+      - name: Apply integration on feature branch if needed
         if: github.event_name == 'push'
-        run: python tools/apply-gunpowder-firearms.py
+        run: |
+          if grep -q "gunpowder_breakthrough" js/technology/breakthroughs.js; then
+            echo 'Gunpowder integration already applied'
+          else
+            python tools/apply-gunpowder-firearms.py
+          fi
       - name: Validate
         run: |
           python -m py_compile tools/apply-gunpowder-firearms.py
