@@ -23,8 +23,11 @@ jobs:
           node tools/test-medieval-systems-v2.mjs
           node tools/test-medieval-politics.mjs
           node tools/test-medieval-learning.mjs
-          node tools/test-gunpowder.mjs
+          node tools/test-gunpowder-firearms.mjs
           node tools/test-private-military-actors.mjs
+          node tools/test-disease.mjs
+          node tools/test-currency.mjs
+          node tools/test-forex.mjs
           node tools/test-ui-priority.mjs
           node tools/test-world-spatial-skeleton.mjs
           node --check js/politics/medievalStateSystems.js
