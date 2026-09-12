@@ -7,6 +7,7 @@ on:
       - '.github/workflows/gunpowder-firearms-v1.yml'
       - 'js/military/firearms.js'
       - 'tools/apply-gunpowder-firearms.py'
+      - 'tools/apply-gunpowder-logistics.py'
       - 'tools/test-gunpowder-firearms.mjs'
       - 'js/military/campaigns.js'
   pull_request:
@@ -44,9 +45,10 @@ jobs:
           else
             python tools/apply-gunpowder-firearms.py
           fi
+          python tools/apply-gunpowder-logistics.py
       - name: Validate
         run: |
-          python -m py_compile tools/apply-gunpowder-firearms.py
+          python -m py_compile tools/apply-gunpowder-firearms.py tools/apply-gunpowder-logistics.py
           node --check js/military/firearms.js
           node --check js/technology/breakthroughs.js
           node --check js/military/campaigns.js
