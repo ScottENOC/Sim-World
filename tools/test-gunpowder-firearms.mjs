@@ -74,6 +74,14 @@ const suppliedProfile = firearmCombatProfile(supplied, defender, 1000, { consume
 assert.ok(suppliedProfile.multiplier > 1.5, 'well supplied firearms should give a large advantage against an unfamiliar opponent');
 assert.ok(suppliedProfile.surpriseBonus > 0.2, 'unfamiliar opponents should suffer a first-contact firearm shock');
 
+const cutOffProfile = firearmCombatProfile(supplied, defender, 1000, {
+  consumeSupplies: false,
+  elapsedDays: 7,
+  logisticsSupply: 0.1,
+});
+assert.ok(cutOffProfile.multiplier < suppliedProfile.multiplier, 'cut campaign supply should sharply reduce firearm effectiveness even when home stocks are full');
+assert.ok(cutOffProfile.supplyFraction <= 0.1 + 1e-9, 'field logistics must cap usable firearm ammunition');
+
 const familiarDefender = region('familiar');
 familiarDefender.firearms.exposure = 0.9;
 const familiarProfile = firearmCombatProfile(supplied, familiarDefender, 1000, { consumeSupplies: false, elapsedDays: 7 });
