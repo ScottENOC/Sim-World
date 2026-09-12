@@ -1,5 +1,6 @@
 import { ensureMedievalPoliticalState } from './medievalInstitutions.js?v=20260912-medieval-politics1';
 import { ensureSubregionalControl } from '../military/subregionalControl.js?v=20260908-subregion1';
+import { linkSuccessionClaimant, reconcileSuccessionContinuity } from './successionContinuityBridge.js?v=20260913-succession-continuity1';
 
 const DAYS_PER_YEAR = 365.2425;
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
@@ -220,6 +221,7 @@ function escalateCivilWar(polity, regions, polities, currentTick) {
   }
   crisis.escalated = true;
   crisis.claimantPolityId = claimantPolity.id;
+  linkSuccessionClaimant(polity, claimantPolity, rival, rival.supportRegionIds, regions, polities, currentTick);
   return { type: 'succession_civil_war', polityId: polity.id, claimantPolityId: claimantPolity.id, claimantId: rival.id, regionId: capital.id, regionName: capital.name };
 }
 
@@ -237,6 +239,10 @@ export function tickMedievalStateSystems(polities, regions, currentTick, elapsed
     }
     if (succession.crisis?.contested && !succession.crisis.escalated && currentTick - succession.crisis.startedTick >= 8) {
       const event = escalateCivilWar(polity, regions, polities, currentTick); if (event) events.push(event);
+    }
+    if (succession.crisis?.escalated) {
+      const continuityEvent = reconcileSuccessionContinuity(polity, polities, regions, currentTick);
+      if (continuityEvent) events.push(continuityEvent);
     }
     if (succession.crisis && !succession.crisis.contested && currentTick - succession.crisis.startedTick >= 4) {
       succession.rulerGeneration += 1; succession.rulerAge = 18 + stableFraction(`${polity.id}:${succession.rulerGeneration}`) * 24; succession.rulerTenureYears = 0; succession.crisis.resolved = true; succession.crisis = null;

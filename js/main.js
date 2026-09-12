@@ -1578,6 +1578,13 @@ function showNextEvent(clock, eventQueue) {
     }
     wireEventContinue(clock,eventQueue); return;
   }
+  if (event.type === 'succession_continuity_resolved') {
+    document.getElementById('event-title').textContent = 'Succession war decided';
+    document.getElementById('event-body').textContent = event.loserStatus === 'exile'
+      ? `The territorial succession war is over, but the defeated claimant survives as a government in exile${event.hostPolityId ? ' under foreign protection' : ''}. Its claims, legitimacy and restoration diplomacy now use the same political-continuity system as a ruler displaced by conquest.`
+      : 'The territorial succession war is over and the defeated political faction no longer has a viable continuity claim.';
+    wireEventContinue(clock,eventQueue); return;
+  }
   if (event.type === 'medieval_civil_war') {
     document.getElementById('event-title').textContent = `Civil war: ${event.regionName} breaks away`;
     document.getElementById('event-body').textContent = `A local government with its own garrison, stronghold and tax apparatus has stopped recognising the former sovereign. This is not a spontaneous rebel stack: institutions built during years of local self-defence have become an independent government.`;
