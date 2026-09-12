@@ -38,22 +38,44 @@ jobs:
           python -m json.tool tools/map-region-plan-silk-road.json >/dev/null
           python -m json.tool tools/map-resource-plan-silk-road.json >/dev/null
           python -m json.tool tools/sea-region-plan-silk-road.json >/dev/null
-      - name: Build Silk Road land
+      - name: Build Silk Road land if needed
         run: |
-          rm -rf /tmp/simworld-silk-road /tmp/simworld-silk-seas
-          time python tools/build-silk-road-expansion.py --output-dir /tmp/simworld-silk-road | tee /tmp/silk-land.log
-          cp /tmp/simworld-silk-road/regions.geo.json data/world/regions.geo.json
-          cp /tmp/simworld-silk-road/regions.meta.json data/world/regions.meta.json
-          cp /tmp/simworld-silk-road/resources.initial.json data/world/resources.initial.json
-      - name: Build East Asian seas
+          rm -rf /tmp/simworld-silk-road /tmp/simworld-silk-seas /tmp/silk-built
+          COUNT=$(python - <<'PY'
+          import json
+          print(len(json.load(open('data/world/regions.geo.json'))['features']))
+          PY
+          )
+          if [ "$COUNT" = "626" ]; then
+            time python tools/build-silk-road-expansion.py --output-dir /tmp/simworld-silk-road | tee /tmp/silk-land.log
+            cp /tmp/simworld-silk-road/regions.geo.json data/world/regions.geo.json
+            cp /tmp/simworld-silk-road/regions.meta.json data/world/regions.meta.json
+            cp /tmp/simworld-silk-road/resources.initial.json data/world/resources.initial.json
+            touch /tmp/silk-built
+          elif [ "$COUNT" = "720" ]; then
+            echo 'Expanded 720-region land map already present'
+            echo 'ISOLATED_NEW_REGIONS=0' > /tmp/silk-land.log
+          else
+            echo "Unexpected land-region count: $COUNT" >&2
+            exit 1
+          fi
+      - name: Build East Asian seas if needed
         run: |
-          time python tools/build-silk-road-seas.py --land-geo data/world/regions.geo.json --output-dir /tmp/simworld-silk-seas | tee /tmp/silk-sea.log
-          cp /tmp/simworld-silk-seas/seaRegions.geo.json data/world/seaRegions.geo.json
-          cp /tmp/simworld-silk-seas/seaRegions.meta.json data/world/seaRegions.meta.json
-      - name: Rebuild terrain and spatial geography
+          if [ -f /tmp/silk-built ]; then
+            time python tools/build-silk-road-seas.py --land-geo data/world/regions.geo.json --output-dir /tmp/simworld-silk-seas | tee /tmp/silk-sea.log
+            cp /tmp/simworld-silk-seas/seaRegions.geo.json data/world/seaRegions.geo.json
+            cp /tmp/simworld-silk-seas/seaRegions.meta.json data/world/seaRegions.meta.json
+          else
+            echo 'Expanded sea map already present'
+          fi
+      - name: Rebuild terrain and spatial geography if needed
         run: |
-          python tools/build-terrain.py --geo data/world/regions.geo.json --resources data/world/resources.initial.json --output data/world/terrain.initial.json
-          node tools/generate-world-spatial-base.mjs
+          if [ -f /tmp/silk-built ]; then
+            python tools/build-terrain.py --geo data/world/regions.geo.json --resources data/world/resources.initial.json --output data/world/terrain.initial.json
+            node tools/generate-world-spatial-base.mjs
+          else
+            echo 'Expanded terrain and spatial graph already present'
+          fi
       - name: Sanity check expanded world
         run: |
           python - <<'PY'
