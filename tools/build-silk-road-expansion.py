@@ -19,6 +19,7 @@ RESOURCE_PLAN = ROOT / 'tools' / 'map-resource-plan-silk-road.json'
 BASE_GEO = ROOT / 'data' / 'world' / 'regions.geo.json'
 BASE_META = ROOT / 'data' / 'world' / 'regions.meta.json'
 BASE_RESOURCES = ROOT / 'data' / 'world' / 'resources.initial.json'
+MAX_SEAM_REPAIR_DEGREES = 0.12
 
 
 def detailed_source_features(country, mask):
@@ -75,6 +76,36 @@ def endowment(region, resource_plan):
     return result
 
 
+def repair_tiny_adjacency_seams(base_features, base_meta, new_regions):
+    """Bridge only tiny dataset seams; never invent long-distance land links."""
+    meta_by_id = {m['id']: m for m in base_meta}
+    base_geoms = [(f['properties']['id'], f['properties'].get('name', ''), map_v2.repair(shape(f['geometry'])))
+                  for f in base_features]
+    new_by_id = {r['id']: r for r in new_regions}
+    all_candidates = base_geoms + [(r['id'], r['name'], r['geometry']) for r in new_regions]
+    for region in new_regions:
+        if region['neighbors']:
+            continue
+        best = None
+        for other_id, other_name, other_geom in all_candidates:
+            if other_id == region['id']:
+                continue
+            distance = region['geometry'].distance(other_geom)
+            if best is None or distance < best[0]:
+                best = (distance, other_id, other_name)
+        if best is None or best[0] > MAX_SEAM_REPAIR_DEGREES:
+            print(f"SEAM_REPAIR_REFUSED {region['name']} nearest={best}")
+            continue
+        distance, other_id, other_name = best
+        region['neighbors'] = sorted(set(region['neighbors'] + [other_id]))
+        if other_id in new_by_id:
+            other = new_by_id[other_id]
+            other['neighbors'] = sorted(set(other['neighbors'] + [region['id']]))
+        elif other_id in meta_by_id:
+            meta_by_id[other_id]['neighbors'] = sorted(set(meta_by_id[other_id].get('neighbors', []) + [region['id']]))
+        print(f"SEAM_REPAIR {region['name']} -> {other_name} distance={distance:.5f}deg")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output-dir', default='/tmp/simworld-silk-road')
@@ -107,6 +138,7 @@ def main():
         new_regions.extend(regions)
 
     map_v2.add_land_adjacency(geo['features'], meta_doc['regions'], new_regions)
+    repair_tiny_adjacency_seams(geo['features'], meta_doc['regions'], new_regions)
     ids = {f['properties']['id'] for f in geo['features']}
     accepted = []
     for region in new_regions:
