@@ -91,6 +91,8 @@ function updatePathways(polity, territories, years) {
 function updateRegionInstitutions(region, polity, years) {
   const s = ensureMedievalSociety(region);
   const p = polity.institutionalPaths || {};
+  s.paths = { ...p };
+  region._institutionalPaths = s.paths;
   const c = commerce(region); const u = urbanShare(region);
   const local = ensureMedievalPoliticalState(region);
 
@@ -114,7 +116,7 @@ function updateRegionInstitutions(region, polity, years) {
   const religiousTarget = organisedReligion ? clamp((region.religiousSeatInfluence || 0) * 0.25 + (region.religion?.unrest ? 0.05 : 0) + 0.22) : 0;
   const examinationTarget = writing ? clamp((p.bureaucraticService || 0) * 0.72 + (polity.administration?.officialdom || 0) * 0.28 - s.estates.hereditaryPower * 0.15) : 0;
   const academyTarget = writing ? clamp(c * 0.34 + u * 0.25 + s.urban.guilds * 0.2 + (polity.administration?.accounting || 0) * 0.21) : 0;
-  const technicalTarget = clamp((s.urban.industrialSpecialisation || 0) * 0.42 + (hasTech(region, 'steelmaking') ? 0.22 : 0) + (hasTech(region, 'gunpowder') ? 0.18 : 0) + (hasTech(region, 'ocean_going_sailing') ? 0.18 : 0);
+  const technicalTarget = clamp((s.urban.industrialSpecialisation || 0) * 0.42 + (hasTech(region, 'steelmaking') ? 0.22 : 0) + (hasTech(region, 'gunpowder') ? 0.18 : 0) + (hasTech(region, 'ocean_going_sailing') ? 0.18 : 0));
   for (const [key,target] of Object.entries({ religiousSchools: religiousTarget, courtSchools: courtTarget, examinationService: examinationTarget, urbanAcademies: academyTarget, technicalSchools: technicalTarget })) {
     s.education[key] += (target - s.education[key]) * clamp(years * 0.13);
   }
@@ -173,7 +175,17 @@ function startSuccession(polity, regions, currentTick, rng) {
   for (const c of claimants) c.supportRegionIds = support.get(c.id);
   claimants.sort((a,b)=>b.supportRegionIds.length-a.supportRegionIds.length);
   succession.claimants = claimants;
-  succession.crisis = { startedTick: currentTick, leadingClaimantId: claimants[0].id, contested: claimants[1].supportRegionIds.length >= Math.max(1, territories.length * 0.22), resolved: false };
+  // The designated heir inherits the existing court/state machinery by default.
+  // Rival military or provincial blocs therefore have to break away from that
+  // incumbent state rather than accidentally becoming the parent polity simply
+  // because they hold more provinces at the instant the ruler dies.
+  const incumbent = claimants.find(c => c.kind === 'designated_heir') || claimants[0];
+  const viableRivals = claimants.filter(c => c.kind !== 'designated_heir' && c.supportRegionIds.length > 0)
+    .sort((a,b) => b.supportRegionIds.length - a.supportRegionIds.length);
+  const rivalSupport = viableRivals.reduce((sum, c) => sum + c.supportRegionIds.length, 0);
+  const weakLegitimacyContest = (polity.administration?.legitimacy || 0) < 0.45 && territories.length >= 2 && rivalSupport >= 1;
+  const contested = rivalSupport >= Math.max(1, territories.length * 0.22) || weakLegitimacyContest;
+  succession.crisis = { startedTick: currentTick, leadingClaimantId: incumbent.id, contested, resolved: false };
   succession.lastSuccessionTick = currentTick;
   return { type: 'succession_crisis', polityId: polity.id, polityName: polity.name, claimants, contested: succession.crisis.contested };
 }
@@ -182,7 +194,8 @@ function escalateCivilWar(polity, regions, polities, currentTick) {
   const crisis = polity.succession?.crisis;
   const claimants = polity.succession?.claimants || [];
   if (!crisis?.contested || crisis.escalated) return null;
-  const rival = claimants[1];
+  const rival = claimants.filter(c => c.kind !== 'designated_heir' && c.supportRegionIds?.length)
+    .sort((a,b) => b.supportRegionIds.length - a.supportRegionIds.length)[0];
   if (!rival?.supportRegionIds?.length) return null;
   const capitalId = rival.supportRegionIds.find(id => id !== polity.capitalRegionId) || rival.supportRegionIds[0];
   const capital = regions.find(r => r.id === capitalId);
