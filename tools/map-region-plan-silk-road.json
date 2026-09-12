@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "purpose": "Additive expansion from the live 626-region world across the Central Asian Silk Road corridor into China and Mongolia.",
+  "targetExistingRegionCount": 626,
+  "principles": [
+    "Modern borders are geometry sources, not historical political borders.",
+    "Build a connected east-west corridor so trade, disease and technology diffuse through geography rather than teleporting.",
+    "Use finer source geometry for China and Pakistan, then merge into durable gameplay regions.",
+    "Keep mountain corridors, oasis belts, major river basins and productive plains more detailed than steppe or desert interiors.",
+    "Do not reduce existing western map detail merely to offset new regions."
+  ],
+  "countries": [
+    {"iso":"KAZ","name":"Kazakh Steppe","level":"ADM1","targetRegions":12},
+    {"iso":"TKM","name":"Turkmenistan","level":"ADM1","targetRegions":5},
+    {"iso":"UZB","name":"Transoxiana","level":"ADM1","targetRegions":7},
+    {"iso":"KGZ","name":"Tian Shan Valleys","level":"ADM1","targetRegions":4},
+    {"iso":"TJK","name":"Pamir & Tajik Valleys","level":"ADM1","targetRegions":4},
+    {"iso":"AFG","name":"Afghanistan","level":"ADM1","targetRegions":8},
+    {"iso":"PAK","name":"Indus & Northwest","level":"ADM2","targetRegions":10,"minAreaSqKm":250},
+    {"iso":"CHN","name":"China","level":"ADM2","targetRegions":36,"minAreaSqKm":350},
+    {"iso":"MNG","name":"Mongolian Steppe","level":"ADM1","targetRegions":8}
+  ]
+}
