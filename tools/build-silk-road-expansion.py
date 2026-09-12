@@ -19,7 +19,11 @@ RESOURCE_PLAN = ROOT / 'tools' / 'map-resource-plan-silk-road.json'
 BASE_GEO = ROOT / 'data' / 'world' / 'regions.geo.json'
 BASE_META = ROOT / 'data' / 'world' / 'regions.meta.json'
 BASE_RESOURCES = ROOT / 'data' / 'world' / 'resources.initial.json'
-MAX_SEAM_REPAIR_DEGREES = 0.12
+# geoBoundaries ADM2 and Natural Earth coast/country masks occasionally leave
+# sub-0.2 degree seams after clipping/simplification. This is repair tolerance,
+# not a general travel/adjacency distance: anything farther away stays isolated
+# and fails the build rather than inventing a land connection.
+MAX_SEAM_REPAIR_DEGREES = 0.20
 
 
 def detailed_source_features(country, mask):
