@@ -1,4 +1,4 @@
-import { abandonCurrency, currencyAvailability, currencyStatus, debaseCurrency, foundCurrency, reformCurrency } from '../economy/currency.js?v=20260912-currency2';
+import { abandonCurrency, currencyAvailability, currencyStatus, debaseCurrency, foundCurrency, reformCurrency } from '../economy/currency.js?v=20260912-currency3';
 import { knownForexQuotes, moneyChangerCapability } from '../economy/forex.js?v=20260912-forex1';
 
 function fmt(value) {

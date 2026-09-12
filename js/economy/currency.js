@@ -1,3 +1,5 @@
+import { forexSettlementMultiplier } from './forex.js?v=20260912-forex1';
+
 const CURRENCY_LEGITIMACY_THRESHOLD = 0.55;
 const DISCOVERY_THRESHOLD = 1;
 const CONTACT_MEMORY_WEEKS = 520;
@@ -326,7 +328,8 @@ export function currencyTradeFriction(regionA, regionB) {
     return Math.max(0.86, Math.min(1.15, 0.86 + (1 - trust) * 0.34));
   }
   const trust = Math.max(a?.trust ?? 0, b?.trust ?? 0);
-  return Math.max(0.94, Math.min(1.12, 1.02 - trust * 0.08));
+  const acceptance = Math.max(0.94, Math.min(1.12, 1.02 - trust * 0.08));
+  return acceptance * forexSettlementMultiplier(regionA, regionB);
 }
 
 export function currencyStatus(polity) {
