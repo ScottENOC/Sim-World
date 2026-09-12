@@ -10,6 +10,7 @@ import { hillFortDefenceMultiplier, overlandInfrastructureMultiplier, settlement
 import { findLandStagingRegion, recordContingentReturns } from '../politics/polities.js?v=20260904-kingdom1';
 import { armyCohesionMultiplier, navalMissionProfile, postureProfile } from './policies.js?v=20260904-policy1';
 import { maritimeSkillMultiplier, MARITIME_SKILLS } from '../technology/seamanship.js?v=20260906-maritime1';
+import { firearmCombatProfile } from './firearms.js?v=20260912-gunpowder1';
 
 const LAND_SPEED_KM_PER_WEEK = 120;
 const SEA_SPEED_KM_PER_WEEK = 200;
@@ -143,12 +144,14 @@ function resolveCombat(attacker, defender, raidingPersonnel, toolTypes, rng, via
   const maritimeAssaultBonus = viaSea ? 1 + advancedNavyShare(attacker) * 0.5 : 1;
   const attackerSeaSkill = viaSea ? maritimeSkillMultiplier(attacker, MARITIME_SKILLS.COMBAT) : 1;
   const defenderSeaSkill = viaSea ? 1 + (maritimeSkillMultiplier(defender, MARITIME_SKILLS.COMBAT) - 1) * 0.5 : 1;
+  const attackerFirearms = firearmCombatProfile(attacker, defender, raidingPersonnel, { consumeSupplies: true, elapsedDays: 7 });
+  const defenderFirearms = firearmCombatProfile(defender, attacker, defender.army.personnel, { consumeSupplies: true, elapsedDays: 7 });
   const attackerPower = raidingPersonnel * attackerEquip * maritimeAssaultBonus * attackerSeaSkill * militaryReadiness(attacker) *
-    armyCohesionMultiplier(attacker) * (viaSea ? 1 : horseMilitaryMultiplier(attacker));
+    armyCohesionMultiplier(attacker) * (viaSea ? 1 : horseMilitaryMultiplier(attacker)) * attackerFirearms.multiplier;
   const defenderPower = defender.army.personnel * defenderEquip * DEFENDER_HOME_ADVANTAGE * defenderSeaSkill *
     postureProfile(defender).raidDefence * militaryReadiness(defender) *
     armyCohesionMultiplier(defender) * horseMilitaryMultiplier(defender) * hillFortDefenceMultiplier(defender) *
-    settlementDefenceMultiplier(defender);
+    settlementDefenceMultiplier(defender) * defenderFirearms.multiplier;
   const totalPower = attackerPower + defenderPower;
   const attackerRatio = totalPower > 0 ? attackerPower / totalPower : 0.5;
   const variance = () => 0.7 + rng() * 0.6;
@@ -181,5 +184,5 @@ function resolveCombat(attacker, defender, raidingPersonnel, toolTypes, rng, via
   const lootValue = stockLootValue + walletStolen + treasuryStolen;
   return { attackerRatio, attackerLosses, defenderLosses, attackerSurvivors, looted, walletStolen,
     treasuryStolen, stabilityLoss,
-    maritimeAssaultBonus, lootValue };
+    maritimeAssaultBonus, attackerFirearms, defenderFirearms, lootValue };
 }

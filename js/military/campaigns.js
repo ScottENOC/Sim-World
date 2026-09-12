@@ -21,6 +21,7 @@ import { garrisonCapturedNode } from './supplyCorridors.js?v=20260908-corridor1'
 import { desperateAttackProfile } from './supplyAwareAi.js?v=20260908-supply-ai1';
 import { resolveSubregionalArmyBattles } from './subregionalArmyBattles.js?v=20260909-nodebattle1';
 import { counterLogisticsCombatProfile } from './counterLogisticsAi.js?v=20260909-counter-logistics1';
+import { firearmCombatProfile } from './firearms.js?v=20260912-gunpowder1';
 
 export const CAMPAIGN_OBJECTIVES = Object.freeze({
   devastation: { label: 'Destroy the region', pressureRate: 0.8, damageRate: 1.8 },
@@ -223,10 +224,16 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   campaign.defenderMorale = clamp(campaign.defenderMorale + defenderWater);
 
   const terrain = campaign.battlefield?.terrain || 'plains';
+  const attackerFirearms = firearmCombatProfile(attacker, defender, campaign.personnel, {
+    consumeSupplies: true, elapsedDays: 7, logisticsSupply: campaign.supply,
+  });
+  const defenderFirearms = firearmCombatProfile(defender, attacker, defender.army.personnel, {
+    consumeSupplies: true, elapsedDays: 7, logisticsSupply: 1,
+  });
   let attackerPower = combatPower(attacker, campaign.personnel, toolTypes, 'attacker', campaign.supply,
-    campaign.attackerMorale, null, terrain) * (expedition?.combatMultiplier ?? 1);
+    campaign.attackerMorale, null, terrain) * (expedition?.combatMultiplier ?? 1) * attackerFirearms.multiplier;
   const defenderArmyPower = combatPower(defender, defender.army.personnel, toolTypes, 'defender', 1,
-    campaign.defenderMorale, campaign.siegeEquipment, terrain);
+    campaign.defenderMorale, campaign.siegeEquipment, terrain) * defenderFirearms.multiplier;
   if (campaign.pressure >= 0.45) attackerPower *= 1 + formationSiegeBonus(attacker);
   const militiaPower = campaign.militia * 0.24 * postureProfile(defender).raidDefence;
   const defenderPower = defenderArmyPower + militiaPower;
@@ -298,7 +305,8 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   const week = { tick: currentTick, stage: campaign.stage, terrain, pressureDelta, pressure: campaign.pressure,
     attackerLosses, logisticsLosses, defenderLosses, militiaLosses, civilianDeaths, attackerMorale: campaign.attackerMorale,
     defenderMorale: campaign.defenderMorale, supply: campaign.supply, strengthRatio, navalControl: control,
-    logisticsStatus: campaign.logisticsState?.status || null, routeReliability: campaign.logisticsState?.routeReliability ?? null };
+    logisticsStatus: campaign.logisticsState?.status || null, routeReliability: campaign.logisticsState?.routeReliability ?? null,
+    attackerFirearms, defenderFirearms };
   campaign.lastWeek = week;
   campaign.history.push(week);
   if (campaign.history.length > 26) campaign.history.shift();

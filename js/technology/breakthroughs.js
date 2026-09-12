@@ -1,5 +1,8 @@
 import { effectiveExperience } from './learningByDoing.js?v=20260906-education1';
 import { tickClassicalBreakthroughs } from './classicalTransition.js?v=20260907-classical1';
+import { GUNPOWDER_TECH_ID } from '../military/firearms.js?v=20260912-gunpowder1';
+
+export { GUNPOWDER_TECH_ID };
 
 export const IRON_SMELTING_TECH_ID = 'iron_smelting';
 export const ADVANCED_BOATBUILDING_TECH_ID = 'advanced_boatbuilding';
@@ -31,6 +34,9 @@ const CATAPULT_EARLIEST_TICK = 35_000;
 const MAX_CATAPULT_INNOVATION_CHANCE = 0.00005;
 const CATAPULT_DIFFUSION_CHANCE = 0.001;
 const CIVIL_ENGINEERING_DIFFUSION_CHANCE = 0.0015;
+const MAX_LOCAL_GUNPOWDER_DISCOVERY_CHANCE = 4.5e-7;
+const MAX_NETWORK_GUNPOWDER_DISCOVERY_CHANCE = 1.5e-7;
+const GUNPOWDER_DIFFUSION_CHANCE_PER_PARTNER = 0.0012;
 
 function neighbourDiffusion(region, regionsById, techId, chance = CIVIL_ENGINEERING_DIFFUSION_CHANCE) {
   const knowledgeable = (region.neighbors || []).filter((id) =>
@@ -87,6 +93,45 @@ export function catapultChance(region, regionsById, currentTick) {
   const knowledgeable = (region.neighbors || []).filter((id) =>
     regionsById.get(id)?.unlockedTechIds.has(CATAPULT_TECH_ID)).length;
   const diffusion = 1 - Math.pow(1 - CATAPULT_DIFFUSION_CHANCE, knowledgeable);
+  return 1 - (1 - independent) * (1 - diffusion);
+}
+
+function recentTradePartnerRegions(region, regionsById, currentTick = null) {
+  const ids = region.recentTradePartners instanceof Map
+    ? [...region.recentTradePartners.entries()]
+        .filter(([, lastTradeTick]) => currentTick === null || currentTick - lastTradeTick <= TRADE_DIFFUSION_MEMORY_WEEKS)
+        .map(([id]) => id)
+    : [...(region.tradePartnerIds || [])];
+  return ids.map((id) => regionsById.get(id)).filter(Boolean);
+}
+
+function hasGunpowderIngredient(region, ingredient) {
+  if (ingredient === 'wood') {
+    return (region.stockpile?.wood || 0) > 5 || (region.forest?.currentStock || 0) > 100;
+  }
+  return (region.stockpile?.[ingredient] || 0) > 1 || Boolean(region.deposits?.[ingredient]);
+}
+
+export function gunpowderBreakthroughChance(region, regionsById, currentTick = null) {
+  if (region.unlockedTechIds.has(GUNPOWDER_TECH_ID)) return 0;
+  const partners = recentTradePartnerRegions(region, regionsById, currentTick);
+  const ingredients = ['saltpetre', 'sulfur', 'wood'];
+  const localComplete = ingredients.every((ingredient) => hasGunpowderIngredient(region, ingredient));
+  const networkComplete = ingredients.every((ingredient) =>
+    hasGunpowderIngredient(region, ingredient) || partners.some((partner) => hasGunpowderIngredient(partner, ingredient)));
+
+  const experimentalExperience = Math.max(0, effectiveExperience(region, 'mining')) * 0.35 +
+    Math.max(0, effectiveExperience(region, 'smithing')) * 0.35 +
+    Math.max(0, effectiveExperience(region, 'pottery')) * 0.30;
+  const experimentation = 1 - Math.exp(-experimentalExperience / 180_000);
+  const independent = localComplete
+    ? (0.10 + experimentation * 0.90) * MAX_LOCAL_GUNPOWDER_DISCOVERY_CHANCE
+    : networkComplete
+      ? (0.08 + experimentation * 0.92) * MAX_NETWORK_GUNPOWDER_DISCOVERY_CHANCE
+      : 0;
+
+  const knowledgeablePartners = partners.filter((partner) => partner.unlockedTechIds.has(GUNPOWDER_TECH_ID)).length;
+  const diffusion = 1 - Math.pow(1 - GUNPOWDER_DIFFUSION_CHANCE_PER_PARTNER, knowledgeablePartners);
   return 1 - (1 - independent) * (1 - diffusion);
 }
 
@@ -176,6 +221,7 @@ export function tickBreakthroughs(regions, currentTick, rng = Math.random, elaps
   const waterDiscoveries = regions.filter((region) => rng() < chance(waterManagementChance(region, regionsById)));
   const shaftDiscoveries = regions.filter((region) => rng() < chance(shaftMiningChance(region, regionsById)));
   const drainageDiscoveries = regions.filter((region) => rng() < chance(mineDrainageChance(region, regionsById)));
+  const gunpowderDiscoveries = regions.filter((region) => rng() < chance(gunpowderBreakthroughChance(region, regionsById, currentTick)));
   for (const region of ironDiscoveries) {
     region.unlockedTechIds.add(IRON_SMELTING_TECH_ID);
     region.ironWorkingReadiness = Math.max(0.02, region.ironWorkingReadiness || 0);
@@ -193,6 +239,16 @@ export function tickBreakthroughs(regions, currentTick, rng = Math.random, elaps
       regionId: region.id,
       regionName: region.name,
       tick: currentTick,
+    });
+  }
+  for (const region of gunpowderDiscoveries) {
+    region.unlockedTechIds.add(GUNPOWDER_TECH_ID);
+    region.firearms ||= {};
+    region.firearms.readiness = Math.max(0.02, region.firearms.readiness || 0);
+    events.push({
+      type: 'gunpowder_breakthrough', regionId: region.id, regionName: region.name, tick: currentTick,
+      title: 'Gunpowder discovered',
+      message: `${region.name} has discovered a powerful explosive mixture of saltpetre, sulfur and charcoal.`,
     });
   }
   for (const region of hillFortDiscoveries) {

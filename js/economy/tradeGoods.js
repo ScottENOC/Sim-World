@@ -51,6 +51,8 @@ export const TRADE_GOODS = {
   // prohibits their export. A policy can selectively permit them later.
   bronze_weapons: { label: 'New bronze weapons & armour', basePrice: 145, referenceStock: 100, category: 'military_equipment', strategic: true, cargoKgPerUnit: 5 },
   iron_weapons:   { label: 'New iron weapons & armour', basePrice: 60, referenceStock: 100, category: 'military_equipment', strategic: true, cargoKgPerUnit: 5 },
+  gunpowder:      { label: 'Gunpowder', basePrice: 28, referenceStock: 180, category: 'military_supply', strategic: true, cargoKgPerUnit: 1 },
+  firearms:       { label: 'Firearms', basePrice: 95, referenceStock: 120, category: 'military_equipment', strategic: true, cargoKgPerUnit: 4 },
   siege_equipment:{ label: 'New siege equipment', basePrice: 500, referenceStock: 10, category: 'military_equipment', strategic: true, cargoKgPerUnit: 500 },
   warship:        { label: 'New warship', basePrice: 900, referenceStock: 8, category: 'military_equipment', strategic: true, cargoKgPerUnit: 1200 },
 };
