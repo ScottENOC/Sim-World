@@ -17,10 +17,12 @@ function region(id) {
     militaryExperience: { field: 0.45, institutional: 0.55, lastFieldTick: 0, engagementWeeks: 20, trainingYears: 12 },
     militaryInstitutions: { officerSchoolProgress: 1, officerSchoolActive: true },
     militaryPolicy: { armyPermanence: 0.7 },
-    infrastructure: {
-      drill_ground: { count: 1, condition: 1 }, royal_arsenal: { count: 1, condition: 1 },
-      harbour: { count: 1, condition: 1 }, administrative_centre: { count: 1, condition: 1 },
-    },
+    construction: { projects: [], assets: [
+      { id:`${id}:drill`, typeId:'drill_ground', condition:1, scale:1 },
+      { id:`${id}:arsenal`, typeId:'royal_arsenal', condition:1, scale:1 },
+      { id:`${id}:harbour`, typeId:'harbour', condition:1, scale:1 },
+      { id:`${id}:admin`, typeId:'administrative_centre', condition:1, scale:1 },
+    ] },
     militaryFormations: { traditions: [], progress: {}, retired: [] },
   };
 }
