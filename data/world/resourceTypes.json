@@ -9,6 +9,8 @@
   "silver": { "category": "extractive", "label": "Silver" },
   "lead":   { "category": "extractive", "label": "Lead" },
   "salt":   { "category": "extractive", "label": "Salt" },
+  "saltpetre": { "category": "extractive", "label": "Saltpetre" },
+  "sulfur": { "category": "extractive", "label": "Sulfur" },
   "fineStone": { "category": "extractive", "label": "Fine building stone" },
   "bronze": {
     "category": "crafted",
@@ -31,6 +33,7 @@
     "recipe": { "inputs": { "wood": 2 }, "laborType": "pitchMaker" }
   },
   "textiles": { "category": "crafted", "label": "Textiles", "laborType": "textileWorker" },
+  "silk": { "category": "luxury", "label": "Silk" },
   "horses": { "category": "livestock", "label": "Untrained horses" },
   "food":   { "category": "flow", "label": "Food" }
 }
