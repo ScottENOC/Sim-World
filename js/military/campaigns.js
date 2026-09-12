@@ -22,6 +22,7 @@ import { desperateAttackProfile } from './supplyAwareAi.js?v=20260908-supply-ai1
 import { resolveSubregionalArmyBattles } from './subregionalArmyBattles.js?v=20260909-nodebattle1';
 import { counterLogisticsCombatProfile } from './counterLogisticsAi.js?v=20260909-counter-logistics1';
 import { firearmCombatProfile } from './firearms.js?v=20260912-gunpowder1';
+import { medievalMilitaryCombatMultiplier } from './medievalDoctrine.js?v=20260912-medieval2';
 import { campaignExternalSupport, applyExternalCampaignLosses } from '../politics/privateMilitaryActors.js?v=20260912-pmc1';
 
 export const CAMPAIGN_OBJECTIVES = Object.freeze({
@@ -235,8 +236,10 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   const effectiveExternal = externalSupport.personnel * externalSupport.quality;
   let attackerPower = combatPower(attacker, campaign.personnel + effectiveExternal, toolTypes, 'attacker', campaign.supply,
     campaign.attackerMorale, null, terrain) * (expedition?.combatMultiplier ?? 1) * attackerFirearms.multiplier;
+  attackerPower *= medievalMilitaryCombatMultiplier(attacker, defender, terrain, 'attacker');
   const defenderArmyPower = combatPower(defender, defender.army.personnel, toolTypes, 'defender', 1,
-    campaign.defenderMorale, campaign.siegeEquipment, terrain) * defenderFirearms.multiplier;
+    campaign.defenderMorale, campaign.siegeEquipment, terrain) * defenderFirearms.multiplier *
+    medievalMilitaryCombatMultiplier(defender, attacker, terrain, 'defender');
   if (campaign.pressure >= 0.45) attackerPower *= 1 + formationSiegeBonus(attacker);
   const militiaPower = campaign.militia * 0.24 * postureProfile(defender).raidDefence;
   const defenderPower = defenderArmyPower + militiaPower;

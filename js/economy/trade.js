@@ -14,6 +14,7 @@ import { maritimeRouteBetween } from '../world/chokepoints.js?v=20260907-chokepo
 import { collectTransitTolls, estimateTransitToll } from './transitTolls.js?v=20260907-transit1';
 import { currencyTradeFriction, recordCurrencyContact } from './currency.js?v=20260912-currency3';
 import { quarantineTradeFriction } from '../society/disease.js?v=20260912-disease1';
+import { medievalTradeFrictionMultiplier } from './medievalCommercialInstitutions.js?v=20260912-medieval2';
 
 const LAND_ADJACENT_COST = 0.02;
 const SEA_COST_PER_KM = 0.0002;
@@ -64,7 +65,8 @@ function clamp01(value) {
 }
 
 function combinedTradeFriction(regionA, regionB) {
-  return currencyTradeFriction(regionA, regionB) * quarantineTradeFriction(regionA) * quarantineTradeFriction(regionB);
+  return currencyTradeFriction(regionA, regionB) * quarantineTradeFriction(regionA) * quarantineTradeFriction(regionB) *
+    medievalTradeFrictionMultiplier(regionA) * medievalTradeFrictionMultiplier(regionB);
 }
 
 function stableHash(value) {
