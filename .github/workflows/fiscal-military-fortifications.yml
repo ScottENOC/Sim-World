@@ -1,0 +1,68 @@
+name: Fiscal-military state and fortifications validation
+
+on:
+  push:
+    branches:
+      - early-modern-fiscal-fortifications-v1
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Apply runtime integration
+        run: python tools/apply-fiscal-military-fortifications.py
+
+      - name: Syntax checks
+        run: |
+          python -m py_compile tools/apply-fiscal-military-fortifications.py
+          node --check js/politics/fiscalMilitaryState.js
+          node --check js/military/campaigns.js
+          node --check js/main.js
+          node --check tools/test-fiscal-military-fortifications.mjs
+          node --check tools/benchmark-fiscal-military-fortifications.mjs
+
+      - name: Fiscal-military regression
+        run: node tools/test-fiscal-military-fortifications.mjs
+
+      - name: Existing finance and military compatibility
+        run: |
+          node tools/test-finance-corporate-capital-v2.mjs
+          node tools/test-early-modern-military-transition.mjs
+          node tools/test-state-administration-v2.mjs
+
+      - name: 2300-region annual performance guardrail
+        run: node tools/benchmark-fiscal-military-fortifications.mjs
+
+      - name: Diff sanity
+        run: git diff --check
+
+      - name: Commit runtime integration
+        if: github.event_name == 'push'
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/main.js js/military/campaigns.js
+          if ! git diff --cached --quiet; then
+            git commit -m 'Integrate fiscal-military Early Modern layer'
+            git pull --rebase
+            git push
+          fi
