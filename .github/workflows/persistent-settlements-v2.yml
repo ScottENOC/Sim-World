@@ -1,0 +1,33 @@
+name: Persistent settlements v2 validation
+
+on:
+  push:
+    branches: [persistent-settlements-v2]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+      - name: Syntax checks
+        run: |
+          node --check js/society/settlements.js
+          node --check js/military/subregionalControl.js
+          node --check js/world/spatialGraph.js
+          node --check js/ui/localRegionView.js
+          node --check js/main.js
+      - name: Settlement and spatial regressions
+        run: |
+          node tools/test-persistent-settlements-v2.mjs
+          node tools/test-world-spatial-skeleton.mjs
+          node tools/test-world-spatial-real-map.mjs
+          node tools/test-real-river-navigation.mjs
+          node tools/test-subregional-control.mjs
+          node tools/test-ui-priority.mjs
+      - name: Diff sanity
+        run: git diff --check
