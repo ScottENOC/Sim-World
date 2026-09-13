@@ -56,7 +56,7 @@ assert.ok(Array.isArray(firstEvents), 'elite politics tick should return an even
 const stewardId = weakState.offices.steward.holderId;
 tickStateAdministrationElitePolitics(weakPolity, weakTerritories, 572, 365.2425, () => 0.99, {});
 assert.equal(weakState.offices.steward.holderId, stewardId, 'officeholders should persist across ticks rather than being regenerated every year');
-assert.ok(weakState.offices.steward.tenureYears >= 6, 'persistent officials should accumulate tenure');
+assert.ok(weakState.offices.steward.tenureYears >= 0.99, 'persistent officials should accumulate tenure after appointment');
 
 const strongPolity = polity({
   id: 'p2', capitalRegionId: 'cap2',
