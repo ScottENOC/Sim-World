@@ -34,6 +34,19 @@ jobs:
           elif new not in text:
               raise SystemExit('control-node spatial propagation anchor not found')
           PY
+      - name: Preserve principal city threshold
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('js/society/settlements.js')
+          text = p.read_text()
+          old = "  if (pop >= 12000) return 'city';"
+          new = "  if (pop >= (isPrincipal ? 5000 : 12000)) return 'city';"
+          if old in text:
+              p.write_text(text.replace(old, new, 1))
+          elif new not in text:
+              raise SystemExit('principal city threshold anchor not found')
+          PY
       - name: Syntax checks
         run: |
           node --check js/society/settlements.js
