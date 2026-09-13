@@ -5,6 +5,8 @@ def replace_once(path, old, new):
     p = Path(path)
     text = p.read_text()
     if old not in text:
+        if new in text:
+            return
         raise SystemExit(f'anchor not found in {path}: {old[:100]}')
     p.write_text(text.replace(old, new, 1))
 
@@ -27,13 +29,13 @@ replace_once(
 replace_once(
     'js/world/spatialGraph.js',
     "  const anchors=graph.regionAnchorPoints(region.id), principal=graph.sites.get(`${region.id}:principal`);\n  const used=[];\n  for(const place of places){",
-    "  const anchors=graph.regionAnchorPoints(region.id), principal=graph.sites.get(`${region.id}:principal`);\n  const used=[];\n  const mergedPlaces=new Map();\n  for(const settlement of region.settlements?.places||[]) mergedPlaces.set(settlement.id,settlement);\n  for(const place of places){\n    const settlement=mergedPlaces.get(place.id);\n    mergedPlaces.set(place.id,settlement?{...place,...settlement,controllerActorId:place.controllerActorId,garrisonActorId:place.garrisonActorId,garrisonPersonnel:place.garrisonPersonnel}:place);\n  }\n  const pullPoints=[...anchors];\n  const idx=graph.regionIndex.get(region.id);\n  for(const corridorId of idx?.corridorIds||[]){\n    const corridor=graph.corridors.get(corridorId);\n    if(corridor?.type==='river') for(const segment of corridor.regionSegments||[]) if(segment.regionId===region.id) pullPoints.push(segment.from,segment.to);\n    if(corridor?.type==='land_route'&&corridor.anchorId){const a=graph.anchors.get(corridor.anchorId);if(a)pullPoints.push([a.lon,a.lat]);}\n  }\n  const coast=graph.anchors.get(`coast:${region.id}`);if(coast)pullPoints.push([coast.lon,coast.lat]);\n  for(const place of mergedPlaces.values()){"
+    "  const anchors=graph.regionAnchorPoints(region.id), principal=graph.sites.get(`${region.id}:principal`);\n  const used=[];\n  const settlementById=new Map((region.settlements?.places||[]).map((settlement)=>[settlement.id,settlement]));\n  const mergedPlaces=new Map(settlementById);\n  for(const place of places){\n    const settlement=mergedPlaces.get(place.id);\n    mergedPlaces.set(place.id,settlement?{...place,...settlement,controllerActorId:place.controllerActorId,garrisonActorId:place.garrisonActorId,garrisonPersonnel:place.garrisonPersonnel}:place);\n  }\n  const pullPoints=[...anchors];\n  const idx=graph.regionIndex.get(region.id);\n  for(const corridorId of idx?.corridorIds||[]){\n    const corridor=graph.corridors.get(corridorId);\n    if(corridor?.type==='river') for(const segment of corridor.regionSegments||[]) if(segment.regionId===region.id) pullPoints.push(segment.from,segment.to);\n    if(corridor?.type==='land_route'&&corridor.anchorId){const a=graph.anchors.get(corridor.anchorId);if(a)pullPoints.push([a.lon,a.lat]);}\n  }\n  const coast=graph.anchors.get(`coast:${region.id}`);if(coast)pullPoints.push([coast.lon,coast.lat]);\n  for(const place of mergedPlaces.values()){"
 )
 
 replace_once(
     'js/world/spatialGraph.js',
     "    else if(['city','principal_settlement'].includes(place.kind)) point=[principal.lon,principal.lat];\n    else if(place.kind==='port' && graph.anchors.has(`coast:${region.id}`)){const a=graph.anchors.get(`coast:${region.id}`);point=[a.lon,a.lat];}\n    else point=sitePoint(region,place.id,anchors.length?anchors:[[principal.lon,principal.lat]]);\n    used.push(addSite(graph,region,place,point));",
-    "    else if(place.isPrincipal||place.id===region.settlements?.principalId) point=[principal.lon,principal.lat];\n    else if(place.kind==='port' && graph.anchors.has(`coast:${region.id}`)){const a=graph.anchors.get(`coast:${region.id}`);point=[a.lon,a.lat];}\n    else point=sitePoint(region,place.id,pullPoints.length?pullPoints:[[principal.lon,principal.lat]]);\n    const displayType=(place.status&&place.status!=='active')?'ruins':place.kind;\n    used.push(addSite(graph,region,place,point,displayType));"
+    "    else if(place.isPrincipal||place.id===region.settlements?.principalId) point=[principal.lon,principal.lat];\n    else if(place.kind==='port' && graph.anchors.has(`coast:${region.id}`)){const a=graph.anchors.get(`coast:${region.id}`);point=[a.lon,a.lat];}\n    else point=sitePoint(region,place.id,pullPoints.length?pullPoints:[[principal.lon,principal.lat]]);\n    const displayType=(place.status&&place.status!=='active')?'ruins':place.kind;\n    const site=addSite(graph,region,place,point,displayType);used.push(site);\n    const settlement=settlementById.get(place.id);\n    if(settlement){settlement.location={lon:site.lon,lat:site.lat};settlement.spatialSiteId=site.id;}"
 )
 
 # Make the regional renderer show durable villages/ruins as well as towns/cities.
