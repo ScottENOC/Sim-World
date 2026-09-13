@@ -20,6 +20,20 @@ jobs:
           fetch-depth: 0
       - name: Apply persistent settlement integration
         run: python tools/apply-persistent-settlements-v2.py
+      - name: Preserve control-node spatial metadata
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('js/world/spatialGraph.js')
+          text = p.read_text()
+          old = "    const settlement=settlementById.get(place.id);\n    if(settlement){settlement.location={lon:site.lon,lat:site.lat};settlement.spatialSiteId=site.id;}"
+          new = "    const settlement=settlementById.get(place.id);\n    if(settlement){settlement.location={lon:site.lon,lat:site.lat};settlement.spatialSiteId=site.id;}\n    const controlPlace=places.find((candidate)=>candidate.id===place.id);\n    if(controlPlace){controlPlace.location={lon:site.lon,lat:site.lat};controlPlace.spatialSiteId=site.id;}"
+          if old in text:
+              text = text.replace(old, new, 1)
+              p.write_text(text)
+          elif new not in text:
+              raise SystemExit('control-node spatial propagation anchor not found')
+          PY
       - name: Syntax checks
         run: |
           node --check js/society/settlements.js
