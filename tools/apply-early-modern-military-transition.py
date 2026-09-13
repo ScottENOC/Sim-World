@@ -62,11 +62,12 @@ replace_once(
     "export function resolveFleetBattle(attacker, defender, regionsById, rng = Math.random, options = {}) {\n  const defenderInPort = Boolean(options.defenderInPort || defender.locationType === 'port');\n  const attackerPower = fleetCombatPower(attacker, regionsById);\n  const defenderPower = fleetCombatPower(defender, regionsById, { inPort: defenderInPort });\n",
     "export function resolveFleetBattle(attacker, defender, regionsById, rng = Math.random, options = {}) {\n  const defenderInPort = Boolean(options.defenderInPort || defender.locationType === 'port');\n  const attackerOrigin = regionsById.get(attacker.ownerRegionId);\n  const defenderOrigin = regionsById.get(defender.ownerRegionId);\n  const attackerGunnery = attackerOrigin ? navalGunCombatProfile(attackerOrigin, attacker.ships, { consumeSupplies: true }) : { multiplier: 1 };\n  const defenderGunnery = defenderOrigin ? navalGunCombatProfile(defenderOrigin, defender.ships, { consumeSupplies: true }) : { multiplier: 1 };\n  const attackerPower = fleetCombatPower(attacker, regionsById) * attackerGunnery.multiplier;\n  const defenderPower = fleetCombatPower(defender, regionsById, { inPort: defenderInPort }) * defenderGunnery.multiplier;\n",
 )
-replace_once(
-    'js/military/fleets.js',
-    "  const attackerOrigin = regionsById.get(attacker.ownerRegionId);\n  const defenderOrigin = regionsById.get(defender.ownerRegionId);\n  const intensity = (attackerLoss.sunk.length + defenderLoss.sunk.length + attackerCapture.captured.length + defenderCapture.captured.length +\n",
-    "  const intensity = (attackerLoss.sunk.length + defenderLoss.sunk.length + attackerCapture.captured.length + defenderCapture.captured.length +\n",
-)
+p = Path('js/military/fleets.js')
+text = p.read_text()
+old_origins = "  const attackerOrigin = regionsById.get(attacker.ownerRegionId);\n  const defenderOrigin = regionsById.get(defender.ownerRegionId);\n  const intensity = (attackerLoss.sunk.length + defenderLoss.sunk.length + attackerCapture.captured.length + defenderCapture.captured.length +\n"
+new_origins = "  const intensity = (attackerLoss.sunk.length + defenderLoss.sunk.length + attackerCapture.captured.length + defenderCapture.captured.length +\n"
+if old_origins in text:
+    p.write_text(text.replace(old_origins, new_origins, 1))
 replace_once(
     'js/military/fleets.js',
     "    portDamage,\n    attackerWon: attackerShare > 0.5,\n",
