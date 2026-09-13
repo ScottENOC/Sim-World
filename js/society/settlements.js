@@ -3,7 +3,7 @@ const DAYS_PER_YEAR = 365.2425;
 
 function settlementKind(population, isPrincipal = false) {
   const pop = Math.max(0, Number(population) || 0);
-  if (pop >= 12000) return 'city';
+  if (pop >= (isPrincipal ? 5000 : 12000)) return 'city';
   if (pop >= 1200) return 'town';
   return isPrincipal ? 'principal_settlement' : 'village';
 }
@@ -43,9 +43,9 @@ export function ensureSettlements(region, currentTick = 0) {
     principal = {
       id: `${region.id}:principal`,
       name: region.name,
-      kind: 'principal_settlement',
+      kind: settlementKind(region.urbanisation?.urbanPopulation || 0, true),
       isPrincipal: true,
-      population: 0,
+      population: Math.max(0, region.urbanisation?.urbanPopulation || 0),
       urbanShare: 0,
       fame: 0,
       foundedAsMajorSettlement: false,

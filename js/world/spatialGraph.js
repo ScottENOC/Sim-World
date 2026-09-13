@@ -201,7 +201,8 @@ function addSite(graph, region, place, point, type = place.kind) {
   const existing=graph.sites.get(place.id);
   const site=existing || {id:place.id,persistent:true};
   Object.assign(site,{type,name:place.name,lon:point[0],lat:point[1],regionId:region.id,sourcePlaceId:place.id,
-    controllerActorId:place.controllerActorId,garrisonActorId:place.garrisonActorId||null,garrisonPersonnel:place.garrisonPersonnel||0});
+    controllerActorId:place.controllerActorId,garrisonActorId:place.garrisonActorId||null,garrisonPersonnel:place.garrisonPersonnel||0,
+    population:Math.max(0,place.population||0),settlementStatus:place.status||place.settlementStatus||null,fame:place.fame||0});
   graph.sites.set(site.id,site); graph.regionIndex.get(region.id)?.siteIds.add(site.id);
   place.location={lon:site.lon,lat:site.lat}; place.spatialSiteId=site.id;
   return site;
@@ -211,13 +212,32 @@ export function syncRegionSpatialSites(graph, region, places = []) {
   if (!graph?.regionIndex?.has(region?.id)) return [];
   const anchors=graph.regionAnchorPoints(region.id), principal=graph.sites.get(`${region.id}:principal`);
   const used=[];
+  const settlementById=new Map((region.settlements?.places||[]).map((settlement)=>[settlement.id,settlement]));
+  const mergedPlaces=new Map(settlementById);
   for(const place of places){
+    const settlement=mergedPlaces.get(place.id);
+    mergedPlaces.set(place.id,settlement?{...place,...settlement,controllerActorId:place.controllerActorId,garrisonActorId:place.garrisonActorId,garrisonPersonnel:place.garrisonPersonnel}:place);
+  }
+  const pullPoints=[...anchors];
+  const idx=graph.regionIndex.get(region.id);
+  for(const corridorId of idx?.corridorIds||[]){
+    const corridor=graph.corridors.get(corridorId);
+    if(corridor?.type==='river') for(const segment of corridor.regionSegments||[]) if(segment.regionId===region.id) pullPoints.push(segment.from,segment.to);
+    if(corridor?.type==='land_route'&&corridor.anchorId){const a=graph.anchors.get(corridor.anchorId);if(a)pullPoints.push([a.lon,a.lat]);}
+  }
+  const coast=graph.anchors.get(`coast:${region.id}`);if(coast)pullPoints.push([coast.lon,coast.lat]);
+  for(const place of mergedPlaces.values()){
     let point;
     if(place.location && Number.isFinite(place.location.lon)) point=[place.location.lon,place.location.lat];
-    else if(['city','principal_settlement'].includes(place.kind)) point=[principal.lon,principal.lat];
+    else if(place.isPrincipal||place.id===region.settlements?.principalId) point=[principal.lon,principal.lat];
     else if(place.kind==='port' && graph.anchors.has(`coast:${region.id}`)){const a=graph.anchors.get(`coast:${region.id}`);point=[a.lon,a.lat];}
-    else point=sitePoint(region,place.id,anchors.length?anchors:[[principal.lon,principal.lat]]);
-    used.push(addSite(graph,region,place,point));
+    else point=sitePoint(region,place.id,pullPoints.length?pullPoints:[[principal.lon,principal.lat]]);
+    const displayType=(place.status&&place.status!=='active')?'ruins':place.kind;
+    const site=addSite(graph,region,place,point,displayType);used.push(site);
+    const settlement=settlementById.get(place.id);
+    if(settlement){settlement.location={lon:site.lon,lat:site.lat};settlement.spatialSiteId=site.id;}
+    const controlPlace=places.find((candidate)=>candidate.id===place.id);
+    if(controlPlace){controlPlace.location={lon:site.lon,lat:site.lat};controlPlace.spatialSiteId=site.id;}
   }
   const settlement=region.settlements?.places?.find(p=>p.id===region.settlements?.principalId);
   if(settlement && principal){settlement.location={lon:principal.lon,lat:principal.lat}; settlement.spatialSiteId=principal.id;}

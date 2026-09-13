@@ -59,6 +59,31 @@ export function ensureSubregionalControl(region) {
   // New infrastructure can create a strategically meaningful node without rebuilding the map.
   const control = region.subregionalControl;
   control.sovereignActorId ||= sovereign;
+
+  // Settlement entities are authoritative. Military control nodes reference the
+  // same IDs rather than inventing parallel towns that disappear on conquest.
+  const settlementLedger = ensureSettlements(region);
+  for (const settlement of settlementLedger.places) {
+    let node = control.places.find((candidate) => candidate.id === settlement.id);
+    if (!node) {
+      node = place(settlement.id, settlement.name, settlement.kind, control.sovereignActorId, settlement.isPrincipal ? 1 : 0.55, settlement.population || 0);
+      control.places.push(node);
+    }
+    node.name = settlement.name;
+    node.population = Math.max(0, Math.round(settlement.population || 0));
+    node.settlementStatus = settlement.status || 'active';
+    node.isSettlement = true;
+    node.isPrincipalSettlement = !!settlement.isPrincipal;
+    node.location = settlement.location || node.location;
+    node.spatialSiteId = settlement.spatialSiteId || node.spatialSiteId;
+    if (settlement.status === 'active') {
+      node.kind = settlement.kind;
+      node.strategicValue = settlement.isPrincipal ? 1 : settlement.kind === 'city' ? 0.78 : settlement.kind === 'town' ? 0.62 : 0.42;
+    } else {
+      node.kind = 'ruins';
+      node.strategicValue = settlement.isPrincipal ? 0.36 : 0.14;
+    }
+  }
   if ((assetCount(region, 'hill_fort') + assetCount(region, 'coastal_fortifications')) > 0 && !control.places.some((p) => p.kind === 'fort')) {
     control.places.push(place(`${region.id}:fort`, `${region.name} fortified position`, 'fort', control.sovereignActorId, 0.74, 0));
   }

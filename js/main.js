@@ -10,6 +10,7 @@ import { tickTrade } from './economy/trade.js?v=20260912-medieval1';
 import { tickStateFinance } from './economy/stateFinance.js?v=20260912-currency2';
 import { tickDemographics } from './society/demographics.js?v=20260912-culture-scale1';
 import { tickDisease } from './society/disease.js?v=20260912-disease1';
+import { tickSettlements } from './society/settlements.js?v=20260913-settlements2';
 import './ui/diseasePolicyUi.js?v=20260912-disease1';
 import { tickBanditry } from './military/banditry.js?v=20260905-projects1';
 import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable, syncNextRaidId } from './military/raiding.js?v=20260912-medieval1';
@@ -22,8 +23,8 @@ import { AdvisorCouncil } from './ui/advisors.js?v=20260905-projects1';
 import { renderDiplomaticServicePanel } from './ui/diplomaticServicePanel.js?v=20260909-diplomatic-ui1';
 import { buildSocialOverlayLayers } from './ui/socialOverlays.js?v=20260910-social-overlays1';
 import { loadWorldSpatialGraph } from './world/spatialBaseLoader.js?v=20260910-spatial1';
-import { syncRegionSpatialSites } from './world/spatialGraph.js?v=20260910-spatial1';
-import { createLocalRegionView } from './ui/localRegionView.js?v=20260910-spatial1';
+import { syncRegionSpatialSites } from './world/spatialGraph.js?v=20260913-settlements2';
+import { createLocalRegionView } from './ui/localRegionView.js?v=20260913-settlements2';
 import { ensureSubregionalControl } from './military/subregionalControl.js?v=20260908-subregion1';
 import { FogOfWar } from './core/fogOfWar.js?v=20260904-weather1';
 import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260906-scouting1';
@@ -330,6 +331,9 @@ async function main() {
     const religiousInstitutionEvents = profiler.measure('Religious institutions', () => tickReligiousInstitutions(regions, religiousWorld, polities, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));
     const diseaseEvents = profiler.measure('Disease', () => tickDisease(regions, time.elapsedDays, Math.random));
     profiler.measure('Demographics', () => tickDemographics(regions, religiousWorld, time.elapsedDays, profiler));
+    profiler.measure('Settlements', () => {
+      for (const region of regions) tickSettlements(region, calendarWeek, time.elapsedDays, Math.random);
+    });
     // These are slow-moving social processes. The world clock may tick monthly
     // (and later weekly/daily), but recomputing them on every world tick wastes
     // CPU without adding meaningful temporal resolution.
