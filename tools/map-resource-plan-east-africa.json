@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "purpose": "Physical endowments for geography-first East African gameplay regions.",
+  "defaultsByZone": {
+    "ea_red_sea_nile":{"landQuality":0.42,"forestFraction":0.05,"forestStartCoverage":0.68,"deposits":{"stone":"major","ironOre":"moderate","gold":"minor","salt":"major"},"specialResources":{"nileCorridor":1.2}},
+    "ea_sudan_savanna":{"landQuality":0.72,"forestFraction":0.18,"forestStartCoverage":0.76,"deposits":{"stone":"moderate","ironOre":"minor","gold":"minor","salt":"minor"},"specialResources":{"savannaPastoralism":1.2}},
+    "ea_upper_nile":{"landQuality":0.78,"forestFraction":0.28,"forestStartCoverage":0.82,"deposits":{"stone":"minor","ironOre":"minor","gold":"minor"},"specialResources":{"wetlandFisheries":1.3}},
+    "ea_eritrean_highlands":{"landQuality":0.62,"forestFraction":0.18,"forestStartCoverage":0.74,"deposits":{"stone":"major","ironOre":"moderate","copper":"minor","gold":"minor","salt":"minor"},"specialResources":{"redSeaEscarpment":1.25}},
+    "ea_afar":{"landQuality":0.20,"forestFraction":0.015,"forestStartCoverage":0.60,"deposits":{"stone":"major","salt":"very_major","sulfur":"moderate"},"specialResources":{"riftSalt":1.5}},
+    "ea_north_eth_highlands":{"landQuality":0.82,"forestFraction":0.24,"forestStartCoverage":0.78,"deposits":{"stone":"major","ironOre":"moderate","gold":"minor","salt":"minor"},"specialResources":{"highlandAgriculture":1.25}},
+    "ea_central_eth_highlands":{"landQuality":0.92,"forestFraction":0.32,"forestStartCoverage":0.82,"deposits":{"stone":"major","ironOre":"moderate","gold":"minor","salt":"minor"},"specialResources":{"highlandAgriculture":1.35,"coffeeEcology":0.45}},
+    "ea_coffee_highlands":{"landQuality":1.02,"forestFraction":0.48,"forestStartCoverage":0.88,"deposits":{"stone":"moderate","ironOre":"minor","gold":"minor"},"specialResources":{"coffeeEcology":1.5,"highlandAgriculture":1.25}},
+    "ea_ogaden":{"landQuality":0.38,"forestFraction":0.07,"forestStartCoverage":0.68,"deposits":{"stone":"moderate","salt":"moderate","ironOre":"minor"},"specialResources":{"pastoralCorridor":1.35}},
+    "ea_horn_coast":{"landQuality":0.26,"forestFraction":0.05,"forestStartCoverage":0.64,"deposits":{"stone":"moderate","salt":"major"},"specialResources":{"indianOceanTrade":1.3}},
+    "ea_great_lakes":{"landQuality":1.04,"forestFraction":0.44,"forestStartCoverage":0.88,"deposits":{"stone":"moderate","ironOre":"moderate","gold":"minor"},"specialResources":{"lakeFisheries":1.4,"highlandAgriculture":1.25}},
+    "ea_kenya_highlands":{"landQuality":0.88,"forestFraction":0.30,"forestStartCoverage":0.82,"deposits":{"stone":"major","ironOre":"moderate","gold":"minor","salt":"minor"},"specialResources":{"riftPastoralism":1.25}},
+    "ea_swahili_coast":{"landQuality":0.78,"forestFraction":0.35,"forestStartCoverage":0.84,"deposits":{"stone":"moderate","ironOre":"minor","gold":"minor","salt":"minor"},"specialResources":{"indianOceanTrade":1.5}},
+    "ea_tanzania_interior":{"landQuality":0.76,"forestFraction":0.30,"forestStartCoverage":0.82,"deposits":{"stone":"major","ironOre":"moderate","gold":"moderate","salt":"minor"},"specialResources":{"savannaPastoralism":1.2}}
+  }
+}
