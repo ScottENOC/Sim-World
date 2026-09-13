@@ -42,6 +42,17 @@ def signed_area(coords):
         total += x1 * y2 - x2 * y1
     return total / 2.0
 
+
+def polygons(geom):
+    if geom.geom_type == 'Polygon':
+        return [geom]
+    if hasattr(geom, 'geoms'):
+        found = []
+        for child in geom.geoms:
+            found.extend(polygons(child))
+        return found
+    return []
+
 feature = next((f for f in geo.get('features', []) if region_id(f) == TARGET), None)
 if feature is None:
     feature = find_in(geo, TARGET)
@@ -63,10 +74,9 @@ print('LAT_SPAN', round(geom.bounds[3] - geom.bounds[1], 6))
 print('AREA_DEG2', round(geom.area, 6))
 print('VALID', geom.is_valid, explain_validity(geom))
 print('EMPTY', geom.is_empty)
-print('PARTS', len(getattr(geom, 'geoms', [geom])))
+print('PARTS', len(polygons(geom)))
 
-polys = list(geom.geoms) if geom.geom_type == 'MultiPolygon' else [geom]
-for i, poly in enumerate(polys[:20]):
+for i, poly in enumerate(polygons(geom)[:20]):
     exterior = list(poly.exterior.coords)
     print('POLY', i, 'EXTERIOR_POINTS', len(exterior), 'SIGNED_AREA', round(signed_area(exterior), 6), 'HOLES', len(poly.interiors))
     for j, ring in enumerate(poly.interiors[:5]):
@@ -76,10 +86,14 @@ for i, poly in enumerate(polys[:20]):
 clockwise_regions = []
 counterclockwise_regions = []
 mixed_regions = []
+nonpolygon_regions = []
 for candidate in geo.get('features', []):
     candidate_id = region_id(candidate)
     candidate_geom = shape(candidate['geometry'])
-    candidate_polys = list(candidate_geom.geoms) if candidate_geom.geom_type == 'MultiPolygon' else [candidate_geom]
+    candidate_polys = polygons(candidate_geom)
+    if not candidate_polys:
+        nonpolygon_regions.append(candidate_id)
+        continue
     signs = []
     for poly in candidate_polys:
         area = signed_area(list(poly.exterior.coords))
@@ -96,11 +110,11 @@ print('WINDING_COUNTS', json.dumps({
     'counterclockwise': len(counterclockwise_regions),
     'clockwise': len(clockwise_regions),
     'mixed': len(mixed_regions),
+    'nonpolygon': len(nonpolygon_regions),
 }, sort_keys=True))
 print('CLOCKWISE_SAMPLE', json.dumps(clockwise_regions[:30]))
 print('MIXED_SAMPLE', json.dumps(mixed_regions[:30]))
+print('NONPOLYGON_SAMPLE', json.dumps(nonpolygon_regions[:30]))
 
-# This should never be a near-global region. Keep a permanent tripwire for the visual
-# failure mode the player reported while allowing legitimate dateline-crossing islands.
 if geom.bounds[2] - geom.bounds[0] > 300 and geom.area > 10000:
     raise SystemExit(f'{TARGET} looks like a world-sized/complement geometry')
