@@ -1,0 +1,74 @@
+name: State administration and elite politics v2 validation
+
+on:
+  push:
+    branches:
+      - state-administration-elite-politics-v2
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Apply integration if needed
+        run: python tools/apply-state-administration-elite-politics-v2.py
+
+      - name: Syntax checks
+        run: |
+          python -m py_compile tools/apply-state-administration-elite-politics-v2.py
+          node --check js/politics/stateAdministrationElitePolitics.js
+          node --check js/politics/medievalStateSystems.js
+          node --check js/politics/polities.js
+          node --check js/politics/medievalInstitutions.js
+
+      - name: State administration regression
+        run: node tools/test-state-administration-elite-politics-v2.mjs
+
+      - name: Existing medieval political regressions
+        run: |
+          node tools/test-medieval-politics.mjs
+          node tools/test-medieval-systems-v2.mjs
+          node tools/test-civil-war-factions-v2.mjs
+          node tools/test-political-continuity.mjs
+          node tools/test-succession-continuity-bridge.mjs
+          node tools/test-regional-language-policy.mjs
+          node tools/test-religious-authority-politics-v2.mjs
+          node tools/test-non-state-organisations.mjs
+          node tools/test-private-military-actors.mjs
+
+      - name: Recent system compatibility regressions
+        run: |
+          node tools/test-oceanic-provisioning-scurvy.mjs
+          node tools/test-early-modern-military-transition.mjs
+          node tools/test-east-africa-coffee.mjs
+          node tools/test-persistent-settlements-v2.mjs
+          node tools/test-persistent-infrastructure-sites.mjs
+          node tools/test-world-spatial-real-map.mjs
+          node tools/test-ui-priority.mjs
+
+      - name: Commit integration
+        if: github.event_name == 'push'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/politics/medievalStateSystems.js js/politics/polities.js js/politics/medievalInstitutions.js
+          if ! git diff --cached --quiet; then
+            git commit -m 'Integrate state administration and elite politics v2'
+            git push
+          fi

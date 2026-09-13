@@ -300,8 +300,9 @@ function desiredAdministrativeControl(region, capital, admin, subjectCount) {
   const delegatedCount = Object.values(region.governance.delegatedPowers || {}).filter(Boolean).length;
   const delegationBonus = 1 + delegatedCount * admin.delegation * 0.04;
   const languageEffects = languagePolicyAdministrativeEffects(region);
+  const elitePoliticsMultiplier = clamp(region.governance?.elitePoliticsControlMultiplier ?? 1, 0.6, 1.1);
   return clamp(institutional * autonomyLimit * governorFactor * delegationBonus *
-    (languageEffects.controlMultiplier || 1) / (distanceBurden * scaleBurden * resistance), 0.05, 0.95);
+    (languageEffects.controlMultiplier || 1) * elitePoliticsMultiplier / (distanceBurden * scaleBurden * resistance), 0.05, 0.95);
 }
 
 function transferTribute(subject, capital, amount) {
@@ -363,7 +364,8 @@ export function tickPolities(polities, regions, currentTick, elapsedDays = 7) {
       }
       governance.corruption = clamp(0.78 - admin.accounting * 0.28 - admin.recordKeeping * 0.25 -
         governance.administrativeControl * 0.2 - (governance.governor?.competence || 0) * 0.08 +
-        (1 - (governance.governor?.loyalty || 0.5)) * 0.08 + (languageEffects.corruptionDelta || 0), 0.08, 0.85);
+        (1 - (governance.governor?.loyalty || 0.5)) * 0.08 + (languageEffects.corruptionDelta || 0) +
+        (governance.elitePoliticsCorruptionDelta || 0), 0.08, 0.85);
       const nominal = subject.population * BASE_TRIBUTE_PER_PERSON * governance.tributeRate * 10;
       const demand = nominal * weekScale * (0.25 + governance.administrativeControl * 0.75);
       const collectionFactor = governance.delegatedPowers?.collectTaxes

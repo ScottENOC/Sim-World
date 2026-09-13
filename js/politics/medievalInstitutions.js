@@ -100,7 +100,8 @@ export function medievalPoliticalAssessment(region, capital, polity) {
   const centralWeakness = 1 - clamp(polity?.administration?.legitimacy ?? 0.3);
   const identity = clamp(0.15 + culture * 0.46 + religion * 0.22 + autonomy * 0.12 + state.yearsUnderOwnDefence / 80 * 0.12);
   const grievance = clamp(insecure * (1 - protection) * 0.38 + tribute * 0.18 + religion * 0.18 +
-    (1 - clamp(region.governance?.administrativeControl ?? 0.3)) * 0.12 + (1 - clamp(region.stability ?? 0.7)) * 0.14);
+    (1 - clamp(region.governance?.administrativeControl ?? 0.3)) * 0.12 + (1 - clamp(region.stability ?? 0.7)) * 0.14 +
+    clamp(region.governance?.elitePoliticsGrievance || 0) * 0.7);
   const organisation = clamp(state.eliteOrganisation * 0.55 + state.localFiscalCapacity * 0.2 + state.localDefence * 0.25);
   const pressure = clamp(identity * grievance * (0.35 + organisation * 0.9) * (0.6 + centralWeakness * 0.8) * 2.2);
   return { protection, insecurity: insecure, culturalDivergence: culture, religiousDivergence: religion,
