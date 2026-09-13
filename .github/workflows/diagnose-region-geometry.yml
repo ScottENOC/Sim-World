@@ -24,22 +24,29 @@ jobs:
           npm install --no-save d3-geo@3
       - name: Inspect Other / Other region
         run: python tools/diagnose-region-geometry.py
-      - name: Check D3 spherical interpretation
+      - name: Scan D3 spherical interpretation
         run: |
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           import { geoArea, geoBounds, geoCentroid, geoContains } from 'd3-geo';
-          const id = 'r2_42b2f278324';
           const fc = JSON.parse(fs.readFileSync('data/world/regions.geo.json', 'utf8'));
-          const feature = fc.features.find(f => (f.id || f.properties?.id) === id);
-          if (!feature) throw new Error(`missing ${id}`);
-          const areaSteradians = geoArea(feature);
-          const bounds = geoBounds(feature);
-          const centroid = geoCentroid(feature);
-          console.log('D3_AREA_STERADIANS', areaSteradians);
-          console.log('D3_AREA_WORLD_FRACTION', areaSteradians / (4 * Math.PI));
-          console.log('D3_BOUNDS', JSON.stringify(bounds));
-          console.log('D3_CENTROID', JSON.stringify(centroid));
-          console.log('D3_CONTAINS_CENTROID', geoContains(feature, centroid));
-          if (areaSteradians > Math.PI) throw new Error(`${id} is interpreted by D3 as a hemisphere-scale/complement polygon`);
+          const records = fc.features.map(feature => {
+            const id = feature.id || feature.properties?.id;
+            const name = feature.properties?.name || id;
+            const area = geoArea(feature);
+            const bounds = geoBounds(feature);
+            const centroid = geoCentroid(feature);
+            return { id, name, area, fraction: area / (4 * Math.PI), bounds, centroid, containsCentroid: geoContains(feature, centroid) };
+          }).sort((a, b) => b.area - a.area);
+          console.log('D3_LARGEST_REGIONS', JSON.stringify(records.slice(0, 20)));
+          const complements = records.filter(r => r.area > Math.PI);
+          const centroidMisses = records.filter(r => !r.containsCentroid);
+          const globalBounds = records.filter(r => (r.bounds[1][0] - r.bounds[0][0] > 300) && r.area > 0.1);
+          console.log('D3_COMPLEMENT_COUNT', complements.length);
+          console.log('D3_COMPLEMENTS', JSON.stringify(complements));
+          console.log('D3_CENTROID_MISS_COUNT', centroidMisses.length);
+          console.log('D3_CENTROID_MISSES', JSON.stringify(centroidMisses.slice(0, 30)));
+          console.log('D3_GLOBAL_BOUNDS_COUNT', globalBounds.length);
+          console.log('D3_GLOBAL_BOUNDS', JSON.stringify(globalBounds.slice(0, 30)));
+          if (complements.length) throw new Error(`Found ${complements.length} hemisphere-scale/complement region geometries`);
           NODE
