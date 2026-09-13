@@ -18,11 +18,13 @@ GEO_PATH = ROOT / 'data' / 'world' / 'regions.geo.json'
 OUT_PATH = ROOT / 'data' / 'world' / 'region-navigation.json'
 ADMIN0_URL = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries_iso.geojson'
 ADMIN1_URL = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_1_states_provinces.geojson'
-USER_AGENT = 'Sim-World country navigation/1.1'
+USER_AGENT = 'Sim-World country navigation/1.2'
 FULLY_CONTAINED_THRESHOLD = 0.995
 
 # Player-facing names follow current Australian DFAT usage where Natural Earth
-# uses a formal state name or an older English label.
+# uses a formal state name or an older English label. Western Sahara is retained
+# as an explicit player-navigation bucket even though its political status is
+# disputed; this metadata does not define simulation sovereignty.
 DISPLAY_OVERRIDES = {
     'Bahamas': 'The Bahamas',
     'Bosnia and Herz.': 'Bosnia and Herzegovina',
@@ -96,6 +98,12 @@ def admin_continent(feature):
 
 
 def region_continent(feature, fallback):
+    """Fallback only for regions with no modern-country intersection.
+
+    A region's physical/navigation continent must never be copied onto a modern
+    country membership. Each country membership uses the country's own continent
+    from the modern boundary source.
+    """
     p = feature.get('properties') or {}
     explicit = p.get('navigationContinent')
     if explicit == 'Greenland': return 'North America'
@@ -148,7 +156,11 @@ def main():
         name = clean_name(feature)
         if not name:
             continue
-        if name in {'Somaliland', 'Western Sahara', 'Northern Cyprus', 'Kosovo'}:
+        # These are not separate player-navigation countries here. Western
+        # Sahara is intentionally *not* excluded: regions intersecting it must
+        # be discoverable under Africa -> Western Sahara, while border-crossing
+        # regions can remain discoverable under neighbouring countries too.
+        if name in {'Somaliland', 'Northern Cyprus', 'Kosovo'}:
             continue
         geom = shape(feature['geometry'])
         if geom.is_empty:
@@ -163,6 +175,7 @@ def main():
     multi_country = 0
     kosovo_regions = []
     kosovo_exclusive_regions = []
+    western_sahara_regions = []
 
     for feature in geo.get('features', []):
         props = feature.get('properties') or {}
@@ -187,13 +200,23 @@ def main():
                 fallback_continent = countries[idx]['continent']
 
         continent = region_continent(feature, fallback_continent)
-        for _, country in sorted(hits, key=lambda item: (-item[0], item[1]['name'])):
-            key = (continent, country['name'])
+        for area, country in sorted(hits, key=lambda item: (-item[0], item[1]['name'])):
+            # Modern-country navigation owns the continent label for this UI.
+            # Do not inherit the simulation region's physical continent: doing
+            # that can put Faroe/Jan Mayen/UK under North America, or African
+            # countries under Asia, when a fragmented geographic region crosses
+            # a continental boundary.
+            membership_continent = country['continent']
+            if country['name'] == 'Western Sahara':
+                membership_continent = 'Africa'
+            key = (membership_continent, country['name'])
             if key in seen:
                 continue
             seen.add(key)
-            memberships.append({'continent': continent, 'country': country['name']})
+            memberships.append({'continent': membership_continent, 'country': country['name']})
             country_names.add(country['name'])
+            if country['name'] == 'Western Sahara':
+                western_sahara_regions.append({'id': rid, 'name': props.get('name', rid), 'overlapArea': round(area, 8)})
 
         # Kosovo is deliberately handled outside the admin-0 index. If a
         # simulation region is effectively wholly inside Kosovo, Kosovo replaces
@@ -218,6 +241,8 @@ def main():
 
     if not kosovo_regions:
         raise RuntimeError('Kosovo picker exception did not match any simulation regions')
+    if not western_sahara_regions:
+        raise RuntimeError('Western Sahara navigation bucket did not match any simulation regions')
 
     doc = {
         'schemaVersion': 2,
@@ -231,7 +256,11 @@ def main():
                 'rule': 'Natural Earth Admin-1 boundary; fully-contained simulation regions are Kosovo-only, partial overlaps remain many-to-many.',
                 'regions': kosovo_regions,
                 'exclusiveRegionIds': kosovo_exclusive_regions,
-            }
+            },
+            'Western Sahara': {
+                'rule': 'Player-navigation bucket under Africa; simulation sovereignty remains independent of this modern navigation label.',
+                'regions': western_sahara_regions,
+            },
         },
     }
     OUT_PATH.write_text(json.dumps(doc, ensure_ascii=False, separators=(',', ':')) + '\n')
@@ -239,8 +268,11 @@ def main():
     print(f"NAVIGATION_COUNTRIES={len(country_names)}")
     print(f"MULTI_COUNTRY_REGIONS={multi_country}")
     print(f"KOSOVO_REGIONS={len(kosovo_regions)}")
+    print(f"WESTERN_SAHARA_REGIONS={len(western_sahara_regions)}")
     for item in kosovo_regions:
         print(f"KOSOVO_REGION {item['id']} {item['coverage']:.4f} {item['name']}")
+    for item in western_sahara_regions:
+        print(f"WESTERN_SAHARA_REGION {item['id']} {item['name']}")
 
 
 if __name__ == '__main__':
