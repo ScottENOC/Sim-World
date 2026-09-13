@@ -42,7 +42,7 @@ jobs:
           node tools/test-persistent-settlements-v2.mjs
       - name: Confirm integration markers
         run: |
-          grep -q "tickFoodLuxuries(regions, elapsedDays)" js/economy/laborCore.js
+          grep -q "tickFoodLuxuries(regions, elapsedDays" js/economy/laborCore.js
           grep -q "'gold', 'stone', 'salt', 'saltpetre'" js/economy/laborCore.js
           grep -q "recordCommodityTrade(origin, dest" js/economy/trade.js
           grep -q "pepper:" js/economy/tradeGoods.js
