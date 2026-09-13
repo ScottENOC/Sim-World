@@ -68,6 +68,7 @@ const firearmProfile = firearmCombatProfile(firearmRegion, opponent, 400, { cons
 assert.ok(firearmProfile.metallurgyMultiplier > 1, 'steel military adoption should improve firearm combat quality');
 
 const irregularRegion = region();
+tickEarlyModernIndustry([irregularRegion], 365);
 const world = { nonStateOrganisations: [{
   id: 'pirates', type: 'pirate_haven', active: true, hostRegionIds: new Set([irregularRegion.id]),
   militaryCapacity: 200,
