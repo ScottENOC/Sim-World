@@ -130,5 +130,9 @@
   "nutmeg": {
     "category": "cultivated_luxury",
     "label": "Nutmeg and mace"
+  },
+  "coffee": {
+    "category": "cultivated_luxury",
+    "label": "Coffee"
   }
 }

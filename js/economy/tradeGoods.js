@@ -28,6 +28,7 @@ export const TRADE_GOODS = {
   pepper:     { label: 'Pepper', basePrice: 16, referenceStock: 120, category: 'luxury', cargoKgPerUnit: 0.12 },
   cinnamon:   { label: 'Cinnamon', basePrice: 20, referenceStock: 80, category: 'luxury', cargoKgPerUnit: 0.10 },
   tea:        { label: 'Tea', basePrice: 9, referenceStock: 240, category: 'luxury', cargoKgPerUnit: 0.15 },
+  coffee:     { label: 'Coffee', basePrice: 13, referenceStock: 180, category: 'luxury', cargoKgPerUnit: 0.14 },
   cloves:     { label: 'Cloves', basePrice: 34, referenceStock: 45, category: 'luxury', cargoKgPerUnit: 0.08 },
   nutmeg:     { label: 'Nutmeg and mace', basePrice: 38, referenceStock: 40, category: 'luxury', cargoKgPerUnit: 0.08 },
   bronze:     { label: 'Bronze', basePrice: 60, referenceStock: 500, category: 'material', cargoKgPerUnit: 1 },
