@@ -110,7 +110,10 @@ async function main() {
   const fishingContactPairs = buildFishingContactPairs(regions, seaRegions);
   initialiseKnowledge(regions, seaRegions);
   for (const region of regions) { ensureCommunicationState(region); ensureDiplomaticService(region); ensureCounterIntelligence(region); }
-  const toolTypes = await (await fetch('data/world/toolTypes.json?v=20260904-weather1')).json();
+  const [toolTypes, regionNavigation] = await Promise.all([
+    fetch('data/world/toolTypes.json?v=20260904-weather1').then((response) => response.json()),
+    fetch('data/world/region-navigation.json?v=20260913-country-picker1').then((response) => response.json()),
+  ]);
 
   console.log(
     `Loaded ${regions.length} regions:`,
@@ -516,7 +519,7 @@ async function main() {
     });
   }
 
-  showRegionPicker(regions, (chosen) => {
+  showRegionPicker(regions, regionNavigation, (chosen) => {
     playerRegionId = chosen.id;
     activePlayerPolityId = chosen.polityId || chosen.governance?.localPolityId || chosen.governance?.sovereignPolityId;
     fogOfWar.setPlayerRegion(chosen.id);
@@ -594,7 +597,7 @@ function appendCampaignShortcut(region, campaigns, regionsById, playerRegionId, 
   controls.appendChild(button);
 }
 
-function showRegionPicker(regions, onChosen) {
+function showRegionPicker(regions, navigationIndex, onChosen) {
   const pickerList = document.getElementById('picker-list');
   const pickerTitle = document.getElementById('picker-title');
   const pickerHelp = document.getElementById('picker-help');
@@ -602,73 +605,14 @@ function showRegionPicker(regions, onChosen) {
   const collator = new Intl.Collator('en', { sensitivity: 'base', numeric: true });
   const alphabetically = (a, b) => collator.compare(a, b);
 
-  // Navigation metadata only: this does not define sovereignty.
-  const navigationForRegion = (region) => {
-    const sourceGroup = region.feature?.properties?.sourceGroup;
-    const name = region.name;
-    const navigationContinent = region.feature?.properties?.navigationContinent;
-    const navigationGroup = region.feature?.properties?.navigationGroup;
-
-    // Geography-first expansion regions carry picker metadata explicitly.
-    // It is navigation only and never defines sovereignty or a modern state.
-    if (navigationContinent && navigationGroup) {
-      return { continent: navigationContinent, country: navigationGroup };
-    }
-
-    // Spain's dataset spans two continents.
-    if (sourceGroup === 'ESP' && (name === 'Ceuta' || name === 'Melilla')) {
-      return { continent: 'Africa', country: 'Spain' };
-    }
-
-    const groups = {
-      'GBR-ENG': { continent: 'Europe', country: 'England' },
-      'GBR-WLS': { continent: 'Europe', country: 'Wales' },
-      'GBR-SCT': { continent: 'Europe', country: 'Scotland' },
-      'FRA': { continent: 'Europe', country: 'France' },
-      'ESP': { continent: 'Europe', country: 'Spain' },
-      'PRT': { continent: 'Europe', country: 'Portugal' },
-      'IRL': { continent: 'Europe', country: 'Ireland' },
-      'GIB': { continent: 'Europe', country: 'Gibraltar' },
-      'AND': { continent: 'Europe', country: 'Andorra' },
-      'IMN': { continent: 'Europe', country: 'Isle of Man' },
-      'JEY': { continent: 'Europe', country: 'Jersey' },
-      'GGY': { continent: 'Europe', country: 'Guernsey' },
-      'ITA': { continent: 'Europe', country: 'Italy' },
-      'GRC': { continent: 'Europe', country: 'Greece' },
-      'ALB': { continent: 'Europe', country: 'Albania' },
-      'MKD': { continent: 'Europe', country: 'Macedonia' },
-      'BGR': { continent: 'Europe', country: 'Bulgaria' },
-      'SRB': { continent: 'Europe', country: 'Serbia' },
-      'MNE': { continent: 'Europe', country: 'Montenegro' },
-      'BIH': { continent: 'Europe', country: 'Bosnia & Herzegovina' },
-      'HRV': { continent: 'Europe', country: 'Croatia' },
-      'TUR': { continent: 'Asia', country: 'Anatolia' },
-      'CYP': { continent: 'Asia', country: 'Cyprus' },
-      'SYR': { continent: 'Asia', country: 'Syria' },
-      'LBN': { continent: 'Asia', country: 'Levant' },
-      'ISR': { continent: 'Asia', country: 'Southern Levant' },
-      'PSE': { continent: 'Asia', country: 'Southern Levant' },
-      'JOR': { continent: 'Asia', country: 'Transjordan' },
-      'IRQ': { continent: 'Asia', country: 'Mesopotamia' },
-      'IRN': { continent: 'Asia', country: 'Western Iran' },
-      'KAZ': { continent: 'Asia', country: 'Kazakh Steppe' },
-      'TKM': { continent: 'Asia', country: 'Turkmenistan' },
-      'UZB': { continent: 'Asia', country: 'Transoxiana' },
-      'KGZ': { continent: 'Asia', country: 'Tian Shan Valleys' },
-      'TJK': { continent: 'Asia', country: 'Pamir & Tajik Valleys' },
-      'AFG': { continent: 'Asia', country: 'Afghanistan' },
-      'PAK': { continent: 'Asia', country: 'Indus & Northwest' },
-      'CHN': { continent: 'Asia', country: 'China' },
-      'MNG': { continent: 'Asia', country: 'Mongolian Steppe' },
-      'EGY': { continent: 'Africa', country: 'Egypt' },
-      'LBY': { continent: 'Africa', country: 'Libya' },
-      'TUN': { continent: 'Africa', country: 'Tunisia' },
-    };
-
-    return groups[sourceGroup] || { continent: 'Other', country: sourceGroup || 'Other' };
-  };
-
-  const entries = regions.map((region) => ({ region, ...navigationForRegion(region) }));
+  // Modern countries/territories are a navigation index only. They never define
+  // simulation sovereignty, culture, region borders or ownership. A simulation
+  // region can deliberately appear under several countries if a present-day
+  // border crosses it.
+  const entries = regions.flatMap((region) => {
+    const memberships = navigationIndex?.regions?.[region.id] || [];
+    return memberships.map((membership) => ({ region, ...membership }));
+  });
 
   const resetList = (...nodes) => {
     pickerList.replaceChildren(...nodes);
@@ -708,7 +652,7 @@ function showRegionPicker(regions, onChosen) {
       return makeButton(
         'picker-group',
         continent,
-        `${countryCount} ${countryCount === 1 ? 'area' : 'areas'} · ${matches.length} regions`,
+        `${countryCount} ${countryCount === 1 ? 'country' : 'countries'} · ${new Set(matches.map((entry) => entry.region.id)).size} regions`,
         () => renderCountries(continent),
       );
     }));
@@ -716,7 +660,7 @@ function showRegionPicker(regions, onChosen) {
 
   const renderCountries = (continent) => {
     pickerTitle.textContent = continent;
-    pickerHelp.textContent = 'Choose a country or geographic grouping.';
+    pickerHelp.textContent = 'Choose a modern country or territory.';
 
     const countries = [...new Set(
       entries
@@ -749,6 +693,7 @@ function showRegionPicker(regions, onChosen) {
     const matches = entries
       .filter((entry) => entry.continent === continent && entry.country === country)
       .map((entry) => entry.region)
+      .filter((region, index, array) => array.findIndex((other) => other.id === region.id) === index)
       .sort((a, b) => alphabetically(a.name, b.name));
 
     const nodes = [makeBackButton(continent, () => renderCountries(continent))];
