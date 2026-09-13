@@ -1,0 +1,54 @@
+name: Country picker validation
+
+on:
+  push:
+    branches:
+      - fix-menu-country-picker
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install geometry dependency
+        run: pip install shapely
+      - name: Build country navigation metadata
+        run: python tools/build-region-navigation.py
+      - name: Apply runtime integration
+        run: python tools/apply-country-picker.py
+      - name: Syntax and picker regressions
+        run: |
+          python -m py_compile tools/build-region-navigation.py tools/apply-country-picker.py
+          node --check js/ui/startupPicker.js
+          node --check js/main.js
+          node tools/test-country-picker.mjs
+          git diff --check
+      - name: Existing UI regression
+        run: node tools/test-ui-priority.mjs
+      - name: Commit generated navigation and runtime integration
+        if: github.event_name == 'push'
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add data/world/region-navigation.json js/main.js index.html
+          if ! git diff --cached --quiet; then
+            git commit -m 'Integrate modern-country region navigation'
+            git push
+          fi
