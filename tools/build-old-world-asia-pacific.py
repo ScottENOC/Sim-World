@@ -29,6 +29,13 @@ BASE_GEO = ROOT / 'data' / 'world' / 'regions.geo.json'
 BASE_META = ROOT / 'data' / 'world' / 'regions.meta.json'
 BASE_RESOURCES = ROOT / 'data' / 'world' / 'resources.initial.json'
 PACIFIC_EXTRAS = [box(-162.5, 17.5, -153.5, 23.5)]  # Hawaii only; Oceania dependencies are selected normally.
+# Natural Earth's country layer can bundle overseas possessions with a European
+# country. Keep continental America and the Caribbean genuinely deferred.
+AMERICAS_EXCLUSION = unary_union([
+    box(-170.0, 24.0, -50.0, 84.0),
+    box(-118.0, 7.0, -55.0, 25.0),
+    box(-90.0, -60.0, -30.0, 15.0),
+])
 
 ENVIRONMENTS = {
     'tundra': (0.18, 0.05, 0.75), 'boreal_tundra': (0.26, 0.42, 0.82),
@@ -81,6 +88,8 @@ def target_admin0_features(admin0, target_continents):
     for feature in admin0.get('features', []):
         if continent(feature) in target_continents or is_greenland(feature):
             geom = map_v2.clean(shape(feature['geometry']))
+            if not is_greenland(feature):
+                geom = map_v2.repair(geom.difference(AMERICAS_EXCLUSION))
             if not geom.is_empty:
                 out.append((feature, geom))
     return out
@@ -234,7 +243,8 @@ def endowment(region):
 
 
 def target_mask(admin0_targets):
-    geoms = [geom for _, geom in admin0_targets] + PACIFIC_EXTRAS
+    # Hawaii is validated separately; do not count its surrounding ocean box as target land.
+    geoms = [geom for _, geom in admin0_targets]
     return map_v2.repair(unary_union(geoms))
 
 
