@@ -1,0 +1,20 @@
+/* Mobile viewport safeguards layered separately so the main atlas stylesheet stays stable. */
+.menu-card {
+  max-height: min(86dvh, 760px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
+}
+
+@media (max-width: 520px) {
+  #menu-modal {
+    align-items: stretch;
+    padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+  }
+
+  #menu-modal .menu-card {
+    align-self: center;
+    max-height: calc(100dvh - max(24px, env(safe-area-inset-top)) - max(24px, env(safe-area-inset-bottom)));
+  }
+}
