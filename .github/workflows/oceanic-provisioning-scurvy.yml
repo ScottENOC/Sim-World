@@ -1,0 +1,56 @@
+name: Oceanic provisioning and scurvy validation
+
+on:
+  push:
+    branches: [oceanic-provisioning-scurvy-v1]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply fleet integration if needed
+        run: python tools/apply-oceanic-provisioning-scurvy.py
+      - name: Syntax checks
+        run: |
+          python -m py_compile tools/apply-oceanic-provisioning-scurvy.py
+          node --check js/military/oceanicProvisioning.js
+          node --check js/military/fleets.js
+      - name: Provisioning regression
+        run: node tools/test-oceanic-provisioning-scurvy.mjs
+      - name: Fleet and maritime regressions
+        run: |
+          node tools/test-persistent-fleets.mjs
+          node tools/test-expeditionary-logistics.mjs
+          node tools/test-gunpowder-firearms.mjs
+          node tools/test-early-modern-military-transition.mjs
+          node tools/test-food-luxuries-v1.mjs
+      - name: Broader compatibility regressions
+        run: |
+          node tools/test-persistent-settlements-v2.mjs
+          node tools/test-persistent-infrastructure-sites.mjs
+          node tools/test-world-spatial-skeleton.mjs
+          node tools/test-ui-priority.mjs
+      - name: Commit integration
+        if: github.event_name == 'push'
+        run: |
+          if ! git diff --quiet; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add js/military/fleets.js
+            git commit -m 'Integrate oceanic provisioning and scurvy'
+            git push
+          fi
