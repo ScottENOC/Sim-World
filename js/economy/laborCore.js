@@ -11,6 +11,7 @@ import { conflictResourceAccess } from '../military/campaigns.js?v=20260905-infr
 import { effectiveInfrastructureCount, operationalInfrastructure } from './construction.js?v=20260905-projects1';
 import { elapsedWeeks } from '../core/simTime.js?v=20260905-time1';
 import { maritimeSkillMultiplier, MARITIME_SKILLS } from '../technology/seamanship.js?v=20260906-maritime1';
+import { applyFoodPreservation, tickFoodLuxuries } from './foodLuxuries.js?v=20260913-food-luxuries1';
 
 // --- Tunable constants -----------------------------------------------------
 // All placeholders, calibrated so a "typical" region can just about feed
@@ -64,7 +65,7 @@ const BRONZE_PER_SMITH = 2.0;
 // wanted, not by what's numerically biggest. There's no full price/market
 // system yet (that's the trade system), so this is a placeholder stand-in
 // for background (non-tool-demand) mining priority.
-const ORE_PRIORITY = { copper: 3, tin: 3, ironOre: 2, clay: 1, gold: 2, saltpetre: 1.4, sulfur: 1.2, stone: 1 };
+const ORE_PRIORITY = { copper: 3, tin: 3, ironOre: 2, clay: 1, gold: 2, salt: 2.2, saltpetre: 1.4, sulfur: 1.2, stone: 1 };
 const MINE_SALE_BUFFER = { copper: 2000, tin: 1000, ironOre: 3000, clay: 1000 };
 const METAL_SALE_BUFFER = { copper: 200, tin: 100 };
 
@@ -405,6 +406,7 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
     const fishRate = 1 - Math.pow(1 - FISH_REGROWTH_RATE, Math.max(0.01, elapsedWeeks(elapsedDays)));
     sea.fish.currentStock = regrow({ currentStock: sea.fish.currentStock, K: sea.fish.K, rate: fishRate });
   }
+  tickFoodLuxuries(regions, elapsedDays);
 }
 
 function allocateAndProduce(region, seaRegionsById, toolTypes, rng, elapsedDays = 7) {
@@ -943,7 +945,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng, elapsedDays 
   // background priority mining —
   // this is the "keep stockpiling in case it's useful" behavior from before.
   if (budgetLeft > 0.01) {
-    const backgroundResources = openResources.filter((key) => ['gold', 'stone', 'saltpetre', 'sulfur'].includes(key));
+    const backgroundResources = openResources.filter((key) => ['gold', 'stone', 'salt', 'saltpetre', 'sulfur'].includes(key));
     const items = backgroundResources.map((key) => ({
       key,
       cap: activeTiers[key].maxWorkers - minerAllocation[key],
@@ -1139,12 +1141,16 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng, elapsedDays 
   let foodBalance = (region.stockpile.food || 0) + foodProduced - foodNeeded;
   if (foodBalance > 0) {
     const storage = potteryStorageProfile(region);
-    // Vessels improve both capacity and protection from damp, pests and
-    // contamination. Even full coverage buys seasons rather than immortality.
-    const tickSpoilage = 1 - Math.pow(1 - storage.spoilage, weekScale);
-    foodBalance = Math.min(foodBalance * (1 - tickSpoilage), (foodNeeded / weekScale) * storage.weeks);
-    report.foodStorage = { potteryCoverage: storage.coverage, publicGranaries: storage.granaries, weeks: storage.weeks,
-      spoilage: tickSpoilage };
+    const preservation = applyFoodPreservation(region, humanFoodNeeded / weekScale, elapsedDays);
+    // Pottery/granaries protect stored food; preservation methods and salt
+    // reduce losses further without pretending spices magically preserve meat.
+    const preservedSpoilage = storage.spoilage * preservation.spoilageMultiplier;
+    const tickSpoilage = 1 - Math.pow(1 - preservedSpoilage, weekScale);
+    const storageWeeks = storage.weeks + preservation.capacityWeeksBonus;
+    foodBalance = Math.min(foodBalance * (1 - tickSpoilage), (foodNeeded / weekScale) * storageWeeks);
+    report.foodStorage = { potteryCoverage: storage.coverage, publicGranaries: storage.granaries, weeks: storageWeeks,
+      spoilage: tickSpoilage, saltCoverage: preservation.saltCoverage, saltUsed: preservation.saltUsed,
+      preservationMethods: preservation.methods };
   }
   region.stockpile.food = foodBalance;
 
