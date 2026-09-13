@@ -95,7 +95,7 @@ export function tickProvisioningAtSea(fleet, owner, weeks = 1) {
   state.freshProvisionQuality = clamp(state.freshProvisionQuality - 0.115 * weeks * missionUse);
   const dietaryProtection = clamp(
     state.freshProvisionQuality * 0.78 +
-    state.preservedRationQuality * 0.16 +
+    state.preservedRationQuality * 0.12 +
     practice.antiScurvyPractice * 0.42,
   );
   const deficiency = clamp((0.46 - dietaryProtection) / 0.46);
@@ -103,12 +103,12 @@ export function tickProvisioningAtSea(fleet, owner, weeks = 1) {
   if (deficiency > 0.05) state.deficiencyWeeks += weeks * deficiency;
   else state.deficiencyWeeks = Math.max(0, state.deficiencyWeeks - weeks * 0.35);
 
-  // Symptoms are delayed: poor diet must persist for weeks before scurvy begins
-  // to meaningfully degrade a crew.
-  const symptomaticWeeks = Math.max(0, state.deficiencyWeeks - 3.5);
+  // Symptoms are delayed, but a conventional poor diet should become a serious
+  // operational problem on voyages measured in months rather than years.
+  const symptomaticWeeks = Math.max(0, state.deficiencyWeeks - 2.5);
   if (symptomaticWeeks > 0) {
-    const pressure = clamp(symptomaticWeeks / 11) * deficiency;
-    state.scurvyBurden = clamp(state.scurvyBurden + pressure * 0.055 * weeks);
+    const pressure = clamp(symptomaticWeeks / 9) * deficiency;
+    state.scurvyBurden = clamp(state.scurvyBurden + pressure * 0.09 * weeks);
   } else if (dietaryProtection > 0.6) {
     state.scurvyBurden = Math.max(0, state.scurvyBurden - 0.025 * weeks);
   }
