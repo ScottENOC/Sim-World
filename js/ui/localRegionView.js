@@ -1,4 +1,4 @@
-import { spatialFeaturesForRegion, syncRegionSpatialSites } from '../world/spatialGraph.js?v=20260910-spatial1';
+import { spatialFeaturesForRegion, syncRegionSpatialSites } from '../world/spatialGraph.js?v=20260913-infrastructure1';
 import { ensureSubregionalControl } from '../military/subregionalControl.js?v=20260908-subregion1';
 
 const MODES = Object.freeze(['overview','economy','control','military']);
@@ -15,6 +15,9 @@ function corridorSegmentsForRegion(corridor, regionId){
   if(corridor.type==='river') return (corridor.regionSegments||[]).filter(s=>s.regionId===regionId).map(s=>[s.from,s.to]);
   if(corridor.type==='land_route'){
     const i=corridor.regionIds?.indexOf(regionId); if(i===0)return [[corridor.points[0],corridor.points[1]]]; if(i===1)return [[corridor.points[1],corridor.points[2]]];
+  }
+  if(corridor.type==='infrastructure_route' && corridor.regionIds?.includes(regionId)){
+    return (corridor.points||[]).slice(1).map((p,i)=>[corridor.points[i],p]);
   }
   return [];
 }
@@ -62,11 +65,11 @@ export class LocalRegionView{
   }
   draw(){if(!this.scene||!this.ctx)return;this._resize();const ctx=this.ctx;ctx.clearRect(0,0,this.w,this.h);ctx.fillStyle='#10141c';ctx.fillRect(0,0,this.w,this.h);
     ctx.beginPath();this._drawGeometry(this.scene.polygon);ctx.fillStyle='#3a4a3e';ctx.fill();ctx.strokeStyle='#83927b';ctx.lineWidth=1.5;ctx.stroke();
-    for(const c of this.scene.corridors){if(this.mode==='economy'&&c.type==='river'||this.mode!=='control'){}for(const seg of c.segments){const a=this._project(seg[0]),b=this._project(seg[1]);ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.strokeStyle=c.type==='river'?'#4d7890':'#9c835e';ctx.lineWidth=c.type==='river'?Math.max(2,4*(c.strength||.5)):1+3*(c.quality||.2);ctx.globalAlpha=this.mode==='control'?.25:.8;ctx.stroke();}}
+    for(const c of this.scene.corridors){if(this.mode==='economy'&&c.type==='river'||this.mode!=='control'){}for(const seg of c.segments){const a=this._project(seg[0]),b=this._project(seg[1]);ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);const infra=c.type==='infrastructure_route';ctx.strokeStyle=c.type==='river'?'#4d7890':infra?'#b29b72':'#9c835e';ctx.lineWidth=c.type==='river'?Math.max(2,4*(c.strength||.5)):infra?1.5+2.5*(c.quality||.2):1+3*(c.quality||.2);ctx.setLineDash(infra&&['irrigation','aqueduct','relay_stations'].includes(c.infrastructureType)?[5,4]:[]);ctx.globalAlpha=this.mode==='control'?.25:.8;ctx.stroke();ctx.setLineDash([]);}}
     ctx.globalAlpha=1;
-    const showSite=(s)=>this.mode==='overview'||this.mode==='control'||this.mode==='military'&&(['fort','port','city','principal_settlement','town','village','ruins'].includes(s.type)||s.garrisonPersonnel>0)||this.mode==='economy'&&(['mine','port','principal_settlement','village','town','city','ruins','great_temple','monumental_tomb','ceremonial_complex','monumental_statue'].includes(s.type));
+    const showSite=(s)=>this.mode==='overview'||this.mode==='control'||this.mode==='military'&&(['fort','fortification','port','harbour','naval_base','city','principal_settlement','town','village','ruins'].includes(s.type)||s.garrisonPersonnel>0)||this.mode==='economy'&&(['mine','industrial_site','infrastructure','port','harbour','shipyard','naval_base','principal_settlement','village','town','city','ruins','great_temple','monumental_tomb','ceremonial_complex','monumental_statue'].includes(s.type));
     for(const s of this.scene.sites.filter(showSite)){const [x,y]=this._project([s.lon,s.lat]);let r=['city','principal_settlement'].includes(s.type)?7:s.type==='town'?6:s.type==='port'?6:s.type==='mine'?5:s.type==='ruins'?3:4;
-      ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=s.type==='mine'?'#80746b':s.type==='port'?'#6f9fb2':['great_temple','monumental_tomb','ceremonial_complex','monumental_statue'].includes(s.type)?'#d4c7a4':'#d1b987';ctx.fill();
+      ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=['mine','industrial_site'].includes(s.type)?'#80746b':['port','harbour','shipyard','naval_base'].includes(s.type)?'#6f9fb2':['great_temple','monumental_tomb','ceremonial_complex','monumental_statue'].includes(s.type)?'#d4c7a4':s.type==='fortification'?'#9d8268':'#d1b987';ctx.fill();
       if(this.mode==='control'){ctx.lineWidth=3;ctx.strokeStyle=s.controllerActorId===this.scene.sovereignActorId?'#8fa66e':'#c94f43';ctx.stroke();}
       if(s.id===this.selectedSiteId){ctx.beginPath();ctx.arc(x,y,r+5,0,Math.PI*2);ctx.strokeStyle='#c08a4e';ctx.lineWidth=2;ctx.stroke();}
       ctx.fillStyle='#e8e1cf';ctx.font='11px -apple-system, sans-serif';ctx.fillText(s.name||siteLabel(s),x+r+4,y+3);
@@ -75,7 +78,7 @@ export class LocalRegionView{
     this._renderDetail();
   }
   _tap(event){if(!this.scene)return;const rect=this.canvas.getBoundingClientRect();const x=event.clientX-rect.left,y=event.clientY-rect.top;let best=null,dist=18;for(const s of this.scene.sites){const p=this._project([s.lon,s.lat]);const d=Math.hypot(p[0]-x,p[1]-y);if(d<dist){dist=d;best=s;}}this.selectedSiteId=best?.id||null;this.draw();}
-  _renderDetail(){if(!this.detail||!this.scene)return;const s=this.scene.sites.find(x=>x.id===this.selectedSiteId);if(s){this.detail.innerHTML=`<strong>${esc(s.name)}</strong><span>${esc(siteLabel(s))}</span>${s.resource?`<span>Resource: ${esc(s.resource)}</span>`:''}${s.controllerActorId?`<span>Controlled by: ${esc(s.controllerActorId)}</span>`:''}${s.garrisonPersonnel?`<span>Garrison: ${Math.round(s.garrisonPersonnel).toLocaleString()}</span>`:''}`;return;}
+  _renderDetail(){if(!this.detail||!this.scene)return;const s=this.scene.sites.find(x=>x.id===this.selectedSiteId);if(s){this.detail.innerHTML=`<strong>${esc(s.name)}</strong><span>${esc(siteLabel(s))}</span>${s.infrastructureType?`<span>${esc(s.infrastructureType.replaceAll('_',' '))}</span>`:''}${Number.isFinite(s.condition)?`<span>Condition: ${Math.round(s.condition*100)}%</span>`:''}${s.resource?`<span>Resource: ${esc(s.resource)}</span>`:''}${s.controllerActorId?`<span>Controlled by: ${esc(s.controllerActorId)}</span>`:''}${s.garrisonPersonnel?`<span>Garrison: ${Math.round(s.garrisonPersonnel).toLocaleString()}</span>`:''}`;return;}
     const rivers=this.scene.corridors.filter(c=>c.type==='river').length,routes=this.scene.corridors.filter(c=>c.type==='land_route').length;
     this.detail.innerHTML=`<strong>${esc(this.scene.name)}</strong><span>${rivers} major river system${rivers===1?'':'s'} · ${routes} cross-border route${routes===1?'':'s'}</span><span>${this.scene.contested?'Control is contested.':`Operational control: ${esc(this.scene.operationalControllerActorId||this.scene.sovereignActorId)}`}</span>`;}
 }
