@@ -15,6 +15,7 @@ import { collectTransitTolls, estimateTransitToll } from './transitTolls.js?v=20
 import { currencyTradeFriction, recordCurrencyContact } from './currency.js?v=20260912-currency3';
 import { quarantineTradeFriction } from '../society/disease.js?v=20260912-disease1';
 import { medievalTradeFrictionMultiplier } from './medievalCommercialInstitutions.js?v=20260912-medieval2';
+import { recordCommodityTrade } from './foodLuxuries.js?v=20260913-food-luxuries1';
 
 const LAND_ADJACENT_COST = 0.02;
 const SEA_COST_PER_KM = 0.0002;
@@ -492,6 +493,7 @@ function settleReturnedVenture(origin, dest, venture, currentTick) {
     dest.recentTradePartners.set(origin.id, currentTick);
     recordRouteHabit(origin, venture, payment, currentTick, profitable);
     recordDirectTrade(origin, dest, venture.soldVolume, currentTick);
+    recordCommodityTrade(origin, dest, venture.resource, venture.soldVolume);
     recordCurrencyContact(origin, dest, currentTick);
     recordDiplomaticTrade(origin, dest, payment, currentTick);
   } else {

@@ -1,39 +1,134 @@
 {
-  "wood":   { "category": "renewable",  "label": "Wood" },
-  "stone":  { "category": "extractive", "label": "Stone" },
-  "copper": { "category": "extractive", "label": "Copper" },
-  "tin":    { "category": "extractive", "label": "Tin" },
-  "ironOre": { "category": "extractive", "label": "Iron ore" },
-  "clay":   { "category": "extractive", "label": "Clay" },
-  "gold":   { "category": "extractive", "label": "Gold" },
-  "silver": { "category": "extractive", "label": "Silver" },
-  "lead":   { "category": "extractive", "label": "Lead" },
-  "salt":   { "category": "extractive", "label": "Salt" },
-  "saltpetre": { "category": "extractive", "label": "Saltpetre" },
-  "sulfur": { "category": "extractive", "label": "Sulfur" },
-  "fineStone": { "category": "extractive", "label": "Fine building stone" },
+  "wood": {
+    "category": "renewable",
+    "label": "Wood"
+  },
+  "stone": {
+    "category": "extractive",
+    "label": "Stone"
+  },
+  "copper": {
+    "category": "extractive",
+    "label": "Copper"
+  },
+  "tin": {
+    "category": "extractive",
+    "label": "Tin"
+  },
+  "ironOre": {
+    "category": "extractive",
+    "label": "Iron ore"
+  },
+  "clay": {
+    "category": "extractive",
+    "label": "Clay"
+  },
+  "gold": {
+    "category": "extractive",
+    "label": "Gold"
+  },
+  "silver": {
+    "category": "extractive",
+    "label": "Silver"
+  },
+  "lead": {
+    "category": "extractive",
+    "label": "Lead"
+  },
+  "salt": {
+    "category": "extractive",
+    "label": "Salt"
+  },
+  "saltpetre": {
+    "category": "extractive",
+    "label": "Saltpetre"
+  },
+  "sulfur": {
+    "category": "extractive",
+    "label": "Sulfur"
+  },
+  "fineStone": {
+    "category": "extractive",
+    "label": "Fine building stone"
+  },
   "bronze": {
     "category": "crafted",
     "label": "Bronze",
-    "recipe": { "inputs": { "copper": 2, "tin": 1 }, "laborType": "smith" }
+    "recipe": {
+      "inputs": {
+        "copper": 2,
+        "tin": 1
+      },
+      "laborType": "smith"
+    }
   },
   "iron": {
     "category": "crafted",
     "label": "Iron",
-    "recipe": { "inputs": { "ironOre": 1 }, "laborType": "smith", "requiredTechId": "iron_smelting" }
+    "recipe": {
+      "inputs": {
+        "ironOre": 1
+      },
+      "laborType": "smith",
+      "requiredTechId": "iron_smelting"
+    }
   },
   "pottery": {
     "category": "crafted",
     "label": "Pottery",
-    "recipe": { "inputs": { "clay": 1, "wood": 0.2 }, "laborType": "potter" }
+    "recipe": {
+      "inputs": {
+        "clay": 1,
+        "wood": 0.2
+      },
+      "laborType": "potter"
+    }
   },
   "pitch": {
     "category": "crafted",
     "label": "Pitch",
-    "recipe": { "inputs": { "wood": 2 }, "laborType": "pitchMaker" }
+    "recipe": {
+      "inputs": {
+        "wood": 2
+      },
+      "laborType": "pitchMaker"
+    }
   },
-  "textiles": { "category": "crafted", "label": "Textiles", "laborType": "textileWorker" },
-  "silk": { "category": "luxury", "label": "Silk" },
-  "horses": { "category": "livestock", "label": "Untrained horses" },
-  "food":   { "category": "flow", "label": "Food" }
+  "textiles": {
+    "category": "crafted",
+    "label": "Textiles",
+    "laborType": "textileWorker"
+  },
+  "silk": {
+    "category": "luxury",
+    "label": "Silk"
+  },
+  "horses": {
+    "category": "livestock",
+    "label": "Untrained horses"
+  },
+  "food": {
+    "category": "flow",
+    "label": "Food"
+  },
+  "pepper": {
+    "category": "cultivated_luxury",
+    "label": "Pepper"
+  },
+  "cinnamon": {
+    "category": "cultivated_luxury",
+    "label": "Cinnamon"
+  },
+  "tea": {
+    "category": "cultivated_luxury",
+    "label": "Tea"
+  },
+  "cloves": {
+    "category": "cultivated_luxury",
+    "label": "Cloves"
+  },
+  "nutmeg": {
+    "category": "cultivated_luxury",
+    "label": "Nutmeg and mace"
+  }
 }
