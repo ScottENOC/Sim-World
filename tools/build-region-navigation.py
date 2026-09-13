@@ -43,6 +43,8 @@ DISPLAY_OVERRIDES = {
     'Republic of Korea': 'Republic of Korea (South Korea)',
     "Democratic People's Republic of Korea": "Democratic People's Republic of Korea (North Korea)",
     'Palestine': 'Palestine',
+    'Republic of Kosovo': 'Kosovo',
+    'Kosovo': 'Kosovo',
     'Slovakia': 'Slovak Republic',
     'Swaziland': 'Eswatini',
     'Taiwan': 'Taiwan',
