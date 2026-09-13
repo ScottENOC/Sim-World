@@ -2,15 +2,13 @@
 """Run one bounded geography-first Old World / Asia-Pacific land batch.
 
 The original whole-world builder dissolved every existing region into one huge
-geometry before clipping source polygons. That becomes pathological as the map
-grows. This batch runner keeps the same region/endowment rules but uses an
-STRtree over existing regions and only unions polygons that can intersect the
-source piece currently being clipped.
+geometry before clipping source polygons. This runner keeps the same region and
+endowment rules, but indexes only existing regions near the active batch and
+subtracts only polygons that can actually intersect each source piece.
 """
 import argparse
 import importlib.util
 import json
-import sys
 import time
 from pathlib import Path
 
@@ -43,6 +41,29 @@ def bbox_geometry(spec):
     if minx <= maxx:
         return box(minx, miny, maxx, maxy)
     return unary_union([box(minx, miny, 180, maxy), box(-180, miny, maxx, maxy)])
+
+
+def raw_geometry_bounds(geometry):
+    """Cheap GeoJSON bounds without constructing/repairing a Shapely geometry."""
+    bounds = [180.0, 90.0, -180.0, -90.0]
+
+    def walk(node):
+        if not isinstance(node, list) or not node:
+            return
+        if isinstance(node[0], (int, float)) and len(node) >= 2:
+            x, y = float(node[0]), float(node[1])
+            bounds[0] = min(bounds[0], x); bounds[1] = min(bounds[1], y)
+            bounds[2] = max(bounds[2], x); bounds[3] = max(bounds[3], y)
+            return
+        for child in node:
+            walk(child)
+
+    walk((geometry or {}).get('coordinates', []))
+    return tuple(bounds)
+
+
+def bbox_intersects(a, b):
+    return not (a[2] < b[0] or a[0] > b[2] or a[3] < b[1] or a[1] > b[3])
 
 
 def local_subtract(builder, geom, existing_geoms, existing_tree):
@@ -133,38 +154,56 @@ def main():
     args = parser.parse_args()
     started = time.perf_counter()
 
+    print(f'BATCH={args.batch}', flush=True)
     plan = json.loads(FULL_PLAN.read_text())
     prefixes = BATCH_PREFIXES[args.batch]
     zones = [z for z in plan['zones'] if z['id'].startswith(prefixes)]
     if not zones:
         raise RuntimeError(f'No zones selected for {args.batch}')
+    print('BATCH_ZONES=' + ','.join(z['id'] for z in zones), flush=True)
 
     builder = load_builder()
     if args.batch != 'maritime-oceania':
         builder.PACIFIC_EXTRAS = []
+    print(f'PHASE import seconds={time.perf_counter()-started:.2f}', flush=True)
 
     batch_mask = builder.map_v2.repair(unary_union([bbox_geometry(z) for z in zones]))
+    batch_bounds = batch_mask.bounds
     admin0 = builder.fast.fetch_json_retry(builder.map_v2.ADMIN0_URL)
-    original_targets = builder.target_admin0_features(admin0, set(plan['targetContinents']))
+    print(f'PHASE admin0 seconds={time.perf_counter()-started:.2f}', flush=True)
+
+    # Only inspect ADM0 features whose cheap raw bounds can intersect this batch.
+    candidate_features = []
+    for feature in admin0.get('features', []):
+        if bbox_intersects(raw_geometry_bounds(feature.get('geometry')), batch_bounds):
+            candidate_features.append(feature)
+    batch_admin0 = {'type': 'FeatureCollection', 'features': candidate_features}
+    original_targets = builder.target_admin0_features(batch_admin0, set(plan['targetContinents']))
     targets = []
     for feature, geom in original_targets:
         clipped = builder.map_v2.repair(geom.intersection(batch_mask))
         if not clipped.is_empty and builder.map_v2.area_sqkm(clipped) >= 8:
             targets.append((feature, clipped))
     wanted_mask = builder.target_mask(targets)
+    print(f'PHASE target_mask targets={len(targets)} seconds={time.perf_counter()-started:.2f}', flush=True)
 
     geo = json.loads(builder.BASE_GEO.read_text())
     meta_doc = json.loads(builder.BASE_META.read_text())
     resources = json.loads(builder.BASE_RESOURCES.read_text())
     base_count = len(geo.get('features', []))
 
-    existing_geoms = [builder.map_v2.repair(shape(f['geometry'])) for f in geo['features']]
+    # Crucial optimisation: do not repair/simplify/index the whole world twice.
+    # For subtraction/coverage this batch only needs existing geometries whose
+    # raw envelopes can intersect the active batch mask.
+    local_features = [
+        f for f in geo['features']
+        if bbox_intersects(raw_geometry_bounds(f.get('geometry')), batch_bounds)
+    ]
+    phase = time.perf_counter()
+    existing_geoms = [builder.map_v2.repair(shape(f['geometry'])) for f in local_features]
+    existing_geoms = [g for g in existing_geoms if not g.is_empty]
     existing_tree = STRtree(existing_geoms)
-    builder.fast.prepare_existing_index(geo['features'])
-
-    print(f'BATCH={args.batch}', flush=True)
-    print('BATCH_ZONES=' + ','.join(z['id'] for z in zones), flush=True)
-    print(f'PHASE setup seconds={time.perf_counter()-started:.2f}', flush=True)
+    print(f'PHASE existing_index local={len(existing_geoms)} total={base_count} seconds={time.perf_counter()-phase:.2f}', flush=True)
 
     phase = time.perf_counter()
     pieces = build_source_units(builder, targets, existing_geoms, existing_tree)
