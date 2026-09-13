@@ -35,6 +35,13 @@ def find_in(value, target):
                 return found
     return None
 
+
+def signed_area(coords):
+    total = 0.0
+    for (x1, y1), (x2, y2) in zip(coords, coords[1:]):
+        total += x1 * y2 - x2 * y1
+    return total / 2.0
+
 feature = next((f for f in geo.get('features', []) if region_id(f) == TARGET), None)
 if feature is None:
     feature = find_in(geo, TARGET)
@@ -58,14 +65,6 @@ print('VALID', geom.is_valid, explain_validity(geom))
 print('EMPTY', geom.is_empty)
 print('PARTS', len(getattr(geom, 'geoms', [geom])))
 
-# Ring orientation is diagnostic only: RFC 7946 recommends outer rings CCW, but the
-# renderer should not depend on winding. Signed area helps spot accidental complements.
-def signed_area(coords):
-    total = 0.0
-    for (x1, y1), (x2, y2) in zip(coords, coords[1:]):
-        total += x1 * y2 - x2 * y1
-    return total / 2.0
-
 polys = list(geom.geoms) if geom.geom_type == 'MultiPolygon' else [geom]
 for i, poly in enumerate(polys[:20]):
     exterior = list(poly.exterior.coords)
@@ -73,6 +72,33 @@ for i, poly in enumerate(polys[:20]):
     for j, ring in enumerate(poly.interiors[:5]):
         coords = list(ring.coords)
         print('  HOLE', j, 'POINTS', len(coords), 'SIGNED_AREA', round(signed_area(coords), 6))
+
+clockwise_regions = []
+counterclockwise_regions = []
+mixed_regions = []
+for candidate in geo.get('features', []):
+    candidate_id = region_id(candidate)
+    candidate_geom = shape(candidate['geometry'])
+    candidate_polys = list(candidate_geom.geoms) if candidate_geom.geom_type == 'MultiPolygon' else [candidate_geom]
+    signs = []
+    for poly in candidate_polys:
+        area = signed_area(list(poly.exterior.coords))
+        if abs(area) > 1e-12:
+            signs.append(area > 0)
+    if signs and all(signs):
+        counterclockwise_regions.append(candidate_id)
+    elif signs and not any(signs):
+        clockwise_regions.append(candidate_id)
+    elif signs:
+        mixed_regions.append(candidate_id)
+
+print('WINDING_COUNTS', json.dumps({
+    'counterclockwise': len(counterclockwise_regions),
+    'clockwise': len(clockwise_regions),
+    'mixed': len(mixed_regions),
+}, sort_keys=True))
+print('CLOCKWISE_SAMPLE', json.dumps(clockwise_regions[:30]))
+print('MIXED_SAMPLE', json.dumps(mixed_regions[:30]))
 
 # This should never be a near-global region. Keep a permanent tripwire for the visual
 # failure mode the player reported while allowing legitimate dateline-crossing islands.
