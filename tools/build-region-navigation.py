@@ -18,7 +18,8 @@ OUT_PATH = ROOT / 'data' / 'world' / 'region-navigation.json'
 ADMIN0_URL = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries_iso.geojson'
 USER_AGENT = 'Sim-World country navigation/1.0'
 
-# DFAT-facing current names where Natural Earth differs materially.
+# Player-facing names follow current Australian DFAT usage where Natural Earth
+# uses a formal state name or an older English label.
 DISPLAY_OVERRIDES = {
     'Bahamas': 'The Bahamas',
     'Bosnia and Herz.': 'Bosnia and Herzegovina',
@@ -26,24 +27,32 @@ DISPLAY_OVERRIDES = {
     'Cape Verde': 'Cabo Verde',
     'Czechia': 'Czech Republic',
     'Dem. Rep. Congo': 'Congo, Democratic Republic of the',
+    'Democratic Republic of the Congo': 'Congo, Democratic Republic of the',
     'Dominican Rep.': 'Dominican Republic',
     'Eq. Guinea': 'Equatorial Guinea',
     'Gambia': 'The Gambia',
     'Ivory Coast': "Côte d'Ivoire",
+    "People's Republic of China": 'China',
+    'Republic of China': 'Taiwan',
+    'Republic of India': 'India',
     'Kyrgyzstan': 'Kyrgyz Republic',
-    'Laos': 'Laos',
     'Macedonia': 'Republic of North Macedonia',
+    'North Macedonia': 'Republic of North Macedonia',
     'North Korea': "Democratic People's Republic of Korea (North Korea)",
     'South Korea': 'Republic of Korea (South Korea)',
+    'Republic of Korea': 'Republic of Korea (South Korea)',
+    "Democratic People's Republic of Korea": "Democratic People's Republic of Korea (North Korea)",
     'Palestine': 'Palestine',
     'Slovakia': 'Slovak Republic',
     'Swaziland': 'Eswatini',
     'Taiwan': 'Taiwan',
     'Turkey': 'Türkiye',
+    'Republic of Türkiye': 'Türkiye',
     'United Kingdom': 'United Kingdom',
     'United States of America': 'United States of America',
     'United States': 'United States of America',
     'Vatican': 'The Holy See',
+    'Vatican City': 'The Holy See',
 }
 
 PHYSICAL_CONTINENT_BY_PREFIX = {
@@ -91,7 +100,6 @@ def region_continent(feature, fallback):
         return explicit
     source = str(p.get('sourceGroup') or '')
     if source in LEGACY_CONTINENT:
-        # Ceuta and Melilla are explicit geographic exceptions.
         if source == 'ESP' and p.get('name') in {'Ceuta','Melilla'}: return 'Africa'
         return LEGACY_CONTINENT[source]
     if source == 'ow_greenland': return 'North America'
@@ -109,8 +117,6 @@ def main():
         name = clean_name(feature)
         if not name:
             continue
-        # Natural Earth includes a few disputed/de-facto entities that are not
-        # useful as Australian-government country navigation buckets.
         if name in {'Somaliland', 'Western Sahara', 'Northern Cyprus'}:
             continue
         geom = shape(feature['geometry'])
@@ -131,18 +137,15 @@ def main():
         geom = shape(feature['geometry'])
         memberships = []
         seen = set()
-        candidate_indexes = tree.query(geom)
         fallback_continent = 'Other'
         best_area = -1.0
         hits = []
-        for raw_idx in candidate_indexes:
+        for raw_idx in tree.query(geom):
             idx = int(raw_idx)
             intersection = geom.intersection(country_geoms[idx])
-            if intersection.is_empty:
+            if intersection.is_empty or intersection.area <= 1e-10:
                 continue
             area = intersection.area
-            if area <= 1e-10:
-                continue
             hits.append((area, countries[idx]))
             if area > best_area:
                 best_area = area
