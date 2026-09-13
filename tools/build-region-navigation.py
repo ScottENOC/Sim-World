@@ -18,7 +18,7 @@ GEO_PATH = ROOT / 'data' / 'world' / 'regions.geo.json'
 OUT_PATH = ROOT / 'data' / 'world' / 'region-navigation.json'
 ADMIN0_URL = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries_iso.geojson'
 ADMIN1_URL = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_1_states_provinces.geojson'
-USER_AGENT = 'Sim-World country navigation/1.1'
+USER_AGENT = 'Sim-World country navigation/1.2'
 FULLY_CONTAINED_THRESHOLD = 0.995
 
 # Player-facing names follow current Australian DFAT usage where Natural Earth
@@ -98,6 +98,12 @@ def admin_continent(feature):
 
 
 def region_continent(feature, fallback):
+    """Fallback only for regions with no modern-country intersection.
+
+    A region's physical/navigation continent must never be copied onto a modern
+    country membership. Each country membership uses the country's own continent
+    from the modern boundary source.
+    """
     p = feature.get('properties') or {}
     explicit = p.get('navigationContinent')
     if explicit == 'Greenland': return 'North America'
@@ -195,10 +201,14 @@ def main():
 
         continent = region_continent(feature, fallback_continent)
         for area, country in sorted(hits, key=lambda item: (-item[0], item[1]['name'])):
-            # Natural Earth's Western Sahara polygon is Africa; force that
-            # player-facing continent even if old physical-zone metadata was
-            # missing or malformed for the simulation region.
-            membership_continent = 'Africa' if country['name'] == 'Western Sahara' else continent
+            # Modern-country navigation owns the continent label for this UI.
+            # Do not inherit the simulation region's physical continent: doing
+            # that can put Faroe/Jan Mayen/UK under North America, or African
+            # countries under Asia, when a fragmented geographic region crosses
+            # a continental boundary.
+            membership_continent = country['continent']
+            if country['name'] == 'Western Sahara':
+                membership_continent = 'Africa'
             key = (membership_continent, country['name'])
             if key in seen:
                 continue
