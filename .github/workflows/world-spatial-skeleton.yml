@@ -7,6 +7,9 @@ on:
       - 'js/world/**'
       - 'js/ui/localRegionView.js'
       - 'tools/*world-spatial*'
+      - 'tools/normalize-land-geojson.py'
+      - 'tools/repair-d3-region-geometry.mjs'
+      - 'tools/build-region-navigation.py'
       - 'tools/test-real-river-navigation.mjs'
       - '.github/workflows/world-spatial-skeleton.yml'
   push:
@@ -23,8 +26,23 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install geometry validation dependencies
+        run: |
+          python -m pip install --disable-pip-version-check shapely==2.1.1
+          npm install --no-save d3-geo@3
       - name: Apply integration
         run: python tools/apply-world-spatial-skeleton.py
+      - name: Canonicalise D3-safe land geometry and navigation
+        run: |
+          python tools/normalize-land-geojson.py --input data/world/regions.geo.json --output /tmp/regions.geo.normalized.json
+          node tools/repair-d3-region-geometry.mjs --input /tmp/regions.geo.normalized.json --output data/world/regions.geo.json
+          python tools/build-region-navigation.py
       - name: Generate immutable geography
         run: |
           node tools/generate-world-spatial-base.mjs
@@ -34,7 +52,8 @@ jobs:
           ls -lh data/world/spatial.base.json
       - name: Syntax checks
         run: |
-          python -m py_compile tools/apply-world-spatial-skeleton.py
+          python -m py_compile tools/apply-world-spatial-skeleton.py tools/normalize-land-geojson.py tools/build-region-navigation.py
+          node --check tools/repair-d3-region-geometry.mjs
           node --check js/world/spatialGraph.js
           node --check js/world/spatialBaseLoader.js
           node --check js/world/realRivers.js
@@ -48,6 +67,7 @@ jobs:
           node tools/test-world-spatial-skeleton.mjs
           node tools/test-world-spatial-real-map.mjs
           node tools/test-real-river-navigation.mjs
+          node tools/test-country-picker.mjs
       - name: Existing subregional regressions
         run: |
           node tools/test-subregional-control.mjs
