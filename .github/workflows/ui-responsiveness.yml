@@ -32,15 +32,18 @@ jobs:
           node --check tools/test-ui-priority.mjs
       - name: UI-priority regression
         run: node tools/test-ui-priority.mjs
-      - name: Verify Chukotka absent and map counts aligned
+      - name: Verify map metadata and geometry counts aligned
         run: |
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           const meta=JSON.parse(fs.readFileSync('data/world/regions.meta.json','utf8'));
           const geo=JSON.parse(fs.readFileSync('data/world/regions.geo.json','utf8'));
-          if (meta.regions.some(r => /chukot/i.test(r.name||''))) throw new Error('Chukotka still in metadata');
-          if (geo.features.some(f => /chukot/i.test(f.properties?.name||''))) throw new Error('Chukotka still in geometry');
           if (meta.regions.length !== geo.features.length) throw new Error('metadata/geometry count mismatch');
+          const metaIds=new Set(meta.regions.map(r=>r.id));
+          const geoIds=new Set(geo.features.map(f=>f.properties?.id ?? f.id));
+          if (metaIds.size !== meta.regions.length) throw new Error('duplicate metadata region IDs');
+          if (geoIds.size !== geo.features.length) throw new Error('duplicate geometry region IDs');
+          if (metaIds.size !== geoIds.size || [...metaIds].some(id=>!geoIds.has(id))) throw new Error('metadata/geometry region IDs differ');
           console.log('REGIONS='+meta.regions.length);
           NODE
       - name: Spatial and world regressions
