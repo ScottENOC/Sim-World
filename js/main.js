@@ -37,6 +37,7 @@ import { tickMedievalStateSystems } from './politics/medievalStateSystems.js?v=2
 import { tickMedievalCommercialInstitutions } from './economy/medievalCommercialInstitutions.js?v=20260912-medieval2';
 import { tickCorporateCapital } from './economy/corporateCapital.js?v=20260913-capital2';
 import { tickMedievalCompletion } from './politics/medievalCompletion.js?v=20260913-medieval-completion1';
+import { tickRenaissanceNetworks } from './society/renaissanceNetworks.js?v=20260913-renaissance1';
 import { tickMedievalDoctrine } from './military/medievalDoctrine.js?v=20260912-medieval2';
 import { tickNonStateOrganisations } from './politics/nonStateOrganisations.js?v=20260912-organisations1';
 import { tickPrivateMilitaryActors } from './politics/privateMilitaryActors.js?v=20260912-pmc1';
@@ -383,6 +384,7 @@ async function main() {
     profiler.measure('Medieval commerce', () => tickMedievalCommercialInstitutions(regions, polities, time.elapsedDays));
     const capitalEvents = profiler.measure('Corporate capital', () => tickCorporateCapital(regions, polities, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));
     const medievalCompletionEvents = profiler.measure('Medieval completion', () => tickMedievalCompletion(regions, polities, religiousWorld, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));
+    const renaissanceEvents = profiler.measure('Renaissance networks', () => tickRenaissanceNetworks(regions, polities, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));
     profiler.measure('Medieval doctrine', () => tickMedievalDoctrine(regions, time.elapsedDays));
     const medievalReligiousEvents = profiler.measure('Religious politics', () => tickMedievalReligiousPolitics(regions, religiousWorld, polities, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId, activeWars }));
     const organisationEvents = profiler.measure('Non-state organisations', () => tickNonStateOrganisations(regions, polities, religiousWorld, calendarWeek, time.elapsedDays, Math.random, { agreements, activeRaids }));
@@ -468,6 +470,7 @@ async function main() {
       ...languagePolicyEvents.filter((event) => event.polityId === activePlayerPolityId),
       ...capitalEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),
       ...medievalCompletionEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),
+      ...renaissanceEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),
       ...polityEvents.filter((event) => event.regionId === playerRegionId),
       ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),
       ...medievalPoliticalEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId || event.rebelPolityId === activePlayerPolityId),
