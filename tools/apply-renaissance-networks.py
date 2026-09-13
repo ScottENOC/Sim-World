@@ -12,6 +12,25 @@ def insert_after(path, anchor, addition):
     return True
 
 
+def replace_once(path, old, new):
+    p = Path(path)
+    text = p.read_text()
+    if new in text:
+        return False
+    if old not in text:
+        raise RuntimeError(f'Expected calibration anchor missing in {path}: {old[:160]!r}')
+    p.write_text(text.replace(old, new, 1))
+    return True
+
+
+# A notable alumnus represents a rare high-impact person emerging from an
+# aggregate student stream, not eight notable people in a single year.
+replace_once(
+    'js/society/renaissanceNetworks.js',
+    "  if (flow < 8 || rng() >= Math.min(0.18, flow / 500)) return;\n",
+    "  if (flow < 0.4 || rng() >= Math.min(0.12, flow / 40)) return;\n",
+)
+
 insert_after(
     'js/main.js',
     "import { tickMedievalCompletion } from './politics/medievalCompletion.js?v=20260913-medieval-completion1';\n",
