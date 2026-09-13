@@ -1,0 +1,21 @@
+name: Suspect region geometry diagnostic
+
+on:
+  push:
+    branches:
+      - fix-inside-out-region-v1
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install geometry dependency
+        run: pip install shapely==2.1.1
+      - name: Inspect Other / Other region
+        run: python tools/diagnose-region-geometry.py
