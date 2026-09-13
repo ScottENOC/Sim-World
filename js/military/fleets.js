@@ -4,6 +4,7 @@ import { localPrice } from '../economy/prices.js?v=20260904-weather1';
 import { maritimeSkillLevel, maritimeSkillMultiplier, recordMaritimePractice, MARITIME_SKILLS } from '../technology/seamanship.js?v=20260906-maritime1';
 import { maritimeRouteBetween } from '../world/chokepoints.js?v=20260907-chokepoints1';
 import { navalGunCombatProfile } from './earlyModernWarfare.js?v=20260913-early-modern1';
+import { ensureFleetProvisioning, provisioningCombatMultiplier, serviceProvisioningInPort, shouldReturnForProvisioning, tickProvisioningAtSea } from './oceanicProvisioning.js?v=20260913-provisioning1';
 
 export const FLEET_MISSIONS = Object.freeze({
   PORT: 'port',
@@ -78,6 +79,7 @@ function ensureFleetState(fleet) {
   fleet.condition = clamp(fleet.condition ?? 1);
   fleet.lastContactTickByFleet ||= {};
   fleet.history ||= [];
+  ensureFleetProvisioning(fleet);
   return fleet;
 }
 
@@ -276,6 +278,10 @@ function payForAlliedFood(owner, port, amount) {
   return purchased;
 }
 
+function fleetCrewCount(fleet) {
+  return (fleet.ships || []).reduce((sum, ship) => sum + designOf(ship).crew, 0);
+}
+
 function serviceInPort(fleet, regionsById, agreements, weeks) {
   const port = regionsById.get(fleet.portRegionId);
   const owner = regionsById.get(fleet.ownerRegionId);
@@ -306,7 +312,8 @@ function serviceInPort(fleet, regionsById, agreements, weeks) {
   const before = fleet.condition;
   fleet.condition = clamp(fleet.condition + repairRate * weeks);
   for (const ship of fleet.ships) ship.condition = clamp((ship.condition ?? fleet.condition) + repairRate * weeks);
-  return { access, supplied, repaired: fleet.condition - before };
+  const provisioning = serviceProvisioningInPort(fleet, port, owner, weeks, fleetCrewCount(fleet));
+  return { access, supplied, repaired: fleet.condition - before, provisioning };
 }
 
 function wearAtSea(fleet, weeks) {
@@ -322,7 +329,7 @@ function wearAtSea(fleet, weeks) {
 function fleetAverageSpeed(fleet) {
   if (!fleet.ships.length) return 0;
   const harmonic = fleet.ships.length / fleet.ships.reduce((sum, ship) => sum + 1 / Math.max(0.2, designOf(ship).speed), 0);
-  return harmonic * (0.65 + fleet.condition * 0.35) * (0.72 + fleet.supply * 0.18 + (1 - fleet.fatigue) * 0.10);
+  return harmonic * (0.65 + fleet.condition * 0.35) * (0.72 + fleet.supply * 0.18 + (1 - fleet.fatigue) * 0.10) * provisioningCombatMultiplier(fleet);
 }
 
 function fleetCombatPower(fleet, regionsById, { inPort = false } = {}) {
@@ -330,7 +337,7 @@ function fleetCombatPower(fleet, regionsById, { inPort = false } = {}) {
   const shipPower = fleet.ships.reduce((sum, ship) => sum + designOf(ship).combat * clamp(ship.condition ?? fleet.condition, 0.1, 1), 0);
   const skill = origin ? maritimeSkillMultiplier(origin, MARITIME_SKILLS.COMBAT) : 1;
   const readiness = (0.55 + fleet.supply * 0.25 + (1 - fleet.fatigue) * 0.12 + fleet.morale * 0.08);
-  let power = shipPower * skill * readiness;
+  let power = shipPower * skill * readiness * provisioningCombatMultiplier(fleet);
   if (inPort && fleet.portRegionId) {
     const port = regionsById.get(fleet.portRegionId);
     if (port) {
@@ -760,7 +767,7 @@ function chooseAiFleetOrders(fleets, regionsById, seaRegionsById, playerActorId,
     if (!fleet.ships.length || fleet.ownerActorId === playerActorId) continue;
     const owner = regionsById.get(fleet.ownerRegionId);
     if (!owner) continue;
-    if (fleet.locationType === 'sea' && (fleet.supply < 0.32 || fleet.condition < 0.62 || fleet.fatigue > 0.72)) {
+    if (fleet.locationType === 'sea' && (fleet.supply < 0.32 || fleet.condition < 0.62 || fleet.fatigue > 0.72 || shouldReturnForProvisioning(fleet))) {
       orderFleetHome(fleet, regionsById, seaRegionsById);
       continue;
     }
@@ -845,6 +852,8 @@ export function tickFleets(fleets, regions, seaRegions, agreements, currentTick,
       wearAtSea(fleet, weeks);
       advanceFleetRoute(fleet, weeks);
       const origin = regionsById.get(fleet.ownerRegionId);
+      const provisioning = tickProvisioningAtSea(fleet, origin, weeks);
+      if (provisioning.event) { provisioning.event.tick = currentTick; events.push(provisioning.event); }
       if (origin) {
         const practice = fleet.ships.length * weeks * (fleet.mission === FLEET_MISSIONS.PATROL || fleet.mission === FLEET_MISSIONS.INTERCEPT ? 2 : 0.8);
         recordMaritimePractice(origin, fleet.mission === FLEET_MISSIONS.PATROL || fleet.mission === FLEET_MISSIONS.INTERCEPT
