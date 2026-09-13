@@ -69,7 +69,16 @@ LEGACY_CONTINENT = {
     'SRB':'Europe','MNE':'Europe','BIH':'Europe','HRV':'Europe','TUR':'Asia','CYP':'Asia',
     'SYR':'Asia','LBN':'Asia','ISR':'Asia','PSE':'Asia','JOR':'Asia','IRQ':'Asia','IRN':'Asia',
     'KAZ':'Asia','TKM':'Asia','UZB':'Asia','KGZ':'Asia','TJK':'Asia','AFG':'Asia','PAK':'Asia',
-    'CHN':'Asia','MNG':'Asia','EGY':'Africa','LBY':'Africa','TUN':'Africa',
+    'CHN':'Asia','MNG':'Asia','EGY':'Africa','LBY':'Africa','TUN':'Africa','KOS':'Europe','XKX':'Europe',
+}
+
+# Natural Earth's ISO country layer sometimes folds recognised entities into a
+# neighbour even where Sim-World's earlier source geometry did not. These are
+# navigation-only fallbacks, applied only to source pieces that were themselves
+# built from the recognised entity's modern boundary.
+SOURCE_GROUP_COUNTRY_FALLBACKS = {
+    'KOS': {'continent': 'Europe', 'country': 'Kosovo'},
+    'XKX': {'continent': 'Europe', 'country': 'Kosovo'},
 }
 
 
@@ -160,6 +169,16 @@ def main():
             seen.add(key)
             memberships.append({'continent': continent, 'country': country['name']})
             country_names.add(country['name'])
+
+        source_group = str(props.get('sourceGroup') or '')
+        source_fallback = SOURCE_GROUP_COUNTRY_FALLBACKS.get(source_group)
+        if source_fallback:
+            key = (source_fallback['continent'], source_fallback['country'])
+            if key not in seen:
+                memberships.append(dict(source_fallback))
+                seen.add(key)
+                country_names.add(source_fallback['country'])
+
         if not memberships:
             memberships = [{'continent': continent, 'country': 'Other'}]
         if len({m['country'] for m in memberships}) > 1:
