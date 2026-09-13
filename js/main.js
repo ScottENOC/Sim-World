@@ -18,6 +18,7 @@ import { tickNationAi } from './ai/nationAi.js?v=20260913-civil-war2';
 import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260904-weather1';
 import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID, CATAPULT_TECH_ID } from './technology/breakthroughs.js?v=20260912-medieval1';
 import { tickGunpowderIndustry } from './military/firearms.js?v=20260912-gunpowder1';
+import { tickEarlyModernIndustry, tickIrregularTechnology } from './military/earlyModernWarfare.js?v=20260913-early-modern1';
 import { MapRenderer } from './ui/mapRenderer.js?v=20260904-war1';
 import { AdvisorCouncil } from './ui/advisors.js?v=20260905-projects1';
 import { renderDiplomaticServicePanel } from './ui/diplomaticServicePanel.js?v=20260909-diplomatic-ui1';
@@ -307,6 +308,7 @@ async function main() {
     });
     profiler.measure('Economy', () => tickEconomy(regions, seaRegions, toolTypes, Math.random, calendarWeek, time.elapsedDays, time.endDay));
     profiler.measure('Gunpowder industry', () => tickGunpowderIndustry(regions, time.elapsedDays));
+    profiler.measure('Early-modern military industry', () => tickEarlyModernIndustry(regions, time.elapsedDays));
     profiler.measure('Knowledge pruning', () => pruneKnowledge(regions, calendarWeek));
     profiler.measure('Knowledge diffusion', () => tickFishingKnowledge(fishingContactPairs, calendarWeek));
     profiler.measure('Scouting', () => tickScouting(regions, calendarWeek, Math.random));
@@ -382,6 +384,7 @@ async function main() {
     const organisationEvents = profiler.measure('Non-state organisations', () => tickNonStateOrganisations(regions, polities, religiousWorld, calendarWeek, time.elapsedDays, Math.random, { agreements, activeRaids }));
     const privateMilitaryEvents = profiler.measure('Private military actors', () => tickPrivateMilitaryActors(regions, polities, religiousWorld, activeCampaigns, calendarWeek, time.elapsedDays, Math.random));
     const organisationInteractionEvents = profiler.measure('Organisation relations', () => tickOrganisationInteractions(regions, polities, religiousWorld, time.elapsedDays));
+    profiler.measure('Irregular technology', () => tickIrregularTechnology(regions, religiousWorld, time.elapsedDays, Math.random));
     profiler.measure('Banditry', () => tickBanditry(regions, toolTypes, agreements, time.elapsedDays));
     profiler.measure('Nation AI', () => tickNationAi(regions, playerRegionId, activeRaids, activeCampaigns, agreements, polities,
       religiousWorld, calendarWeek, toolTypes, Math.random, time.elapsedDays, { fleets, seaRegions }));

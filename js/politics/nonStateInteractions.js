@@ -181,7 +181,7 @@ export function suppressPirateHaven(world, organisationId, polityId, regions, po
   const host = organisationHostRegion(organisation, regions);
   if (!host || localSovereign(host) !== polityId) return { changed: false, reason: 'not_host_sovereign' };
   const stateForces = Math.max(0, Number(host.army?.personnel) || 0) + Math.max(0, Number(host.navy?.personnel) || 0) * 0.6;
-  const piratePower = Math.max(50, Number(organisation.militaryCapacity) || 0);
+  const piratePower = Math.max(50, Number(organisation.militaryCapacity) || 0) * Math.max(1, Number(organisation.militaryTechnologyMultiplier) || 1);
   const cost = Math.max(8, piratePower * 0.025);
   if ((host.treasury || 0) < cost) return { changed: false, reason: 'insufficient_treasury', cost };
   host.treasury -= cost;

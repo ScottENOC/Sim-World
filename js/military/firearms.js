@@ -1,3 +1,5 @@
+import { firearmSteelQualityMultiplier } from './earlyModernWarfare.js?v=20260913-early-modern1';
+
 const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
 
 export const GUNPOWDER_TECH_ID = 'gunpowder';
@@ -136,7 +138,8 @@ export function firearmCombatProfile(region, opponent, personnel, {
   const dryShare = firearmShare * (1 - supplyFraction);
   const doctrineWithoutWorkingGuns = Math.max(0, state.readiness - suppliedShare);
   const dryPenalty = dryShare * 0.38 + doctrineWithoutWorkingGuns * 0.10;
-  const multiplier = Math.max(0.68, 1 + sustainedBonus + surpriseBonus - dryPenalty);
+  const metallurgyMultiplier = firearmSteelQualityMultiplier(region);
+  const multiplier = Math.max(0.68, 1 + sustainedBonus + surpriseBonus - dryPenalty) * metallurgyMultiplier;
 
   if (consumeSupplies) {
     state.combatExperience = clamp01(state.combatExperience + suppliedShare * 0.012 * weeks);
@@ -144,7 +147,7 @@ export function firearmCombatProfile(region, opponent, personnel, {
     opponentState.exposure = clamp01(opponentState.exposure + suppliedShare * 0.055 * weeks);
   }
 
-  const profile = { multiplier, firearmShare, suppliedShare, surpriseBonus, dryPenalty, powderUsed, shotMetalUsed, supplyFraction };
+  const profile = { multiplier, firearmShare, suppliedShare, surpriseBonus, dryPenalty, powderUsed, shotMetalUsed, supplyFraction, metallurgyMultiplier };
   state.lastCombatProfile = profile;
   return profile;
 }
