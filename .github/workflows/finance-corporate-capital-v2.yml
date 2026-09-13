@@ -43,8 +43,8 @@ jobs:
       - name: Existing economy and political regressions
         run: |
           node tools/test-medieval-systems-v2.mjs
-          node tools/test-medieval-currency.mjs
-          node tools/test-medieval-forex.mjs
+          node tools/test-currency.mjs
+          node tools/test-forex.mjs
           node tools/test-state-administration-elite-politics-v2.mjs
           node tools/test-civil-war-factions-v2.mjs
           node tools/test-political-continuity.mjs
