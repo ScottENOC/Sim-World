@@ -54,11 +54,17 @@ replace_once(
     "import { tickMedievalCommercialInstitutions } from './economy/medievalCommercialInstitutions.js?v=20260912-medieval2';\nimport { tickCorporateCapital } from './economy/corporateCapital.js?v=20260913-capital2';\n",
 )
 
-replace_once(
-    'js/main.js',
-    "    profiler.measure('Medieval commerce', () => tickMedievalCommercialInstitutions(regions, polities, time.elapsedDays));\n    profiler.measure('Medieval doctrine', () => tickMedievalDoctrine(regions, time.elapsedDays));\n",
-    "    profiler.measure('Medieval commerce', () => tickMedievalCommercialInstitutions(regions, polities, time.elapsedDays));\n    const capitalEvents = profiler.measure('Corporate capital', () => tickCorporateCapital(regions, polities, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));\n    profiler.measure('Medieval doctrine', () => tickMedievalDoctrine(regions, time.elapsedDays));\n",
-)
+# Insert the finance tick immediately after medieval commerce without assuming
+# no later feature has inserted another tick before medieval doctrine.
+main_path = Path('js/main.js')
+main_text = main_path.read_text()
+capital_tick = "    const capitalEvents = profiler.measure('Corporate capital', () => tickCorporateCapital(regions, polities, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));\n"
+if capital_tick not in main_text:
+    commerce_tick = "    profiler.measure('Medieval commerce', () => tickMedievalCommercialInstitutions(regions, polities, time.elapsedDays));\n"
+    if commerce_tick not in main_text:
+        raise RuntimeError('Expected Medieval commerce integration anchor missing in js/main.js')
+    main_text = main_text.replace(commerce_tick, commerce_tick + capital_tick, 1)
+    main_path.write_text(main_text)
 
 replace_once(
     'js/main.js',
