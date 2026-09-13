@@ -16,6 +16,7 @@ import { currencyTradeFriction, recordCurrencyContact } from './currency.js?v=20
 import { quarantineTradeFriction } from '../society/disease.js?v=20260912-disease1';
 import { medievalTradeFrictionMultiplier } from './medievalCommercialInstitutions.js?v=20260912-medieval2';
 import { recordCommodityTrade } from './foodLuxuries.js?v=20260913-food-luxuries1';
+import { corporateVentureCapacityMultiplier } from './corporateCapital.js?v=20260913-capital2';
 
 const LAND_ADJACENT_COST = 0.02;
 const SEA_COST_PER_KM = 0.0002;
@@ -562,8 +563,9 @@ function launchVentures(region, opportunities, currentTick, time, regionsById) {
   const exportRemaining = Object.fromEntries(TRADABLE_RESOURCES.map((resource) => [
     resource, Math.max(0, region.stockpile[resource] || 0) * MAX_EXPORT_FRACTION_PER_TICK,
   ]));
+  const ventureCap = Math.max(1, Math.round(MAX_NEW_VENTURES_PER_WEEK * corporateVentureCapacityMultiplier(region)));
   for (const opp of opportunities) {
-    if (idle < 1 || launched >= MAX_NEW_VENTURES_PER_WEEK) break;
+    if (idle < 1 || launched >= ventureCap) break;
     const capacityPerMerchant = Math.max(0.01, (opp.route.capacityKgPerMerchant / cargoKgPerUnit(opp.resource)) * opp.route.reliability);
     const availableCargo = Math.min(
       Math.max(0, region.stockpile[opp.resource] || 0),
