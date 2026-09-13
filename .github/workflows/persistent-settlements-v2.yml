@@ -1,0 +1,51 @@
+name: Persistent settlements v2 validation
+
+on:
+  push:
+    branches: [persistent-settlements-v2]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+      - name: Apply persistent settlement integration
+        run: python tools/apply-persistent-settlements-v2.py
+      - name: Syntax checks
+        run: |
+          node --check js/society/settlements.js
+          node --check js/military/subregionalControl.js
+          node --check js/world/spatialGraph.js
+          node --check js/ui/localRegionView.js
+          node --check js/main.js
+      - name: Settlement and spatial regressions
+        run: |
+          node tools/test-persistent-settlements-v2.mjs
+          node tools/test-world-spatial-skeleton.mjs
+          node tools/test-world-spatial-real-map.mjs
+          node tools/test-real-river-navigation.mjs
+          node tools/test-subregional-control.mjs
+          node tools/test-ui-priority.mjs
+      - name: Diff sanity
+        run: git diff --check
+      - name: Commit integrated implementation
+        if: github.event_name == 'push'
+        run: |
+          if git diff --quiet; then
+            echo "No generated changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/society/settlements.js js/military/subregionalControl.js js/world/spatialGraph.js js/ui/localRegionView.js js/main.js tools/apply-persistent-settlements-v2.py tools/test-persistent-settlements-v2.mjs
+          git commit -m "Integrate persistent settlement lifecycles"
+          git push origin HEAD:persistent-settlements-v2
