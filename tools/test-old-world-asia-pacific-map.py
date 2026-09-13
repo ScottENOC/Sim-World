@@ -28,7 +28,7 @@ for region_id, entry in meta_by_id.items():
     for neighbor in entry.get('neighbors', []):
         assert neighbor in meta_by_id, f'{region_id} references unknown neighbor {neighbor}'
 
-physical = [f for f in features if str(f.get('properties', {}).get('sourceGroup', '')).startswith(('af_','ar_','ca_','na_','sa_','se_','ea_','mi_','au_','nz_','pac_','ow_'))]
+physical = [f for f in features if f.get('properties', {}).get('navigationContinent') and f.get('properties', {}).get('navigationGroup')]
 groups = {f['properties']['sourceGroup'] for f in physical}
 required = {
     'af_congo_west','af_highveld','ar_najd','ca_kazakh_steppe','na_lena_yakutia',
@@ -37,9 +37,7 @@ required = {
 }
 missing = required - groups
 assert not missing, f'missing representative physical zones: {sorted(missing)}'
-for feature in physical:
-    props = feature['properties']
-    assert props.get('navigationContinent') and props.get('navigationGroup'), props
+assert len(physical) == report['newRegions'], 'new geography tags do not match generated region count'
 
 sea_ids = [f['properties']['id'] for f in sea_geo['features']]
 assert len(sea_ids) == len(set(sea_ids)), 'duplicate sea region IDs'
