@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - old-world-asia-pacific-map-v1
+      - fix-region-geometry-western-sahara-v2
   pull_request:
     branches:
       - main
