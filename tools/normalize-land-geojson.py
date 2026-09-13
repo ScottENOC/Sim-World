@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-"""Canonicalise land GeoJSON for D3 rendering.
+"""Canonicalise land GeoJSON before D3-aware spherical repair.
 
 Shapely overlay operations can leave GeometryCollections containing hundreds of
-microscopic polygon fragments and numerically degenerate rings. They are valid
-planar geometries, but D3's spherical GeoJSON implementation can interpret a
-near-zero closed ring as the complement of the intended polygon (effectively a
-whole globe). This script keeps all meaningful polygon area, removes only
-microscopic clipping debris, and emits canonical Polygon/MultiPolygon geometries
-with the ring winding expected by the game's D3 renderer: clockwise exteriors
-and counter-clockwise holes.
+numerically degenerate polygon fragments and rings. This first pass removes only
+floating-point debris and emits ordinary Polygon/MultiPolygon geometry. A second
+D3-aware pass repairs any remaining polygon whose spherical winding represents
+the complement of the intended landmass, so meaningful land is preserved rather
+than deleted to make the renderer happy.
 """
 from __future__ import annotations
 
@@ -19,11 +17,10 @@ from pathlib import Path
 from shapely.geometry import MultiPolygon, Polygon, mapping, shape
 from shapely.geometry.polygon import orient
 
-# 1e-6 degree² is about 0.012 km² at the equator (~1.2 hectares) and smaller
-# toward the poles. This is many orders of magnitude below a playable region,
-# but large enough to discard the floating-point/clipping crumbs that D3 can
-# mistake for whole-sphere polygons.
-DEFAULT_MIN_PART_AREA_DEG2 = 1e-6
+# Degree². This is deliberately tiny: only floating-point debris is discarded.
+# Meaningful fragments are retained and, if D3 interprets their winding as a
+# spherical complement, repaired by tools/repair-d3-region-geometry.mjs.
+DEFAULT_MIN_PART_AREA_DEG2 = 1e-10
 
 
 def polygon_parts(geom):
@@ -45,8 +42,6 @@ def clean_polygon(poly: Polygon, min_area: float):
     cleaned = Polygon(list(poly.exterior.coords), holes)
     if cleaned.is_empty or cleaned.area <= min_area:
         return None
-    # D3 spherical polygons use clockwise exteriors for ordinary (< hemisphere)
-    # regions and counter-clockwise holes. Shapely's sign=-1 gives that layout.
     return orient(cleaned, sign=-1.0)
 
 
@@ -115,7 +110,7 @@ def main():
     print(f'GEOMETRY_COLLECTIONS={collection_count}')
     print(f'POLYGON_PARTS_BEFORE={before_parts}')
     print(f'POLYGON_PARTS_AFTER={after_parts}')
-    print(f'REMOVED_MICRO_PARTS={removed_parts}')
+    print(f'REMOVED_NUMERICAL_PARTS={removed_parts}')
     print(f'PLANAR_AREA_BEFORE={planar_area_before:.12f}')
     print(f'PLANAR_AREA_AFTER={planar_area_after:.12f}')
     print(f'PLANAR_AREA_LOSS={absolute_loss:.12f}')
@@ -125,9 +120,7 @@ def main():
     print(f'MIN_PART_AREA_DEG2={args.min_part_area_deg2:.12g}')
     print(f'OUTPUT={dst}')
 
-    # Refuse a cleanup aggressive enough to materially alter the map. This is
-    # a renderer-safety canonicalisation, not a geography simplifier.
-    if loss_fraction > 1e-6:
+    if loss_fraction > 1e-8:
         raise SystemExit(f'geometry cleanup removed too much land area: {loss_fraction:.3e}')
 
 
