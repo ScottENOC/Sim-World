@@ -26,6 +26,44 @@ jobs:
         run: python tools/diagnose-region-geometry.py
       - name: Canonicalize land geometry to temporary output
         run: python tools/normalize-land-geojson.py --input data/world/regions.geo.json --output /tmp/regions.geo.normalized.json
+      - name: Identify malformed D3 polygon components
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import { geoArea, geoBounds } from 'd3-geo';
+          const fc = JSON.parse(fs.readFileSync('/tmp/regions.geo.normalized.json', 'utf8'));
+          function polygonCoordinates(geometry) {
+            if (!geometry) return [];
+            if (geometry.type === 'Polygon') return [geometry.coordinates];
+            if (geometry.type === 'MultiPolygon') return geometry.coordinates;
+            if (geometry.type === 'GeometryCollection') return geometry.geometries.flatMap(polygonCoordinates);
+            return [];
+          }
+          const badComponents = [];
+          for (const feature of fc.features) {
+            const id = feature.id || feature.properties?.id;
+            const name = feature.properties?.name || id;
+            const polys = polygonCoordinates(feature.geometry);
+            polys.forEach((coordinates, index) => {
+              const polygon = { type: 'Polygon', coordinates };
+              const area = geoArea(polygon);
+              if (area > Math.PI) {
+                const reversedExterior = { type: 'Polygon', coordinates: [coordinates[0].slice().reverse(), ...coordinates.slice(1)] };
+                badComponents.push({
+                  id, name, index,
+                  area, fraction: area / (4 * Math.PI),
+                  reversedExteriorArea: geoArea(reversedExterior),
+                  bounds: geoBounds(polygon),
+                  points: coordinates[0].length,
+                  holes: coordinates.length - 1,
+                  sample: coordinates[0].slice(0, 6),
+                });
+              }
+            });
+          }
+          console.log('BAD_COMPONENT_COUNT', badComponents.length);
+          console.log('BAD_COMPONENTS', JSON.stringify(badComponents.slice(0, 100)));
+          NODE
       - name: Scan normalized D3 spherical interpretation
         run: |
           node --input-type=module <<'NODE'
@@ -42,10 +80,7 @@ jobs:
           }).sort((a, b) => b.area - a.area);
           const complements = records.filter(r => r.area > Math.PI);
           const globalBounds = records.filter(r => (r.bounds[1][0] - r.bounds[0][0] > 300) && r.area > 0.1);
-          console.log('D3_LARGEST_NORMALIZED', JSON.stringify(records.slice(0, 20)));
           console.log('D3_COMPLEMENT_COUNT', complements.length);
-          console.log('D3_COMPLEMENTS', JSON.stringify(complements.slice(0, 30)));
           console.log('D3_GLOBAL_BOUNDS_COUNT', globalBounds.length);
-          console.log('D3_GLOBAL_BOUNDS', JSON.stringify(globalBounds.slice(0, 30)));
           if (complements.length || globalBounds.length) throw new Error(`Normalized geometry still has ${complements.length} complement and ${globalBounds.length} global-bounds regions`);
           NODE
