@@ -56,7 +56,7 @@ for (let week = 0; week < 14; week++) {
   experiencedFleet.weeksAtSea += 1;
   tickProvisioningAtSea(experiencedFleet, experiencedOwner, 1);
 }
-assert.ok(experiencedFleet.provisioning.scurvyBurden < fleet.provisioning.scurvyBurden,
+assert.ok(experiencedFleet.provisioning.scurvyBurden < burdenBefore,
   'experienced anti-scurvy provisioning should materially extend voyage endurance');
 
 const poorPort = makeRegion({ id: 'poor', landQuality: 0.2, stockpile: { food: 0, salt: 0 } });
