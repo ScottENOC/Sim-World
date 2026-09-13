@@ -64,7 +64,7 @@ function updateLandAndElite(region, polity, state, years) {
   const bargaining = clamp(labour.bargainingPower || 0);
   land.labourDues += (clamp(0.62 * land.nobleShare - scarcity * 0.38 - bargaining * 0.32) - land.labourDues) * clamp(years * 0.18);
   land.rentExtraction += (clamp(0.2 + land.nobleShare * 0.42 + land.clericalShare * 0.2 - bargaining * 0.25) - land.rentExtraction) * clamp(years * 0.13);
-  land.crownShare += (clamp((polity?.administration?.centralisation || 0) * 0.12 + (polity?.administration?.officialdom || 0) * 0.05) - land.crownShare) * clamp(years * 0.04);
+  land.crownShare += (clamp((polity?.stateAdministration?.court?.centralisationDrive || 0) * 0.12 + (polity?.administration?.officialdom || 0) * 0.05) - land.crownShare) * clamp(years * 0.04);
   land.freeholderShare = Math.max(0.05, 1 - land.nobleShare - land.clericalShare - land.urbanShare - land.crownShare);
   normaliseLand(land);
 
@@ -75,7 +75,7 @@ function updateLandAndElite(region, polity, state, years) {
   noble.power = clamp(land.nobleShare * 0.42 + (society.estates?.privateRetinues || 0) * 0.32 + Math.log1p(noble.wealth) / 30);
   noble.militia = Math.max(0, noble.militia + noble.power * years * 8 - noble.militia * years * 0.03);
   noble.autonomy = clamp((region.governance?.autonomy || 0) * 0.55 + noble.power * 0.35);
-  noble.grievance = clamp((polity?.administration?.centralisation || 0) * noble.power * 0.6 + (society.estates?.taxExemption ? Math.max(0, 0.5 - society.estates.taxExemption) * 0.15 : 0));
+  noble.grievance = clamp((polity?.stateAdministration?.court?.centralisationDrive || 0) * noble.power * 0.6 + (society.estates?.taxExemption ? Math.max(0, 0.5 - society.estates.taxExemption) * 0.15 : 0));
   noble.loyalty = clamp(0.74 - noble.grievance * 0.48 + (polity?.administration?.legitimacy || 0.5) * 0.25);
   return noble;
 }
@@ -104,7 +104,7 @@ function updateCity(region, polity, state, years, currentTick, rng, events) {
   council.autonomy = city.communeAutonomy;
   council.militia = Math.round(urbanPopulation(region) * 0.018 * city.civicMilitia);
   council.agenda = city.communeAutonomy > 0.55 ? 'defend_charter' : 'seek_charter';
-  council.grievance = clamp((1 - city.taxBargaining) * (polity?.administration?.centralisation || 0) * council.power);
+  council.grievance = clamp((1 - city.taxBargaining) * (polity?.stateAdministration?.court?.centralisationDrive || 0) * council.power);
   council.loyalty = clamp(0.7 - council.grievance * 0.4 + (region.stability || 0.6) * 0.2);
 
   const guild = ensureActor(state, 'guilds', `${region.name} guilds`);
@@ -127,7 +127,7 @@ function updateChurch(region, polity, world, state, years) {
   church.landShare += (clamp(0.015 + religionShare * 0.07 + authority * 0.08 + church.monasteries / 120) - church.landShare) * clamp(years * 0.045);
   church.reliefCapacity += (clamp(church.monasteries / 10 * 0.45 + church.bishopric * 0.25 + authority * 0.25) - church.reliefCapacity) * clamp(years * 0.1);
   church.wealth += (population / 1000) * religionShare * (0.4 + church.landShare * 4) * years;
-  const central = clamp(polity?.administration?.centralisation || 0);
+  const central = clamp(polity?.stateAdministration?.court?.centralisationDrive || 0);
   church.investiturePressure += (clamp(church.bishopric * authority * central * 0.9) - church.investiturePressure) * clamp(years * 0.1);
 
   const clerical = ensureActor(state, 'clerical_establishment', `${region.name} clerical establishment`);
