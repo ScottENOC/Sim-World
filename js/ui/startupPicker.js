@@ -1,61 +1,13 @@
-// Lightweight startup experience. The full world currently has to initialise
-// geography, resources, populations, politics, religion, knowledge and map
-// rendering before main.js can start the game. Region choice should not wait
-// for all of that work: regions.meta.json is enough to let the player start
-// browsing names while the real world initialises in parallel.
+// Lightweight startup picker. Modern countries are navigation metadata only;
+// simulation regions remain geography-first and can appear under more than one
+// country when a modern border crosses them.
 
-const PICKER_META_URL = 'data/world/regions.meta.json?v=20260907-startup1';
+const PICKER_META_URL = 'data/world/regions.meta.json?v=20260913-country-picker1';
+const PICKER_NAV_URL = 'data/world/region-navigation.json?v=20260913-country-picker1';
 const CLOCK_MS_PER_TICK_AT_1X = 2200;
 
-function byName(a, b) {
-  return new Intl.Collator('en', { sensitivity: 'base', numeric: true }).compare(a.name, b.name);
-}
-
-function navigationForRegion(region) {
-  const sourceGroup = region.feature?.properties?.sourceGroup;
-  const name = region.name;
-
-  if (sourceGroup === 'ESP' && (name === 'Ceuta' || name === 'Melilla')) {
-    return { continent: 'Africa', country: 'Spain' };
-  }
-
-  const groups = {
-    'GBR-ENG': { continent: 'Europe', country: 'England' },
-    'GBR-WLS': { continent: 'Europe', country: 'Wales' },
-    'GBR-SCT': { continent: 'Europe', country: 'Scotland' },
-    'FRA': { continent: 'Europe', country: 'France' },
-    'ESP': { continent: 'Europe', country: 'Spain' },
-    'PRT': { continent: 'Europe', country: 'Portugal' },
-    'IRL': { continent: 'Europe', country: 'Ireland' },
-    'GIB': { continent: 'Europe', country: 'Gibraltar' },
-    'AND': { continent: 'Europe', country: 'Andorra' },
-    'IMN': { continent: 'Europe', country: 'Isle of Man' },
-    'JEY': { continent: 'Europe', country: 'Jersey' },
-    'GGY': { continent: 'Europe', country: 'Guernsey' },
-    'ITA': { continent: 'Europe', country: 'Italy' },
-    'GRC': { continent: 'Europe', country: 'Greece' },
-    'ALB': { continent: 'Europe', country: 'Albania' },
-    'MKD': { continent: 'Europe', country: 'Macedonia' },
-    'BGR': { continent: 'Europe', country: 'Bulgaria' },
-    'SRB': { continent: 'Europe', country: 'Serbia' },
-    'MNE': { continent: 'Europe', country: 'Montenegro' },
-    'BIH': { continent: 'Europe', country: 'Bosnia & Herzegovina' },
-    'HRV': { continent: 'Europe', country: 'Croatia' },
-    'TUR': { continent: 'Asia', country: 'Anatolia' },
-    'CYP': { continent: 'Asia', country: 'Cyprus' },
-    'SYR': { continent: 'Asia', country: 'Syria' },
-    'LBN': { continent: 'Asia', country: 'Levant' },
-    'ISR': { continent: 'Asia', country: 'Southern Levant' },
-    'PSE': { continent: 'Asia', country: 'Southern Levant' },
-    'JOR': { continent: 'Asia', country: 'Transjordan' },
-    'IRQ': { continent: 'Asia', country: 'Mesopotamia' },
-    'IRN': { continent: 'Asia', country: 'Western Iran' },
-    'EGY': { continent: 'Africa', country: 'Egypt' },
-    'LBY': { continent: 'Africa', country: 'Libya' },
-    'TUN': { continent: 'Africa', country: 'Tunisia' },
-  };
-  return groups[sourceGroup] || { continent: 'Other', country: sourceGroup || 'Other' };
-}
+const collator = new Intl.Collator('en', { sensitivity: 'base', numeric: true });
+const alphabetical = (a, b) => collator.compare(a, b);
 
 function buttonByStrongText(host, text) {
   return [...host.querySelectorAll('button')].find((button) =>
@@ -69,13 +21,16 @@ function handOffPendingRegion(regionId) {
   const region = sim.regions.find((candidate) => candidate.id === regionId);
   if (!region) return false;
 
-  const { continent, country } = navigationForRegion(region);
-  const continentButton = buttonByStrongText(picker, continent);
-  if (!continentButton) return false;
-  continentButton.click();
-  const countryButton = buttonByStrongText(picker, country);
-  if (!countryButton) return false;
-  countryButton.click();
+  const preferred = window.__pendingStartNavigation || null;
+  if (preferred) {
+    const continentButton = buttonByStrongText(picker, preferred.continent);
+    if (!continentButton) return false;
+    continentButton.click();
+    const countryButton = buttonByStrongText(picker, preferred.country);
+    if (!countryButton) return false;
+    countryButton.click();
+  }
+
   const regionButton = picker.querySelector(`button[data-id="${CSS.escape(regionId)}"]`);
   if (!regionButton) return false;
   regionButton.click();
@@ -106,8 +61,27 @@ function installRuntimeCompatibilityPatches() {
       window.__stableOverlayImportStarted = false;
     });
   }
-
   return true;
+}
+
+function makeButton(className, label, detail, onClick) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = className;
+  button.innerHTML = detail
+    ? `<strong>${label}</strong><span class="picker-count">${detail}</span>`
+    : `<strong>${label}</strong>`;
+  button.addEventListener('click', onClick);
+  return button;
+}
+
+function makeBackButton(label, onClick) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'picker-back';
+  button.textContent = `← ${label}`;
+  button.addEventListener('click', onClick);
+  return button;
 }
 
 async function installEarlyPicker() {
@@ -122,70 +96,90 @@ async function installEarlyPicker() {
   pickerList.innerHTML = '<div class="startup-picker-status">Preparing region list…</div>';
 
   let regions;
+  let navigation;
   try {
-    const response = await fetch(PICKER_META_URL);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const metadata = await response.json();
-    regions = [...(metadata.regions || [])].sort(byName);
+    const [metaResponse, navResponse] = await Promise.all([fetch(PICKER_META_URL), fetch(PICKER_NAV_URL)]);
+    if (!metaResponse.ok) throw new Error(`region metadata HTTP ${metaResponse.status}`);
+    if (!navResponse.ok) throw new Error(`navigation metadata HTTP ${navResponse.status}`);
+    const metadata = await metaResponse.json();
+    navigation = await navResponse.json();
+    regions = [...(metadata.regions || [])].sort((a, b) => alphabetical(a.name, b.name));
   } catch (error) {
+    console.error('Could not prepare early country picker', error);
     pickerHelp.textContent = 'The world is loading. Region choices will appear shortly.';
     return;
   }
 
   if (window.__worldsim) return;
 
-  const search = document.createElement('input');
-  search.type = 'search';
-  search.className = 'startup-region-search';
-  search.placeholder = `Search ${regions.length.toLocaleString()} regions`;
-  search.autocomplete = 'off';
-  search.spellcheck = false;
-  Object.assign(search.style, {
-    boxSizing: 'border-box', width: '100%', padding: '10px 12px', marginBottom: '8px',
-    borderRadius: '7px', border: '1px solid #7a5a34', background: '#171d29', color: '#eee3cc',
-    fontSize: '16px',
-  });
+  const regionById = new Map(regions.map((region) => [region.id, region]));
+  const entries = [];
+  for (const region of regions) {
+    const memberships = navigation.regions?.[region.id] || [];
+    for (const membership of memberships) entries.push({ region, ...membership });
+  }
 
-  const results = document.createElement('div');
-  results.className = 'startup-region-results';
-  const status = document.createElement('div');
-  status.className = 'startup-picker-status';
-  Object.assign(status.style, { margin: '5px 0 10px', color: '#a8a08c', fontSize: '12px' });
-
-  const render = () => {
-    const query = search.value.trim().toLocaleLowerCase();
-    const matches = query
-      ? regions.filter((region) => region.name.toLocaleLowerCase().includes(query)).slice(0, 80)
-      : regions.slice(0, 80);
-
-    results.replaceChildren(...matches.map((region) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'picker-option startup-picker-option';
-      button.dataset.id = region.id;
-      button.innerHTML = `<strong>${region.name}</strong><span>Choose while the world finishes loading</span>`;
-      button.addEventListener('click', () => {
-        window.__pendingStartRegionId = region.id;
-        window.__pendingStartRegionName = region.name;
-        search.disabled = true;
-        results.replaceChildren();
-        status.textContent = `Loading world… ${region.name} is selected and will start automatically when ready.`;
-        pickerTitle.textContent = region.name;
-        pickerHelp.textContent = 'Finishing world setup in the background.';
-      });
-      return button;
-    }));
-
-    status.textContent = query
-      ? `${matches.length}${matches.length === 80 ? '+' : ''} matching regions`
-      : `Showing the first ${matches.length}. Type a name to search all ${regions.length.toLocaleString()} regions.`;
+  const resetList = (...nodes) => {
+    pickerList.replaceChildren(...nodes);
+    pickerList.scrollTop = 0;
   };
 
-  search.addEventListener('input', render);
-  pickerList.replaceChildren(search, status, results);
-  pickerHelp.textContent = 'Pick now; the rest of the world will keep loading while you choose.';
-  render();
-  search.focus({ preventScroll: true });
+  const selectRegion = (region, continent, country) => {
+    window.__pendingStartRegionId = region.id;
+    window.__pendingStartRegionName = region.name;
+    window.__pendingStartNavigation = { continent, country };
+    pickerList.replaceChildren();
+    pickerTitle.textContent = region.name;
+    pickerHelp.textContent = 'Finishing world setup in the background.';
+    const status = document.createElement('div');
+    status.className = 'startup-picker-status';
+    status.textContent = `Loading world… ${region.name} is selected and will start automatically when ready.`;
+    pickerList.appendChild(status);
+  };
+
+  const renderRegions = (continent, country) => {
+    pickerTitle.textContent = country;
+    pickerHelp.textContent = `${continent} · choose the simulation region you will govern.`;
+    const matches = entries
+      .filter((entry) => entry.continent === continent && entry.country === country)
+      .map((entry) => entry.region)
+      .filter((region, index, array) => array.findIndex((other) => other.id === region.id) === index)
+      .sort((a, b) => alphabetical(a.name, b.name));
+    const nodes = [makeBackButton(continent, () => renderCountries(continent))];
+    for (const region of matches) {
+      const button = makeButton('picker-option startup-picker-option', region.name, 'Simulation region', () => selectRegion(region, continent, country));
+      button.dataset.id = region.id;
+      nodes.push(button);
+    }
+    resetList(...nodes);
+  };
+
+  const renderCountries = (continent) => {
+    pickerTitle.textContent = continent;
+    pickerHelp.textContent = 'Choose a modern country or territory to find a region.';
+    const countries = [...new Set(entries.filter((entry) => entry.continent === continent).map((entry) => entry.country))].sort(alphabetical);
+    const nodes = [makeBackButton('Continents', renderContinents)];
+    for (const country of countries) {
+      const count = new Set(entries.filter((entry) => entry.continent === continent && entry.country === country).map((entry) => entry.region.id)).size;
+      nodes.push(makeButton('picker-group', country, `${count} ${count === 1 ? 'region' : 'regions'}`, () => renderRegions(continent, country)));
+    }
+    resetList(...nodes);
+  };
+
+  const renderContinents = () => {
+    pickerTitle.textContent = 'Choose where to begin';
+    pickerHelp.textContent = 'Choose a continent.';
+    const continents = [...new Set(entries.map((entry) => entry.continent))].sort(alphabetical);
+    resetList(...continents.map((continent) => {
+      const continentEntries = entries.filter((entry) => entry.continent === continent);
+      const countryCount = new Set(continentEntries.map((entry) => entry.country)).size;
+      return makeButton('picker-group', continent, `${countryCount} ${countryCount === 1 ? 'country' : 'countries'}`, () => renderCountries(continent));
+    }));
+  };
+
+  // Drop any orphaned navigation IDs rather than presenting a broken choice.
+  for (let i = entries.length - 1; i >= 0; i--) if (!regionById.has(entries[i].region.id)) entries.splice(i, 1);
+  renderContinents();
 }
 
 if (typeof window !== 'undefined') {
@@ -200,6 +194,7 @@ if (typeof window !== 'undefined') {
       if (pending && handOffPendingRegion(pending)) {
         delete window.__pendingStartRegionId;
         delete window.__pendingStartRegionName;
+        delete window.__pendingStartNavigation;
         return;
       }
       if (!pending) return;
