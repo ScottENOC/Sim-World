@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "purpose": "Add uncovered East African coastal waters while preserving existing Southern Red Sea, Gulf of Aden and Arabian Sea regions.",
+  "coastalToleranceDegrees": 0.06,
+  "regions": [
+    {"id":"sea_somali_bight","name":"Somali Bight","bbox":[42.0,-1.5,51.5,8.5]},
+    {"id":"sea_kenya_coast","name":"Kenyan Coast","bbox":[39.0,-5.5,45.0,1.0]},
+    {"id":"sea_zanzibar_channel","name":"Zanzibar Channel & Northern Mozambique Waters","bbox":[37.5,-12.5,43.5,-4.0]}
+  ]
+}
