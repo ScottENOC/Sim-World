@@ -3,9 +3,12 @@
 // Commodity origins are ecological source zones, not modern political borders.
 // Familiarity is cultural: local producers know their own goods, neighbouring
 // regions learn slowly, and successful trade accelerates adoption. Coffee is
-// deliberately absent from v1; it will enter through a later emergence system.
+// different from older commodities: suitable ecology exists for millennia,
+// while harvesting, roasting/brewing and deliberate cultivation emerge later.
 
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
+const SIM_START_YEAR = -1300;
+const DAYS_PER_YEAR = 365.2425;
 
 export const LUXURY_COMMODITIES = Object.freeze({
   pepper: {
@@ -19,6 +22,15 @@ export const LUXURY_COMMODITIES = Object.freeze({
   tea: {
     label: 'Tea', rate: 0.28, demandPerPersonWeek: 0.00035,
     zones: [{ lon: [96, 122], lat: [20, 34], highland: true }],
+  },
+  coffee: {
+    label: 'Coffee', rate: 0.24, demandPerPersonWeek: 0.00030, emergent: true,
+    // The first zone is the native Ethiopian highland ecology; the second is
+    // Yemen's highlands, where cultivation can spread once the practice is known.
+    zones: [
+      { lon: [33, 39.5], lat: [4, 10.5], highland: true, native: true },
+      { lon: [42, 46.5], lat: [12, 17], highland: true, native: false },
+    ],
   },
   cloves: {
     label: 'Cloves', rate: 0.08, demandPerPersonWeek: 0.000035,
@@ -43,42 +55,77 @@ function zoneSignal(value, [min, max], feather = 2) {
   return clamp(1 - d / Math.max(0.01, feather));
 }
 
+function zoneSuitability(region, zone) {
+  const { lon, lat } = centroid(region);
+  const lonSignal = zoneSignal(lon, zone.lon, 3.5);
+  const latSignal = zoneSignal(lat, zone.lat, 2.5);
+  let physical = lonSignal * latSignal;
+  if (zone.highland) {
+    const roughness = clamp((region?.terrain?.mountain || region?.terrain?.mountains || 0) * 0.8 +
+      (region?.terrain?.hills || region?.terrain?.hill || 0) * 0.45 + 0.45, 0.25, 1);
+    physical *= roughness;
+  }
+  const land = clamp(0.45 + (region?.landQuality ?? 0.5) * 0.55, 0.35, 1);
+  return physical * land;
+}
+
 export function commoditySuitability(region, resource) {
   const spec = LUXURY_COMMODITIES[resource];
   if (!spec) return 0;
-  const { lon, lat } = centroid(region);
   let best = 0;
-  for (const zone of spec.zones) {
-    const lonSignal = zoneSignal(lon, zone.lon, 3.5);
-    const latSignal = zoneSignal(lat, zone.lat, 2.5);
-    let physical = lonSignal * latSignal;
-    if (zone.highland) {
-      const roughness = clamp((region?.terrain?.mountain || region?.terrain?.mountains || 0) * 0.8 +
-        (region?.terrain?.hills || region?.terrain?.hill || 0) * 0.45 + 0.45, 0.25, 1);
-      physical *= roughness;
-    }
-    const land = clamp(0.45 + (region?.landQuality ?? 0.5) * 0.55, 0.35, 1);
-    best = Math.max(best, physical * land);
+  for (const zone of spec.zones) best = Math.max(best, zoneSuitability(region, zone));
+  if (resource === 'coffee') {
+    const ecology = Math.max(0, Number(region?.specialResources?.coffeeEcology) || 0);
+    if (ecology > 0) best = Math.max(best, clamp(0.55 + ecology * 0.3));
+  }
+  return best < 0.08 ? 0 : clamp(best);
+}
+
+export function nativeCoffeeSuitability(region) {
+  const ecology = Math.max(0, Number(region?.specialResources?.coffeeEcology) || 0);
+  let best = ecology > 0 ? clamp(0.55 + ecology * 0.3) : 0;
+  for (const zone of LUXURY_COMMODITIES.coffee.zones.filter((z) => z.native)) {
+    best = Math.max(best, zoneSuitability(region, zone));
   }
   return best < 0.08 ? 0 : clamp(best);
 }
 
 function ensureState(region) {
   if (!region.foodLuxuries || typeof region.foodLuxuries !== 'object') {
-    region.foodLuxuries = { version: 1, familiarity: {}, production: {}, consumption: {} };
+    region.foodLuxuries = { version: 2, familiarity: {}, production: {}, consumption: {} };
   }
+  region.foodLuxuries.version = Math.max(2, Number(region.foodLuxuries.version) || 0);
   if (!region.foodLuxuries.familiarity) region.foodLuxuries.familiarity = {};
   if (!region.foodLuxuries.production) region.foodLuxuries.production = {};
   if (!region.foodLuxuries.consumption) region.foodLuxuries.consumption = {};
+  if (!region.foodLuxuries.coffeePractice) {
+    region.foodLuxuries.coffeePractice = {
+      stage: 'unknown', discoveredYear: null, exposed: false, cultivatedYear: null,
+    };
+  }
   if (!region.marketDemand) region.marketDemand = {};
   if (!region.stockpile) region.stockpile = {};
   return region.foodLuxuries;
 }
 
+function coffeeCanProduce(region) {
+  const stage = ensureState(region).coffeePractice?.stage;
+  return stage === 'harvested' || stage === 'cultivated';
+}
+
+export function coffeePractice(region) {
+  return { ...ensureState(region).coffeePractice };
+}
+
 export function commodityFamiliarity(region, resource) {
   const state = ensureState(region);
   const local = commoditySuitability(region, resource);
-  if (local > 0 && !Number.isFinite(state.familiarity[resource])) state.familiarity[resource] = 0.85;
+  if (resource !== 'coffee' && local > 0 && !Number.isFinite(state.familiarity[resource])) {
+    state.familiarity[resource] = 0.85;
+  }
+  if (resource === 'coffee' && coffeeCanProduce(region)) {
+    state.familiarity.coffee = Math.max(state.familiarity.coffee || 0, 0.55);
+  }
   return clamp(state.familiarity[resource] || 0);
 }
 
@@ -89,7 +136,66 @@ export function recordCommodityTrade(origin, dest, resource, quantity = 0) {
   const exposure = clamp(Math.log1p(quantity) / 8, 0.015, 0.18);
   destState.familiarity[resource] = clamp((destState.familiarity[resource] || 0) + exposure);
   sourceState.familiarity[resource] = clamp(Math.max(sourceState.familiarity[resource] || 0, 0.35));
+  if (resource === 'coffee') destState.coffeePractice.exposed = true;
   return true;
+}
+
+function simulationYearFromDay(currentDay, startYear = SIM_START_YEAR) {
+  if (!Number.isFinite(currentDay)) return null;
+  return startYear + currentDay / DAYS_PER_YEAR;
+}
+
+export function tickCoffeeEmergence(regions, simulationYear, elapsedDays = 7, rng = Math.random) {
+  if (!Number.isFinite(simulationYear) || simulationYear < 850) return;
+  const weekScale = Math.max(0.01, elapsedDays / 7);
+  const years = weekScale / 52.1775;
+  const byId = new Map(regions.map((r) => [r.id, r]));
+
+  // Native Ethiopian highland communities can independently develop a coffee
+  // beverage practice. The chance rises slowly with time, settlement density
+  // and trade contact; there is no country/date unlock.
+  for (const region of regions) {
+    const state = ensureState(region);
+    if (state.coffeePractice.stage !== 'unknown') continue;
+    const native = nativeCoffeeSuitability(region);
+    if (native < 0.45) continue;
+    const populationSignal = clamp(Math.log10(Math.max(10, region.population || 0)) / 6, 0.2, 1);
+    const tradeSignal = clamp((region.recentTradePartners?.size || 0) / 6, 0, 1);
+    const timeSignal = clamp((simulationYear - 850) / 650, 0, 1);
+    const annualChance = 0.0015 + native * (0.004 + timeSignal * 0.018) *
+      (0.65 + populationSignal * 0.25 + tradeSignal * 0.35);
+    const chance = 1 - Math.pow(1 - clamp(annualChance, 0, 0.06), years);
+    if (rng() < chance) {
+      state.coffeePractice.stage = 'harvested';
+      state.coffeePractice.discoveredYear = Math.round(simulationYear);
+      state.familiarity.coffee = Math.max(state.familiarity.coffee || 0, 0.6);
+    }
+  }
+
+  // Once people encounter coffee, suitable neighbouring/trading highlands can
+  // adopt deliberate cultivation. This is what allows Yemen to become a major
+  // producer without being a native wild-coffee source.
+  for (const region of regions) {
+    const state = ensureState(region);
+    if (state.coffeePractice.stage === 'cultivated') continue;
+    const suitability = commoditySuitability(region, 'coffee');
+    if (suitability < 0.35) continue;
+    let exposure = commodityFamiliarity(region, 'coffee');
+    for (const id of region.neighbors || []) {
+      const neighbour = byId.get(id);
+      if (neighbour?.foodLuxuries?.coffeePractice?.stage !== 'unknown') exposure = Math.max(exposure, 0.45);
+    }
+    if (state.coffeePractice.exposed) exposure = Math.max(exposure, 0.4);
+    if (exposure < 0.32 || simulationYear < 1000) continue;
+    const timeSignal = clamp((simulationYear - 1000) / 500, 0, 1);
+    const annualChance = 0.004 + suitability * (0.008 + timeSignal * 0.035) * exposure;
+    const chance = 1 - Math.pow(1 - clamp(annualChance, 0, 0.09), years);
+    if (rng() < chance) {
+      state.coffeePractice.stage = 'cultivated';
+      state.coffeePractice.cultivatedYear = Math.round(simulationYear);
+      state.familiarity.coffee = Math.max(state.familiarity.coffee || 0, 0.7);
+    }
+  }
 }
 
 function diffuseFamiliarity(regions, weekScale) {
@@ -99,7 +205,7 @@ function diffuseFamiliarity(regions, weekScale) {
     const state = ensureState(region);
     for (const resource of LUXURY_RESOURCE_IDS) {
       const local = commoditySuitability(region, resource);
-      if (local > 0) state.familiarity[resource] = Math.max(state.familiarity[resource] || 0, 0.85);
+      if (resource !== 'coffee' && local > 0) state.familiarity[resource] = Math.max(state.familiarity[resource] || 0, 0.85);
       let neighbourBest = 0;
       for (const id of region.neighbors || []) {
         const neighbour = byId.get(id);
@@ -115,8 +221,12 @@ function diffuseFamiliarity(regions, weekScale) {
   for (const [region, resource, next] of updates) ensureState(region).familiarity[resource] = clamp(next);
 }
 
-export function tickFoodLuxuries(regions, elapsedDays = 7) {
+export function tickFoodLuxuries(regions, elapsedDays = 7, options = {}) {
   const weekScale = Math.max(0.01, elapsedDays / 7);
+  const simulationYear = Number.isFinite(options.simulationYear)
+    ? options.simulationYear
+    : simulationYearFromDay(options.currentDay, options.startYear ?? SIM_START_YEAR);
+  tickCoffeeEmergence(regions, simulationYear, elapsedDays, options.rng || Math.random);
   diffuseFamiliarity(regions, weekScale);
 
   for (const region of regions) {
@@ -131,7 +241,8 @@ export function tickFoodLuxuries(regions, elapsedDays = 7) {
       const familiarity = commodityFamiliarity(region, resource);
       let produced = 0;
       let workers = 0;
-      if (suitability > 0 && specialistsUsed < maxSpecialists) {
+      const practiceAllows = resource !== 'coffee' || coffeeCanProduce(region);
+      if (practiceAllows && suitability > 0 && specialistsUsed < maxSpecialists) {
         workers = Math.min(maxSpecialists - specialistsUsed,
           Math.max(1, region.population * 0.00035) * suitability);
         produced = workers * spec.rate * suitability * weekScale;

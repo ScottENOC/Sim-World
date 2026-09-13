@@ -37,10 +37,9 @@ assert(basicPreservation.methods.includes('drying') && basicPreservation.methods
   'non-salt preservation should still exist');
 assert(basicPreservation.spoilageMultiplier < 1, 'ordinary preservation should help without requiring a magic resource gate');
 
-const beforePepper = kerala.stockpile.pepper || 0;
 tickFoodLuxuries([kerala, inland, southChina, europe], 7);
-assert((kerala.stockpile.pepper || 0) > beforePepper, 'suitable regions should produce luxury crops');
-assert((southChina.stockpile.tea || 0) > 0, 'tea source regions should produce tea');
+assert((kerala.foodLuxuries?.production?.pepper || 0) > 0, 'suitable regions should produce luxury crops');
+assert((southChina.foodLuxuries?.production?.tea || 0) > 0, 'tea source regions should produce tea');
 assert.equal(europe.stockpile.pepper || 0, 0, 'unsuitable regions should not spontaneously produce pepper');
 assert((kerala.occupations.luxuryProducer || 0) > 0, 'luxury production should use real labour');
 assert(kerala.marketDemand.pepper > 0, 'familiar producer cultures should demand their commodity');
@@ -50,9 +49,8 @@ assert(recordCommodityTrade(kerala, europe, 'pepper', 25), 'successful spice car
 const familiarityAfter = commodityFamiliarity(europe, 'pepper');
 assert(familiarityAfter > familiarityBefore, 'successful trade should increase destination familiarity');
 
-for (const id of ['salt','pepper','cinnamon','tea','cloves','nutmeg']) {
+for (const id of ['salt','pepper','cinnamon','tea','coffee','cloves','nutmeg']) {
   assert(TRADE_GOODS[id], `${id} must be a merchant trade good`);
 }
-assert(!TRADE_GOODS.coffee, 'coffee is intentionally reserved for the later emergence package');
 
 console.log('food luxuries v1 regression: ok');

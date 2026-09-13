@@ -406,7 +406,7 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
     const fishRate = 1 - Math.pow(1 - FISH_REGROWTH_RATE, Math.max(0.01, elapsedWeeks(elapsedDays)));
     sea.fish.currentStock = regrow({ currentStock: sea.fish.currentStock, K: sea.fish.K, rate: fishRate });
   }
-  tickFoodLuxuries(regions, elapsedDays);
+  tickFoodLuxuries(regions, elapsedDays, { currentDay: weatherDay, rng });
 }
 
 function allocateAndProduce(region, seaRegionsById, toolTypes, rng, elapsedDays = 7) {

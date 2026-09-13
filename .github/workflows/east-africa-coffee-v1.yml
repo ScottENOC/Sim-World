@@ -1,0 +1,91 @@
+name: East Africa and coffee v1 validation
+on:
+  push:
+    branches: [east-africa-coffee-v1]
+  pull_request:
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install map dependencies
+        run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2 pyshp==2.3.1
+      - name: Apply runtime integration
+        if: github.event_name == 'push'
+        run: python tools/apply-east-africa-coffee-runtime.py
+      - name: Build land
+        if: github.event_name == 'push'
+        run: |
+          if python - <<'PY'
+          import json,sys
+          geo=json.load(open('data/world/regions.geo.json'))
+          sys.exit(0 if any(str(f.get('properties',{}).get('sourceGroup','')).startswith('ea_') for f in geo['features']) else 1)
+          PY
+          then
+            echo 'East African land already present'
+          else
+            python tools/build-east-africa-expansion.py --output-dir /tmp/simworld-east-africa
+            cp /tmp/simworld-east-africa/regions.geo.json data/world/regions.geo.json
+            cp /tmp/simworld-east-africa/regions.meta.json data/world/regions.meta.json
+            cp /tmp/simworld-east-africa/resources.initial.json data/world/resources.initial.json
+            python tools/build-terrain.py --geo data/world/regions.geo.json --resources data/world/resources.initial.json --output data/world/terrain.initial.json
+          fi
+      - name: Build coastal seas
+        if: github.event_name == 'push'
+        run: |
+          python - <<'PY'
+          import importlib.util,pathlib,sys
+          root=pathlib.Path('.').resolve(); path=root/'tools'/'build-sea-expansion-v2.py'
+          spec=importlib.util.spec_from_file_location('sea_ea',path); sea=importlib.util.module_from_spec(spec); spec.loader.exec_module(sea)
+          sea.PLAN=root/'tools'/'sea-region-plan-east-africa.json'
+          sys.argv=[str(path),'--land-geo','data/world/regions.geo.json','--output-dir','/tmp/simworld-east-africa-seas']
+          sea.main()
+          PY
+          cp /tmp/simworld-east-africa-seas/seaRegions.geo.json data/world/seaRegions.geo.json
+          cp /tmp/simworld-east-africa-seas/seaRegions.meta.json data/world/seaRegions.meta.json
+          node tools/generate-world-spatial-base.mjs
+      - name: Validate
+        run: |
+          node --check js/economy/foodLuxuries.js
+          node --check js/economy/tradeGoods.js
+          node --check js/economy/laborCore.js
+          node tools/test-east-africa-coffee.mjs
+          node tools/test-food-luxuries-v1.mjs
+          node tools/test-world-spatial-skeleton.mjs
+          node tools/test-persistent-settlements-v2.mjs
+          git diff --check
+      - name: Geography sanity
+        run: |
+          python - <<'PY'
+          import json
+          geo=json.load(open('data/world/regions.geo.json')); res=json.load(open('data/world/resources.initial.json'))
+          east=[f for f in geo['features'] if str(f.get('properties',{}).get('sourceGroup','')).startswith('ea_')]
+          if '${{ github.event_name }}' == 'pull_request': assert len(east)>=55
+          if east:
+            groups={f['properties']['sourceGroup'] for f in east}
+            assert {'ea_coffee_highlands','ea_great_lakes','ea_swahili_coast'} <= groups
+            assert max(res[f['properties']['id']].get('specialResources',{}).get('coffeeEcology',0) for f in east)>=1.4
+          print('EAST_AFRICA_REGIONS='+str(len(east)))
+          PY
+      - name: Commit generated implementation
+        if: github.event_name == 'push'
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add data/world js/economy/tradeGoods.js js/economy/laborCore.js
+          git commit -m 'Integrate East Africa geography and emergent coffee'
+          git pull --rebase
+          git push

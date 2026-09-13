@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "purpose": "Expand the live 720-region world through East Africa using persistent physical regions. Modern country boundaries are source geometry only and are deliberately allowed to disappear when gameplay regions are clustered.",
+  "targetExistingRegionCount": 720,
+  "principles": [
+    "Modern borders are raw geometry sources, not gameplay borders.",
+    "Cluster source units across modern frontiers when they belong to the same durable physical zone.",
+    "Prefer highlands, rifts, lakes, river basins, escarpments, coasts, savannahs and caravan corridors as long-lived region identities.",
+    "Keep the Ethiopian coffee-origin highlands geographically explicit rather than unlocking coffee through a modern state tag.",
+    "Maintain enough coastal detail for Red Sea and Indian Ocean trade without reproducing every modern district."
+  ],
+  "sourceCountries": ["SDN","SSD","ERI","DJI","ETH","SOM","KEN","UGA","RWA","BDI","TZA"],
+  "sourceLevel": "ADM2",
+  "minSourceAreaSqKm": 120,
+  "zones": [
+    {"id":"ea_red_sea_nile","name":"Nubian Nile & Red Sea Hills","targetRegions":5,"centre":[34.0,19.0],"bbox":[21.0,15.0,39.5,23.5]},
+    {"id":"ea_sudan_savanna","name":"Sudanian Savanna & Blue Nile","targetRegions":5,"centre":[32.5,12.0],"bbox":[21.0,8.0,39.5,16.0]},
+    {"id":"ea_upper_nile","name":"Upper Nile & Sudd","targetRegions":5,"centre":[30.8,6.8],"bbox":[24.0,2.5,36.5,10.5]},
+    {"id":"ea_eritrean_highlands","name":"Eritrean Highlands & Escarpment","targetRegions":4,"centre":[38.7,15.3],"bbox":[36.0,12.0,42.5,18.5]},
+    {"id":"ea_afar","name":"Afar Triangle & Gulf of Aden Rift","targetRegions":4,"centre":[42.0,11.2],"bbox":[39.0,8.0,45.5,15.0]},
+    {"id":"ea_north_eth_highlands","name":"Northern Ethiopian Highlands","targetRegions":6,"centre":[38.2,12.3],"bbox":[34.5,9.5,41.5,15.2]},
+    {"id":"ea_central_eth_highlands","name":"Central Ethiopian Highlands & Rift","targetRegions":7,"centre":[39.0,8.4],"bbox":[35.0,5.5,43.0,11.2]},
+    {"id":"ea_coffee_highlands","name":"Southwestern Ethiopian Coffee Highlands","targetRegions":5,"centre":[36.0,7.2],"bbox":[33.0,4.0,39.0,10.0]},
+    {"id":"ea_ogaden","name":"Ogaden & Somali Plateau","targetRegions":5,"centre":[43.5,7.0],"bbox":[39.5,3.0,48.5,11.5]},
+    {"id":"ea_horn_coast","name":"Somali Coast & Horn","targetRegions":6,"centre":[47.0,5.0],"bbox":[41.0,-1.5,52.0,13.0]},
+    {"id":"ea_great_lakes","name":"Great Lakes Highlands","targetRegions":7,"centre":[31.5,-1.2],"bbox":[28.0,-5.5,35.5,4.0]},
+    {"id":"ea_kenya_highlands","name":"Kenyan Highlands & Rift","targetRegions":6,"centre":[36.5,0.5],"bbox":[33.5,-4.5,40.0,5.2]},
+    {"id":"ea_swahili_coast","name":"Swahili Coast","targetRegions":6,"centre":[39.5,-5.0],"bbox":[37.0,-12.0,42.5,1.5]},
+    {"id":"ea_tanzania_interior","name":"Tanzanian Interior & Rift","targetRegions":7,"centre":[34.5,-7.0],"bbox":[28.5,-12.5,39.0,-1.0]}
+  ]
+}
