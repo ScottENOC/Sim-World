@@ -158,7 +158,7 @@ function candidateSources(universityRegion, byId, prestigeLeaders) {
 }
 
 function maybeNotableAlumnus(host, source, state, flow, currentTick, rng, events) {
-  if (flow < 8 || rng() >= Math.min(0.18, flow / 500)) return;
+  if (flow < 0.4 || rng() >= Math.min(0.12, flow / 40)) return;
   const u = state.university;
   if (u.lastNotableTick != null && currentTick - u.lastNotableTick < 52) return;
   const fields = ['law', 'medicine', 'theology', 'natural_philosophy', 'administration', 'diplomacy'];
