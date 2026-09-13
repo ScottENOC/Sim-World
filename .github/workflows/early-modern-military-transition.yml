@@ -1,0 +1,87 @@
+name: Early-modern military transition validation
+
+on:
+  push:
+    branches: [early-modern-military-transition-v1]
+    paths:
+      - '.github/workflows/early-modern-military-transition.yml'
+      - 'js/military/earlyModernWarfare.js'
+      - 'tools/apply-early-modern-military-transition.py'
+      - 'tools/test-early-modern-military-transition.mjs'
+      - 'js/military/firearms.js'
+      - 'js/military/campaigns.js'
+      - 'js/military/fleets.js'
+      - 'js/military/banditry.js'
+      - 'js/politics/nonStateInteractions.js'
+      - 'js/main.js'
+  pull_request:
+    paths:
+      - 'js/military/earlyModernWarfare.js'
+      - 'js/military/firearms.js'
+      - 'js/military/campaigns.js'
+      - 'js/military/fleets.js'
+      - 'js/military/banditry.js'
+      - 'js/politics/nonStateInteractions.js'
+      - 'js/main.js'
+      - 'tools/test-early-modern-military-transition.mjs'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply integration on feature branch if needed
+        if: github.event_name == 'push'
+        run: python tools/apply-early-modern-military-transition.py
+      - name: Syntax checks
+        run: |
+          python -m py_compile tools/apply-early-modern-military-transition.py
+          node --check js/military/earlyModernWarfare.js
+          node --check js/military/firearms.js
+          node --check js/military/campaigns.js
+          node --check js/military/fleets.js
+          node --check js/military/banditry.js
+          node --check js/politics/nonStateInteractions.js
+          node --check js/main.js
+      - name: Early-modern military regression
+        run: node tools/test-early-modern-military-transition.mjs
+      - name: Existing gunpowder and fleet regressions
+        run: |
+          node tools/test-gunpowder-firearms.mjs
+          node tools/test-persistent-fleets.mjs
+          node tools/test-expeditionary-logistics.mjs
+          node tools/test-private-military-actors.mjs
+          node tools/test-non-state-organisations.mjs
+          node tools/test-non-state-interactions.mjs
+          node tools/test-ui-priority.mjs
+      - name: Spatial and settlement regressions
+        run: |
+          node tools/test-persistent-settlements-v2.mjs
+          node tools/test-persistent-infrastructure-sites.mjs
+          node tools/test-world-spatial-skeleton.mjs
+      - name: Diff sanity
+        run: git diff --check
+      - name: Commit integration
+        if: github.event_name == 'push'
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/military/firearms.js js/military/campaigns.js js/military/fleets.js js/military/banditry.js js/politics/nonStateInteractions.js js/main.js
+          if git diff --cached --quiet; then
+            echo 'Early-modern integration already current'
+          else
+            git commit -m 'Integrate early-modern military transition'
+            git pull --rebase
+            git push
+          fi

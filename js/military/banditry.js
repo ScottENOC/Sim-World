@@ -5,6 +5,7 @@ import { directContactIds } from '../core/knowledge.js?v=20260904-weather1';
 import { protectionPowerFor } from '../diplomacy/relations.js?v=20260904-save1';
 import { ensureMilitaryPolicy, postureProfile } from './policies.js?v=20260904-policy1';
 import { effectiveInfrastructureCount } from '../economy/construction.js?v=20260905-projects1';
+import { banditCombatMultiplier } from './earlyModernWarfare.js?v=20260913-early-modern1';
 
 // Even with zero army, a bandit group doesn't last forever — disorganized,
 // exposed, some natural die-off. Suppression on top of that scales with
@@ -63,15 +64,18 @@ export function tickBanditry(regions, toolTypes, agreements = [], elapsedDays = 
     const banditPop = region.banditPopulation;
     const totalLocal = region.population + banditPop;
     const banditPressure = totalLocal > 0 ? banditPop / totalLocal : 0;
+    const banditTechnologyMultiplier = banditCombatMultiplier(region);
+    const effectiveBanditPop = banditPop * banditTechnologyMultiplier;
+    const effectiveBanditPressure = region.population + effectiveBanditPop > 0 ? effectiveBanditPop / (region.population + effectiveBanditPop) : 0;
 
     // Diminishing-returns defense: army power matters a lot at first, less
     // for each additional unit beyond what the population size warrants.
     const armyDefense = power / (power + region.population * ARMY_REFERENCE_DENSITY + 1);
-    region.safetyRating = clamp01(1 - banditPressure * (1 - armyDefense));
+    region.safetyRating = clamp01(1 - effectiveBanditPressure * (1 - armyDefense));
 
     // Suppression — this is what finally gives the ever-growing bandit
     // number from last pass somewhere to go.
-    const suppressionRate = power > 0 ? power / (power + banditPop + 1) : 0;
+    const suppressionRate = power > 0 ? power / (power + effectiveBanditPop + 1) : 0;
     const punishmentSuppression = policy.raiderTreatment === 'punish' ? 1.25 : 1;
     const weeklySuppression = clamp01(suppressionRate * SUPPRESSION_REFERENCE * punishmentSuppression);
     const suppressed = Math.min(banditPop, banditPop * fractionOverPeriod(weeklySuppression));
@@ -86,7 +90,7 @@ export function tickBanditry(regions, toolTypes, agreements = [], elapsedDays = 
     // Ongoing raiding: bandits steal from the stockpile and cause some
     // deaths, both scaled down by how safe the region currently is (a
     // strong army suppresses the *impact*, not just the eventual headcount).
-    const severity = banditPressure * (1 - region.safetyRating);
+    const severity = effectiveBanditPressure * (1 - region.safetyRating);
     const raidLossFraction = fractionOverPeriod(RAID_INTENSITY * severity / posture.settlementProtection);
     let foodLooted = 0;
     if (raidLossFraction > 0) {
@@ -144,7 +148,7 @@ export function tickBanditry(regions, toolTypes, agreements = [], elapsedDays = 
       reintegrated: reintegrated + capturedReturn, recruited,
       punished: Math.max(0, suppressed - capturedReturn - recruited),
       dispersed: dispersing, starved, alliedProtection,
-      defensivePosture: policy.defensivePosture, raiderTreatment: policy.raiderTreatment,
+      defensivePosture: policy.defensivePosture, raiderTreatment: policy.raiderTreatment, banditTechnologyMultiplier,
     };
   }
   // Apply transfers after all destinations have been assessed so loop order

@@ -3,6 +3,7 @@ import { activeAgreementBetween, attitudeToward } from '../diplomacy/relations.j
 import { localPrice } from '../economy/prices.js?v=20260904-weather1';
 import { maritimeSkillLevel, maritimeSkillMultiplier, recordMaritimePractice, MARITIME_SKILLS } from '../technology/seamanship.js?v=20260906-maritime1';
 import { maritimeRouteBetween } from '../world/chokepoints.js?v=20260907-chokepoints1';
+import { navalGunCombatProfile } from './earlyModernWarfare.js?v=20260913-early-modern1';
 
 export const FLEET_MISSIONS = Object.freeze({
   PORT: 'port',
@@ -584,8 +585,12 @@ function damagePortInfrastructure(port, severity, rng) {
 
 export function resolveFleetBattle(attacker, defender, regionsById, rng = Math.random, options = {}) {
   const defenderInPort = Boolean(options.defenderInPort || defender.locationType === 'port');
-  const attackerPower = fleetCombatPower(attacker, regionsById);
-  const defenderPower = fleetCombatPower(defender, regionsById, { inPort: defenderInPort });
+  const attackerOrigin = regionsById.get(attacker.ownerRegionId);
+  const defenderOrigin = regionsById.get(defender.ownerRegionId);
+  const attackerGunnery = attackerOrigin ? navalGunCombatProfile(attackerOrigin, attacker.ships, { consumeSupplies: true }) : { multiplier: 1 };
+  const defenderGunnery = defenderOrigin ? navalGunCombatProfile(defenderOrigin, defender.ships, { consumeSupplies: true }) : { multiplier: 1 };
+  const attackerPower = fleetCombatPower(attacker, regionsById) * attackerGunnery.multiplier;
+  const defenderPower = fleetCombatPower(defender, regionsById, { inPort: defenderInPort }) * defenderGunnery.multiplier;
   const total = Math.max(0.001, attackerPower + defenderPower);
   const attackerShare = attackerPower / total;
   const defenderShare = 1 - attackerShare;
@@ -595,8 +600,6 @@ export function resolveFleetBattle(attacker, defender, regionsById, rng = Math.r
   const attackerCapture = captureCandidates(defender, attacker, attackerLoss.capturedCandidates, defenderShare, rng);
   const defenderCapture = captureCandidates(attacker, defender, defenderLoss.capturedCandidates, attackerShare, rng);
 
-  const attackerOrigin = regionsById.get(attacker.ownerRegionId);
-  const defenderOrigin = regionsById.get(defender.ownerRegionId);
   const intensity = (attackerLoss.sunk.length + defenderLoss.sunk.length + attackerCapture.captured.length + defenderCapture.captured.length +
     attackerLoss.damaged.length + defenderLoss.damaged.length + 1) * 6;
   if (attackerOrigin) recordMaritimePractice(attackerOrigin, MARITIME_SKILLS.COMBAT, intensity);
@@ -623,6 +626,7 @@ export function resolveFleetBattle(attacker, defender, regionsById, rng = Math.r
     attackerDamaged: aggregateShipList(attackerLoss.damaged),
     defenderDamaged: aggregateShipList(defenderLoss.damaged),
     portDamage,
+    attackerGunnery, defenderGunnery,
     attackerWon: attackerShare > 0.5,
   };
 }

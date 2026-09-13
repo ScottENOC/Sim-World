@@ -22,6 +22,7 @@ import { desperateAttackProfile } from './supplyAwareAi.js?v=20260908-supply-ai1
 import { resolveSubregionalArmyBattles } from './subregionalArmyBattles.js?v=20260909-nodebattle1';
 import { counterLogisticsCombatProfile } from './counterLogisticsAi.js?v=20260909-counter-logistics1';
 import { firearmCombatProfile } from './firearms.js?v=20260912-gunpowder1';
+import { artilleryCampaignProfile, returnGunpowderSiegeTrain, takeGunpowderSiegeTrain } from './earlyModernWarfare.js?v=20260913-early-modern1';
 import { medievalMilitaryCombatMultiplier } from './medievalDoctrine.js?v=20260912-medieval2';
 import { campaignExternalSupport, applyExternalCampaignLosses } from '../politics/privateMilitaryActors.js?v=20260912-pmc1';
 
@@ -98,6 +99,7 @@ export function launchCampaign(attacker, defender, objective, requestedPersonnel
     travelWeeks, returnTick: null, completed: false, withdrawRequested: false,
     initialPersonnel: personnel, personnel, militia: 0,
     siegeEquipment,
+    gunpowderArtillery: takeGunpowderSiegeTrain(attacker, personnel),
     beneficiaryPolityId: options.beneficiaryPolityId || null,
     pressure: 0, damage: 0, attackerMorale: 1, defenderMorale: 1, supply: 1,
     attackerCasualties: 0, defenderCasualties: 0, civilianDeaths: 0,
@@ -232,13 +234,16 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   const defenderFirearms = firearmCombatProfile(defender, attacker, defender.army.personnel, {
     consumeSupplies: true, elapsedDays: 7, logisticsSupply: 1,
   });
+  const artillery = artilleryCampaignProfile(attacker, campaign.gunpowderArtillery || [], {
+    elapsedDays: 7, logisticsSupply: campaign.supply, consumeSupplies: true,
+  });
   const externalSupport = campaignExternalSupport(campaign, options.nonStateWorld);
   const effectiveExternal = externalSupport.personnel * externalSupport.quality;
   let attackerPower = combatPower(attacker, campaign.personnel + effectiveExternal, toolTypes, 'attacker', campaign.supply,
-    campaign.attackerMorale, null, terrain) * (expedition?.combatMultiplier ?? 1) * attackerFirearms.multiplier;
+    campaign.attackerMorale, null, terrain) * (expedition?.combatMultiplier ?? 1) * attackerFirearms.multiplier * artillery.combatMultiplier;
   attackerPower *= medievalMilitaryCombatMultiplier(attacker, defender, terrain, 'attacker');
   const defenderArmyPower = combatPower(defender, defender.army.personnel, toolTypes, 'defender', 1,
-    campaign.defenderMorale, campaign.siegeEquipment, terrain) * defenderFirearms.multiplier *
+    campaign.defenderMorale, campaign.siegeEquipment, terrain) * defenderFirearms.multiplier * artillery.fortDefenceMultiplier *
     medievalMilitaryCombatMultiplier(defender, attacker, terrain, 'defender');
   if (campaign.pressure >= 0.45) attackerPower *= 1 + formationSiegeBonus(attacker);
   const militiaPower = campaign.militia * 0.24 * postureProfile(defender).raidDefence;
@@ -436,6 +441,7 @@ export function tickCampaigns(campaigns, regionsById, polities, currentTick, too
       attacker.army.personnel += campaign.personnel;
       attacker.army.away = Math.max(0, (attacker.army.away || 0) - campaign.personnel);
       returnSiegeTrain(attacker, campaign.siegeEquipment);
+      returnGunpowderSiegeTrain(attacker, campaign.gunpowderArtillery || []);
       campaign.completed = true; campaign.phase = 'completed';
       recordCampaignMemories(campaign, attacker, defender, currentTick);
       events.push({ type: 'campaign_returned', campaign, attackerName: attacker.name, defenderName: defender.name });
