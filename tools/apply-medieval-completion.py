@@ -1,10 +1,11 @@
 from pathlib import Path
 
 
-def replace_once(path, old, new):
+def replace_once(path, old, new, already_present=None):
     p = Path(path)
     text = p.read_text()
-    if new in text:
+    marker = already_present or new
+    if marker in text:
         return False
     if old not in text:
         raise RuntimeError(f'Expected integration anchor missing in {path}: {old[:180]!r}')
@@ -22,18 +23,21 @@ replace_once(
     'js/main.js',
     "import { tickCorporateCapital } from './economy/corporateCapital.js?v=20260913-capital2';\n",
     "import { tickCorporateCapital } from './economy/corporateCapital.js?v=20260913-capital2';\nimport { tickMedievalCompletion } from './politics/medievalCompletion.js?v=20260913-medieval-completion1';\n",
+    "import { tickMedievalCompletion } from './politics/medievalCompletion.js?v=20260913-medieval-completion1';",
 )
 
 replace_once(
     'js/main.js',
     "    const capitalEvents = profiler.measure('Corporate capital', () => tickCorporateCapital(regions, polities, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));\n    profiler.measure('Medieval doctrine', () => tickMedievalDoctrine(regions, time.elapsedDays));\n",
     "    const capitalEvents = profiler.measure('Corporate capital', () => tickCorporateCapital(regions, polities, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));\n    const medievalCompletionEvents = profiler.measure('Medieval completion', () => tickMedievalCompletion(regions, polities, religiousWorld, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));\n    profiler.measure('Medieval doctrine', () => tickMedievalDoctrine(regions, time.elapsedDays));\n",
+    "const medievalCompletionEvents = profiler.measure('Medieval completion'",
 )
 
 replace_once(
     'js/main.js',
     "      ...capitalEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),\n",
     "      ...capitalEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),\n      ...medievalCompletionEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),\n",
+    "...medievalCompletionEvents.filter((event)",
 )
 
 print('Medieval completion integration applied')
