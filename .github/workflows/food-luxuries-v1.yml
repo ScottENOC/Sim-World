@@ -10,7 +10,7 @@ on:
       - 'js/economy/trade.js'
       - 'js/economy/tradeGoods.js'
       - 'data/world/resourceTypes.json'
-      - 'tools/test-food-luxuries-v1.mjs'
+      - 'tools/test-food-luxuries-v1b.mjs'
       - 'tools/apply-food-luxuries-v1.py'
       - '.github/workflows/food-luxuries-v1.yml'
 
@@ -36,7 +36,7 @@ jobs:
           node --check js/economy/tradeGoods.js
       - name: Food and luxury regressions
         run: |
-          node tools/test-food-luxuries-v1.mjs
+          node tools/test-food-luxuries-v1b.mjs
           node tools/test-world-spatial-skeleton.mjs
           node tools/test-real-river-navigation.mjs
           node tools/test-persistent-settlements-v2.mjs
