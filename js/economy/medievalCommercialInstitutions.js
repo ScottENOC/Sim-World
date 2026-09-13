@@ -1,3 +1,5 @@
+import { corporateCreditMultiplier } from './corporateCapital.js?v=20260913-capital2';
+
 const DAYS_PER_YEAR = 365.2425;
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
 
@@ -32,7 +34,7 @@ export function medievalTradeFrictionMultiplier(region) {
 
 export function medievalCreditMultiplier(region) {
   const s = ensureMedievalCommercialState(region);
-  return 1 + s.finance.merchantCredit * 0.45 + s.finance.depositBanking * 0.3 + s.finance.stateCredit * 0.25 - s.finance.creditCrisis * 0.35;
+  return (1 + s.finance.merchantCredit * 0.45 + s.finance.depositBanking * 0.3 + s.finance.stateCredit * 0.25 - s.finance.creditCrisis * 0.35) * corporateCreditMultiplier(region);
 }
 
 function updateLabourAfterDisease(region, years) {

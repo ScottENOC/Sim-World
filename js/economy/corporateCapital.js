@@ -168,6 +168,19 @@ function updateFirms(region, polity, currentTick, years, rng, events) {
   for (const firm of s.firms) {
     if (firm.status !== 'active') { failed += firm.status === 'defaulted' ? 1 : 0; continue; }
     firm.ageYears = Math.max(0, firm.ageYears || 0) + years;
+    if (firm.form === 'partnership' && firm.ageYears >= 3 && s.charterPractice > 0.4 && (rng?.() ?? Math.random()) < clamp(years * 0.12)) {
+      firm.form = 'chartered_venture';
+      firm.statePrivilege = 0.55;
+      firm.charterPolityId = polity?.id || null;
+      firm.debtIndex = Math.max(firm.debtIndex, firm.capitalIndex * 0.28);
+      events.push({ type: 'commercial_firm_reorganised', regionId: region.id, polityId: polity?.id || null, firmId: firm.id, form: firm.form, sector: firm.sector });
+    } else if (firm.form === 'chartered_venture' && firm.ageYears >= 6 && s.jointStockPractice > 0.55 && (rng?.() ?? Math.random()) < clamp(years * 0.1)) {
+      firm.form = 'joint_stock_company';
+      firm.statePrivilege = Math.min(firm.statePrivilege || 0, 0.3);
+      firm.debtIndex = Math.max(firm.debtIndex, firm.capitalIndex * 0.34);
+      firm.equityIndex = Math.max(firm.equityIndex || 0, firm.capitalIndex * 0.66);
+      events.push({ type: 'commercial_firm_reorganised', regionId: region.id, polityId: polity?.id || null, firmId: firm.id, form: firm.form, sector: firm.sector });
+    }
     const sectorFit = firm.sector === 'shipping' ? (region.isCoastal ? 0.08 : -0.12) : firm.sector === 'long_distance_trade' ? 0.05 : 0;
     const targetProfit = -0.08 + reliability * 0.18 + confidence * 0.12 + s.corporateLaw * 0.08 + sectorFit - crisis * 0.28;
     firm.profitability += (targetProfit - (firm.profitability || 0)) * clamp(years * 0.8);
@@ -247,7 +260,12 @@ function maybeBorrow(polity, territories, currentTick, years, events) {
   if (available <= 0.01) return;
   const revenue = territories.reduce((sum, r) => sum + Math.max(0, r.militaryFinance?.revenueEma || 0), 0);
   const debtCapacity = Math.max(0, revenue * 52 * (0.6 + stateCredit * 2.2) - finance.publicDebt);
-  const requested = Math.min(available, debtCapacity, Math.max(0.05, revenue * 4 + stress * 2));
+  const capitalRevenue = Math.max(0, capital.militaryFinance?.revenueEma || 0);
+  const currentPayroll = Math.max(0, capital.militaryFinance?.payrollDue || 0);
+  const currentAdmin = Math.max(0, capital.militaryFinance?.administrationDue || 0);
+  const reserveTarget = Math.max(0.05, capitalRevenue * 4 + (currentPayroll + currentAdmin) * 2 + stress * 0.25);
+  const fundingGap = Math.max(0, reserveTarget - Math.max(0, capital.treasury || 0));
+  const requested = Math.min(available, debtCapacity, fundingGap);
   if (requested <= 0.01) return;
   for (const item of candidates) {
     const share = item.lendable / available;
