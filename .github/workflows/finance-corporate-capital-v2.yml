@@ -1,0 +1,71 @@
+name: Finance and corporate capital v2 validation
+
+on:
+  push:
+    branches:
+      - finance-corporate-capital-v2
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Apply integration if needed
+        run: python tools/apply-finance-corporate-capital-v2.py
+
+      - name: Syntax checks
+        run: |
+          python -m py_compile tools/apply-finance-corporate-capital-v2.py
+          node --check js/economy/corporateCapital.js
+          node --check js/economy/medievalCommercialInstitutions.js
+          node --check js/economy/trade.js
+          node --check js/main.js
+
+      - name: Finance and corporate capital regression
+        run: node tools/test-finance-corporate-capital-v2.mjs
+
+      - name: Existing economy and political regressions
+        run: |
+          node tools/test-medieval-systems-v2.mjs
+          node tools/test-medieval-currency.mjs
+          node tools/test-medieval-forex.mjs
+          node tools/test-state-administration-elite-politics-v2.mjs
+          node tools/test-civil-war-factions-v2.mjs
+          node tools/test-political-continuity.mjs
+
+      - name: Recent system compatibility regressions
+        run: |
+          node tools/test-oceanic-provisioning-scurvy.mjs
+          node tools/test-early-modern-military-transition.mjs
+          node tools/test-east-africa-coffee.mjs
+          node tools/test-persistent-settlements-v2.mjs
+          node tools/test-persistent-infrastructure-sites.mjs
+          node tools/test-world-spatial-real-map.mjs
+          node tools/test-ui-priority.mjs
+
+      - name: Commit integration
+        if: github.event_name == 'push'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/economy/medievalCommercialInstitutions.js js/economy/trade.js js/main.js
+          if ! git diff --cached --quiet; then
+            git commit -m 'Integrate finance and corporate capital v2'
+            git push
+          fi
