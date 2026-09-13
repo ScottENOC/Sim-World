@@ -1,0 +1,62 @@
+name: Food luxuries v1 validation
+
+on:
+  push:
+    branches: [food-luxuries-v1]
+  pull_request:
+    paths:
+      - 'js/economy/foodLuxuries.js'
+      - 'js/economy/laborCore.js'
+      - 'js/economy/trade.js'
+      - 'js/economy/tradeGoods.js'
+      - 'data/world/resourceTypes.json'
+      - 'tools/test-food-luxuries-v1.mjs'
+      - 'tools/apply-food-luxuries-v1.py'
+      - '.github/workflows/food-luxuries-v1.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+      - name: Apply integration on feature branch
+        if: github.event_name == 'push'
+        run: python tools/apply-food-luxuries-v1.py
+      - name: Syntax checks
+        run: |
+          node --check js/economy/foodLuxuries.js
+          node --check js/economy/laborCore.js
+          node --check js/economy/trade.js
+          node --check js/economy/tradeGoods.js
+      - name: Food and luxury regressions
+        run: |
+          node tools/test-food-luxuries-v1.mjs
+          node tools/test-world-spatial-skeleton.mjs
+          node tools/test-real-river-navigation.mjs
+          node tools/test-persistent-settlements-v2.mjs
+      - name: Confirm integration markers
+        run: |
+          grep -q "tickFoodLuxuries(regions, elapsedDays)" js/economy/laborCore.js
+          grep -q "'gold', 'stone', 'salt', 'saltpetre'" js/economy/laborCore.js
+          grep -q "recordCommodityTrade(origin, dest" js/economy/trade.js
+          grep -q "pepper:" js/economy/tradeGoods.js
+      - name: Diff sanity
+        run: git diff --check
+      - name: Commit integrated implementation
+        if: github.event_name == 'push'
+        run: |
+          if git diff --quiet; then
+            echo "No integration changes to commit"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/economy/laborCore.js js/economy/trade.js js/economy/tradeGoods.js data/world/resourceTypes.json
+          git commit -m 'Integrate food luxuries and preservation v1'
+          git push
