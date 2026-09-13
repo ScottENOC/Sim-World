@@ -50,8 +50,8 @@ replace_once(
 
 replace_once(
     'js/main.js',
-    "      ...languagePolicyEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),\n",
-    "      ...languagePolicyEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),\n      ...capitalEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),\n",
+    "      ...languagePolicyEvents.filter((event) => event.polityId === activePlayerPolityId),\n",
+    "      ...languagePolicyEvents.filter((event) => event.polityId === activePlayerPolityId),\n      ...capitalEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),\n",
 )
 
 print('Finance and corporate capital v2 integration applied')
