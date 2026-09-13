@@ -40,6 +40,5 @@ assert(source.marketDemand.pepper>0);
 const before=commodityFamiliarity(west,'pepper');
 assert(recordCommodityTrade(source,west,'pepper',25));
 assert(commodityFamiliarity(west,'pepper')>before);
-for(const id of ['salt','pepper','cinnamon','tea','cloves','nutmeg']) assert(TRADE_GOODS[id],id);
-assert(!TRADE_GOODS.coffee);
+for(const id of ['salt','pepper','cinnamon','tea','coffee','cloves','nutmeg']) assert(TRADE_GOODS[id],id);
 console.log('food luxuries v1 regression: ok');
