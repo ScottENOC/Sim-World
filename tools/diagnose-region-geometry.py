@@ -4,7 +4,7 @@ from pathlib import Path
 from shapely.geometry import shape
 from shapely.validation import explain_validity
 
-TARGET = 'r2_42b2f278324'
+TARGET = 'r2_bff0592ed5d'
 
 nav = json.loads(Path('data/world/region-navigation.json').read_text())
 geo = json.loads(Path('data/world/regions.geo.json').read_text())
@@ -69,52 +69,44 @@ print('META', json.dumps(meta_entry, ensure_ascii=False, sort_keys=True))
 print('FEATURE_PROPERTIES', json.dumps(feature.get('properties', {}), ensure_ascii=False, sort_keys=True))
 print('GEOMETRY_TYPE', geom.geom_type)
 print('BOUNDS', tuple(round(v, 6) for v in geom.bounds))
-print('LON_SPAN', round(geom.bounds[2] - geom.bounds[0], 6))
-print('LAT_SPAN', round(geom.bounds[3] - geom.bounds[1], 6))
 print('AREA_DEG2', round(geom.area, 6))
 print('VALID', geom.is_valid, explain_validity(geom))
-print('EMPTY', geom.is_empty)
 print('PARTS', len(polygons(geom)))
 
-for i, poly in enumerate(polygons(geom)[:20]):
+for i, poly in enumerate(polygons(geom)):
     exterior = list(poly.exterior.coords)
-    print('POLY', i, 'EXTERIOR_POINTS', len(exterior), 'SIGNED_AREA', round(signed_area(exterior), 6), 'HOLES', len(poly.interiors))
-    for j, ring in enumerate(poly.interiors[:5]):
+    print('POLY', i, 'EXTERIOR_POINTS', len(exterior), 'SIGNED_AREA', round(signed_area(exterior), 9), 'HOLES', len(poly.interiors))
+    for j, ring in enumerate(poly.interiors):
         coords = list(ring.coords)
-        print('  HOLE', j, 'POINTS', len(coords), 'SIGNED_AREA', round(signed_area(coords), 6))
+        print('  HOLE', j, 'POINTS', len(coords), 'SIGNED_AREA', round(signed_area(coords), 9))
 
-clockwise_regions = []
-counterclockwise_regions = []
-mixed_regions = []
-nonpolygon_regions = []
+bad_hole_regions = []
+hole_region_count = 0
+hole_count = 0
+bad_hole_count = 0
 for candidate in geo.get('features', []):
     candidate_id = region_id(candidate)
     candidate_geom = shape(candidate['geometry'])
-    candidate_polys = polygons(candidate_geom)
-    if not candidate_polys:
-        nonpolygon_regions.append(candidate_id)
-        continue
-    signs = []
-    for poly in candidate_polys:
-        area = signed_area(list(poly.exterior.coords))
-        if abs(area) > 1e-12:
-            signs.append(area > 0)
-    if signs and all(signs):
-        counterclockwise_regions.append(candidate_id)
-    elif signs and not any(signs):
-        clockwise_regions.append(candidate_id)
-    elif signs:
-        mixed_regions.append(candidate_id)
+    candidate_bad = []
+    has_hole = False
+    for poly_index, poly in enumerate(polygons(candidate_geom)):
+        exterior_area = signed_area(list(poly.exterior.coords))
+        if exterior_area >= 0:
+            candidate_bad.append({'kind': 'exterior', 'polygon': poly_index, 'signedArea': exterior_area})
+        for hole_index, ring in enumerate(poly.interiors):
+            has_hole = True
+            hole_count += 1
+            hole_area = signed_area(list(ring.coords))
+            if hole_area <= 0:
+                bad_hole_count += 1
+                candidate_bad.append({'kind': 'hole', 'polygon': poly_index, 'hole': hole_index, 'signedArea': hole_area})
+    if has_hole:
+        hole_region_count += 1
+    if candidate_bad:
+        bad_hole_regions.append({'id': candidate_id, 'name': candidate.get('properties', {}).get('name'), 'issues': candidate_bad})
 
-print('WINDING_COUNTS', json.dumps({
-    'counterclockwise': len(counterclockwise_regions),
-    'clockwise': len(clockwise_regions),
-    'mixed': len(mixed_regions),
-    'nonpolygon': len(nonpolygon_regions),
-}, sort_keys=True))
-print('CLOCKWISE_SAMPLE', json.dumps(clockwise_regions[:30]))
-print('MIXED_SAMPLE', json.dumps(mixed_regions[:30]))
-print('NONPOLYGON_SAMPLE', json.dumps(nonpolygon_regions[:30]))
-
-if geom.bounds[2] - geom.bounds[0] > 300 and geom.area > 10000:
-    raise SystemExit(f'{TARGET} looks like a world-sized/complement geometry')
+print('HOLE_REGION_COUNT', hole_region_count)
+print('HOLE_COUNT', hole_count)
+print('BAD_HOLE_COUNT', bad_hole_count)
+print('BAD_ORIENTATION_REGION_COUNT', len(bad_hole_regions))
+print('BAD_ORIENTATION_SAMPLE', json.dumps(bad_hole_regions[:100], ensure_ascii=False))
