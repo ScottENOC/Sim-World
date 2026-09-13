@@ -182,6 +182,16 @@ export function tickSettlements(region, currentTick = 0, elapsedDays = 30, rng =
   });
 
   const years = Math.max(0, Number(elapsedDays) || 0) / DAYS_PER_YEAR;
+  // Settlements the current urban economy can no longer support decline rather
+  // than freezing at their former peak population. This makes long-term collapse
+  // visible while still preserving the historical site for later recovery.
+  for (let index = desired; index < satellites.length; index++) {
+    const place = satellites[index];
+    if (place.status !== 'active') continue;
+    const survival = Math.pow(0.42, years);
+    place.population = Math.max(0, Math.round((place.population || 0) * survival));
+  }
+
   for (const place of satellites) {
     if (place.status !== 'active') continue;
     if (place.population < 80) place.lowPopulationYears += years;
