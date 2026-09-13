@@ -2,6 +2,7 @@ import { ensureMedievalPoliticalState } from './medievalInstitutions.js?v=202609
 import { ensureSubregionalControl } from '../military/subregionalControl.js?v=20260908-subregion1';
 import { linkSuccessionClaimant, reconcileSuccessionContinuity } from './successionContinuityBridge.js?v=20260913-succession-continuity1';
 import { tickCivilWarFactionPolitics } from './civilWarFactions.js?v=20260913-civil-war2';
+import { successionEliteModifier, tickStateAdministrationElitePolitics } from './stateAdministrationElitePolitics.js?v=20260913-state-admin2';
 
 const DAYS_PER_YEAR = 365.2425;
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
@@ -154,9 +155,11 @@ function successionDeathChance(age, years) {
 function claimantSupport(region, polity, claimant) {
   const local = ensureMedievalPoliticalState(region); const s = ensureMedievalSociety(region);
   const admin = polity.administration || {};
-  if (claimant.kind === 'designated_heir') return clamp((admin.legitimacy || 0) * 0.42 + (admin.officialdom || 0) * 0.24 + (region.governance?.administrativeControl || 0) * 0.22 + (1 - local.grievance) * 0.12);
-  if (claimant.kind === 'military_elite') return clamp(s.estates.privateRetinues * 0.34 + local.eliteOrganisation * 0.28 + local.localDefence * 0.2 + (1 - (admin.officialdom || 0)) * 0.18);
-  return clamp(local.localIdentity * 0.34 + local.grievance * 0.3 + (region.governance?.autonomy || 0) * 0.2 + s.urban.council * 0.16);
+  let base;
+  if (claimant.kind === 'designated_heir') base = clamp((admin.legitimacy || 0) * 0.42 + (admin.officialdom || 0) * 0.24 + (region.governance?.administrativeControl || 0) * 0.22 + (1 - local.grievance) * 0.12);
+  else if (claimant.kind === 'military_elite') base = clamp(s.estates.privateRetinues * 0.34 + local.eliteOrganisation * 0.28 + local.localDefence * 0.2 + (1 - (admin.officialdom || 0)) * 0.18);
+  else base = clamp(local.localIdentity * 0.34 + local.grievance * 0.3 + (region.governance?.autonomy || 0) * 0.2 + s.urban.council * 0.16);
+  return clamp(base * successionEliteModifier(polity, claimant.kind));
 }
 
 function startSuccession(polity, regions, currentTick, rng) {
@@ -233,6 +236,7 @@ export function tickMedievalStateSystems(polities, regions, currentTick, elapsed
     if (!territories.length) continue;
     updatePathways(polity, territories, years);
     for (const region of territories) { updateRegionInstitutions(region, polity, years); ensureUrbanPlaces(region); }
+    events.push(...tickStateAdministrationElitePolitics(polity, territories, currentTick, elapsedDays, rng, options));
     const succession = ensureSuccessionState(polity);
     succession.rulerAge += years; succession.rulerTenureYears += years;
     if (!succession.crisis && rng() < successionDeathChance(succession.rulerAge, years)) {
