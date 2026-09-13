@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 from pathlib import Path
-import re
 
-path = Path('js/main.js')
-text = path.read_text()
+main_path = Path('js/main.js')
+text = main_path.read_text()
 
 old = "  const toolTypes = await (await fetch('data/world/toolTypes.json?v=20260904-weather1')).json();\n"
 new = "  const [toolTypes, regionNavigation] = await Promise.all([\n    fetch('data/world/toolTypes.json?v=20260904-weather1').then((response) => response.json()),\n    fetch('data/world/region-navigation.json?v=20260913-country-picker1').then((response) => response.json()),\n  ]);\n"
@@ -27,9 +26,19 @@ elif 'const memberships = navigationIndex?.regions?.[region.id]' not in text:
 
 text = text.replace("        `${countryCount} ${countryCount === 1 ? 'area' : 'areas'} · ${matches.length} regions`,", "        `${countryCount} ${countryCount === 1 ? 'country' : 'countries'} · ${new Set(matches.map((entry) => entry.region.id)).size} regions`,")
 text = text.replace("    pickerHelp.textContent = 'Choose a country or geographic grouping.';", "    pickerHelp.textContent = 'Choose a modern country or territory.';")
-
-# A country membership should never cause a duplicate button for the same region.
 text = text.replace("      .map((entry) => entry.region)\n      .sort((a, b) => alphabetically(a.name, b.name));", "      .map((entry) => entry.region)\n      .filter((region, index, array) => array.findIndex((other) => other.id === region.id) === index)\n      .sort((a, b) => alphabetically(a.name, b.name));")
 
-path.write_text(text)
-print('Country-navigation runtime picker integration applied')
+main_path.write_text(text)
+
+index_path = Path('index.html')
+index = index_path.read_text()
+css_anchor = '<link rel="stylesheet" href="css/main.css?v=20260904-build1">'
+mobile_css = '<link rel="stylesheet" href="css/mobile-fixes.css?v=20260913-menu-scroll1">'
+if mobile_css not in index:
+    if css_anchor not in index:
+        raise RuntimeError('main stylesheet anchor missing')
+    index = index.replace(css_anchor, css_anchor + '\n' + mobile_css, 1)
+index = index.replace('js/ui/startupPicker.js?v=20260907-startup1', 'js/ui/startupPicker.js?v=20260913-country-picker1')
+index_path.write_text(index)
+
+print('Country-navigation runtime picker and mobile menu integration applied')
