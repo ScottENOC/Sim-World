@@ -29,7 +29,9 @@ jobs:
           node-version: '22'
 
       - name: Install map dependencies
-        run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2 pyshp==2.3.1
+        run: |
+          python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2 pyshp==2.3.1
+          npm install --no-save d3-geo@3
 
       - name: Apply source and picker integration
         run: |
@@ -100,13 +102,21 @@ jobs:
           cp /tmp/simworld-old-world-seas/seaRegions.geo.json data/world/seaRegions.geo.json
           cp /tmp/simworld-old-world-seas/seaRegions.meta.json data/world/seaRegions.meta.json
           touch data/world/old-world-pacific-seas.complete
+
+      - name: Canonicalise final land geometry and navigation
+        run: |
+          python tools/normalize-land-geojson.py --input data/world/regions.geo.json --output /tmp/regions.geo.normalized.json
+          node tools/repair-d3-region-geometry.mjs --input /tmp/regions.geo.normalized.json --output data/world/regions.geo.json
+          python tools/build-region-navigation.py
           node tools/generate-world-spatial-base.mjs
 
       - name: Syntax and map regressions
         run: |
-          python -m py_compile tools/build-old-world-asia-pacific.py tools/build-old-world-map-batch.py tools/build-old-world-map-residual.py tools/finalize-old-world-map-report.py tools/apply-old-world-map-source-filter.py tools/apply-old-world-asia-pacific-runtime.py tools/test-old-world-asia-pacific-map.py
+          python -m py_compile tools/build-old-world-asia-pacific.py tools/build-old-world-map-batch.py tools/build-old-world-map-residual.py tools/finalize-old-world-map-report.py tools/apply-old-world-map-source-filter.py tools/apply-old-world-asia-pacific-runtime.py tools/normalize-land-geojson.py tools/build-region-navigation.py tools/test-old-world-asia-pacific-map.py
+          node --check tools/repair-d3-region-geometry.mjs
           node --check js/main.js
           python tools/test-old-world-asia-pacific-map.py
+          node tools/test-country-picker.mjs
           node tools/test-world-spatial-skeleton.mjs
           node tools/test-world-spatial-real-map.mjs
           node tools/test-persistent-settlements-v2.mjs
