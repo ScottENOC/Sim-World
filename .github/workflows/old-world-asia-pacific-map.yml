@@ -1,0 +1,140 @@
+name: Old World and Asia-Pacific map validation
+
+on:
+  push:
+    branches:
+      - old-world-asia-pacific-map-v1
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install map dependencies
+        run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2 pyshp==2.3.1
+
+      - name: Apply source and picker integration
+        run: |
+          python tools/apply-old-world-map-source-filter.py
+          python tools/apply-old-world-asia-pacific-runtime.py
+
+      - name: Build Europe and Greenland land
+        if: github.event_name == 'push' && !hashFiles('data/world/old-world-pacific-coverage.json')
+        run: |
+          timeout 12m python tools/build-old-world-map-batch.py europe-greenland --output-dir /tmp/simworld-europe-greenland
+          cp /tmp/simworld-europe-greenland/regions.geo.json data/world/regions.geo.json
+          cp /tmp/simworld-europe-greenland/regions.meta.json data/world/regions.meta.json
+          cp /tmp/simworld-europe-greenland/resources.initial.json data/world/resources.initial.json
+
+      - name: Build Africa and Arabia land
+        if: github.event_name == 'push' && !hashFiles('data/world/old-world-pacific-coverage.json')
+        run: |
+          timeout 12m python tools/build-old-world-map-batch.py africa-arabia --output-dir /tmp/simworld-africa-arabia
+          cp /tmp/simworld-africa-arabia/regions.geo.json data/world/regions.geo.json
+          cp /tmp/simworld-africa-arabia/regions.meta.json data/world/regions.meta.json
+          cp /tmp/simworld-africa-arabia/resources.initial.json data/world/resources.initial.json
+
+      - name: Build Central, North and South Asia land
+        if: github.event_name == 'push' && !hashFiles('data/world/old-world-pacific-coverage.json')
+        run: |
+          timeout 12m python tools/build-old-world-map-batch.py central-south-asia --output-dir /tmp/simworld-central-south-asia
+          cp /tmp/simworld-central-south-asia/regions.geo.json data/world/regions.geo.json
+          cp /tmp/simworld-central-south-asia/regions.meta.json data/world/regions.meta.json
+          cp /tmp/simworld-central-south-asia/resources.initial.json data/world/resources.initial.json
+
+      - name: Build East and mainland Southeast Asia land
+        if: github.event_name == 'push' && !hashFiles('data/world/old-world-pacific-coverage.json')
+        run: |
+          timeout 12m python tools/build-old-world-map-batch.py east-southeast-asia --output-dir /tmp/simworld-east-southeast-asia
+          cp /tmp/simworld-east-southeast-asia/regions.geo.json data/world/regions.geo.json
+          cp /tmp/simworld-east-southeast-asia/regions.meta.json data/world/regions.meta.json
+          cp /tmp/simworld-east-southeast-asia/resources.initial.json data/world/resources.initial.json
+
+      - name: Build Maritime Asia, Oceania and Pacific land
+        if: github.event_name == 'push' && !hashFiles('data/world/old-world-pacific-coverage.json')
+        run: |
+          timeout 12m python tools/build-old-world-map-batch.py maritime-oceania --output-dir /tmp/simworld-maritime-oceania
+          cp /tmp/simworld-maritime-oceania/regions.geo.json data/world/regions.geo.json
+          cp /tmp/simworld-maritime-oceania/regions.meta.json data/world/regions.meta.json
+          cp /tmp/simworld-maritime-oceania/resources.initial.json data/world/resources.initial.json
+
+      - name: Fill residual land gaps
+        if: github.event_name == 'push' && !hashFiles('data/world/old-world-pacific-coverage.json')
+        run: timeout 12m python tools/build-old-world-map-residual.py
+
+      - name: Finalise aggregate land coverage and terrain
+        if: github.event_name == 'push' && !hashFiles('data/world/old-world-pacific-coverage.json')
+        run: |
+          python tools/finalize-old-world-map-report.py
+          python tools/build-terrain.py --geo data/world/regions.geo.json --resources data/world/resources.initial.json --output data/world/terrain.initial.json
+
+      - name: Build Indian Ocean, Pacific and Arctic seas
+        if: github.event_name == 'push' && !hashFiles('data/world/old-world-pacific-seas.complete')
+        run: |
+          python - <<'PY'
+          import importlib.util, pathlib, sys
+          root=pathlib.Path('.').resolve(); path=root/'tools'/'build-sea-expansion-v2.py'
+          spec=importlib.util.spec_from_file_location('sea_old_world',path); sea=importlib.util.module_from_spec(spec); spec.loader.exec_module(sea)
+          sea.PLAN=root/'tools'/'sea-region-plan-old-world-pacific.json'
+          sys.argv=[str(path),'--land-geo','data/world/regions.geo.json','--output-dir','/tmp/simworld-old-world-seas']
+          sea.main()
+          PY
+          cp /tmp/simworld-old-world-seas/seaRegions.geo.json data/world/seaRegions.geo.json
+          cp /tmp/simworld-old-world-seas/seaRegions.meta.json data/world/seaRegions.meta.json
+          touch data/world/old-world-pacific-seas.complete
+          node tools/generate-world-spatial-base.mjs
+
+      - name: Syntax and map regressions
+        run: |
+          python -m py_compile tools/build-old-world-asia-pacific.py tools/build-old-world-map-batch.py tools/build-old-world-map-residual.py tools/finalize-old-world-map-report.py tools/apply-old-world-map-source-filter.py tools/apply-old-world-asia-pacific-runtime.py tools/test-old-world-asia-pacific-map.py
+          node --check js/main.js
+          python tools/test-old-world-asia-pacific-map.py
+          node tools/test-world-spatial-skeleton.mjs
+          node tools/test-world-spatial-real-map.mjs
+          node tools/test-persistent-settlements-v2.mjs
+          node tools/test-persistent-infrastructure-sites.mjs
+          node tools/test-ui-priority.mjs
+
+      - name: 2300-region performance guardrail
+        run: node tools/benchmark-medieval-completion.mjs
+
+      - name: Existing economy and geography compatibility
+        run: |
+          node tools/test-east-africa-coffee.mjs
+          node tools/test-food-luxuries-v1.mjs
+          node tools/test-finance-corporate-capital-v2.mjs
+          node tools/test-oceanic-provisioning-scurvy.mjs
+          node tools/test-early-modern-military-transition.mjs
+
+      - name: Diff sanity
+        run: git diff --check
+
+      - name: Commit generated map implementation
+        if: github.event_name == 'push'
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add data/world js/main.js tools/build-old-world-asia-pacific.py tools/build-old-world-map-batch.py tools/sea-region-plan-old-world-pacific.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Integrate Old World and Asia-Pacific geography'
+            git pull --rebase
+            git push
+          fi

@@ -606,6 +606,14 @@ function showRegionPicker(regions, onChosen) {
   const navigationForRegion = (region) => {
     const sourceGroup = region.feature?.properties?.sourceGroup;
     const name = region.name;
+    const navigationContinent = region.feature?.properties?.navigationContinent;
+    const navigationGroup = region.feature?.properties?.navigationGroup;
+
+    // Geography-first expansion regions carry picker metadata explicitly.
+    // It is navigation only and never defines sovereignty or a modern state.
+    if (navigationContinent && navigationGroup) {
+      return { continent: navigationContinent, country: navigationGroup };
+    }
 
     // Spain's dataset spans two continents.
     if (sourceGroup === 'ESP' && (name === 'Ceuta' || name === 'Melilla')) {
