@@ -13,6 +13,12 @@ def replace_once(path, old, new):
 
 
 replace_once(
+    'js/economy/corporateCapital.js',
+    "    firm.ageYears = Math.max(0, firm.ageYears || 0) + years;\n    const sectorFit = firm.sector === 'shipping' ? (region.isCoastal ? 0.08 : -0.12) : firm.sector === 'long_distance_trade' ? 0.05 : 0;\n",
+    "    firm.ageYears = Math.max(0, firm.ageYears || 0) + years;\n    if (firm.form === 'partnership' && firm.ageYears >= 3 && s.charterPractice > 0.4 && (rng?.() ?? Math.random()) < clamp(years * 0.12)) {\n      firm.form = 'chartered_venture';\n      firm.statePrivilege = 0.55;\n      firm.charterPolityId = polity?.id || null;\n      firm.debtIndex = Math.max(firm.debtIndex, firm.capitalIndex * 0.28);\n      events.push({ type: 'commercial_firm_reorganised', regionId: region.id, polityId: polity?.id || null, firmId: firm.id, form: firm.form, sector: firm.sector });\n    } else if (firm.form === 'chartered_venture' && firm.ageYears >= 6 && s.jointStockPractice > 0.55 && (rng?.() ?? Math.random()) < clamp(years * 0.1)) {\n      firm.form = 'joint_stock_company';\n      firm.statePrivilege = Math.min(firm.statePrivilege || 0, 0.3);\n      firm.debtIndex = Math.max(firm.debtIndex, firm.capitalIndex * 0.34);\n      firm.equityIndex = Math.max(firm.equityIndex || 0, firm.capitalIndex * 0.66);\n      events.push({ type: 'commercial_firm_reorganised', regionId: region.id, polityId: polity?.id || null, firmId: firm.id, form: firm.form, sector: firm.sector });\n    }\n    const sectorFit = firm.sector === 'shipping' ? (region.isCoastal ? 0.08 : -0.12) : firm.sector === 'long_distance_trade' ? 0.05 : 0;\n",
+)
+
+replace_once(
     'js/economy/medievalCommercialInstitutions.js',
     "const DAYS_PER_YEAR = 365.2425;\n",
     "import { corporateCreditMultiplier } from './corporateCapital.js?v=20260913-capital2';\n\nconst DAYS_PER_YEAR = 365.2425;\n",
