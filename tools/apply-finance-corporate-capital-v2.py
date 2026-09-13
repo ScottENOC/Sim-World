@@ -19,6 +19,12 @@ replace_once(
 )
 
 replace_once(
+    'js/economy/corporateCapital.js',
+    "  const revenue = territories.reduce((sum, r) => sum + Math.max(0, r.militaryFinance?.revenueEma || 0), 0);\n  const debtCapacity = Math.max(0, revenue * 52 * (0.6 + stateCredit * 2.2) - finance.publicDebt);\n  const requested = Math.min(available, debtCapacity, Math.max(0.05, revenue * 4 + stress * 2));\n  if (requested <= 0.01) return;\n",
+    "  const revenue = territories.reduce((sum, r) => sum + Math.max(0, r.militaryFinance?.revenueEma || 0), 0);\n  const debtCapacity = Math.max(0, revenue * 52 * (0.6 + stateCredit * 2.2) - finance.publicDebt);\n  const capitalRevenue = Math.max(0, capital.militaryFinance?.revenueEma || 0);\n  const currentPayroll = Math.max(0, capital.militaryFinance?.payrollDue || 0);\n  const currentAdmin = Math.max(0, capital.militaryFinance?.administrationDue || 0);\n  const reserveTarget = Math.max(0.05, capitalRevenue * 4 + (currentPayroll + currentAdmin) * 2 + stress * 0.25);\n  const fundingGap = Math.max(0, reserveTarget - Math.max(0, capital.treasury || 0));\n  const requested = Math.min(available, debtCapacity, fundingGap);\n  if (requested <= 0.01) return;\n",
+)
+
+replace_once(
     'js/economy/medievalCommercialInstitutions.js',
     "const DAYS_PER_YEAR = 365.2425;\n",
     "import { corporateCreditMultiplier } from './corporateCapital.js?v=20260913-capital2';\n\nconst DAYS_PER_YEAR = 365.2425;\n",
