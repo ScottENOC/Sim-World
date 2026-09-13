@@ -15,7 +15,31 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install geometry dependency
-        run: pip install shapely==2.1.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install geometry dependencies
+        run: |
+          pip install shapely==2.1.1
+          npm install --no-save d3-geo@3
       - name: Inspect Other / Other region
         run: python tools/diagnose-region-geometry.py
+      - name: Check D3 spherical interpretation
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import { geoArea, geoBounds, geoCentroid, geoContains } from 'd3-geo';
+          const id = 'r2_42b2f278324';
+          const fc = JSON.parse(fs.readFileSync('data/world/regions.geo.json', 'utf8'));
+          const feature = fc.features.find(f => (f.id || f.properties?.id) === id);
+          if (!feature) throw new Error(`missing ${id}`);
+          const areaSteradians = geoArea(feature);
+          const bounds = geoBounds(feature);
+          const centroid = geoCentroid(feature);
+          console.log('D3_AREA_STERADIANS', areaSteradians);
+          console.log('D3_AREA_WORLD_FRACTION', areaSteradians / (4 * Math.PI));
+          console.log('D3_BOUNDS', JSON.stringify(bounds));
+          console.log('D3_CENTROID', JSON.stringify(centroid));
+          console.log('D3_CONTAINS_CENTROID', geoContains(feature, centroid));
+          if (areaSteradians > Math.PI) throw new Error(`${id} is interpreted by D3 as a hemisphere-scale/complement polygon`);
+          NODE
