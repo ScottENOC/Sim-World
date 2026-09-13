@@ -1,0 +1,51 @@
+name: Persistent infrastructure sites validation
+
+on:
+  push:
+    branches: [persistent-infrastructure-sites-v1]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+      - name: Apply integration on feature branch
+        if: github.event_name == 'push'
+        run: python tools/apply-persistent-infrastructure-sites.py
+      - name: Syntax checks
+        run: |
+          node --check js/world/infrastructureSites.js
+          node --check js/world/spatialGraph.js
+          node --check js/ui/localRegionView.js
+      - name: Infrastructure and spatial regressions
+        run: |
+          node tools/test-persistent-infrastructure-sites.mjs
+          node tools/test-persistent-settlements-v2.mjs
+          node tools/test-world-spatial-skeleton.mjs
+          node tools/test-world-spatial-real-map.mjs
+          node tools/test-real-river-navigation.mjs
+          node tools/test-subregional-control.mjs
+          node tools/test-ui-priority.mjs
+      - name: Diff sanity
+        run: git diff --check
+      - name: Commit integrated implementation
+        if: github.event_name == 'push'
+        run: |
+          if git diff --quiet; then
+            echo "No generated integration changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/world/spatialGraph.js js/ui/localRegionView.js js/world/infrastructureSites.js tools/apply-persistent-infrastructure-sites.py tools/test-persistent-infrastructure-sites.mjs
+          git commit -m "Integrate persistent infrastructure sites"
+          git push origin HEAD:persistent-infrastructure-sites-v1

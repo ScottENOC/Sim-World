@@ -1,3 +1,5 @@
+import { syncInfrastructureSpatialSites } from './infrastructureSites.js?v=20260913-infrastructure1';
+
 // Persistent shared geography for regional zoom and subregional movement.
 // Physical/human features are generated from the whole world at once. Rendering
 // may be local/on-demand, but neighbouring regions always reference the same
@@ -249,11 +251,8 @@ export function syncRegionSpatialSites(graph, region, places = []) {
     const site={id,type:'mine',name:`${resource} workings`,resource,lon:point[0],lat:point[1],regionId:region.id,persistent:true};
     graph.sites.set(id,site);graph.regionIndex.get(region.id).siteIds.add(id);used.push(site);
   });
-  (region.construction?.assets||[]).filter(a=>['monumental_tomb','great_temple','ceremonial_complex','monumental_statue'].includes(a.typeId)).forEach((asset,i)=>{
-    const id=`${region.id}:monument:${asset.id||i}`;const old=graph.sites.get(id);const point=old?[old.lon,old.lat]:sitePoint(region,id,anchors);
-    const site={id,type:asset.typeId,name:asset.name||asset.typeId.replaceAll('_',' '),lon:point[0],lat:point[1],regionId:region.id,persistent:true,condition:asset.condition??1,scale:asset.scale||1};
-    graph.sites.set(id,site);graph.regionIndex.get(region.id).siteIds.add(id);used.push(site);
-  });
+  const infrastructure=syncInfrastructureSpatialSites(graph,region);
+  used.push(...infrastructure.sites);
   return used;
 }
 
