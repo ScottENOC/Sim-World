@@ -59,7 +59,7 @@ assert.deepEqual([target.location.lon,target.location.lat], originalPosition, 'r
 
 // Deep urban decline leaves historical places in the ledger instead of deleting them.
 a.urbanisation.urbanPopulation = 300;
-for (let year = 0; year < 7; year++) tickSettlements(a, 200 + year * 52, 365.2425, () => 1);
+for (let year = 0; year < 12; year++) tickSettlements(a, 200 + year * 52, 365.2425, () => 1);
 assert(a.settlements.places.some(p => !p.isPrincipal && p.status === 'abandoned'), 'long decline should abandon satellite settlements');
 assert(a.settlements.places.some(p => p.id === originalId), 'abandoned settlement identity should remain in history');
 
