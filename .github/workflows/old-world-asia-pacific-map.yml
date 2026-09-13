@@ -15,7 +15,7 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,15 +36,50 @@ jobs:
           python tools/apply-old-world-map-source-filter.py
           python tools/apply-old-world-asia-pacific-runtime.py
 
-      - name: Build Old World and Asia-Pacific land
+      - name: Build Europe and Greenland land
         if: github.event_name == 'push' && !hashFiles('data/world/old-world-pacific-coverage.json')
         run: |
-          python tools/build-old-world-asia-pacific.py --output-dir /tmp/simworld-old-world-pacific
-          cp /tmp/simworld-old-world-pacific/regions.geo.json data/world/regions.geo.json
-          cp /tmp/simworld-old-world-pacific/regions.meta.json data/world/regions.meta.json
-          cp /tmp/simworld-old-world-pacific/resources.initial.json data/world/resources.initial.json
-          cp /tmp/simworld-old-world-pacific/old-world-pacific-coverage.json data/world/old-world-pacific-coverage.json
-          cp /tmp/simworld-old-world-pacific/old-world-pacific-region-review.json data/world/old-world-pacific-region-review.json
+          timeout 12m python tools/build-old-world-map-batch.py europe-greenland --output-dir /tmp/simworld-europe-greenland
+          cp /tmp/simworld-europe-greenland/regions.geo.json data/world/regions.geo.json
+          cp /tmp/simworld-europe-greenland/regions.meta.json data/world/regions.meta.json
+          cp /tmp/simworld-europe-greenland/resources.initial.json data/world/resources.initial.json
+
+      - name: Build Africa and Arabia land
+        if: github.event_name == 'push' && !hashFiles('data/world/old-world-pacific-coverage.json')
+        run: |
+          timeout 12m python tools/build-old-world-map-batch.py africa-arabia --output-dir /tmp/simworld-africa-arabia
+          cp /tmp/simworld-africa-arabia/regions.geo.json data/world/regions.geo.json
+          cp /tmp/simworld-africa-arabia/regions.meta.json data/world/regions.meta.json
+          cp /tmp/simworld-africa-arabia/resources.initial.json data/world/resources.initial.json
+
+      - name: Build Central, North and South Asia land
+        if: github.event_name == 'push' && !hashFiles('data/world/old-world-pacific-coverage.json')
+        run: |
+          timeout 12m python tools/build-old-world-map-batch.py central-south-asia --output-dir /tmp/simworld-central-south-asia
+          cp /tmp/simworld-central-south-asia/regions.geo.json data/world/regions.geo.json
+          cp /tmp/simworld-central-south-asia/regions.meta.json data/world/regions.meta.json
+          cp /tmp/simworld-central-south-asia/resources.initial.json data/world/resources.initial.json
+
+      - name: Build East and mainland Southeast Asia land
+        if: github.event_name == 'push' && !hashFiles('data/world/old-world-pacific-coverage.json')
+        run: |
+          timeout 12m python tools/build-old-world-map-batch.py east-southeast-asia --output-dir /tmp/simworld-east-southeast-asia
+          cp /tmp/simworld-east-southeast-asia/regions.geo.json data/world/regions.geo.json
+          cp /tmp/simworld-east-southeast-asia/regions.meta.json data/world/regions.meta.json
+          cp /tmp/simworld-east-southeast-asia/resources.initial.json data/world/resources.initial.json
+
+      - name: Build Maritime Asia, Oceania and Pacific land
+        if: github.event_name == 'push' && !hashFiles('data/world/old-world-pacific-coverage.json')
+        run: |
+          timeout 12m python tools/build-old-world-map-batch.py maritime-oceania --output-dir /tmp/simworld-maritime-oceania
+          cp /tmp/simworld-maritime-oceania/regions.geo.json data/world/regions.geo.json
+          cp /tmp/simworld-maritime-oceania/regions.meta.json data/world/regions.meta.json
+          cp /tmp/simworld-maritime-oceania/resources.initial.json data/world/resources.initial.json
+
+      - name: Finalise aggregate land coverage and terrain
+        if: github.event_name == 'push' && !hashFiles('data/world/old-world-pacific-coverage.json')
+        run: |
+          python tools/finalize-old-world-map-report.py
           python tools/build-terrain.py --geo data/world/regions.geo.json --resources data/world/resources.initial.json --output data/world/terrain.initial.json
 
       - name: Build Indian Ocean, Pacific and Arctic seas
@@ -65,7 +100,7 @@ jobs:
 
       - name: Syntax and map regressions
         run: |
-          python -m py_compile tools/build-old-world-asia-pacific.py tools/apply-old-world-map-source-filter.py tools/apply-old-world-asia-pacific-runtime.py tools/test-old-world-asia-pacific-map.py
+          python -m py_compile tools/build-old-world-asia-pacific.py tools/build-old-world-map-batch.py tools/finalize-old-world-map-report.py tools/apply-old-world-map-source-filter.py tools/apply-old-world-asia-pacific-runtime.py tools/test-old-world-asia-pacific-map.py
           node --check js/main.js
           python tools/test-old-world-asia-pacific-map.py
           node tools/test-world-spatial-skeleton.mjs
