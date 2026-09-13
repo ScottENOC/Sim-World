@@ -1,15 +1,18 @@
-name: Suspect region geometry diagnostic
+name: Repair land geometry and country navigation
 
 on:
   push:
     branches:
-      - fix-inside-out-region-v1
+      - fix-region-geometry-western-sahara-v2
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  diagnose:
+  repair:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -22,65 +25,59 @@ jobs:
         run: |
           pip install shapely==2.1.1
           npm install --no-save d3-geo@3
-      - name: Inspect malformed source geometry
-        run: python tools/diagnose-region-geometry.py
-      - name: Canonicalize land geometry to temporary output
+      - name: Canonicalize planar land geometry
         run: python tools/normalize-land-geojson.py --input data/world/regions.geo.json --output /tmp/regions.geo.normalized.json
-      - name: Identify malformed D3 polygon components
+      - name: Repair D3 spherical complement polygons
+        run: node tools/repair-d3-region-geometry.mjs --input /tmp/regions.geo.normalized.json --output /tmp/regions.geo.repaired.json
+      - name: Validate repaired geometry
         run: |
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           import { geoArea, geoBounds } from 'd3-geo';
-          const fc = JSON.parse(fs.readFileSync('/tmp/regions.geo.normalized.json', 'utf8'));
-          function polygonCoordinates(geometry) {
-            if (!geometry) return [];
-            if (geometry.type === 'Polygon') return [geometry.coordinates];
-            if (geometry.type === 'MultiPolygon') return geometry.coordinates;
-            if (geometry.type === 'GeometryCollection') return geometry.geometries.flatMap(polygonCoordinates);
-            return [];
-          }
-          const badComponents = [];
+          const fc = JSON.parse(fs.readFileSync('/tmp/regions.geo.repaired.json', 'utf8'));
+          const bad = [];
           for (const feature of fc.features) {
-            const id = feature.id || feature.properties?.id;
-            const name = feature.properties?.name || id;
-            const polys = polygonCoordinates(feature.geometry);
-            polys.forEach((coordinates, index) => {
-              const polygon = { type: 'Polygon', coordinates };
-              const area = geoArea(polygon);
-              if (area > Math.PI) {
-                const reversedExterior = { type: 'Polygon', coordinates: [coordinates[0].slice().reverse(), ...coordinates.slice(1)] };
-                badComponents.push({
-                  id, name, index,
-                  area, fraction: area / (4 * Math.PI),
-                  reversedExteriorArea: geoArea(reversedExterior),
-                  bounds: geoBounds(polygon),
-                  points: coordinates[0].length,
-                  holes: coordinates.length - 1,
-                  sample: coordinates[0].slice(0, 6),
-                });
-              }
-            });
-          }
-          console.log('BAD_COMPONENT_COUNT', badComponents.length);
-          console.log('BAD_COMPONENTS', JSON.stringify(badComponents.slice(0, 100)));
-          NODE
-      - name: Scan normalized D3 spherical interpretation
-        run: |
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          import { geoArea, geoBounds, geoCentroid, geoContains } from 'd3-geo';
-          const fc = JSON.parse(fs.readFileSync('/tmp/regions.geo.normalized.json', 'utf8'));
-          const records = fc.features.map(feature => {
-            const id = feature.id || feature.properties?.id;
-            const name = feature.properties?.name || id;
             const area = geoArea(feature);
             const bounds = geoBounds(feature);
-            const centroid = geoCentroid(feature);
-            return { id, name, area, fraction: area / (4 * Math.PI), bounds, centroid, containsCentroid: geoContains(feature, centroid) };
-          }).sort((a, b) => b.area - a.area);
-          const complements = records.filter(r => r.area > Math.PI);
-          const globalBounds = records.filter(r => (r.bounds[1][0] - r.bounds[0][0] > 300) && r.area > 0.1);
-          console.log('D3_COMPLEMENT_COUNT', complements.length);
-          console.log('D3_GLOBAL_BOUNDS_COUNT', globalBounds.length);
-          if (complements.length || globalBounds.length) throw new Error(`Normalized geometry still has ${complements.length} complement and ${globalBounds.length} global-bounds regions`);
+            if (area > Math.PI || ((bounds[1][0] - bounds[0][0]) > 300 && area > 0.1)) {
+              bad.push({ id: feature.id || feature.properties?.id, name: feature.properties?.name, area, bounds });
+            }
+          }
+          console.log('FEATURES', fc.features.length);
+          console.log('D3_COMPLEMENT_OR_GLOBAL_COUNT', bad.length);
+          if (bad.length) throw new Error(`Malformed spherical land geometry remains: ${JSON.stringify(bad.slice(0, 20))}`);
           NODE
+      - name: Install repaired map and rebuild player navigation
+        run: |
+          cp /tmp/regions.geo.repaired.json data/world/regions.geo.json
+          python tools/build-region-navigation.py
+      - name: Validate country picker
+        run: node tools/test-country-picker.mjs
+      - name: Validate map regressions
+        run: |
+          python tools/test-old-world-asia-pacific-map.py
+          node tools/test-world-spatial-real-map.mjs
+      - name: Confirm Western Sahara route and no Other/Other fallback for its region
+        run: |
+          python - <<'PY'
+          import json
+          nav = json.load(open('data/world/region-navigation.json'))
+          ws = nav.get('manualNavigationExceptions', {}).get('Western Sahara', {}).get('regions', [])
+          assert ws, 'Western Sahara navigation exception has no regions'
+          for item in ws:
+              memberships = nav['regions'][item['id']]
+              assert {'continent':'Africa','country':'Western Sahara'} in memberships, (item, memberships)
+              assert {'continent':'Other','country':'Other'} not in memberships, (item, memberships)
+          print('WESTERN_SAHARA_NAVIGATION_OK', len(ws))
+          PY
+      - name: Commit repaired generated data
+        run: |
+          if git diff --quiet -- data/world/regions.geo.json data/world/region-navigation.json; then
+            echo 'No generated map changes to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/world/regions.geo.json data/world/region-navigation.json
+          git commit -m 'Repair land geometry and Western Sahara navigation'
+          git push origin HEAD:fix-region-geometry-western-sahara-v2
