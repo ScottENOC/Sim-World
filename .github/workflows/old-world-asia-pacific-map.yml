@@ -1,0 +1,99 @@
+name: Old World and Asia-Pacific map validation
+
+on:
+  push:
+    branches:
+      - old-world-asia-pacific-map-v1
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install map dependencies
+        run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2 pyshp==2.3.1
+
+      - name: Apply picker integration
+        run: python tools/apply-old-world-asia-pacific-runtime.py
+
+      - name: Build Old World and Asia-Pacific land
+        if: github.event_name == 'push' && !hashFiles('data/world/old-world-pacific-coverage.json')
+        run: |
+          python tools/build-old-world-asia-pacific.py --output-dir /tmp/simworld-old-world-pacific
+          cp /tmp/simworld-old-world-pacific/regions.geo.json data/world/regions.geo.json
+          cp /tmp/simworld-old-world-pacific/regions.meta.json data/world/regions.meta.json
+          cp /tmp/simworld-old-world-pacific/resources.initial.json data/world/resources.initial.json
+          cp /tmp/simworld-old-world-pacific/old-world-pacific-coverage.json data/world/old-world-pacific-coverage.json
+          cp /tmp/simworld-old-world-pacific/old-world-pacific-region-review.json data/world/old-world-pacific-region-review.json
+          python tools/build-terrain.py --geo data/world/regions.geo.json --resources data/world/resources.initial.json --output data/world/terrain.initial.json
+
+      - name: Build Indian Ocean, Pacific and Arctic seas
+        if: github.event_name == 'push' && !hashFiles('data/world/old-world-pacific-seas.complete')
+        run: |
+          python - <<'PY'
+          import importlib.util, pathlib, sys
+          root=pathlib.Path('.').resolve(); path=root/'tools'/'build-sea-expansion-v2.py'
+          spec=importlib.util.spec_from_file_location('sea_old_world',path); sea=importlib.util.module_from_spec(spec); spec.loader.exec_module(sea)
+          sea.PLAN=root/'tools'/'sea-region-plan-old-world-pacific.json'
+          sys.argv=[str(path),'--land-geo','data/world/regions.geo.json','--output-dir','/tmp/simworld-old-world-seas']
+          sea.main()
+          PY
+          cp /tmp/simworld-old-world-seas/seaRegions.geo.json data/world/seaRegions.geo.json
+          cp /tmp/simworld-old-world-seas/seaRegions.meta.json data/world/seaRegions.meta.json
+          touch data/world/old-world-pacific-seas.complete
+          node tools/generate-world-spatial-base.mjs
+
+      - name: Syntax and map regressions
+        run: |
+          python -m py_compile tools/build-old-world-asia-pacific.py tools/apply-old-world-asia-pacific-runtime.py tools/test-old-world-asia-pacific-map.py
+          node --check js/main.js
+          python tools/test-old-world-asia-pacific-map.py
+          node tools/test-world-spatial-skeleton.mjs
+          node tools/test-world-spatial-real-map.mjs
+          node tools/test-persistent-settlements-v2.mjs
+          node tools/test-persistent-infrastructure-sites.mjs
+          node tools/test-ui-priority.mjs
+
+      - name: 2300-region performance guardrail
+        run: node tools/benchmark-medieval-completion.mjs
+
+      - name: Existing economy and geography compatibility
+        run: |
+          node tools/test-east-africa-coffee.mjs
+          node tools/test-food-luxuries-v1.mjs
+          node tools/test-finance-corporate-capital-v2.mjs
+          node tools/test-oceanic-provisioning-scurvy.mjs
+          node tools/test-early-modern-military-transition.mjs
+
+      - name: Diff sanity
+        run: git diff --check
+
+      - name: Commit generated map implementation
+        if: github.event_name == 'push'
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add data/world js/main.js
+          if ! git diff --cached --quiet; then
+            git commit -m 'Integrate Old World and Asia-Pacific geography'
+            git pull --rebase
+            git push
+          fi
