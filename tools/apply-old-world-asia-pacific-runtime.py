@@ -1,4 +1,6 @@
 from pathlib import Path
+import subprocess
+import sys
 
 path = Path('js/main.js')
 text = path.read_text()
@@ -9,4 +11,8 @@ if new not in text:
         raise RuntimeError('Region-picker navigation anchor not found in js/main.js')
     text = text.replace(old, new, 1)
     path.write_text(text)
+
+# Keep narrow/strategic sea regions ahead of broad ocean basins so the additive
+# sea builder cannot consume them first. This is idempotent.
+subprocess.run([sys.executable, 'tools/apply-old-world-sea-order-fix.py'], check=True)
 print('Old World / Asia-Pacific runtime integration applied')
