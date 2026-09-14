@@ -1,0 +1,1691 @@
+[
+  {
+    "id": "na_835725bf1bdc",
+    "name": "Northern Arctic North America",
+    "zone": "Arctic North America",
+    "areaSqKm": 903.3,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_f0939d8d4b4b",
+    "name": "Northeastern Arctic North America",
+    "zone": "Arctic North America",
+    "areaSqKm": 303767.2,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_e77421277324",
+    "name": "Northern Arctic North America — Nunavut",
+    "zone": "Arctic North America",
+    "areaSqKm": 11898.8,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_8fb41a619fd0",
+    "name": "Northern Arctic North America — Northwest Territories",
+    "zone": "Arctic North America",
+    "areaSqKm": 2798.9,
+    "sourceUnits": [
+      "CAN:Northwest Territories",
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_b67b61bbdbe2",
+    "name": "Northeastern Arctic North America — Nunavut",
+    "zone": "Arctic North America",
+    "areaSqKm": 7510.9,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_212a5fea8ff6",
+    "name": "Northern Arctic North America — Northwest Territories 2",
+    "zone": "Arctic North America",
+    "areaSqKm": 754.0,
+    "sourceUnits": [
+      "CAN:Northwest Territories"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_42b17046191b",
+    "name": "Northern Arctic North America — Northwest Territories 3",
+    "zone": "Arctic North America",
+    "areaSqKm": 5008.5,
+    "sourceUnits": [
+      "CAN:Northwest Territories",
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_26402fcf772b",
+    "name": "Northeastern Arctic North America — Nunavut 2",
+    "zone": "Arctic North America",
+    "areaSqKm": 1351.1,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_7f594280c6d1",
+    "name": "Northern Arctic North America — Nunavut 2",
+    "zone": "Arctic North America",
+    "areaSqKm": 1299.5,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_72da4d67ef12",
+    "name": "Northern Arctic North America — Northwest Territories 4",
+    "zone": "Arctic North America",
+    "areaSqKm": 17369.1,
+    "sourceUnits": [
+      "CAN:Northwest Territories"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_05d48f9c5b66",
+    "name": "Northeastern Arctic North America — Nunavut 3",
+    "zone": "Arctic North America",
+    "areaSqKm": 19226.0,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_11005bdef091",
+    "name": "Northern Arctic North America — Northwest Territories 5",
+    "zone": "Arctic North America",
+    "areaSqKm": 42672.5,
+    "sourceUnits": [
+      "CAN:Northwest Territories",
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_99e633f26a85",
+    "name": "Northeastern Arctic North America — Nunavut 4",
+    "zone": "Arctic North America",
+    "areaSqKm": 1174.6,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_941c59b6ecb8",
+    "name": "Eastern Arctic North America",
+    "zone": "Arctic North America",
+    "areaSqKm": 144.2,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_8388f207a2c0",
+    "name": "Eastern Arctic North America — Nunavut",
+    "zone": "Arctic North America",
+    "areaSqKm": 34710.9,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_e269de492956",
+    "name": "Southern Arctic North America",
+    "zone": "Arctic North America",
+    "areaSqKm": 153997.3,
+    "sourceUnits": [
+      "CAN:Northwest Territories"
+    ],
+    "neighborCount": 1
+  },
+  {
+    "id": "na_2cfcdd6fedba",
+    "name": "Southeastern Arctic North America",
+    "zone": "Arctic North America",
+    "areaSqKm": 232.1,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_2b84a62307fc",
+    "name": "Southern Arctic North America — Nunavut",
+    "zone": "Arctic North America",
+    "areaSqKm": 141338.5,
+    "sourceUnits": [
+      "CAN:Northwest Territories",
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 1
+  },
+  {
+    "id": "na_41c9121eb644",
+    "name": "Eastern Arctic North America — Nunavut 2",
+    "zone": "Arctic North America",
+    "areaSqKm": 368750.9,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 1
+  },
+  {
+    "id": "na_e1f45d3c4396",
+    "name": "Southeastern Arctic North America — Nunavut",
+    "zone": "Arctic North America",
+    "areaSqKm": 159744.1,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 4
+  },
+  {
+    "id": "na_da7853e5b65b",
+    "name": "Eastern Arctic North America — Nunavut 3",
+    "zone": "Arctic North America",
+    "areaSqKm": 1562.0,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_6451ddf288e9",
+    "name": "Southeastern Arctic North America — Nunavut 2",
+    "zone": "Arctic North America",
+    "areaSqKm": 616.4,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_50b2f5aead63",
+    "name": "Eastern Arctic North America — Nunavut 4",
+    "zone": "Arctic North America",
+    "areaSqKm": 433.6,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_e7256195cde1",
+    "name": "Southwestern Arctic North America",
+    "zone": "Arctic North America",
+    "areaSqKm": 267265.2,
+    "sourceUnits": [
+      "USA:Alaska"
+    ],
+    "neighborCount": 5
+  },
+  {
+    "id": "na_8c682541c67c",
+    "name": "Southwestern Arctic North America — Alaska",
+    "zone": "Arctic North America",
+    "areaSqKm": 223193.8,
+    "sourceUnits": [
+      "USA:Alaska"
+    ],
+    "neighborCount": 3
+  },
+  {
+    "id": "na_e84e6d86db02",
+    "name": "Southern Arctic North America — Northwest Territories",
+    "zone": "Arctic North America",
+    "areaSqKm": 242066.5,
+    "sourceUnits": [
+      "CAN:Northwest Territories",
+      "CAN:Yukon"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_9c9c0f1d698b",
+    "name": "Southern Arctic North America — Nunavut 2",
+    "zone": "Arctic North America",
+    "areaSqKm": 232454.3,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 4
+  },
+  {
+    "id": "na_630fda33e7df",
+    "name": "Southeastern Arctic North America — Nunavut 3",
+    "zone": "Arctic North America",
+    "areaSqKm": 141086.0,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 2
+  },
+  {
+    "id": "na_6e0620c6c3bb",
+    "name": "Southern Arctic North America — Northwest Territories 2",
+    "zone": "Arctic North America",
+    "areaSqKm": 196313.8,
+    "sourceUnits": [
+      "CAN:Northwest Territories",
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 8
+  },
+  {
+    "id": "na_e5eabff43f04",
+    "name": "Southern Arctic North America — Yukon",
+    "zone": "Arctic North America",
+    "areaSqKm": 196872.2,
+    "sourceUnits": [
+      "CAN:Yukon",
+      "USA:Alaska"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_01ead91bf84a",
+    "name": "Northeastern Canadian Shield North",
+    "zone": "Canadian Shield North",
+    "areaSqKm": 172360.3,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 1
+  },
+  {
+    "id": "na_3b43187bcf4e",
+    "name": "Northern Canadian Shield North",
+    "zone": "Canadian Shield North",
+    "areaSqKm": 188449.7,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 5
+  },
+  {
+    "id": "na_b62b65b40aab",
+    "name": "Northern Alaska and Beringia",
+    "zone": "Alaska and Beringia",
+    "areaSqKm": 4589.7,
+    "sourceUnits": [
+      "USA:Alaska"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_645305c493fe",
+    "name": "Eastern Canadian Shield North",
+    "zone": "Canadian Shield North",
+    "areaSqKm": 2242.0,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_d623e1f7f7d4",
+    "name": "Western Canadian Shield North",
+    "zone": "Canadian Shield North",
+    "areaSqKm": 194858.5,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 8
+  },
+  {
+    "id": "na_3ee2c3147b28",
+    "name": "Northern Alaska and Beringia — Alaska",
+    "zone": "Alaska and Beringia",
+    "areaSqKm": 184991.4,
+    "sourceUnits": [
+      "USA:Alaska"
+    ],
+    "neighborCount": 5
+  },
+  {
+    "id": "na_fff8936ddb74",
+    "name": "Northern Alaska and Beringia — Alaska 2",
+    "zone": "Alaska and Beringia",
+    "areaSqKm": 192365.3,
+    "sourceUnits": [
+      "USA:Alaska"
+    ],
+    "neighborCount": 4
+  },
+  {
+    "id": "na_c7a9e45d2dba",
+    "name": "Northeastern Alaska and Beringia",
+    "zone": "Alaska and Beringia",
+    "areaSqKm": 212784.3,
+    "sourceUnits": [
+      "USA:Alaska"
+    ],
+    "neighborCount": 4
+  },
+  {
+    "id": "na_9eee5ee295d7",
+    "name": "Northern Northwestern Boreal Interior",
+    "zone": "Northwestern Boreal Interior",
+    "areaSqKm": 153482.4,
+    "sourceUnits": [
+      "CAN:Northwest Territories",
+      "CAN:Yukon"
+    ],
+    "neighborCount": 7
+  },
+  {
+    "id": "na_b8404d4b62fc",
+    "name": "Northern Northwestern Boreal Interior — Northwest Territories",
+    "zone": "Northwestern Boreal Interior",
+    "areaSqKm": 170199.9,
+    "sourceUnits": [
+      "CAN:Northwest Territories"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_7c6c13809473",
+    "name": "Northeastern Northwestern Boreal Interior",
+    "zone": "Northwestern Boreal Interior",
+    "areaSqKm": 173589.5,
+    "sourceUnits": [
+      "CAN:Northwest Territories"
+    ],
+    "neighborCount": 4
+  },
+  {
+    "id": "na_62d921ec39d3",
+    "name": "Eastern Canadian Shield North — Nunavut",
+    "zone": "Canadian Shield North",
+    "areaSqKm": 5646.1,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_c9cf45a5d8e8",
+    "name": "Western Canadian Shield North — Northwest Territories",
+    "zone": "Canadian Shield North",
+    "areaSqKm": 167326.9,
+    "sourceUnits": [
+      "CAN:Northwest Territories"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_0f5c01c9bca7",
+    "name": "Northwestern Northwestern Boreal Interior",
+    "zone": "Northwestern Boreal Interior",
+    "areaSqKm": 156225.3,
+    "sourceUnits": [
+      "CAN:Yukon"
+    ],
+    "neighborCount": 4
+  },
+  {
+    "id": "na_4958116676b7",
+    "name": "Northern Northwestern Boreal Interior — Yukon",
+    "zone": "Northwestern Boreal Interior",
+    "areaSqKm": 146839.8,
+    "sourceUnits": [
+      "CAN:Yukon"
+    ],
+    "neighborCount": 5
+  },
+  {
+    "id": "na_154980417876",
+    "name": "Western Canadian Shield North — Northwest Territories 2",
+    "zone": "Canadian Shield North",
+    "areaSqKm": 147818.1,
+    "sourceUnits": [
+      "CAN:Northwest Territories"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_a15a748777e7",
+    "name": "Southeastern Canadian Shield North",
+    "zone": "Canadian Shield North",
+    "areaSqKm": 3246.9,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_3011b2d917bd",
+    "name": "Eastern Canadian Shield North — Nunavut 2",
+    "zone": "Canadian Shield North",
+    "areaSqKm": 1277.2,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_9518417c0870",
+    "name": "Western Alaska and Beringia",
+    "zone": "Alaska and Beringia",
+    "areaSqKm": 318.9,
+    "sourceUnits": [
+      "USA:Alaska"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_cf892602e722",
+    "name": "Southeastern Canadian Shield North — Nunavut",
+    "zone": "Canadian Shield North",
+    "areaSqKm": 904.0,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_b09a68b8927d",
+    "name": "Southern Canadian Shield North",
+    "zone": "Canadian Shield North",
+    "areaSqKm": 194706.4,
+    "sourceUnits": [
+      "CAN:Nunavut",
+      "CAN:Québec"
+    ],
+    "neighborCount": 2
+  },
+  {
+    "id": "na_d60208cb0ff2",
+    "name": "Northern Alaska and Beringia — Alaska 3",
+    "zone": "Alaska and Beringia",
+    "areaSqKm": 4155.4,
+    "sourceUnits": [
+      "USA:Alaska"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_7f9e88c42313",
+    "name": "Northern Alaska and Beringia — Alaska 4",
+    "zone": "Alaska and Beringia",
+    "areaSqKm": 206487.8,
+    "sourceUnits": [
+      "USA:Alaska"
+    ],
+    "neighborCount": 2
+  },
+  {
+    "id": "na_6b5409fd3d41",
+    "name": "Southeastern Northwestern Boreal Interior",
+    "zone": "Northwestern Boreal Interior",
+    "areaSqKm": 160292.0,
+    "sourceUnits": [
+      "CAN:Alberta"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_2e77de4b5de1",
+    "name": "Northwestern Pacific Northwest Coast",
+    "zone": "Pacific Northwest Coast",
+    "areaSqKm": 233924.4,
+    "sourceUnits": [
+      "CAN:British Columbia",
+      "USA:Alaska"
+    ],
+    "neighborCount": 7
+  },
+  {
+    "id": "na_5289d8544161",
+    "name": "Eastern Alaska and Beringia",
+    "zone": "Alaska and Beringia",
+    "areaSqKm": 11869.5,
+    "sourceUnits": [
+      "USA:Alaska"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_ef45a901660f",
+    "name": "Northwestern Canadian Shield",
+    "zone": "Canadian Shield",
+    "areaSqKm": 147323.9,
+    "sourceUnits": [
+      "CAN:Manitoba"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_f424fa914f70",
+    "name": "Northwestern Interior Cordillera",
+    "zone": "Interior Cordillera",
+    "areaSqKm": 149577.6,
+    "sourceUnits": [
+      "CAN:British Columbia"
+    ],
+    "neighborCount": 7
+  },
+  {
+    "id": "na_b6d38bcb30f9",
+    "name": "Northeastern Northern Rockies",
+    "zone": "Northern Rockies",
+    "areaSqKm": 159604.4,
+    "sourceUnits": [
+      "CAN:Saskatchewan"
+    ],
+    "neighborCount": 5
+  },
+  {
+    "id": "na_fc8855ace724",
+    "name": "Northeastern Pacific Northwest Coast",
+    "zone": "Pacific Northwest Coast",
+    "areaSqKm": 184964.6,
+    "sourceUnits": [
+      "CAN:British Columbia"
+    ],
+    "neighborCount": 5
+  },
+  {
+    "id": "na_d3360e1fdf9f",
+    "name": "Northwestern Northern Prairies",
+    "zone": "Northern Prairies",
+    "areaSqKm": 136647.1,
+    "sourceUnits": [
+      "CAN:Saskatchewan"
+    ],
+    "neighborCount": 5
+  },
+  {
+    "id": "na_85734f36fdc8",
+    "name": "Northwestern Canadian Shield — Québec",
+    "zone": "Canadian Shield",
+    "areaSqKm": 175833.6,
+    "sourceUnits": [
+      "CAN:Newfoundland and Labrador",
+      "CAN:Nunavut",
+      "CAN:Québec"
+    ],
+    "neighborCount": 4
+  },
+  {
+    "id": "na_a0044ef1bbdf",
+    "name": "Eastern Alaska and Beringia — Alaska",
+    "zone": "Alaska and Beringia",
+    "areaSqKm": 321.4,
+    "sourceUnits": [
+      "USA:Alaska"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_32a139924d50",
+    "name": "Southeastern Northern Prairies",
+    "zone": "Northern Prairies",
+    "areaSqKm": 216240.7,
+    "sourceUnits": [
+      "CAN:Manitoba"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_dc649fb04c1b",
+    "name": "Western Canadian Shield",
+    "zone": "Canadian Shield",
+    "areaSqKm": 2602.5,
+    "sourceUnits": [
+      "CAN:Nunavut"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_3cf5aece8a4e",
+    "name": "Western Canadian Shield — Québec",
+    "zone": "Canadian Shield",
+    "areaSqKm": 170286.7,
+    "sourceUnits": [
+      "CAN:Québec"
+    ],
+    "neighborCount": 5
+  },
+  {
+    "id": "na_c079f5bef2bf",
+    "name": "Southeastern Alaska and Beringia",
+    "zone": "Alaska and Beringia",
+    "areaSqKm": 123.5,
+    "sourceUnits": [
+      "USA:Alaska"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_6c9801e8b149",
+    "name": "Southwestern Northern Rockies",
+    "zone": "Northern Rockies",
+    "areaSqKm": 264373.8,
+    "sourceUnits": [
+      "CAN:Alberta"
+    ],
+    "neighborCount": 7
+  },
+  {
+    "id": "na_0d07fbcb1c99",
+    "name": "Western Canadian Shield — Ontario",
+    "zone": "Canadian Shield",
+    "areaSqKm": 233495.9,
+    "sourceUnits": [
+      "CAN:Nunavut",
+      "CAN:Ontario"
+    ],
+    "neighborCount": 4
+  },
+  {
+    "id": "na_02d653ade8c5",
+    "name": "Eastern Interior Cordillera",
+    "zone": "Interior Cordillera",
+    "areaSqKm": 239539.1,
+    "sourceUnits": [
+      "CAN:Alberta"
+    ],
+    "neighborCount": 5
+  },
+  {
+    "id": "na_ea209580b67b",
+    "name": "Southern Alaska and Beringia",
+    "zone": "Alaska and Beringia",
+    "areaSqKm": 4834.4,
+    "sourceUnits": [
+      "USA:Alaska"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_c60f2ffdf8da",
+    "name": "Western Pacific Northwest Coast",
+    "zone": "Pacific Northwest Coast",
+    "areaSqKm": 9224.7,
+    "sourceUnits": [
+      "CAN:British Columbia"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_3474b4b4351a",
+    "name": "Western Canadian Shield — Québec 2",
+    "zone": "Canadian Shield",
+    "areaSqKm": 273095.4,
+    "sourceUnits": [
+      "CAN:Nunavut",
+      "CAN:Ontario",
+      "CAN:Québec"
+    ],
+    "neighborCount": 5
+  },
+  {
+    "id": "na_0b98dee95929",
+    "name": "Northeastern Rocky Mountain Interior",
+    "zone": "Rocky Mountain Interior",
+    "areaSqKm": 169093.5,
+    "sourceUnits": [
+      "CAN:Saskatchewan"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_415ab44608bf",
+    "name": "Eastern Canadian Shield",
+    "zone": "Canadian Shield",
+    "areaSqKm": 880.8,
+    "sourceUnits": [
+      "USA:Alaska"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_e7ff24614ba5",
+    "name": "Southern Alaska and Beringia — Alaska",
+    "zone": "Alaska and Beringia",
+    "areaSqKm": 157.4,
+    "sourceUnits": [
+      "USA:Alaska"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_e53ad8701b92",
+    "name": "Southern Alaska and Beringia — Alaska 2",
+    "zone": "Alaska and Beringia",
+    "areaSqKm": 168.8,
+    "sourceUnits": [
+      "USA:Alaska"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_b0974e77b465",
+    "name": "Eastern Canadian Shield — Alaska",
+    "zone": "Canadian Shield",
+    "areaSqKm": 215.0,
+    "sourceUnits": [
+      "USA:Alaska"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_d0d0c8f2ae99",
+    "name": "Southwestern Canadian Shield",
+    "zone": "Canadian Shield",
+    "areaSqKm": 296747.9,
+    "sourceUnits": [
+      "CAN:Newfoundland and Labrador",
+      "CAN:Québec"
+    ],
+    "neighborCount": 5
+  },
+  {
+    "id": "na_e62b8b170212",
+    "name": "Southwestern Alaska and Beringia",
+    "zone": "Alaska and Beringia",
+    "areaSqKm": 196.9,
+    "sourceUnits": [
+      "USA:Alaska"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_1736145bf494",
+    "name": "Northeastern Great Plains",
+    "zone": "Great Plains",
+    "areaSqKm": 288394.6,
+    "sourceUnits": [
+      "CAN:Manitoba"
+    ],
+    "neighborCount": 8
+  },
+  {
+    "id": "na_9e5ea327ae92",
+    "name": "Southwestern Alaska and Beringia — Alaska",
+    "zone": "Alaska and Beringia",
+    "areaSqKm": 1434.2,
+    "sourceUnits": [
+      "USA:Alaska"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_c6ad04ec8c9c",
+    "name": "Southeastern Pacific Northwest Coast",
+    "zone": "Pacific Northwest Coast",
+    "areaSqKm": 162967.1,
+    "sourceUnits": [
+      "CAN:British Columbia"
+    ],
+    "neighborCount": 4
+  },
+  {
+    "id": "na_2ff59eb1b5ab",
+    "name": "Southwestern Alaska and Beringia — Alaska 2",
+    "zone": "Alaska and Beringia",
+    "areaSqKm": 147.9,
+    "sourceUnits": [
+      "USA:Alaska"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_72ef217081d5",
+    "name": "Southeastern Canadian Shield",
+    "zone": "Canadian Shield",
+    "areaSqKm": 259.2,
+    "sourceUnits": [
+      "USA:Alaska"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_94db8eee821e",
+    "name": "Southeastern Canadian Shield — Alaska",
+    "zone": "Canadian Shield",
+    "areaSqKm": 217.3,
+    "sourceUnits": [
+      "USA:Alaska"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_a3a181191520",
+    "name": "Southwestern Alaska and Beringia — Alaska 3",
+    "zone": "Alaska and Beringia",
+    "areaSqKm": 1589.6,
+    "sourceUnits": [
+      "USA:Alaska"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_83274ae502a2",
+    "name": "Southwestern Canadian Shield — Québec",
+    "zone": "Canadian Shield",
+    "areaSqKm": 188984.9,
+    "sourceUnits": [
+      "CAN:Québec"
+    ],
+    "neighborCount": 5
+  },
+  {
+    "id": "na_ee5c39af5ed5",
+    "name": "Southwestern Interior Cordillera",
+    "zone": "Interior Cordillera",
+    "areaSqKm": 199906.7,
+    "sourceUnits": [
+      "CAN:British Columbia"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_325e2ae2eb05",
+    "name": "Southwestern Canadian Shield — Ontario",
+    "zone": "Canadian Shield",
+    "areaSqKm": 243135.5,
+    "sourceUnits": [
+      "CAN:Ontario"
+    ],
+    "neighborCount": 5
+  },
+  {
+    "id": "na_b1420528c418",
+    "name": "Southeastern Canadian Shield — Alaska 2",
+    "zone": "Canadian Shield",
+    "areaSqKm": 275.4,
+    "sourceUnits": [
+      "USA:Alaska"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_91b301bdf8fb",
+    "name": "Southern Canadian Shield",
+    "zone": "Canadian Shield",
+    "areaSqKm": 227923.2,
+    "sourceUnits": [
+      "CAN:Newfoundland and Labrador"
+    ],
+    "neighborCount": 2
+  },
+  {
+    "id": "na_b25c6d986e94",
+    "name": "Northeastern Rocky Mountain Interior — Saskatchewan",
+    "zone": "Rocky Mountain Interior",
+    "areaSqKm": 185410.6,
+    "sourceUnits": [
+      "CAN:Saskatchewan"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_1b36364abd7b",
+    "name": "Northern Great Lakes and Upper Mississippi",
+    "zone": "Great Lakes and Upper Mississippi",
+    "areaSqKm": 169861.0,
+    "sourceUnits": [
+      "CAN:Ontario"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_d62a784f0729",
+    "name": "Northeastern St Lawrence and Laurentian Lands",
+    "zone": "St Lawrence and Laurentian Lands",
+    "areaSqKm": 7914.0,
+    "sourceUnits": [
+      "CAN:Québec"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_53bc8c1f7043",
+    "name": "Northeastern Great Lakes and Upper Mississippi",
+    "zone": "Great Lakes and Upper Mississippi",
+    "areaSqKm": 208110.7,
+    "sourceUnits": [
+      "CAN:Ontario"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_f83f4bbb425e",
+    "name": "Northeastern Great Basin and Plateau",
+    "zone": "Great Basin and Plateau",
+    "areaSqKm": 242802.3,
+    "sourceUnits": [
+      "CAN:British Columbia",
+      "USA:Montana"
+    ],
+    "neighborCount": 7
+  },
+  {
+    "id": "na_fd07bebe7c97",
+    "name": "Western St Lawrence and Laurentian Lands",
+    "zone": "St Lawrence and Laurentian Lands",
+    "areaSqKm": 283761.0,
+    "sourceUnits": [
+      "CAN:Ontario",
+      "CAN:Québec"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_aefb8787f8d1",
+    "name": "Eastern St Lawrence and Laurentian Lands",
+    "zone": "St Lawrence and Laurentian Lands",
+    "areaSqKm": 231.4,
+    "sourceUnits": [
+      "CAN:Québec"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_2adeaafb7a9b",
+    "name": "Northwestern Great Basin and Plateau",
+    "zone": "Great Basin and Plateau",
+    "areaSqKm": 173361.5,
+    "sourceUnits": [
+      "USA:Washington"
+    ],
+    "neighborCount": 4
+  },
+  {
+    "id": "na_7eca5818a35c",
+    "name": "Western Great Lakes and Upper Mississippi",
+    "zone": "Great Lakes and Upper Mississippi",
+    "areaSqKm": 143086.3,
+    "sourceUnits": [
+      "USA:Minnesota"
+    ],
+    "neighborCount": 7
+  },
+  {
+    "id": "na_8651ced77848",
+    "name": "Eastern Rocky Mountain Interior",
+    "zone": "Rocky Mountain Interior",
+    "areaSqKm": 196965.6,
+    "sourceUnits": [
+      "USA:Montana"
+    ],
+    "neighborCount": 5
+  },
+  {
+    "id": "na_7c5fe9ac36fe",
+    "name": "Southern St Lawrence and Laurentian Lands",
+    "zone": "St Lawrence and Laurentian Lands",
+    "areaSqKm": 218614.8,
+    "sourceUnits": [
+      "CAN:New Brunswick",
+      "CAN:Nova Scotia",
+      "CAN:Prince Edward Island",
+      "CAN:Québec"
+    ],
+    "neighborCount": 4
+  },
+  {
+    "id": "na_7f9f9c17c8e3",
+    "name": "Eastern Great Plains",
+    "zone": "Great Plains",
+    "areaSqKm": 168202.4,
+    "sourceUnits": [
+      "USA:Minnesota",
+      "USA:North Dakota"
+    ],
+    "neighborCount": 5
+  },
+  {
+    "id": "na_6ee44c6d0dbd",
+    "name": "Western Great Plains",
+    "zone": "Great Plains",
+    "areaSqKm": 194135.1,
+    "sourceUnits": [
+      "USA:North Dakota",
+      "USA:South Dakota"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_8249ceed07fa",
+    "name": "Western Rocky Mountain Interior",
+    "zone": "Rocky Mountain Interior",
+    "areaSqKm": 163355.3,
+    "sourceUnits": [
+      "USA:Idaho",
+      "USA:Montana"
+    ],
+    "neighborCount": 7
+  },
+  {
+    "id": "na_bbb7288e1cb6",
+    "name": "Southwestern Great Lakes and Upper Mississippi",
+    "zone": "Great Lakes and Upper Mississippi",
+    "areaSqKm": 169227.2,
+    "sourceUnits": [
+      "USA:Wisconsin"
+    ],
+    "neighborCount": 3
+  },
+  {
+    "id": "na_064594c28839",
+    "name": "Central North American Interior",
+    "zone": "Central North American Interior",
+    "areaSqKm": 134466.4,
+    "sourceUnits": [
+      "CAN:Ontario"
+    ],
+    "neighborCount": 5
+  },
+  {
+    "id": "na_9e2ae0d0e940",
+    "name": "Northern Great Basin and Plateau",
+    "zone": "Great Basin and Plateau",
+    "areaSqKm": 199536.0,
+    "sourceUnits": [
+      "USA:Idaho",
+      "USA:Oregon"
+    ],
+    "neighborCount": 4
+  },
+  {
+    "id": "na_41e74be2e061",
+    "name": "Northeastern Seaboard",
+    "zone": "Northeastern Seaboard",
+    "areaSqKm": 168947.2,
+    "sourceUnits": [
+      "CAN:New Brunswick",
+      "USA:Connecticut",
+      "USA:Maine",
+      "USA:Massachusetts",
+      "USA:New Hampshire",
+      "USA:Rhode Island",
+      "USA:Vermont"
+    ],
+    "neighborCount": 2
+  },
+  {
+    "id": "na_6afc500d3dd9",
+    "name": "Southern Great Lakes and Upper Mississippi",
+    "zone": "Great Lakes and Upper Mississippi",
+    "areaSqKm": 229075.8,
+    "sourceUnits": [
+      "USA:Illinois",
+      "USA:Michigan"
+    ],
+    "neighborCount": 8
+  },
+  {
+    "id": "na_485bcb6c4f40",
+    "name": "Northern Appalachian Highlands",
+    "zone": "Appalachian Highlands",
+    "areaSqKm": 196968.9,
+    "sourceUnits": [
+      "CAN:Ontario",
+      "USA:New York",
+      "USA:Pennsylvania"
+    ],
+    "neighborCount": 7
+  },
+  {
+    "id": "na_f2c3e6124728",
+    "name": "Southwestern Great Plains",
+    "zone": "Great Plains",
+    "areaSqKm": 203787.3,
+    "sourceUnits": [
+      "USA:Nebraska",
+      "USA:South Dakota"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_8a5665c0ed70",
+    "name": "Western Great Basin and Plateau",
+    "zone": "Great Basin and Plateau",
+    "areaSqKm": 140376.4,
+    "sourceUnits": [
+      "USA:Oregon"
+    ],
+    "neighborCount": 3
+  },
+  {
+    "id": "na_68e2bc0bc8e1",
+    "name": "Eastern Rocky Mountain Interior — Wyoming",
+    "zone": "Rocky Mountain Interior",
+    "areaSqKm": 253391.5,
+    "sourceUnits": [
+      "USA:Wyoming"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_f83f18e1cbc4",
+    "name": "Southwestern Great Lakes and Upper Mississippi — Iowa",
+    "zone": "Great Lakes and Upper Mississippi",
+    "areaSqKm": 145591.9,
+    "sourceUnits": [
+      "USA:Iowa"
+    ],
+    "neighborCount": 8
+  },
+  {
+    "id": "na_054ede74c080",
+    "name": "Eastern Appalachian Highlands",
+    "zone": "Appalachian Highlands",
+    "areaSqKm": 168175.0,
+    "sourceUnits": [
+      "USA:New Jersey",
+      "USA:New York",
+      "USA:Pennsylvania"
+    ],
+    "neighborCount": 4
+  },
+  {
+    "id": "na_985f12244bd1",
+    "name": "Southeastern Great Lakes and Upper Mississippi",
+    "zone": "Great Lakes and Upper Mississippi",
+    "areaSqKm": 226849.3,
+    "sourceUnits": [
+      "USA:Michigan",
+      "USA:Ohio"
+    ],
+    "neighborCount": 5
+  },
+  {
+    "id": "na_b878280064c2",
+    "name": "Eastern Great Basin and Plateau",
+    "zone": "Great Basin and Plateau",
+    "areaSqKm": 195230.5,
+    "sourceUnits": [
+      "USA:Nevada"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_266d036a5556",
+    "name": "Southern Great Plains",
+    "zone": "Great Plains",
+    "areaSqKm": 169618.9,
+    "sourceUnits": [
+      "USA:Kansas",
+      "USA:Nebraska"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_ff9b34422102",
+    "name": "Eastern Rocky Mountain Interior — Colorado",
+    "zone": "Rocky Mountain Interior",
+    "areaSqKm": 132674.9,
+    "sourceUnits": [
+      "USA:Colorado"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_70f101001b7e",
+    "name": "Western Great Basin and Plateau — California",
+    "zone": "Great Basin and Plateau",
+    "areaSqKm": 174077.8,
+    "sourceUnits": [
+      "USA:California"
+    ],
+    "neighborCount": 4
+  },
+  {
+    "id": "na_4497c19d3626",
+    "name": "Southwestern Rocky Mountain Interior",
+    "zone": "Rocky Mountain Interior",
+    "areaSqKm": 219706.1,
+    "sourceUnits": [
+      "USA:Utah"
+    ],
+    "neighborCount": 8
+  },
+  {
+    "id": "na_688a88b3718e",
+    "name": "Northern Mississippi Basin",
+    "zone": "Mississippi Basin",
+    "areaSqKm": 198768.5,
+    "sourceUnits": [
+      "USA:Indiana",
+      "USA:Kentucky"
+    ],
+    "neighborCount": 5
+  },
+  {
+    "id": "na_6dbc6d2be5d8",
+    "name": "Southeastern Great Plains",
+    "zone": "Great Plains",
+    "areaSqKm": 140829.7,
+    "sourceUnits": [
+      "USA:Kansas"
+    ],
+    "neighborCount": 3
+  },
+  {
+    "id": "na_54bdbbc0193f",
+    "name": "Northern Mississippi Basin — Missouri",
+    "zone": "Mississippi Basin",
+    "areaSqKm": 147265.5,
+    "sourceUnits": [
+      "USA:Illinois",
+      "USA:Missouri"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_d9876b857d92",
+    "name": "Southwestern Appalachian Highlands",
+    "zone": "Appalachian Highlands",
+    "areaSqKm": 196741.5,
+    "sourceUnits": [
+      "USA:Delaware",
+      "USA:District of Columbia",
+      "USA:Maryland",
+      "USA:North Carolina",
+      "USA:Virginia",
+      "USA:West Virginia"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_e885fe65dceb",
+    "name": "Southeastern Rocky Mountain Interior",
+    "zone": "Rocky Mountain Interior",
+    "areaSqKm": 153439.9,
+    "sourceUnits": [
+      "USA:Colorado",
+      "USA:New Mexico"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_e69ca41c6033",
+    "name": "Northwestern Mississippi Basin",
+    "zone": "Mississippi Basin",
+    "areaSqKm": 208684.3,
+    "sourceUnits": [
+      "USA:Arkansas",
+      "USA:Missouri",
+      "USA:Texas"
+    ],
+    "neighborCount": 10
+  },
+  {
+    "id": "na_4e813e119b7d",
+    "name": "Southern Great Plains — Oklahoma",
+    "zone": "Great Plains",
+    "areaSqKm": 249595.7,
+    "sourceUnits": [
+      "USA:Colorado",
+      "USA:Oklahoma"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_fc8c3d6c337e",
+    "name": "Eastern Great Basin and Plateau — Arizona",
+    "zone": "Great Basin and Plateau",
+    "areaSqKm": 231200.1,
+    "sourceUnits": [
+      "USA:Arizona",
+      "USA:California",
+      "USA:Nevada"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_a5af262c1fe3",
+    "name": "Eastern Mississippi Basin",
+    "zone": "Mississippi Basin",
+    "areaSqKm": 185378.2,
+    "sourceUnits": [
+      "USA:North Carolina",
+      "USA:Tennessee"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_fcb247f4ad59",
+    "name": "Southern Great Basin and Plateau",
+    "zone": "Great Basin and Plateau",
+    "areaSqKm": 225084.9,
+    "sourceUnits": [
+      "USA:California"
+    ],
+    "neighborCount": 3
+  },
+  {
+    "id": "na_83faeaf075cf",
+    "name": "Northeastern Southeastern Lowlands",
+    "zone": "Southeastern Lowlands",
+    "areaSqKm": 130902.4,
+    "sourceUnits": [
+      "USA:North Carolina",
+      "USA:South Carolina"
+    ],
+    "neighborCount": 4
+  },
+  {
+    "id": "na_79a5cd1fcb9a",
+    "name": "Southern Rocky Mountain Interior",
+    "zone": "Rocky Mountain Interior",
+    "areaSqKm": 163785.9,
+    "sourceUnits": [
+      "USA:New Mexico"
+    ],
+    "neighborCount": 7
+  },
+  {
+    "id": "na_75d9d785517a",
+    "name": "Northern Mississippi Basin — Mississippi",
+    "zone": "Mississippi Basin",
+    "areaSqKm": 129204.3,
+    "sourceUnits": [
+      "USA:Arkansas",
+      "USA:Louisiana",
+      "USA:Mississippi"
+    ],
+    "neighborCount": 6
+  },
+  {
+    "id": "na_984a13c22185",
+    "name": "Southern Rocky Mountain Interior — Arizona",
+    "zone": "Rocky Mountain Interior",
+    "areaSqKm": 166198.9,
+    "sourceUnits": [
+      "USA:Arizona"
+    ],
+    "neighborCount": 5
+  },
+  {
+    "id": "na_a0f54d0ee6c5",
+    "name": "Northern Southern Plains",
+    "zone": "Southern Plains",
+    "areaSqKm": 204135.9,
+    "sourceUnits": [
+      "USA:New Mexico",
+      "USA:Texas"
+    ],
+    "neighborCount": 7
+  },
+  {
+    "id": "na_727b306dbf38",
+    "name": "Southern Great Basin and Plateau — California",
+    "zone": "Great Basin and Plateau",
+    "areaSqKm": 459.0,
+    "sourceUnits": [
+      "USA:California"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_d80f4461f6df",
+    "name": "Eastern Mississippi Basin — Georgia",
+    "zone": "Mississippi Basin",
+    "areaSqKm": 141230.7,
+    "sourceUnits": [
+      "USA:Alabama",
+      "USA:Georgia"
+    ],
+    "neighborCount": 4
+  },
+  {
+    "id": "na_7a23901f7bd7",
+    "name": "Southern Great Basin and Plateau — California 2",
+    "zone": "Great Basin and Plateau",
+    "areaSqKm": 142.4,
+    "sourceUnits": [
+      "USA:California"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_9811ba131ef7",
+    "name": "Northern Southern Plains — Texas",
+    "zone": "Southern Plains",
+    "areaSqKm": 160353.2,
+    "sourceUnits": [
+      "USA:Texas"
+    ],
+    "neighborCount": 5
+  },
+  {
+    "id": "na_2139cc3f1117",
+    "name": "Western Mississippi Basin",
+    "zone": "Mississippi Basin",
+    "areaSqKm": 170821.0,
+    "sourceUnits": [
+      "USA:Louisiana",
+      "USA:Mississippi"
+    ],
+    "neighborCount": 4
+  },
+  {
+    "id": "na_30c8de410190",
+    "name": "Eastern Southern Plains",
+    "zone": "Southern Plains",
+    "areaSqKm": 150199.9,
+    "sourceUnits": [
+      "USA:Texas"
+    ],
+    "neighborCount": 5
+  },
+  {
+    "id": "na_3e4278898022",
+    "name": "Southwestern Southeastern Lowlands",
+    "zone": "Southeastern Lowlands",
+    "areaSqKm": 290225.2,
+    "sourceUnits": [
+      "USA:Alabama",
+      "USA:Florida",
+      "USA:Georgia"
+    ],
+    "neighborCount": 4
+  },
+  {
+    "id": "na_4df4c78951fa",
+    "name": "Western Southern Plains",
+    "zone": "Southern Plains",
+    "areaSqKm": 171267.3,
+    "sourceUnits": [
+      "MEX:Coahuila",
+      "USA:Texas"
+    ],
+    "neighborCount": 8
+  },
+  {
+    "id": "na_0af6467c845a",
+    "name": "Northeastern Sonoran and Baja Lands",
+    "zone": "Sonoran and Baja Lands",
+    "areaSqKm": 248689.2,
+    "sourceUnits": [
+      "MEX:Baja California",
+      "MEX:Baja California Sur",
+      "MEX:Sonora"
+    ],
+    "neighborCount": 5
+  },
+  {
+    "id": "na_64d31af1cb12",
+    "name": "Northern Northwestern Mexico",
+    "zone": "Northwestern Mexico",
+    "areaSqKm": 153003.1,
+    "sourceUnits": [
+      "MEX:Chihuahua",
+      "MEX:Sonora"
+    ],
+    "neighborCount": 4
+  },
+  {
+    "id": "na_e7fa9ffc22da",
+    "name": "Southwestern Sonoran and Baja Lands",
+    "zone": "Sonoran and Baja Lands",
+    "areaSqKm": 248.1,
+    "sourceUnits": [
+      "MEX:Baja California"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_14150a2ec422",
+    "name": "Eastern Northwestern Mexico",
+    "zone": "Northwestern Mexico",
+    "areaSqKm": 229898.8,
+    "sourceUnits": [
+      "MEX:Chihuahua",
+      "MEX:Sinaloa",
+      "USA:Texas"
+    ],
+    "neighborCount": 4
+  },
+  {
+    "id": "na_40b2b16cc509",
+    "name": "Eastern Southern Plains — Texas",
+    "zone": "Southern Plains",
+    "areaSqKm": 189457.2,
+    "sourceUnits": [
+      "MEX:Tamaulipas",
+      "USA:Texas"
+    ],
+    "neighborCount": 5
+  },
+  {
+    "id": "na_f73048c0f141",
+    "name": "Western Southern Plains — Durango",
+    "zone": "Southern Plains",
+    "areaSqKm": 147485.1,
+    "sourceUnits": [
+      "MEX:Coahuila",
+      "MEX:Durango"
+    ],
+    "neighborCount": 4
+  },
+  {
+    "id": "na_8a6c5b432f2f",
+    "name": "Western Southern Plains — Nuevo León",
+    "zone": "Southern Plains",
+    "areaSqKm": 209432.9,
+    "sourceUnits": [
+      "MEX:Aguascalientes",
+      "MEX:Nuevo León",
+      "MEX:San Luis Potosí",
+      "MEX:Zacatecas"
+    ],
+    "neighborCount": 5
+  },
+  {
+    "id": "na_b7ad740ce470",
+    "name": "Southern Mississippi Basin",
+    "zone": "Mississippi Basin",
+    "areaSqKm": 122.1,
+    "sourceUnits": [
+      "MEX:Unnamed"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_4a2051b35ca5",
+    "name": "Northern Mexican Plateau",
+    "zone": "Northern Mexican Plateau",
+    "areaSqKm": 149511.3,
+    "sourceUnits": [
+      "MEX:Durango",
+      "MEX:Jalisco",
+      "MEX:Nayarit"
+    ],
+    "neighborCount": 4
+  },
+  {
+    "id": "na_756488eb9b76",
+    "name": "Eastern Northwestern Mexico — Nayarit",
+    "zone": "Northwestern Mexico",
+    "areaSqKm": 136.3,
+    "sourceUnits": [
+      "MEX:Nayarit"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_686c5b30e4f7",
+    "name": "Southern Southern Plains",
+    "zone": "Southern Plains",
+    "areaSqKm": 265320.1,
+    "sourceUnits": [
+      "MEX:Colima",
+      "MEX:Distrito Federal",
+      "MEX:Guanajuato",
+      "MEX:Hidalgo",
+      "MEX:Michoacán",
+      "MEX:Morelos",
+      "MEX:México",
+      "MEX:Puebla",
+      "MEX:Querétaro",
+      "MEX:Tlaxcala",
+      "MEX:Veracruz"
+    ],
+    "neighborCount": 5
+  },
+  {
+    "id": "na_f582cc86b808",
+    "name": "Southwestern Northwestern Mexico",
+    "zone": "Northwestern Mexico",
+    "areaSqKm": 158.7,
+    "sourceUnits": [
+      "MEX:Colima"
+    ],
+    "neighborCount": 0
+  },
+  {
+    "id": "na_ad937b96f974",
+    "name": "Southern Mississippi Basin — Campeche",
+    "zone": "Mississippi Basin",
+    "areaSqKm": 236212.7,
+    "sourceUnits": [
+      "MEX:Campeche",
+      "MEX:Chiapas",
+      "MEX:Quintana Roo",
+      "MEX:Tabasco",
+      "MEX:Yucatán"
+    ],
+    "neighborCount": 2
+  },
+  {
+    "id": "na_fac85c921da1",
+    "name": "Southern Southern Plains — Oaxaca",
+    "zone": "Southern Plains",
+    "areaSqKm": 156816.3,
+    "sourceUnits": [
+      "MEX:Guerrero",
+      "MEX:Oaxaca"
+    ],
+    "neighborCount": 2
+  }
+]
