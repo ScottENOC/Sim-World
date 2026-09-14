@@ -8,6 +8,7 @@ on:
       - 'tools/build-north-america-expansion.py'
       - 'tools/north-america-region-plan-v1.json'
       - 'tools/build-north-america-seas.py'
+      - 'tools/build-sea-expansion-v2.py'
       - 'tools/north-america-sea-plan-v1.json'
       - 'tools/repair-north-america-adjacency.py'
   workflow_dispatch:
