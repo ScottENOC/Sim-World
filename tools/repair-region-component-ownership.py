@@ -63,6 +63,18 @@ def total_area(geoms):
     return sum(geod_area_km2(g) for g in geoms)
 
 
+def shared_boundary_length(a, b):
+    """Return planar shared-boundary length, tolerating degenerate GEOS results."""
+    try:
+        intersection = a.boundary.intersection(b.boundary)
+    except Exception:
+        return 0.0
+    if intersection is None or getattr(intersection, 'is_empty', True):
+        return 0.0
+    length = getattr(intersection, 'length', 0.0)
+    return float(length or 0.0)
+
+
 def transfer_pass(geoms, ids):
     tree = STRtree(geoms)
     decisions = []
@@ -88,7 +100,7 @@ def transfer_pass(geoms, ids):
                 distance = part.distance(other)
                 if distance > SEAM_TOL_DEG:
                     continue
-                shared = part.boundary.intersection(other.boundary).length if distance <= 1e-7 else 0.0
+                shared = shared_boundary_length(part, other) if distance <= 1e-7 else 0.0
                 # Prefer a real shared land border. Tiny source seams are a
                 # fallback and use nearest distance.
                 score = (1 if shared > 1e-8 else 0, shared, -distance, geod_area_km2(other))
