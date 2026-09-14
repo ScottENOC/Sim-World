@@ -21,6 +21,34 @@ export const CONSTRUCTION_TYPES = Object.freeze({
     workRequired: 8500, defaultWorkers: 120, minWorkers: 40, maxWorkers: 500,
     materials: { stone: 350, wood: 450, pottery: 100 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.05,
   },
+  river_weir: {
+    id: 'river_weir', name: 'River weir and diversion works', requiredTechId: 'water_management', unique: true,
+    requiresInfrastructure: 'irrigation', minPopulation: 4000,
+    description: 'A low weir, sluices and diversion channels that store a modest pulse of river water, regulate irrigation withdrawals and alter downstream timing.',
+    workRequired: 11000, defaultWorkers: 150, minWorkers: 45, maxWorkers: 650,
+    materials: { stone: 900, wood: 800, pottery: 120 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.055,
+  },
+  reservoir_dam: {
+    id: 'reservoir_dam', name: 'Major reservoir dam', requiredTechId: 'hydraulic_engineering', unique: true,
+    requiresInfrastructure: 'river_weir', minPopulation: 12000,
+    description: 'A large impoundment with controlled outlets. It can shift wet-season water into dry periods, suppress floods, secure irrigation and later support hydropower, while materially changing downstream flow.',
+    workRequired: 52000, defaultWorkers: 520, minWorkers: 160, maxWorkers: 2200,
+    materials: { stone: 6200, wood: 1800, pottery: 300, iron: 80 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.075,
+  },
+  river_weir: {
+    id: 'river_weir', name: 'River weir and diversion works', requiredTechId: 'water_management', unique: true, requiresRiver: true,
+    requiresInfrastructure: 'irrigation', minPopulation: 4000,
+    description: 'A low weir, sluices and diversion channels that store a modest pulse of river water, regulate irrigation withdrawals and alter downstream timing.',
+    workRequired: 11000, defaultWorkers: 150, minWorkers: 45, maxWorkers: 650,
+    materials: { stone: 900, wood: 800, pottery: 120 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.055,
+  },
+  reservoir_dam: {
+    id: 'reservoir_dam', name: 'Major reservoir dam', requiredTechId: 'hydraulic_engineering', unique: true, requiresRiver: true,
+    requiresInfrastructure: 'river_weir', minPopulation: 12000,
+    description: 'A large impoundment with controlled outlets. It can shift wet-season water into dry periods, suppress floods, secure irrigation and later support hydropower, while materially changing downstream flow.',
+    workRequired: 52000, defaultWorkers: 520, minWorkers: 160, maxWorkers: 2200,
+    materials: { stone: 6200, wood: 1800, pottery: 300, iron: 80 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.075,
+  },
   aqueduct: {
     id: 'aqueduct', name: 'Long-distance aqueduct', requiredTechId: 'hydraulic_engineering', unique: true,
     requiresInfrastructure: 'irrigation', minPopulation: 9000,
@@ -245,6 +273,7 @@ export function availableConstructionTypes(region) {
     (!type.coastal || region.isCoastal) &&
     (!type.requiresInfrastructure || operationalInfrastructure(region, type.requiresInfrastructure)) &&
     (!type.requiresDeposit || Boolean(region.deposits?.[type.requiresDeposit])) &&
+    (!type.requiresRiver || (region.hydrology?.riverIds || []).length > 0) &&
     (!type.minPopulation || (region.population || 0) >= type.minPopulation) &&
     (!type.unique || !state.assets.some((asset) => asset.typeId === type.id)) &&
     !state.projects.some((project) => project.typeId === type.id && project.status === 'active'));
@@ -256,6 +285,7 @@ export function startConstruction(region, typeId, requestedWorkers, currentTick)
       (type.coastal && !region.isCoastal) ||
       (type.requiresInfrastructure && !operationalInfrastructure(region, type.requiresInfrastructure)) ||
       (type.requiresDeposit && !region.deposits?.[type.requiresDeposit]) ||
+      (type.requiresRiver && !(region.hydrology?.riverIds || []).length) ||
       (type.minPopulation && (region.population || 0) < type.minPopulation)) return null;
   const state = ensureConstruction(region);
   if (type.unique && state.assets.some((asset) => asset.typeId === type.id)) return null;

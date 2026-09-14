@@ -1,4 +1,5 @@
 import { DAYS_PER_YEAR } from '../core/simTime.js?v=20260905-time1';
+import { tickActiveHydrology } from '../world/hydrology.js?v=20260914-water1';
 
 export const PATHOGENS = Object.freeze({
   smallpox: Object.freeze({ id: 'smallpox', label: 'Smallpox', transmission: 0.16, mortality: 0.11, durationDays: 28, resistanceGain: 0.88, resistanceHalfLifeYears: 45, tradeWeight: 0.75 }),
@@ -14,6 +15,7 @@ const RECOGNITION_PREVALENCE = 0.008;
 const QUARANTINE_IMPORT_REDUCTION = 0.78;
 const QUARANTINE_LOCAL_REDUCTION = 0.28;
 const QUARANTINE_MAX_TRADE_FRICTION = 0.32;
+let hydrologyDay = 0;
 
 function clamp01(value) { return Math.max(0, Math.min(1, Number(value) || 0)); }
 function stableHash(value) {
@@ -131,6 +133,8 @@ function removeDeaths(region, count) {
 export function tickDisease(regions, elapsedDays = 30, rng = Math.random) {
   const days = Math.max(0, Number(elapsedDays) || 0);
   if (!days) return [];
+  hydrologyDay += days;
+  const waterEvents = tickActiveHydrology(regions, hydrologyDay, days);
   const regionsById = new Map(regions.map((r) => [r.id, r]));
   const snapshot = new Map();
   for (const region of regions) {
@@ -143,7 +147,7 @@ export function tickDisease(regions, elapsedDays = 30, rng = Math.random) {
     snapshot.set(region.id, values);
   }
 
-  const events = [];
+  const events = [...waterEvents];
   const years = days / DAYS_PER_YEAR;
   for (const region of regions) {
     const state = ensureDiseaseState(region);
@@ -161,7 +165,8 @@ export function tickDisease(regions, elapsedDays = 30, rng = Math.random) {
       const resistance = clamp01(p.resistance);
       const susceptible = Math.max(0, 1 - resistance - oldPrevalence);
       const importPressure = contactPressure(region, id, regionsById, snapshot) * (1 - state.effectiveQuarantine * QUARANTINE_IMPORT_REDUCTION);
-      const localPressure = oldPrevalence * (1 - state.effectiveQuarantine * QUARANTINE_LOCAL_REDUCTION);
+      const waterPressure = id === 'enteric' ? clamp01(region?.hydrology?.waterborneDiseasePressure) : 0;
+      const localPressure = oldPrevalence * (1 - state.effectiveQuarantine * QUARANTINE_LOCAL_REDUCTION) + waterPressure;
       const exposure = Math.min(0.6, localPressure + importPressure);
       const newInfections = susceptible * (1 - Math.exp(-pathogen.transmission * exposure * days / 7));
       const resolvingFraction = 1 - Math.exp(-days / pathogen.durationDays);
@@ -171,7 +176,6 @@ export function tickDisease(regions, elapsedDays = 30, rng = Math.random) {
       p.prevalence = Math.min(MAX_PREVALENCE, Math.max(0, oldPrevalence + newInfections - resolving));
       if (p.prevalence < MIN_ACTIVE_PREVALENCE) p.prevalence = 0;
 
-      // Resistance is disease-specific. No cross-pathogen immunity is applied.
       const gainedResistance = recoveries * pathogen.resistanceGain;
       p.resistance = clamp01(p.resistance + gainedResistance);
       const halfLife = Math.max(0.1, pathogen.resistanceHalfLifeYears);

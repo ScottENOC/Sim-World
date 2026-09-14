@@ -2,6 +2,7 @@
 // and shared border/coast anchors live in spatial.base.json; selected real-world
 // major river centrelines are committed separately and hydrated once at load.
 import { hydrateRealRivers } from './realRivers.js?v=20260910-rivers1';
+import { initialiseHydrology } from './hydrology.js?v=20260914-water1';
 
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
 
@@ -104,5 +105,7 @@ export async function loadWorldSpatialGraph(regions = []) {
   if (!baseResponse.ok) throw new Error(`Failed to load immutable world geography (${baseResponse.status})`);
   if (!realRiverResponse.ok) throw new Error(`Failed to load real major rivers (${realRiverResponse.status})`);
   const graph = hydrateWorldSpatialGraph(await baseResponse.json(), regions);
-  return hydrateRealRivers(graph, await realRiverResponse.json(), regions);
+  hydrateRealRivers(graph, await realRiverResponse.json(), regions);
+  initialiseHydrology(graph, regions);
+  return graph;
 }
