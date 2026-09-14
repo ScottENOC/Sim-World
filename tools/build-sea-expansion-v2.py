@@ -13,8 +13,9 @@ PLAN = ROOT / 'tools' / 'sea-region-expansion-plan-v2.json'
 BASE_SEA_GEO = ROOT / 'data' / 'world' / 'seaRegions.geo.json'
 BASE_SEA_META = ROOT / 'data' / 'world' / 'seaRegions.meta.json'
 WORLD_LAND_URL = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries_iso.geojson'
+WORLD_LAKES_URL = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_lakes.geojson'
 GEOD = Geod(ellps='WGS84')
-USER_AGENT = 'Sim-World sea expansion v2/1.1'
+USER_AGENT = 'Sim-World sea expansion v2/1.2'
 
 
 def fetch_json(url):
@@ -47,6 +48,29 @@ def update_meta_geometry(meta, geom):
     meta['areaSqKm'] = area_sqkm(geom)
 
 
+def inland_lake_water(candidate, lakes_geo):
+    """Return the dominant Natural Earth lake polygon inside a requested box.
+
+    Admin-0 country polygons often fill inland lakes, so subtracting land cannot
+    discover the Great Lakes or major Canadian lakes. For explicitly designated
+    inland-water specs, use Natural Earth's physical lake polygons directly and
+    select the largest substantial overlap in the box.
+    """
+    matches = []
+    for feature in lakes_geo.get('features', []):
+        geom = repair(shape(feature['geometry']))
+        if geom.is_empty or not geom.intersects(candidate):
+            continue
+        part = repair(geom.intersection(candidate))
+        if part.is_empty:
+            continue
+        matches.append((area_sqkm(part), part))
+    if not matches:
+        return None
+    matches.sort(key=lambda item: item[0], reverse=True)
+    return matches[0][1]
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--land-geo', required=True)
@@ -58,6 +82,7 @@ def main():
     sea_meta = json.loads(BASE_SEA_META.read_text())
     world_land = fetch_json(WORLD_LAND_URL)
     global_land = repair(unary_union([repair(shape(f['geometry'])) for f in world_land.get('features', [])]))
+    lakes_geo = fetch_json(WORLD_LAKES_URL) if any(spec.get('inlandLake') for spec in plan['regions']) else {'features': []}
 
     feature_by_id = {f['properties']['id']: f for f in sea_geo.get('features', [])}
     meta_by_id = {m['id']: m for m in sea_meta.get('seaRegions', [])}
@@ -70,10 +95,16 @@ def main():
             continue
 
         candidate = box(*spec['bbox'])
-        candidate_water = repair(candidate.difference(global_land))
-        if candidate_water.is_empty:
-            print(f"SEA_SKIP {spec['id']} no water")
-            continue
+        if spec.get('inlandLake'):
+            candidate_water = inland_lake_water(candidate, lakes_geo)
+            if candidate_water is None:
+                print(f"SEA_SKIP {spec['id']} no Natural Earth lake")
+                continue
+        else:
+            candidate_water = repair(candidate.difference(global_land))
+            if candidate_water.is_empty:
+                print(f"SEA_SKIP {spec['id']} no water")
+                continue
 
         carve_ids = list(spec.get('carveFromExisting') or [])
         if carve_ids:
@@ -123,8 +154,6 @@ def main():
         new_count += 1
         print(f"SEA_ADD {spec['name']} area={area_sqkm(water):.0f}")
 
-    # Recompute coastal links for every sea region so old Black Sea/Persian Gulf
-    # polygons immediately recognise newly added Ukraine, Caucasus and Gulf land.
     tolerance = float(plan.get('coastalToleranceDegrees', 0.06))
     land = [(f['properties']['id'], f['properties'].get('name',''), repair(shape(f['geometry'])))
             for f in land_geo.get('features', [])]
