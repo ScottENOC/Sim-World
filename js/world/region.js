@@ -119,11 +119,13 @@ export async function loadWorld() {
       const sedimentary = 0.35 + Math.min(0.45, Math.max(0, 1 - Math.abs(region.centroid?.[1] || 0) / 85) * 0.25);
       if (coalSignal < sedimentary) {
         const scale = Math.max(1, region.areaSqKm);
-        const surface = Math.round(scale * (45 + coalSignal * 80));
-        const deep = Math.round(scale * (180 + coalSignal * 260));
+        const outcrop = Math.round(scale * (35 + coalSignal * 55));
+        const shaft = Math.round(scale * (145 + coalSignal * 230));
+        const deep = Math.round(scale * (420 + coalSignal * 720));
         region.deposits.coal = { tiers: [
-          { id: 'surface', label: 'Shallow coal seams', initialStock: surface, remainingStock: surface, difficulty: 0.22, requiredTechId: null, maxWorkers: Math.max(12, Math.round(scale * 0.025)) },
-          { id: 'deep', label: 'Deep coal seams', initialStock: deep, remainingStock: deep, difficulty: 0.42, requiredTechId: 'deep_mining', maxWorkers: Math.max(30, Math.round(scale * 0.06)) },
+          { id: 'surface', label: 'Outcropping and shallow coal seams', initialStock: outcrop, remainingStock: outcrop, difficulty: 0.20, requiredTechId: null, maxWorkers: Math.max(10, Math.round(scale * 0.02)) },
+          { id: 'shaft', label: 'Shaft-accessible coal seams', initialStock: shaft, remainingStock: shaft, difficulty: 0.38, requiredTechId: 'deep_mining', maxWorkers: Math.max(28, Math.round(scale * 0.055)) },
+          { id: 'deep', label: 'Deep water-bearing coal seams', initialStock: deep, remainingStock: deep, difficulty: 0.58, requiredTechId: 'early_steam_pumping', maxWorkers: Math.max(55, Math.round(scale * 0.11)) },
         ] };
       }
     }
