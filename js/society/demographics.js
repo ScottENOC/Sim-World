@@ -49,6 +49,7 @@ export function tickDemographics(regions, religiousWorld = null, elapsedDays = 7
   measureDetail('Demographics: artist migration', () => tickArtistMigration(regions, elapsedDays));
   let famineRegions = 0;
   measureDetail('Demographics: famine and migration', () => { for (const region of regions) { if ((region.stockpile?.food||0)<-0.5) famineRegions++; applyFamineResponse(region, regionsById, religiousWorld, elapsedDays); } });
+  measureDetail('Demographics: climate displacement', () => { for (const region of regions) applyClimateDisplacement(region, regionsById, religiousWorld, elapsedDays); });
   measureDetail('Demographics: culture', () => tickCulture(regions, elapsedDays));
   metric('Demographics total population', regions.reduce((sum,r)=>sum+(r.population||0),0));
   metric('Demographics famine regions', famineRegions);
@@ -119,6 +120,26 @@ function applyFamineResponse(region, regionsById, religiousWorld, elapsedDays) {
         (dest.ironWorkingExposure || 0) + (count / Math.max(1, dest.population)) * sourceReadiness);
     }
   }
+  syncPopulation(region);
+}
+
+function applyClimateDisplacement(region, regionsById, religiousWorld, elapsedDays) {
+  const pressure = clamp01(region.climate?.coastalDisplacementPressure || 0);
+  if (pressure <= 0.001 || region.population <= 0) return;
+  const years = Math.max(0, elapsedDays) / DAYS_PER_YEAR;
+  const desiredEmigrants = Math.min(region.population * 0.08 * years,
+    region.population * pressure * 0.025 * years);
+  if (desiredEmigrants < 5) return;
+  const destinations = chooseEmigrationDestinations(region, regionsById, desiredEmigrants);
+  const moved = destinations.reduce((sum, route) => sum + route.count, 0);
+  if (moved <= 0) return;
+  removeFromBands(region, moved);
+  for (const { dest, count } of destinations) {
+    migrateReligion(region, dest, count, religiousWorld);
+    addToBands(dest, count);
+    migrateCulture(region, dest, count);
+  }
+  region.climate.coastalMigrants = (region.climate.coastalMigrants || 0) + moved;
   syncPopulation(region);
 }
 
