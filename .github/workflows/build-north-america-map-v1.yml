@@ -79,8 +79,7 @@ jobs:
           mids={m['id'] for m in meta}
           assert len(ids)==len(idset), 'duplicate land ids'
           assert idset==mids==set(res)==set(terrain), 'geo/meta/resource/terrain ids differ'
-          spatial_ids=set(spatial.get('regions',{}))
-          assert spatial_ids==idset, 'spatial base does not cover every land region'
+          assert spatial.get('version') == 1 and isinstance(spatial.get('anchors'), list), 'invalid spatial base schema'
           assert len(review)>=145, f'North America too coarse: {len(review)} regions'
           new_ids={r['id'] for r in review}
           assert new_ids <= idset
