@@ -12,6 +12,7 @@ import { tickDemographics } from './society/demographics.js?v=20260912-culture-s
 import { tickDisease } from './society/disease.js?v=20260912-disease1';
 import { tickSettlements } from './society/settlements.js?v=20260913-settlements2';
 import './ui/diseasePolicyUi.js?v=20260912-disease1';
+import './ui/waterPolicyUi.js?v=20260914-water2';
 import { tickBanditry } from './military/banditry.js?v=20260905-projects1';
 import { canRaid, launchRaid, tickRaids, maxSeaRaidersAvailable, syncNextRaidId } from './military/raiding.js?v=20260912-medieval1';
 import { tickNationAi } from './ai/nationAi.js?v=20260913-civil-war2';
@@ -24,6 +25,7 @@ import { AdvisorCouncil } from './ui/advisors.js?v=20260905-projects1';
 import { renderDiplomaticServicePanel } from './ui/diplomaticServicePanel.js?v=20260909-diplomatic-ui1';
 import { buildSocialOverlayLayers } from './ui/socialOverlays.js?v=20260910-social-overlays1';
 import { loadWorldSpatialGraph } from './world/spatialBaseLoader.js?v=20260910-spatial1';
+import { initialiseHydrology, tickActiveHydrology } from './world/hydrology.js?v=20260914-water2';
 import { syncRegionSpatialSites } from './world/spatialGraph.js?v=20260913-settlements2';
 import { createLocalRegionView } from './ui/localRegionView.js?v=20260913-settlements2';
 import { ensureSubregionalControl } from './military/subregionalControl.js?v=20260908-subregion1';
@@ -109,6 +111,7 @@ async function main() {
   const seaRegions = await loadSeaWorld();
   linkSeaAdjacency(regions, seaRegions);
   const spatialGraph = await loadWorldSpatialGraph(regions);
+  initialiseHydrology(spatialGraph, regions);
   for (const region of regions) syncRegionSpatialSites(spatialGraph, region, ensureSubregionalControl(region).places);
   const fishingContactPairs = buildFishingContactPairs(regions, seaRegions);
   initialiseKnowledge(regions, seaRegions);
@@ -335,6 +338,7 @@ async function main() {
     profiler.measure('State finance', () => tickStateFinance(regions, time.elapsedDays));
     profiler.measure('Infrastructure maintenance', () => tickInfrastructureMaintenance(regions, time.elapsedDays));
     const constructionEvents = profiler.measure('Construction', () => tickConstruction(regions, calendarWeek, time.elapsedDays));
+    const waterEvents = profiler.measure('Hydrology', () => tickActiveHydrology(regions, time.endDay, time.elapsedDays));
     profiler.measure('Siege equipment', () => tickSiegeEquipment(regions, time.elapsedDays));
     const breakthroughEvents = profiler.measure('Technology breakthroughs', () => tickBreakthroughs(regions, calendarWeek, Math.random, time.elapsedDays));
     const religionEvents = profiler.measure('Religion', () => tickReligion(regions, religiousWorld, calendarWeek, activeRaids, activeCampaigns, Math.random, time.elapsedDays));
@@ -460,6 +464,7 @@ async function main() {
     const playerEvents = [
       ...breakthroughEvents.filter((event) => event.regionId === playerRegionId),
       ...constructionEvents.filter((event) => event.regionId === playerRegionId),
+      ...waterEvents.filter((event) => event.victimRegionId === playerRegionId || event.sourceRegionId === playerRegionId),
       ...religionEvents.filter((event) => event.regionId === playerRegionId),
       ...religiousInstitutionEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),
       ...diseaseEvents.filter((event) => event.regionId === playerRegionId),

@@ -47,7 +47,34 @@ export function ensureRegionalHydrology(region) {
   if (!Number.isFinite(h.groundwater.withdrawal)) h.groundwater.withdrawal = 0;
   if (!Number.isFinite(h.waterImpactAwareness)) h.waterImpactAwareness = 0;
   if (!h.report || typeof h.report !== 'object') h.report = {};
+  if (!region.waterPolicy || typeof region.waterPolicy !== 'object') region.waterPolicy = {};
+  if (!region.waterPolicy.operatingPriority) region.waterPolicy.operatingPriority = 'balanced';
+  if (!Number.isFinite(region.waterPolicy.surfaceWithdrawalIntensity)) region.waterPolicy.surfaceWithdrawalIntensity = 0.5;
+  if (!Number.isFinite(region.waterPolicy.targetReservoirFill)) region.waterPolicy.targetReservoirFill = 0.55;
+  if (!Number.isFinite(region.waterPolicy.targetDownstreamFlow)) region.waterPolicy.targetDownstreamFlow = 0.82;
   return h;
+}
+
+export function setWaterPolicy(region, patch = {}) {
+  ensureRegionalHydrology(region);
+  const allowed = ['surfaceWithdrawalIntensity','targetReservoirFill','targetDownstreamFlow','wastewaterTreatment','agriculturalRunoffControl','industrialDischargeControl'];
+  for (const key of allowed) if (patch[key] !== undefined) region.waterPolicy[key] = clamp(patch[key]);
+  return region.waterPolicy;
+}
+
+export function setWaterOperatingPriority(region, priority = 'balanced') {
+  ensureRegionalHydrology(region);
+  const profiles = {
+    balanced: { targetReservoirFill: 0.55, targetDownstreamFlow: 0.82 },
+    irrigation: { targetReservoirFill: 0.72, targetDownstreamFlow: 0.62 },
+    flood_control: { targetReservoirFill: 0.35, targetDownstreamFlow: 0.86 },
+    downstream: { targetReservoirFill: 0.48, targetDownstreamFlow: 1.0 },
+    hydropower: { targetReservoirFill: 0.62, targetDownstreamFlow: 0.92 },
+  };
+  const selected = profiles[priority] || profiles.balanced;
+  region.waterPolicy.operatingPriority = profiles[priority] ? priority : 'balanced';
+  Object.assign(region.waterPolicy, selected);
+  return region.waterPolicy;
 }
 
 function waterEngineering(region) {
@@ -101,7 +128,12 @@ function regulateFlow(region, river, inflow, naturalFlow, elapsedDays) {
     stored -= release * dayScale;
   }
   store.stored = clamp(stored, 0, capacity);
-  return { outflow: Math.max(0, outflow), stored: store.stored, storageChange: store.stored - oldStored };
+  const storageChange = store.stored - oldStored;
+  const floodPeakReduction = inflow > naturalFlow ? clamp(Math.max(0, inflow - outflow) / Math.max(0.05, inflow)) : 0;
+  const hasHydroTech = region?.unlockedTechIds?.has?.('hydroelectric_power') || region?.unlockedTechIds?.has?.('electrical_generation');
+  const hydroPriority = region?.waterPolicy?.operatingPriority === 'hydropower' ? 1 : 0.65;
+  const hydropowerPotential = dam && hasHydroTech ? Math.max(0, outflow) * Math.sqrt(Math.max(0, store.stored) / Math.max(0.05, capacity)) * hydroPriority : 0;
+  return { outflow: Math.max(0, outflow), stored: store.stored, storageChange, floodPeakReduction, hydropowerPotential };
 }
 
 function pollutionSources(region, elapsedDays) {
@@ -200,7 +232,7 @@ export function tickHydrology(graph, regions = [], currentDay = 0, elapsedDays =
   const events = [];
   for (const region of regions) {
     const h = ensureRegionalHydrology(region);
-    h.report = { surfaceInflow: 0, surfaceOutflow: 0, surfaceWithdrawal: 0, waterHealthRisk: 0, riverCount: 0 };
+    h.report = { surfaceInflow: 0, surfaceOutflow: 0, surfaceWithdrawal: 0, waterHealthRisk: 0, riverCount: 0, floodPeakReduction: 0, hydropowerPotential: 0 };
   }
 
   for (const river of graph.corridors.values()) {
@@ -238,6 +270,8 @@ export function tickHydrology(graph, regions = [], currentDay = 0, elapsedDays =
       h.report.surfaceOutflow += outflow;
       h.report.surfaceWithdrawal += withdrawal;
       h.report.waterHealthRisk = Math.max(h.report.waterHealthRisk, risk);
+      h.report.floodPeakReduction = Math.max(h.report.floodPeakReduction, regulated.floodPeakReduction || 0);
+      h.report.hydropowerPotential += regulated.hydropowerPotential || 0;
       h.report.riverCount += 1;
       h.waterHealthRisk = h.report.waterHealthRisk;
       h.waterborneDiseasePressure = clamp(risk * 0.45);
@@ -250,6 +284,8 @@ export function tickHydrology(graph, regions = [], currentDay = 0, elapsedDays =
         withdrawal,
         stored: regulated.stored,
         storageChange: regulated.storageChange,
+        floodPeakReduction: regulated.floodPeakReduction || 0,
+        hydropowerPotential: regulated.hydropowerPotential || 0,
         pollutionLoad: { ...pollution },
         concentration: c,
         waterHealthRisk: risk,
