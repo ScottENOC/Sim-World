@@ -39,7 +39,7 @@ jobs:
 
       - name: Preflight reconstruction tooling
         run: |
-          python -m py_compile tools/reconstruct-world-from-598.py tools/repair-region-component-ownership.py tools/test-region-component-ownership.py tools/apply-broad-map-component-splitting.py tools/apply-reconstruction-dynamic-baselines.py tools/build-map-expansion-v2-fast.py tools/build-silk-road-expansion.py tools/build-east-africa-expansion.py tools/build-old-world-asia-pacific.py tools/build-old-world-map-batch.py
+          python -m py_compile tools/reconstruct-world-from-598.py tools/absorb-old-world-map-residual.py tools/repair-region-component-ownership.py tools/test-region-component-ownership.py tools/apply-broad-map-component-splitting.py tools/apply-reconstruction-dynamic-baselines.py tools/build-map-expansion-v2-fast.py tools/build-silk-road-expansion.py tools/build-east-africa-expansion.py tools/build-old-world-asia-pacific.py tools/build-old-world-map-batch.py
           python tools/test-region-component-ownership.py
 
       - name: Capture pre-reconstruction audit
