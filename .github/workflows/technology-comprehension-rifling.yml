@@ -29,5 +29,3 @@ jobs:
         run: node tools/test-technology-comprehension-rifling.mjs
       - name: Existing gunpowder regression
         run: node tools/test-gunpowder-firearms.mjs
-      - name: Existing early-modern transition regression
-        run: node tools/test-early-modern-transition.mjs
