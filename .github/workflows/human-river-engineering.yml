@@ -1,0 +1,27 @@
+name: Human river engineering
+
+on:
+  push:
+    branches: [human-river-engineering-v1]
+  pull_request:
+    paths:
+      - 'js/world/hydrology.js'
+      - 'js/world/spatialBaseLoader.js'
+      - 'js/world/riverNavigation.js'
+      - 'js/society/disease.js'
+      - 'tools/test-human-river-engineering.mjs'
+      - '.github/workflows/human-river-engineering.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: River hydrology and pollution regression
+        run: node tools/test-human-river-engineering.mjs
+      - name: Existing river navigation regression
+        run: node tools/test-real-river-navigation.mjs
