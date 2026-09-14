@@ -139,6 +139,9 @@
   <script type="module" src="js/ui/medievalSystemsUi.js?v=20260912-medieval2"></script>
   <script type="module" src="js/ui/fleetUi.js?v=20260908-fleets1"></script>
   <script>
+    // The Steward's existing construction control uses builder count to set a
+    // monumental project's physical scope when it is commissioned. Keep that
+    // distinction visible without changing the active-project workforce control.
     (() => {
       const monumentalIds = new Set(['monumental_tomb', 'great_temple', 'ceremonial_complex', 'monumental_statue']);
       const defaultWorkers = { monumental_tomb: 420, great_temple: 380, ceremonial_complex: 300, monumental_statue: 240 };
