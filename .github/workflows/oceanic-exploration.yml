@@ -48,7 +48,8 @@ jobs:
       - name: Existing maritime, finance, information and map regressions
         run: |
           node tools/test-oceanic-provisioning-scurvy.mjs
-          node tools/test-fleets.mjs
+          node tools/test-persistent-fleets.mjs
+          node tools/test-expeditionary-logistics.mjs
           node tools/test-finance-corporate-capital-v2.mjs
           node tools/test-renaissance-networks.mjs
           node tools/test-early-modern-reform.mjs
