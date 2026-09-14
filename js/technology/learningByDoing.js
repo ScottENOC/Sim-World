@@ -1,4 +1,5 @@
 import { recordPractice, effectiveRecordedExperience } from '../society/education.js?v=20260906-education1';
+import { educationSkillMultiplier } from '../society/massEducation.js?v=20260914-mass-education1';
 
 // Bronze Age technology isn't a tree of discrete unlocks yet — mostly it's
 // tacit knowledge that accumulates from actually doing the work: soil
@@ -58,7 +59,7 @@ export function accumulateExperience(region, activity, workers) {
 export function effectiveExperience(region, activity) {
   const tacit = Math.max(0, region.experience?.[activity] || 0);
   const recorded = effectiveRecordedExperience(region, activity);
-  return tacit + recorded * RECORDED_EXPERIENCE_WEIGHT;
+  return (tacit + recorded * RECORDED_EXPERIENCE_WEIGHT) * educationSkillMultiplier(region, activity);
 }
 
 export function skillMultiplier(region, activity) {

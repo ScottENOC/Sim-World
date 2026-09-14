@@ -1,4 +1,5 @@
 import { boundedDiffusionChance, combineIndependentChances, technologyComprehension } from '../technology/technologyComprehension.js?v=20260914-rifling1';
+import { educationSkillMultiplier } from '../society/massEducation.js?v=20260914-mass-education1';
 
 const DAYS_PER_YEAR = 365.2425;
 const clamp01 = (v) => Math.max(0, Math.min(1, Number(v) || 0));
@@ -181,7 +182,7 @@ function operateAssets(region, years) {
     const suitability = siteSuitability(region, asset.type);
     const ageWear = clamp01(asset.ageYears / Math.max(1, cfg.lifeYears));
     asset.maintenance = Math.max(0.25, (asset.maintenance || 1) - years * (0.006 + ageWear * 0.015));
-    asset.productivity = clamp01(suitability * asset.maintenance * (1 - ageWear * 0.35));
+    asset.productivity = clamp01(suitability * asset.maintenance * (1 - ageWear * 0.35) * educationSkillMultiplier(region, cfg.sector === 'mining' ? 'mining' : 'manufacture'));
     if (asset.type === 'coal_kiln' || asset.type === 'steam_pump') {
       const annualFuel = asset.type === 'steam_pump' ? 28 : 18;
       const wanted = annualFuel * years * asset.productivity;

@@ -13,6 +13,7 @@ import { elapsedWeeks } from '../core/simTime.js?v=20260905-time1';
 import { maritimeSkillMultiplier, MARITIME_SKILLS } from '../technology/seamanship.js?v=20260906-maritime1';
 import { applyFoodPreservation, tickFoodLuxuries } from './foodLuxuries.js?v=20260913-food-luxuries1';
 import { agriculturalWaterProfile } from './agriculturalWater.js?v=20260914-water3';
+import { educationLaborReservation } from '../society/massEducation.js?v=20260914-mass-education1';
 
 // --- Tunable constants -----------------------------------------------------
 // All placeholders, calibrated so a "typical" region can just about feed
@@ -429,7 +430,8 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng, elapsedDays 
   const totalPop = region.population;       // everyone eats
   const workingAge = region.demographics.workingAge;
   const emergencyMilitia = Math.max(0, region.emergencyMilitiaPersonnel || 0);
-  const civilianWorkingAge = Math.max(0, workingAge - emergencyMilitia);
+  const educationLabor = educationLaborReservation(region);
+  const civilianWorkingAge = Math.max(0, workingAge - emergencyMilitia - educationLabor.total);
   const resourceAccess = conflictResourceAccess(region);
   const horseReport = tickHorseEconomy(region, civilianWorkingAge, elapsedDays);
   report.horses = horseReport;
@@ -455,6 +457,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng, elapsedDays 
   report.construction = { workers: Math.round(constructionWorkers) };
   report.siegeEquipment = { workers: Math.round(siegeWorkers) };
   report.infrastructureMaintenance = { workers: Math.round(actualMaintenanceWorkers) };
+  report.educationLabor = { teachers: Math.round(educationLabor.teachers), childLaborEquivalent: Math.round(educationLabor.childLaborEquivalent) };
 
   const noise = foodYieldNoise(region, rng);
   const seasonalMultiplier = region.weather?.seasonalMultiplier ?? 1;
