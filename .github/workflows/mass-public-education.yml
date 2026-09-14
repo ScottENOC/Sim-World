@@ -1,0 +1,76 @@
+name: Mass public education validation
+
+on:
+  push:
+    branches: [mass-public-education-v1]
+    paths:
+      - 'js/society/massEducation.js'
+      - 'js/society/demographics.js'
+      - 'js/society/educationIntegration.js'
+      - 'js/economy/laborCore.js'
+      - 'js/economy/protoIndustry.js'
+      - 'js/technology/learningByDoing.js'
+      - 'js/ui/advisors.js'
+      - 'tools/apply-mass-education-integration.py'
+      - 'tools/test-mass-education.mjs'
+      - '.github/workflows/mass-public-education.yml'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Apply mass education integration
+        run: python tools/apply-mass-education-integration.py
+
+      - name: Syntax checks
+        run: |
+          python -m py_compile tools/apply-mass-education-integration.py
+          node --check js/society/massEducation.js
+          node --check js/society/demographics.js
+          node --check js/society/educationIntegration.js
+          node --check js/economy/laborCore.js
+          node --check js/economy/protoIndustry.js
+          node --check js/technology/learningByDoing.js
+          node --check js/ui/advisors.js
+
+      - name: Mass education regressions
+        run: node tools/test-mass-education.mjs
+
+      - name: Existing compatibility regressions
+        run: |
+          node tools/test-technology-comprehension-rifling.mjs
+          node tools/test-proto-industry.mjs
+          node tools/test-finance-corporate-capital-v2.mjs
+          node tools/test-ui-priority.mjs
+
+      - name: Diff sanity
+        run: git diff --check
+
+      - name: Commit integrated source
+        if: github.event_name == 'push' && success()
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/society/demographics.js js/society/educationIntegration.js js/economy/laborCore.js js/economy/protoIndustry.js js/technology/learningByDoing.js js/ui/advisors.js
+          if ! git diff --cached --quiet; then
+            git commit -m 'Wire mass education into simulation and council'
+            git pull --rebase
+            git push
+          fi
