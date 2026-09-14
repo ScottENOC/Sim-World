@@ -120,6 +120,8 @@ jobs:
           git diff --check
       - name: Commit generated North America map
         run: |
+          # Keep generated world data reproducible; if this step writes a follow-up
+          # commit, a subsequent maintainer-authored touch will retrigger PR CI.
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add data/world/regions.geo.json data/world/regions.meta.json data/world/resources.initial.json data/world/terrain.initial.json data/world/spatial.base.json data/world/seaRegions.geo.json data/world/seaRegions.meta.json data/world/region-navigation.json data/world/north-america-v1-review.json
