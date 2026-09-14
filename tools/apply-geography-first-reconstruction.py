@@ -34,7 +34,10 @@ replace(
 
 # Add a strict mainland clustering path. It merges only pieces whose union is
 # physically connected. If the requested target cannot be reached without a
-# disconnected merge, it stops and accepts the higher region count.
+# disconnected merge, it stops and accepts the higher region count. We sort by
+# current size and take the first valid neighbour rather than globally scoring
+# every possible pair on every iteration; this keeps the offline rebuild fast
+# without weakening the contiguity invariant.
 batch_path = ROOT / 'tools/build-old-world-map-batch.py'
 batch = batch_path.read_text()
 helper = r'''
@@ -61,13 +64,16 @@ def cluster_regions_contiguous(builder, pieces, target):
     target = max(1, min(int(target), len(clusters)))
 
     while len(clusters) > target:
+        clusters.sort(key=lambda c: c.get('mergeArea', c['geometry'].area))
         geoms = [c['geometry'] for c in clusters]
         tree = STRtree(geoms)
-        best = None
+        chosen = None
+
         for i, a in enumerate(clusters):
-            for raw_j in tree.query(a['geometry']):
+            candidates = tree.query(a['geometry'])
+            for raw_j in candidates:
                 j = int(raw_j)
-                if j <= i:
+                if j == i:
                     continue
                 b = clusters[j]
                 if not a['geometry'].intersects(b['geometry']):
@@ -78,15 +84,17 @@ def cluster_regions_contiguous(builder, pieces, target):
                 material_parts = builder.split_material_components(merged_geom, 8)
                 if len(material_parts) != 1:
                     continue
-                connected = material_parts[0]
-                combined = a.get('mergeArea', a['geometry'].area) + b.get('mergeArea', b['geometry'].area)
-                score = (combined, connected.length)
-                if best is None or score < best[0]:
-                    best = (score, i, j, connected)
-        if best is None:
+                chosen = (i, j, material_parts[0])
+                break
+            if chosen is not None:
+                break
+
+        if chosen is None:
             break
 
-        _, i, j, geometry = best
+        i, j, geometry = chosen
+        if j < i:
+            i, j = j, i
         a, b = clusters[i], clusters[j]
         anchor = a if a['anchorArea'] >= b['anchorArea'] else b
         merged = {
