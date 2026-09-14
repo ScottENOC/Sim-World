@@ -2,7 +2,7 @@
 """Audit canonical land-region geometry for implausibly complex boundaries.
 
 The audit intentionally does not modify geometry. It calculates several shape
-metrics for every feature in data/world/oldworld.geojson, with emphasis on the
+metrics for every feature in data/world/regions.geo.json, with emphasis on the
 scale-normalised perimeter/sqrt(area) ratio (equivalently inverse
 Polsby-Popper compactness). High values are candidates for manual inspection,
 not automatic smoothing: coastlines, islands and narrow physical corridors can
@@ -103,7 +103,7 @@ def robust_z(values):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--geojson', default='data/world/oldworld.geojson')
+    parser.add_argument('--geojson', default='data/world/regions.geo.json')
     parser.add_argument('--top', type=int, default=60)
     parser.add_argument('--focus', default='Kursk')
     parser.add_argument('--json', dest='json_path')
@@ -174,11 +174,18 @@ def main():
                 if isinstance(value, float) and not math.isfinite(value):
                     c[key] = None
             clean_rows.append(c)
+        clean_focus = []
+        for r in focus_rows:
+            c = dict(r)
+            for key, value in list(c.items()):
+                if isinstance(value, float) and not math.isfinite(value):
+                    c[key] = None
+            clean_focus.append(c)
         Path(args.json_path).write_text(json.dumps({
             'feature_count': len(rows),
             'median_perimeter_per_sqrt_area': median,
             'mad_perimeter_per_sqrt_area': mad,
-            'focus': focus_rows,
+            'focus': clean_focus,
             'regions': clean_rows,
         }, indent=2, ensure_ascii=False), encoding='utf-8')
 
