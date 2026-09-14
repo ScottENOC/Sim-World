@@ -22,6 +22,20 @@ export const CONSTRUCTION_TYPES = Object.freeze({
     materials: { stone: 350, wood: 450, pottery: 100 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.05,
   },
   river_weir: {
+    id: 'river_weir', name: 'River weir and diversion works', requiredTechId: 'water_management', unique: true,
+    requiresInfrastructure: 'irrigation', minPopulation: 4000,
+    description: 'A low weir, sluices and diversion channels that store a modest pulse of river water, regulate irrigation withdrawals and alter downstream timing.',
+    workRequired: 11000, defaultWorkers: 150, minWorkers: 45, maxWorkers: 650,
+    materials: { stone: 900, wood: 800, pottery: 120 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.055,
+  },
+  reservoir_dam: {
+    id: 'reservoir_dam', name: 'Major reservoir dam', requiredTechId: 'hydraulic_engineering', unique: true,
+    requiresInfrastructure: 'river_weir', minPopulation: 12000,
+    description: 'A large impoundment with controlled outlets. It can shift wet-season water into dry periods, suppress floods, secure irrigation and later support hydropower, while materially changing downstream flow.',
+    workRequired: 52000, defaultWorkers: 520, minWorkers: 160, maxWorkers: 2200,
+    materials: { stone: 6200, wood: 1800, pottery: 300, iron: 80 }, wagePerWorkerWeek: 0.002, maintenanceRate: 0.075,
+  },
+  river_weir: {
     id: 'river_weir', name: 'River weir and diversion works', requiredTechId: 'water_management', unique: true, requiresRiver: true,
     requiresInfrastructure: 'irrigation', minPopulation: 4000,
     description: 'A low weir, sluices and diversion channels that store a modest pulse of river water, regulate irrigation withdrawals and alter downstream timing.',
