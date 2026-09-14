@@ -1900,6 +1900,26 @@ function showNextEvent(clock, eventQueue) {
     return;
   }
 
+  if (event.type === 'religious_variant') {
+    document.getElementById('event-title').textContent = 'A new religious branch';
+    document.getElementById('event-body').textContent = `${event.religion?.name || 'A new religious tradition'} has emerged in ${event.regionName || 'the region'}, interpreting an older tradition in a new way.`;
+    wireEventContinue(clock, eventQueue);
+    return;
+  }
+  if (event.type === 'religious_directive') {
+    document.getElementById('event-title').textContent = 'A religious directive';
+    document.getElementById('event-body').textContent = `${event.leaderName || 'The religious leader'} calls for ${event.directive?.type === 'holy_war' ? 'holy war against' : 'peace with'} the followers of ${event.targetFaithName || 'a rival tradition'}. Defiance may cause unrest where this is the state religion.`;
+    wireEventContinue(clock, eventQueue);
+    return;
+  }
+  if (event.type !== 'raid_resolved' || !event.outcome || !event.raid) {
+    console.warn('Unhandled simulation event', event);
+    document.getElementById('event-title').textContent = event.title || `Event: ${String(event.type || 'unknown').replaceAll('_', ' ')}`;
+    document.getElementById('event-body').textContent = event.description || event.summary || 'An event occurred, but no dedicated presentation is available yet.';
+    wireEventContinue(clock, eventQueue);
+    return;
+  }
+
   const { attackerName, defenderName, outcome, raid } = event;
   const won = outcome.attackerRatio > 0.5;
 
@@ -1930,19 +1950,6 @@ function showNextEvent(clock, eventQueue) {
 function wireEventContinue(clock, eventQueue) {
   document.getElementById('event-options').innerHTML = '<button id="btn-event-continue">Continue</button>';
   document.getElementById('event-modal').classList.remove('hidden');
-  if (event.type === 'religious_variant') {
-    document.getElementById('event-title').textContent = 'A new religious branch';
-    document.getElementById('event-body').textContent = `${event.religion.name} has emerged in ${event.regionName}, interpreting an older tradition in a new way.`;
-    wireEventContinue(clock, eventQueue);
-    return;
-  }
-  if (event.type === 'religious_directive') {
-    document.getElementById('event-title').textContent = 'A religious directive';
-    document.getElementById('event-body').textContent = `${event.leaderName || 'The religious leader'} calls for ${event.directive.type === 'holy_war' ? 'holy war against' : 'peace with'} the followers of ${event.targetFaithName || 'a rival tradition'}. Defiance may cause unrest where this is the state religion.`;
-    wireEventContinue(clock, eventQueue);
-    return;
-  }
-
   document.getElementById('btn-event-continue').addEventListener('click', () => {
     document.getElementById('event-modal').classList.add('hidden');
 
