@@ -28,11 +28,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - name: Install geography dependencies
         run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2
       - name: Validate scripts and plans
         run: |
-          python -m py_compile tools/prepare-north-america-regeneration.py tools/build-north-america-expansion.py tools/build-north-america-seas.py tools/repair-north-america-adjacency.py
+          python -m py_compile tools/prepare-north-america-regeneration.py tools/build-north-america-expansion.py tools/build-north-america-seas.py tools/repair-north-america-adjacency.py tools/build-terrain.py
+          node --check tools/generate-world-spatial-base.mjs
           python -m json.tool tools/north-america-region-plan-v1.json >/dev/null
           python -m json.tool tools/north-america-sea-plan-v1.json >/dev/null
       - name: Reset prior generated North America output
@@ -52,8 +56,11 @@ jobs:
           cp /tmp/simworld-na-sea/seaRegions.meta.json data/world/seaRegions.meta.json
       - name: Repair source-boundary adjacency seams
         run: python tools/repair-north-america-adjacency.py | tee /tmp/north-america-adjacency.log
-      - name: Rebuild modern navigation metadata
-        run: python tools/build-region-navigation.py
+      - name: Rebuild derived geography metadata
+        run: |
+          python tools/build-region-navigation.py
+          python tools/build-terrain.py --geo data/world/regions.geo.json --resources data/world/resources.initial.json --output data/world/terrain.initial.json
+          node tools/generate-world-spatial-base.mjs
       - name: Sanity check generated geography
         run: |
           python - <<'PY'
@@ -62,6 +69,8 @@ jobs:
           geo=json.load(open('data/world/regions.geo.json'))
           meta=json.load(open('data/world/regions.meta.json'))['regions']
           res=json.load(open('data/world/resources.initial.json'))
+          terrain=json.load(open('data/world/terrain.initial.json'))
+          spatial=json.load(open('data/world/spatial.base.json'))
           review=json.load(open('data/world/north-america-v1-review.json'))
           nav=json.load(open('data/world/region-navigation.json'))
           sea=json.load(open('data/world/seaRegions.meta.json'))['seaRegions']
@@ -69,7 +78,9 @@ jobs:
           idset=set(ids)
           mids={m['id'] for m in meta}
           assert len(ids)==len(idset), 'duplicate land ids'
-          assert idset==mids==set(res), 'geo/meta/resource ids differ'
+          assert idset==mids==set(res)==set(terrain), 'geo/meta/resource/terrain ids differ'
+          spatial_ids=set(spatial.get('regions',{}))
+          assert spatial_ids==idset, 'spatial base does not cover every land region'
           assert len(review)>=145, f'North America too coarse: {len(review)} regions'
           new_ids={r['id'] for r in review}
           assert new_ids <= idset
@@ -112,7 +123,7 @@ jobs:
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add data/world/regions.geo.json data/world/regions.meta.json data/world/resources.initial.json data/world/seaRegions.geo.json data/world/seaRegions.meta.json data/world/region-navigation.json data/world/north-america-v1-review.json
+          git add data/world/regions.geo.json data/world/regions.meta.json data/world/resources.initial.json data/world/terrain.initial.json data/world/spatial.base.json data/world/seaRegions.geo.json data/world/seaRegions.meta.json data/world/region-navigation.json data/world/north-america-v1-review.json
           if git diff --cached --quiet; then
             echo 'Generated North America map already current'
           else
