@@ -1,0 +1,71 @@
+name: Climate change v1 validation
+
+on:
+  push:
+    branches: [climate-change-v1]
+  pull_request:
+    paths:
+      - 'js/world/climateChange.js'
+      - 'js/world/weather.js'
+      - 'js/world/hydrology.js'
+      - 'js/society/demographics.js'
+      - 'js/main.js'
+      - 'tools/apply-climate-change-integration.py'
+      - 'tools/test-climate-change.mjs'
+      - '.github/workflows/climate-change-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply stacked proto-industry and climate integration
+        run: |
+          python tools/apply-proto-industry-integration.py
+          python tools/apply-coal-resource-integration.py
+          python tools/apply-climate-change-integration.py
+      - name: Syntax checks
+        run: |
+          node --check js/world/climateChange.js
+          node --check js/world/weather.js
+          node --check js/society/demographics.js
+          node --check js/main.js
+          python -m py_compile tools/apply-coal-resource-integration.py tools/apply-climate-change-integration.py
+      - name: Climate regressions
+        run: node tools/test-climate-change.mjs
+      - name: Water and agriculture regressions
+        run: |
+          node tools/test-human-river-engineering.mjs
+          node tools/test-agricultural-water.mjs
+          node tools/test-real-river-navigation.mjs
+      - name: Proto-industry and coal regressions
+        run: |
+          node tools/test-proto-industry.mjs
+          node tools/test-coal-resource.mjs
+      - name: Technology comprehension regressions
+        run: node tools/test-technology-comprehension-rifling.mjs
+      - name: Commit integrated source
+        if: github.event_name == 'push'
+        run: |
+          if git diff --quiet -- js/main.js js/world/weather.js js/society/demographics.js js/world/region.js js/economy/protoIndustry.js js/economy/tradeGoods.js js/economy/laborCore.js; then
+            echo 'Integration already committed.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/main.js js/world/weather.js js/society/demographics.js js/world/region.js js/economy/protoIndustry.js js/economy/tradeGoods.js js/economy/laborCore.js
+          git commit -m 'Integrate climate forcing weather and coastal displacement'
+          git push origin HEAD:${{ github.ref_name }}

@@ -26,6 +26,7 @@ import { renderDiplomaticServicePanel } from './ui/diplomaticServicePanel.js?v=2
 import { buildSocialOverlayLayers } from './ui/socialOverlays.js?v=20260910-social-overlays1';
 import { loadWorldSpatialGraph } from './world/spatialBaseLoader.js?v=20260910-spatial1';
 import { initialiseHydrology, tickActiveHydrology } from './world/hydrology.js?v=20260914-water2';
+import { tickClimateChange } from './world/climateChange.js?v=20260914-climate1';
 import { syncRegionSpatialSites } from './world/spatialGraph.js?v=20260913-settlements2';
 import { createLocalRegionView } from './ui/localRegionView.js?v=20260913-settlements2';
 import { ensureSubregionalControl } from './military/subregionalControl.js?v=20260908-subregion1';
@@ -318,6 +319,7 @@ async function main() {
       prepareConstructionLabor(regions);
       prepareSiegeWorkforce(regions);
     });
+    const climateEvents = profiler.measure('Climate change', () => tickClimateChange(regions, calendarWeek, time.elapsedDays, Math.random));
     const waterEvents = profiler.measure('Hydrology', () => tickActiveHydrology(regions, time.endDay, time.elapsedDays));
     profiler.measure('Economy', () => tickEconomy(regions, seaRegions, toolTypes, Math.random, calendarWeek, time.elapsedDays, time.endDay));
     profiler.measure('Gunpowder industry', () => tickGunpowderIndustry(regions, time.elapsedDays));
@@ -484,6 +486,7 @@ async function main() {
       ...languagePolicyEvents.filter((event) => event.polityId === activePlayerPolityId),
       ...capitalEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),
       ...protoIndustryEvents.filter((event) => event.regionId === playerRegionId),
+      ...climateEvents.filter((event) => event.regionId === playerRegionId),
       ...medievalCompletionEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),
       ...renaissanceEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),
       ...earlyModernReformEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),

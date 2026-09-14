@@ -53,15 +53,21 @@ export function tickWeather(regions, currentDay, rng = Math.random, elapsedDays 
   const rawById = new Map();
   for (const region of regions) {
     const regional = cellsThisWeek.get(cellId(region)) || 0;
-    rawById.set(region.id, clamp(world.global * 0.35 + regional * 0.65 + centredNoise(rng) * 0.08, -1.8, 1.8));
+    const climateExtreme = clamp(region.climate?.extremeWeatherMultiplier ?? 1, 1, 2.4);
+    const rainfall = clamp(region.climate?.rainfallMultiplier ?? 1, 0.55, 1.25);
+    const evaporation = clamp(region.climate?.evaporationMultiplier ?? 1, 0.8, 1.8);
+    const climateShift = clamp((rainfall - 1) * 2.0 - (evaporation - 1) * 0.7, -0.9, 0.45);
+    rawById.set(region.id, clamp(world.global * 0.35 + regional * 0.65 +
+      centredNoise(rng) * 0.08 * climateExtreme + climateShift, -2.4, 2.2));
   }
   for (const region of regions) {
     const neighbours = (region.neighbors || []).map((id) => rawById.get(id)).filter(Number.isFinite);
     const neighbourMean = neighbours.length
       ? neighbours.reduce((sum, value) => sum + value, 0) / neighbours.length
       : rawById.get(region.id);
-    const index = clamp(rawById.get(region.id) * 0.65 + neighbourMean * 0.35, -1.8, 1.8);
-    const yieldMultiplier = clamp(1 + index * 0.20, 0.65, 1.35);
+    const index = clamp(rawById.get(region.id) * 0.65 + neighbourMean * 0.35, -2.4, 2.2);
+    const heatPenalty = Math.max(0, (region.climate?.temperatureAnomalyC || 0) - 1.5) * 0.025;
+    const yieldMultiplier = clamp(1 + index * 0.20 - heatPenalty, 0.52, 1.35);
     const condition = index <= -0.75 ? 'drought' : index <= -0.3 ? 'dry'
       : index >= 0.75 ? 'exceptionally wet' : index >= 0.3 ? 'wet' : 'normal';
     region.weather = { index, yieldMultiplier,
