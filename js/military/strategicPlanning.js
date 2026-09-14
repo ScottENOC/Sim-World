@@ -1,6 +1,6 @@
 import { knowledgeOf, KNOWLEDGE_THRESHOLDS, directContactIds } from '../core/knowledge.js?v=20260906-scouting1';
 import { activeAgreementBetween, attitudeToward } from '../diplomacy/relations.js?v=20260904-save1';
-import { availableVassalLevies } from '../politics/polities.js?v=20260904-war1';
+import { availableVassalLevies, vassalLevyOffer } from '../politics/polities.js?v=20260904-war1';
 import { canCampaign } from './campaigns.js?v=20260905-projects1';
 
 export const MILITARY_POSTURES = Object.freeze({
@@ -24,6 +24,35 @@ const POSTURE_READINESS = Object.freeze({ peace: 0.42, guarded: 0.58, prepare_wa
 
 function clamp(v, lo = 0, hi = 1) { return Math.max(lo, Math.min(hi, Number(v) || 0)); }
 function actorId(region) { return region?.governance?.sovereignPolityId || region?.controllingActorId || region?.id; }
+
+
+export function buildMilitaryStrategyContext(regions = [], agreements = [], polities = [], currentTick = 0, activeCampaigns = []) {
+  const regionsById = new Map(regions.map((region) => [region.id, region]));
+  const politiesById = new Map(polities.map((polity) => [polity.id, polity]));
+  const territoriesByPolity = new Map();
+  for (const region of regions) {
+    const polityId = region.governance?.sovereignPolityId || region.polityId;
+    if (!polityId) continue;
+    let list = territoriesByPolity.get(polityId);
+    if (!list) { list = []; territoriesByPolity.set(polityId, list); }
+    list.push(region);
+  }
+  // Preserve activeAgreementBetween's preference for war commitments over
+  // ordinary military support, but index the result once for all rulers.
+  const supportByRegion = new Map();
+  const setSupport = (regionId, otherId, agreement) => {
+    let map = supportByRegion.get(regionId);
+    if (!map) { map = new Map(); supportByRegion.set(regionId, map); }
+    const existing = map.get(otherId);
+    if (!existing || (agreement.type === 'war_commitment' && existing.type !== 'war_commitment')) map.set(otherId, agreement);
+  };
+  for (const agreement of agreements) {
+    if (!agreement?.active || !['war_commitment', 'military_support'].includes(agreement.type)) continue;
+    setSupport(agreement.fromId, agreement.toId, agreement);
+    setSupport(agreement.toId, agreement.fromId, agreement);
+  }
+  return { regions, agreements, polities, currentTick, activeCampaigns, regionsById, politiesById, territoriesByPolity, supportByRegion };
+}
 
 export function ensureMilitaryStrategy(region) {
   if (!region.militaryStrategy || typeof region.militaryStrategy !== 'object') region.militaryStrategy = {};
@@ -76,10 +105,20 @@ function normalDefenceEstablishment(region) {
   return Math.max(20, working * (0.008 + insecurity * 0.008 + coastal) + fortSignal * 35);
 }
 
-function vassalContribution(region, regions, polities, currentTick, assumption) {
+function vassalContribution(region, regions, polities, currentTick, assumption, strategyContext = null) {
   const factor = SUPPORT_FACTOR[assumption] ?? 0;
   if (factor <= 0) return { nominal: 0, expected: 0, sources: [] };
-  const offers = availableVassalLevies(region, regions, polities, currentTick) || [];
+  let offers;
+  if (strategyContext) {
+    const polityId = region.governance?.sovereignPolityId || region.polityId;
+    const polity = strategyContext.politiesById.get(polityId);
+    const subjects = polity?.capitalRegionId === region.id
+      ? (strategyContext.territoriesByPolity.get(polityId) || []).filter((subject) => subject.id !== region.id)
+      : [];
+    offers = subjects.map((subject) => ({ region: subject, ...vassalLevyOffer(subject, region, currentTick) }));
+  } else {
+    offers = availableVassalLevies(region, regions, polities, currentTick) || [];
+  }
   let nominal = 0; let expected = 0;
   const sources = [];
   for (const offer of offers) {
@@ -97,14 +136,19 @@ function vassalContribution(region, regions, polities, currentTick, assumption) 
   return { nominal, expected, sources };
 }
 
-function allyContribution(region, regions, agreements, assumption) {
+function allyContribution(region, regions, agreements, assumption, strategyContext = null) {
   const factor = SUPPORT_FACTOR[assumption] ?? 0;
   if (factor <= 0) return { nominal: 0, expected: 0, sources: [] };
   let nominal = 0; let expected = 0; const sources = [];
-  for (const other of regions) {
-    if (other.id === region.id) continue;
-    const active = activeAgreementBetween(agreements, region.id, other.id, 'war_commitment') || activeAgreementBetween(agreements, region.id, other.id, 'military_support');
-    if (!active) continue;
+  const indexed = strategyContext?.supportByRegion.get(region.id);
+  const candidates = indexed
+    ? [...indexed.entries()].map(([otherId, active]) => ({ other: strategyContext.regionsById.get(otherId), active }))
+    : regions.map((other) => ({
+        other,
+        active: other.id === region.id ? null : activeAgreementBetween(agreements, region.id, other.id, 'war_commitment') || activeAgreementBetween(agreements, region.id, other.id, 'military_support'),
+      }));
+  for (const { other, active } of candidates) {
+    if (!other || !active) continue;
     const personnel = active.type === 'war_commitment'
       ? Math.max(0, active.personnel || 0)
       : Math.max(0, Math.min(active.personnel || 0, (other.army?.personnel || 0) * 0.45));
@@ -131,15 +175,15 @@ function campaignNeed(region, target, activeCampaigns, regions, polities) {
 
 export function reviewMilitaryStrategy(region, context = {}) {
   const strategy = ensureMilitaryStrategy(region);
-  const { regions = [], polities = [], agreements = [], activeCampaigns = [], currentTick = 0 } = context;
-  const target = regions.find((r) => r.id === strategy.targetRegionId) || null;
+  const { regions = [], polities = [], agreements = [], activeCampaigns = [], currentTick = 0, strategyContext = null } = context;
+  const target = strategyContext?.regionsById.get(strategy.targetRegionId) || regions.find((r) => r.id === strategy.targetRegionId) || null;
   const working = Math.max(1, region.demographics?.workingAge || region.population * 0.55 || 1);
   const normalGarrison = normalDefenceEstablishment(region);
   const garrisonFloor = strategy.posture === MILITARY_POSTURES.PEACE ? 1 : strategy.garrisonFloor;
   const retainedGarrison = normalGarrison * garrisonFloor;
   const campaign = campaignNeed(region, target, activeCampaigns, regions, polities);
-  const vassals = vassalContribution(region, regions, polities, currentTick, strategy.vassalAssumption);
-  const allies = allyContribution(region, regions, agreements, strategy.allyAssumption);
+  const vassals = vassalContribution(region, regions, polities, currentTick, strategy.vassalAssumption, strategyContext);
+  const allies = allyContribution(region, regions, agreements, strategy.allyAssumption, strategyContext);
   const supportExpected = vassals.expected + allies.expected;
 
   const peacetimeField = working * 0.0025;
@@ -191,9 +235,10 @@ export function reviewMilitaryStrategy(region, context = {}) {
   return strategy.planReport;
 }
 
-export function chooseNpcMilitaryStrategy(region, regions, agreements, polities, currentTick, activeCampaigns = []) {
+export function chooseNpcMilitaryStrategy(region, regions, agreements, polities, currentTick, activeCampaigns = [], strategyContext = null) {
   const strategy = ensureMilitaryStrategy(region);
-  const known = [...directContactIds(region)].map((id) => regions.find((r) => r.id === id)).filter(Boolean);
+  const ctx = strategyContext || buildMilitaryStrategyContext(regions, agreements, polities, currentTick, activeCampaigns);
+  const known = [...directContactIds(region)].map((id) => ctx.regionsById.get(id)).filter(Boolean);
   let threat = null;
   let threatScore = 0;
   for (const other of known) {
@@ -216,6 +261,6 @@ export function chooseNpcMilitaryStrategy(region, regions, agreements, polities,
     strategy.targetRegionId = null;
     strategy.garrisonFloor = 1;
   }
-  reviewMilitaryStrategy(region, { regions, agreements, polities, currentTick, activeCampaigns });
+  reviewMilitaryStrategy(region, { regions, agreements, polities, currentTick, activeCampaigns, strategyContext: ctx });
   return strategy;
 }
