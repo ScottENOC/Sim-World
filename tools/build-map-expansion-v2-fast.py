@@ -109,6 +109,42 @@ def natural_earth_admin1():
     return _admin1_cache
 
 
+MAX_CLUSTER_GAP_DEGREES = 0.35
+
+
+def split_material_components(geom, min_material_area_sqkm=8):
+    """Split real disconnected land while retaining sub-threshold crumbs.
+
+    The 8 km² threshold identifies material land components. Smaller fragments
+    are attached to their nearest material component so no land is silently
+    discarded. If the whole geometry consists of tiny islands, it remains one
+    source unit for later coherent archipelago clustering.
+    """
+    geom = map_v2.repair(geom)
+    if geom.is_empty:
+        return []
+
+    def polygons(g):
+        if g.geom_type == 'Polygon':
+            yield g
+        elif hasattr(g, 'geoms'):
+            for child in g.geoms:
+                yield from polygons(child)
+
+    parts = [map_v2.repair(p) for p in polygons(geom) if not p.is_empty]
+    if len(parts) <= 1:
+        return parts
+    material = [p for p in parts if map_v2.area_sqkm(p) >= min_material_area_sqkm]
+    tiny = [p for p in parts if map_v2.area_sqkm(p) < min_material_area_sqkm]
+    if not material:
+        return [geom]
+    groups = [[p] for p in material]
+    for fragment in tiny:
+        nearest = min(range(len(material)), key=lambda i: fragment.distance(material[i]))
+        groups[nearest].append(fragment)
+    return [map_v2.repair(unary_union(group)) for group in groups]
+
+
 def prepare_existing_index(base_features):
     global _existing_geoms, _existing_tree, _existing_ids
     _existing_geoms = []
@@ -173,7 +209,12 @@ def source_features_fast(country, mask, _unused_existing_coverage):
         a = map_v2.area_sqkm(g)
         if a < min_area:
             continue
-        pieces.append({'geometry': g, 'names':[name], 'anchor':name, 'anchorArea':a, 'mergeArea':g.area})
+        # Split on a small absolute material threshold, not the country's source
+        # minimum. The latter can be hundreds of km² and would leave dozens of
+        # genuinely separate 10–100 km² fragments glued together.
+        for component in split_material_components(g, 8):
+            ca = map_v2.area_sqkm(component)
+            pieces.append({'geometry': component, 'names':[name], 'anchor':name, 'anchorArea':ca, 'mergeArea':component.area})
     return pieces
 
 
@@ -202,14 +243,23 @@ def cluster_regions_fast(pieces, target):
                 merged_pair = (i, best[1])
                 break
         if merged_pair is None:
+            # Region-count targets are soft. Never merge far-apart land merely
+            # to hit a historical count: that is the mechanism which produced
+            # Kursk-style confetti. A modest gap still permits coherent local
+            # island groups and tiny source seams.
             best = None
             for i in range(len(clusters)):
                 for j in range(i + 1, len(clusters)):
                     d = clusters[i]['geometry'].distance(clusters[j]['geometry'])
+                    if d > MAX_CLUSTER_GAP_DEGREES:
+                        continue
                     combined = clusters[i].get('mergeArea', clusters[i]['geometry'].area) + clusters[j].get('mergeArea', clusters[j]['geometry'].area)
                     score = (d, combined)
                     if best is None or score < best[0]:
                         best = (score, i, j)
+            if best is None:
+                print(f'CLUSTER_STOP disconnected={len(clusters)} target={target}')
+                break
             _, i, j = best
         else:
             i, j = merged_pair

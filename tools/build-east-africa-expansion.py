@@ -8,6 +8,7 @@ resulting simulation borders are geographic rather than 2026 political lines.
 import argparse
 import importlib.util
 import json
+import os
 import math
 from pathlib import Path
 
@@ -49,14 +50,16 @@ def source_units(iso, mask, level, min_area):
         area = map_v2.area_sqkm(geom)
         if area < min_area:
             continue
-        pieces.append({
-            'geometry': geom,
-            'names': [name],
-            'anchor': name,
-            'anchorArea': area,
-            'mergeArea': geom.area,
-            'iso': iso,
-        })
+        for component in fast.split_material_components(geom, 8):
+            component_area = map_v2.area_sqkm(component)
+            pieces.append({
+                'geometry': component,
+                'names': [name],
+                'anchor': name,
+                'anchorArea': component_area,
+                'mergeArea': component.area,
+                'iso': iso,
+            })
     print(f'SOURCE {iso} pieces={len(pieces)}')
     return pieces
 
@@ -170,8 +173,13 @@ def main():
     meta_doc = json.loads(BASE_META.read_text())
     resources = json.loads(BASE_RESOURCES.read_text())
     expected = int(plan['targetExistingRegionCount'])
-    if len(geo.get('features', [])) != expected:
-        raise RuntimeError(f"Base map has {len(geo.get('features', []))}; expected {expected}")
+    actual = len(geo.get('features', []))
+    if actual != expected:
+        if os.environ.get('SIMWORLD_DYNAMIC_BASE') == '1' and actual >= expected:
+            print(f'DYNAMIC_BASE configured={expected} actual={actual}')
+            expected = actual
+        else:
+            raise RuntimeError(f"Base map has {actual}; expected {expected}")
 
     fast.prepare_existing_index(geo['features'])
     admin0 = fast.fetch_json_retry(map_v2.ADMIN0_URL)
