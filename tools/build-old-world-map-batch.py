@@ -96,11 +96,14 @@ def build_source_units(builder, admin0_targets, existing_geoms, existing_tree):
         geom = local_subtract(builder, geom, existing_geoms, existing_tree)
         if geom.is_empty or builder.map_v2.area_sqkm(geom) < 8:
             return
-        area = builder.map_v2.area_sqkm(geom)
-        pieces.append({
-            'geometry': geom, 'names': [name], 'anchor': name,
-            'anchorArea': area, 'mergeArea': geom.area, 'source': source,
-        })
+        for component in builder.split_material_components(geom, 8):
+            area = builder.map_v2.area_sqkm(component)
+            if area < 8:
+                continue
+            pieces.append({
+                'geometry': component, 'names': [name], 'anchor': name,
+                'anchorArea': area, 'mergeArea': component.area, 'source': source,
+            })
 
     for feature, country_geom in admin0_targets:
         country_name = str(builder.prop(feature, 'NAME_EN', 'ADMIN', 'NAME', 'name') or 'Unnamed land')
