@@ -69,6 +69,13 @@ def main():
     run('python', 'tools/finalize-old-world-map-report.py')
     announce('residual')
 
+    # Reassign detached mainland scraps before canonicalisation. This preserves
+    # every polygon but changes ownership to the physically adjacent region;
+    # isolated islands remain with their existing owner.
+    run('python', 'tools/repair-region-component-ownership.py',
+        '--geo', DATA / 'regions.geo.json', '--meta', DATA / 'regions.meta.json')
+    announce('ownership-repair')
+
     normal = TMP / 'regions.geo.normalized.json'
     run('python', 'tools/normalize-land-geojson.py', '--input', DATA / 'regions.geo.json', '--output', normal)
     run('node', 'tools/repair-d3-region-geometry.mjs', '--input', normal, '--output', DATA / 'regions.geo.json')
