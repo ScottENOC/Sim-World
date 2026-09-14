@@ -8,7 +8,7 @@ function region(id) {
     id, name:id, neighbors:[], tradePartnerIds:new Set(), recentTradePartners:new Map(),
     unlockedTechIds:new Set(), stockpile:{ firearms:0, iron:1000, bronze:100, wood:1000, gunpowder:100, saltpetre:100, sulfur:100 },
     marketDemand:{}, army:{ personnel:1000, away:0 }, firearms:{ readiness:0, combatExperience:0, totalBuilt:0 },
-    learning:{ experience:{ smithing:0 } }, occupations:{},
+    experience:{ smithing:0 }, occupations:{},
   };
 }
 
@@ -40,7 +40,7 @@ assert.equal(boundedDiffusionChance(0.5, 5, 0), 0, 'diffusion cannot cross a zer
   learner.firearms.readiness = 0.5;
   learner.firearms.totalBuilt = 350;
   learner.stockpile.firearms = 180;
-  learner.learning.experience.smithing = 150000;
+  learner.experience.smithing = 150000;
   neighbour.unlockedTechIds.add(RIFLING_TECH_ID);
   learner.neighbors.push('neighbour');
   const map = new Map([[learner.id, learner], [neighbour.id, neighbour]]);
