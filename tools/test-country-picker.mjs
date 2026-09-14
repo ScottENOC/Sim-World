@@ -23,21 +23,21 @@ for (const forbidden of ['Anatolia', 'Mesopotamia', 'Kazakh Steppe', 'Mongolian 
 }
 assert.ok((navigation.multiCountryRegionCount || 0) > 0, 'at least one simulation region should be discoverable through multiple modern countries');
 
-// The current map intentionally defers continental North America. Greenland and
-// Hawaii are present, so the only modern-country routes expected beneath North
-// America are Greenland and the United States. This catches accidental leakage
-// from a simulation region's physical continent (e.g. Faroe Islands, Jan Mayen,
-// United Kingdom or Ireland appearing beneath North America).
+// North America now includes the continental USA, Canada and Mexico tranche,
+// alongside the pre-existing Greenland/Hawaii coverage. Keep this explicit so
+// unrelated countries cannot leak into the picker through physical-region tags.
 const northAmericaCountries = new Set();
 for (const memberships of Object.values(navigation.regions)) {
   for (const membership of memberships) {
     if (membership.continent === 'North America') northAmericaCountries.add(membership.country);
   }
 }
-for (const country of northAmericaCountries) {
-  assert.ok(['Greenland', 'United States of America'].includes(country), `unexpected North America picker country ${country}`);
+for (const expected of ['Canada', 'Greenland', 'Mexico', 'United States of America']) {
+  assert.ok(northAmericaCountries.has(expected), `expected North America picker country ${expected}`);
 }
-assert.ok(northAmericaCountries.has('Greenland'), 'Greenland must remain discoverable under North America');
+for (const country of northAmericaCountries) {
+  assert.ok(['Canada', 'Greenland', 'Mexico', 'United States of America'].includes(country), `unexpected North America picker country ${country}`);
+}
 
 // Spot-check that country memberships carry their modern geographic continent,
 // not the physical-zone continent of whichever simulation region intersects it.
