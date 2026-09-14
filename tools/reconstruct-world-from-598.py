@@ -77,13 +77,14 @@ def main():
         copy_world(out, ('regions.geo.json', 'regions.meta.json', 'resources.initial.json'))
         announce(batch)
 
-    # The geographic batches already cover essentially the full target area.
-    # Do not run the legacy residual builder here: after component splitting it
-    # creates a second cohort of regions for tiny leftovers, duplicating zone
-    # subdivisions and re-introducing disconnected inland scraps.
+    # Bounded batch masks intentionally leave narrow seams and outlying pieces.
+    # Fill those gaps by assigning each genuine residual source piece to the
+    # nearest existing region in the same physical zone. This preserves the
+    # intended region count instead of creating a second residual cohort.
+    run('python', 'tools/absorb-old-world-map-residual.py')
+    announce('residual-absorption')
     run('python', 'tools/finalize-old-world-map-report.py')
     require_target_coverage()
-    announce('batched-land')
 
     # Reassign detached mainland scraps before canonicalisation. This preserves
     # every polygon but changes ownership to the physically adjacent region;
