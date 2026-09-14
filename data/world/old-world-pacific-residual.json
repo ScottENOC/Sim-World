@@ -1,7 +1,10 @@
 {
-  "beforeRegions": 1389,
-  "residualRegions": 209,
-  "totalRegions": 1574,
+  "beforeRegions": 1678,
+  "absorbedResidualPieces": 1511,
+  "changedRegions": 113,
+  "absorbedAreaSqKm": 1708092.1,
+  "totalRegions": 1678,
   "targetAreaSqKm": 94208106.5,
-  "coverageRatioAfterResidual": 0.9999808217336286
+  "coverageRatioAfterAbsorption": 0.999980599381766,
+  "strategy": "absorb-into-existing-regions"
 }
