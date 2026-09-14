@@ -17,7 +17,12 @@ ids = [f['properties']['id'] for f in features]
 assert len(ids) == len(set(ids)), 'duplicate land region IDs'
 assert len(features) >= 1200, f'expected a substantially expanded map, got {len(features)} regions'
 assert report['targetCoverageRatio'] >= 0.985, report
-assert report['totalRegions'] == len(features)
+# This report describes the Old World + Asia-Pacific reconstruction tranche,
+# not every later additive geography tranche. Its internal total must remain
+# coherent, while later Americas regions are intentionally allowed to raise
+# the global feature count beyond report['totalRegions'].
+assert report['totalRegions'] == report['baseRegions'] + report['newRegions'], report
+assert len(features) >= report['totalRegions'], 'global map cannot contain fewer regions than the reconstruction report'
 assert report['newRegions'] >= 350, report
 
 meta_by_id = {m['id']: m for m in meta['regions']}
@@ -28,7 +33,13 @@ for region_id, entry in meta_by_id.items():
     for neighbor in entry.get('neighbors', []):
         assert neighbor in meta_by_id, f'{region_id} references unknown neighbor {neighbor}'
 
-physical = [f for f in features if f.get('properties', {}).get('navigationContinent') and f.get('properties', {}).get('navigationGroup')]
+report_groups = set(report.get('regionsByZone', {}))
+physical = [
+    f for f in features
+    if f.get('properties', {}).get('navigationContinent')
+    and f.get('properties', {}).get('navigationGroup')
+    and f.get('properties', {}).get('sourceGroup') in report_groups
+]
 groups = {f['properties']['sourceGroup'] for f in physical}
 required = {
     'af_congo_west','af_highveld','ar_najd','ca_kazakh_steppe','na_lena_yakutia',
@@ -37,7 +48,7 @@ required = {
 }
 missing = required - groups
 assert not missing, f'missing representative physical zones: {sorted(missing)}'
-assert len(physical) == report['newRegions'], 'new geography tags do not match generated region count'
+assert len(physical) == report['newRegions'], 'Old World/Asia-Pacific geography tags do not match reconstruction report'
 
 sea_ids = [f['properties']['id'] for f in sea_geo['features']]
 assert len(sea_ids) == len(set(sea_ids)), 'duplicate sea region IDs'
@@ -49,6 +60,7 @@ for required_sea in ['sea_malacca_strait','sea_torres_strait','sea_mozambique_ch
 
 print(json.dumps({
     'landRegions': len(features),
+    'reconstructionLandRegions': report['totalRegions'],
     'newLandRegions': report['newRegions'],
     'targetCoverageRatio': round(report['targetCoverageRatio'], 6),
     'seaRegions': len(sea_ids),
