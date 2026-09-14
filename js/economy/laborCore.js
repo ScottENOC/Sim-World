@@ -12,6 +12,7 @@ import { effectiveInfrastructureCount, operationalInfrastructure } from './const
 import { elapsedWeeks } from '../core/simTime.js?v=20260905-time1';
 import { maritimeSkillMultiplier, MARITIME_SKILLS } from '../technology/seamanship.js?v=20260906-maritime1';
 import { applyFoodPreservation, tickFoodLuxuries } from './foodLuxuries.js?v=20260913-food-luxuries1';
+import { agriculturalWaterProfile } from './agriculturalWater.js?v=20260914-water3';
 
 // --- Tunable constants -----------------------------------------------------
 // All placeholders, calibrated so a "typical" region can just about feed
@@ -466,14 +467,10 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng, elapsedDays 
   // weaker iron recovers less, while tool-less farms cannot compensate merely
   // by assigning every available adult to the same finite acreage.
   const toolYieldMultiplier = 0.7 + 0.3 * farmerToolMultiplier;
-  const irrigation = effectiveInfrastructureCount(region, 'irrigation');
-  const canal = effectiveInfrastructureCount(region, 'canal');
-  const waterYieldMultiplier = 1 + Math.min(0.32, irrigation * 0.2 + canal * 0.12);
-  const droughtProtection = 1 + Math.max(0, 1 - weatherMultiplier) * Math.min(0.55,
-    effectiveInfrastructureCount(region, 'wells_cisterns') * 0.18 + irrigation * 0.25 + canal * 0.12);
+  const agriculturalWater = agriculturalWaterProfile(region, { weatherMultiplier });
   const maxFoodOutput = region.areaSqKm * region.landQuality * FOOD_YIELD_PER_KM2 * noise *
-    (1 - horseReport.pastureFraction) * seasonalMultiplier * weatherMultiplier * droughtProtection *
-    toolYieldMultiplier * resourceAccess * waterYieldMultiplier;
+    (1 - horseReport.pastureFraction) * seasonalMultiplier * weatherMultiplier * agriculturalWater.droughtProtection *
+    toolYieldMultiplier * resourceAccess * agriculturalWater.yieldMultiplier;
   const kLabor = region.areaSqKm * FARM_LABOR_SATURATION_PER_KM2;
   const humanFoodNeeded = totalPop * FOOD_PER_PERSON_PER_WEEK * weekScale;
   const foodNeeded = humanFoodNeeded + horseReport.fodderNeeded;
@@ -503,7 +500,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng, elapsedDays 
   const foodFromFarming = foodOutput(farmers * farmerEfficiency, maxFoodOutput, kLabor) * weekScale;
   accumulateExperience(region, 'farming', farmers);
   report.farming = { workers: Math.round(farmers), food: foodFromFarming,
-    seasonalMultiplier, weatherMultiplier };
+    seasonalMultiplier, weatherMultiplier, water: agriculturalWater };
   report.weather = { condition: region.weather?.condition || 'normal',
     index: region.weather?.index || 0, seasonalMultiplier, weatherMultiplier };
 

@@ -288,6 +288,7 @@ export function tickHydrology(graph, regions = [], currentDay = 0, elapsedDays =
       h.report.surfaceInflow += naturalInflow;
       h.report.surfaceOutflow += outflow;
       h.report.surfaceWithdrawal += withdrawal;
+      h.report.managedRelease += Math.max(0, -regulated.storageChange);
       h.report.waterHealthRisk = Math.max(h.report.waterHealthRisk, risk);
       h.report.floodPeakReduction = Math.max(h.report.floodPeakReduction, regulated.floodPeakReduction || 0);
       h.report.hydropowerPotential += regulated.hydropowerPotential || 0;

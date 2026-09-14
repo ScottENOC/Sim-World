@@ -317,6 +317,7 @@ async function main() {
       prepareConstructionLabor(regions);
       prepareSiegeWorkforce(regions);
     });
+    const waterEvents = profiler.measure('Hydrology', () => tickActiveHydrology(regions, time.endDay, time.elapsedDays));
     profiler.measure('Economy', () => tickEconomy(regions, seaRegions, toolTypes, Math.random, calendarWeek, time.elapsedDays, time.endDay));
     profiler.measure('Gunpowder industry', () => tickGunpowderIndustry(regions, time.elapsedDays));
     profiler.measure('Early-modern military industry', () => tickEarlyModernIndustry(regions, time.elapsedDays));
@@ -338,7 +339,6 @@ async function main() {
     profiler.measure('State finance', () => tickStateFinance(regions, time.elapsedDays));
     profiler.measure('Infrastructure maintenance', () => tickInfrastructureMaintenance(regions, time.elapsedDays));
     const constructionEvents = profiler.measure('Construction', () => tickConstruction(regions, calendarWeek, time.elapsedDays));
-    const waterEvents = profiler.measure('Hydrology', () => tickActiveHydrology(regions, time.endDay, time.elapsedDays));
     profiler.measure('Siege equipment', () => tickSiegeEquipment(regions, time.elapsedDays));
     const breakthroughEvents = profiler.measure('Technology breakthroughs', () => tickBreakthroughs(regions, calendarWeek, Math.random, time.elapsedDays));
     const religionEvents = profiler.measure('Religion', () => tickReligion(regions, religiousWorld, calendarWeek, activeRaids, activeCampaigns, Math.random, time.elapsedDays));
