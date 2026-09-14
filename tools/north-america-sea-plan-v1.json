@@ -1,6 +1,6 @@
 {
-  "version": 2,
-  "purpose": "First water-region tranche around Canada, the United States and Mexico. Boxes are clipped to real Natural Earth land and existing Sim-World seas; they are gameplay water regions, not political boundaries. Major inland lakes are represented because they are transport, fishing and strategic systems rather than empty gaps between land regions.",
+  "version": 3,
+  "purpose": "First water-region tranche around Canada, the United States and Mexico. Coastal boxes are clipped to real Natural Earth land and existing Sim-World seas. Major inland lakes use Natural Earth's physical lake polygons because admin-0 country geometry treats them as filled land. These are gameplay water regions, not political boundaries.",
   "coastalToleranceDegrees": 0.08,
   "regions": [
     {"id":"sea_bering","name":"Bering Sea","bbox":[-180.0,51.0,-157.0,66.5]},
@@ -23,13 +23,13 @@
     {"id":"sea_hudson_strait","name":"Hudson Strait","bbox":[-82.0,58.0,-60.0,66.0]},
     {"id":"sea_beaufort","name":"Beaufort Sea","bbox":[-145.0,68.0,-120.0,76.0]},
     {"id":"sea_canadian_arctic","name":"Canadian Arctic Waters","bbox":[-120.0,65.0,-72.0,80.0]},
-    {"id":"sea_lake_superior","name":"Lake Superior","bbox":[-93.5,46.2,-84.2,49.3]},
-    {"id":"sea_lake_michigan","name":"Lake Michigan","bbox":[-88.5,41.5,-84.6,46.3]},
-    {"id":"sea_lake_huron","name":"Lake Huron","bbox":[-84.9,43.0,-79.5,46.7]},
-    {"id":"sea_lake_erie","name":"Lake Erie","bbox":[-83.6,41.0,-78.7,43.1]},
-    {"id":"sea_lake_ontario","name":"Lake Ontario","bbox":[-79.9,43.0,-75.7,44.5]},
-    {"id":"sea_lake_winnipeg","name":"Lake Winnipeg","bbox":[-99.3,49.8,-96.0,54.0]},
-    {"id":"sea_great_slave","name":"Great Slave Lake","bbox":[-118.8,60.3,-108.8,63.5]},
-    {"id":"sea_great_bear","name":"Great Bear Lake","bbox":[-125.8,64.0,-117.2,67.1]}
+    {"id":"sea_lake_superior","name":"Lake Superior","bbox":[-93.5,46.2,-84.2,49.3],"inlandLake":true},
+    {"id":"sea_lake_michigan","name":"Lake Michigan","bbox":[-88.5,41.5,-84.6,46.3],"inlandLake":true},
+    {"id":"sea_lake_huron","name":"Lake Huron","bbox":[-84.9,43.0,-79.5,46.7],"inlandLake":true},
+    {"id":"sea_lake_erie","name":"Lake Erie","bbox":[-83.6,41.0,-78.7,43.1],"inlandLake":true},
+    {"id":"sea_lake_ontario","name":"Lake Ontario","bbox":[-79.9,43.0,-75.7,44.5],"inlandLake":true},
+    {"id":"sea_lake_winnipeg","name":"Lake Winnipeg","bbox":[-99.3,49.8,-96.0,54.0],"inlandLake":true},
+    {"id":"sea_great_slave","name":"Great Slave Lake","bbox":[-118.8,60.3,-108.8,63.5],"inlandLake":true},
+    {"id":"sea_great_bear","name":"Great Bear Lake","bbox":[-125.8,64.0,-117.2,67.1],"inlandLake":true}
   ]
 }
