@@ -1,0 +1,159 @@
+name: Reconstruct generated world regions
+
+on:
+  push:
+    branches:
+      - reconstruct-generated-world-regions
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  reconstruct:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install map dependencies
+        run: |
+          python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2 pyshp==2.3.1
+          npm install --no-save d3-geo@3
+
+      - name: Prepare clean reconstruction base
+        if: github.event_name == 'push'
+        run: python tools/prepare-world-reconstruction.py
+
+      - name: Rebuild Europe and Greenland
+        if: github.event_name == 'push'
+        run: |
+          timeout 14m python tools/build-old-world-map-batch.py europe-greenland --output-dir /tmp/rebuild-europe
+          cp /tmp/rebuild-europe/regions.geo.json data/world/regions.geo.json
+          cp /tmp/rebuild-europe/regions.meta.json data/world/regions.meta.json
+          cp /tmp/rebuild-europe/resources.initial.json data/world/resources.initial.json
+
+      - name: Rebuild Africa and Arabia
+        if: github.event_name == 'push'
+        run: |
+          timeout 14m python tools/build-old-world-map-batch.py africa-arabia --output-dir /tmp/rebuild-africa
+          cp /tmp/rebuild-africa/regions.geo.json data/world/regions.geo.json
+          cp /tmp/rebuild-africa/regions.meta.json data/world/regions.meta.json
+          cp /tmp/rebuild-africa/resources.initial.json data/world/resources.initial.json
+
+      - name: Rebuild Central, North and South Asia
+        if: github.event_name == 'push'
+        run: |
+          timeout 14m python tools/build-old-world-map-batch.py central-south-asia --output-dir /tmp/rebuild-central-south-asia
+          cp /tmp/rebuild-central-south-asia/regions.geo.json data/world/regions.geo.json
+          cp /tmp/rebuild-central-south-asia/regions.meta.json data/world/regions.meta.json
+          cp /tmp/rebuild-central-south-asia/resources.initial.json data/world/resources.initial.json
+
+      - name: Rebuild East and mainland Southeast Asia
+        if: github.event_name == 'push'
+        run: |
+          timeout 14m python tools/build-old-world-map-batch.py east-southeast-asia --output-dir /tmp/rebuild-east-asia
+          cp /tmp/rebuild-east-asia/regions.geo.json data/world/regions.geo.json
+          cp /tmp/rebuild-east-asia/regions.meta.json data/world/regions.meta.json
+          cp /tmp/rebuild-east-asia/resources.initial.json data/world/resources.initial.json
+
+      - name: Rebuild Maritime Asia, Oceania and Pacific
+        if: github.event_name == 'push'
+        run: |
+          timeout 14m python tools/build-old-world-map-batch.py maritime-oceania --output-dir /tmp/rebuild-maritime
+          cp /tmp/rebuild-maritime/regions.geo.json data/world/regions.geo.json
+          cp /tmp/rebuild-maritime/regions.meta.json data/world/regions.meta.json
+          cp /tmp/rebuild-maritime/resources.initial.json data/world/resources.initial.json
+
+      - name: Fill residual land gaps and finalise coverage
+        if: github.event_name == 'push'
+        run: |
+          timeout 14m python tools/build-old-world-map-residual.py
+          python tools/finalize-old-world-map-report.py
+          python tools/build-terrain.py --geo data/world/regions.geo.json --resources data/world/resources.initial.json --output data/world/terrain.initial.json
+
+      - name: Rebuild sea regions against reconstructed land
+        if: github.event_name == 'push'
+        run: |
+          python - <<'PY'
+          import importlib.util, pathlib, sys
+          root=pathlib.Path('.').resolve(); path=root/'tools'/'build-sea-expansion-v2.py'
+          spec=importlib.util.spec_from_file_location('sea_rebuild',path); sea=importlib.util.module_from_spec(spec); spec.loader.exec_module(sea)
+          sea.PLAN=root/'tools'/'sea-region-plan-old-world-pacific.json'
+          sys.argv=[str(path),'--land-geo','data/world/regions.geo.json','--output-dir','/tmp/rebuild-seas']
+          sea.main()
+          PY
+          cp /tmp/rebuild-seas/seaRegions.geo.json data/world/seaRegions.geo.json
+          cp /tmp/rebuild-seas/seaRegions.meta.json data/world/seaRegions.meta.json
+          touch data/world/old-world-pacific-seas.complete
+
+      - name: Canonicalise reconstructed geometry and navigation
+        if: github.event_name == 'push'
+        run: |
+          python tools/normalize-land-geojson.py --input data/world/regions.geo.json --output /tmp/regions.geo.normalized.json
+          node tools/repair-d3-region-geometry.mjs --input /tmp/regions.geo.normalized.json --output data/world/regions.geo.json
+          python tools/build-region-navigation.py
+          node tools/generate-world-spatial-base.mjs
+
+      - name: Reconstruction geometry audit
+        run: |
+          python tools/audit-region-geometry.py --focus Kursk --top 120 --json region-geometry-audit.json
+          python tools/audit-inland-region-components.py
+
+      - name: Map and gameplay regressions
+        run: |
+          python -m py_compile tools/prepare-world-reconstruction.py tools/build-old-world-map-batch.py tools/audit-region-geometry.py tools/audit-inland-region-components.py
+          python tools/test-old-world-asia-pacific-map.py
+          python tools/test-map-component-splitting.py
+          node tools/test-country-picker.mjs
+          node tools/test-world-spatial-skeleton.mjs
+          node tools/test-world-spatial-real-map.mjs
+          node tools/test-persistent-settlements-v2.mjs
+          node tools/test-persistent-infrastructure-sites.mjs
+          node tools/test-ui-priority.mjs
+
+      - name: 2300-region performance guardrail
+        run: node tools/benchmark-medieval-completion.mjs
+
+      - name: Economy and geography compatibility
+        run: |
+          node tools/test-east-africa-coffee.mjs
+          node tools/test-food-luxuries-v1.mjs
+          node tools/test-finance-corporate-capital-v2.mjs
+          node tools/test-oceanic-provisioning-scurvy.mjs
+          node tools/test-early-modern-military-transition.mjs
+          node tools/test-oceanic-exploration.mjs
+
+      - name: Diff sanity
+        run: git diff --check
+
+      - name: Upload reconstruction audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: reconstructed-region-geometry-audit
+          path: region-geometry-audit.json
+          retention-days: 14
+
+      - name: Commit reconstructed world
+        if: github.event_name == 'push'
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add data/world
+          if ! git diff --cached --quiet; then
+            git commit -m 'Reconstruct generated world geography'
+            git pull --rebase
+            git push
+          fi
