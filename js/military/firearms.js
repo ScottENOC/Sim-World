@@ -3,6 +3,7 @@ import { firearmSteelQualityMultiplier } from './earlyModernWarfare.js?v=2026091
 const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
 
 export const GUNPOWDER_TECH_ID = 'gunpowder';
+export const RIFLING_TECH_ID = 'rifling';
 
 const POWDER_PER_SOLDIER_TARGET = 0.18;
 const FIREARM_METAL_COST = 0.045;
@@ -19,6 +20,8 @@ export function ensureFirearmsState(region) {
   state.readiness = clamp01(state.readiness);
   state.exposure = clamp01(state.exposure);
   state.combatExperience = clamp01(state.combatExperience);
+  state.riflingReadiness = clamp01(state.riflingReadiness);
+  if (!Number.isFinite(state.totalBuilt)) state.totalBuilt = 0;
   state.lastCombatProfile ||= null;
   return state;
 }
@@ -48,6 +51,11 @@ export function tickGunpowderIndustry(regions, elapsedDays = 30) {
     // Adoption is intentionally slow: knowing the recipe is not the same as
     // having workshops, drill, reliable weapons, and logistics built around it.
     state.readiness = clamp01(Math.max(0.02, state.readiness) + (0.14 + state.combatExperience * 0.16) * yearScale);
+    if (region.unlockedTechIds?.has(RIFLING_TECH_ID)) {
+      const practice = 1 - Math.exp(-Math.max(0, state.totalBuilt) / 450);
+      state.riflingReadiness = clamp01(Math.max(0.02, state.riflingReadiness) +
+        (0.10 + state.readiness * 0.10 + practice * 0.12 + state.combatExperience * 0.06) * yearScale);
+    }
 
     region.stockpile ||= {};
     region.marketDemand ||= {};
@@ -62,6 +70,7 @@ export function tickGunpowderIndustry(regions, elapsedDays = 30) {
       consumeMetal(region, firearmsBuilt * FIREARM_METAL_COST);
       region.stockpile.wood = Math.max(0, (region.stockpile.wood || 0) - firearmsBuilt * FIREARM_WOOD_COST);
       region.stockpile.firearms = (region.stockpile.firearms || 0) + firearmsBuilt;
+      state.totalBuilt += firearmsBuilt;
     }
 
     const powderTarget = personnel * POWDER_PER_SOLDIER_TARGET * (0.25 + state.readiness * 0.75);
@@ -83,14 +92,13 @@ export function tickGunpowderIndustry(regions, elapsedDays = 30) {
       region.stockpile.gunpowder = (region.stockpile.gunpowder || 0) + powderMade;
     }
 
-    // Once the recipe is known these become meaningful market demands, so an
-    // inland army can sustain firearms through trade rather than only local mines.
     region.marketDemand.saltpetre = Math.max(region.marketDemand.saltpetre || 0, powderGap * POWDER_SALTPETRE_COST / Math.max(1, elapsedDays / 7));
     region.marketDemand.sulfur = Math.max(region.marketDemand.sulfur || 0, powderGap * POWDER_SULFUR_COST / Math.max(1, elapsedDays / 7));
     region.marketDemand.gunpowder = Math.max(region.marketDemand.gunpowder || 0, powderGap / Math.max(1, elapsedDays / 7));
     region.marketDemand.firearms = Math.max(region.marketDemand.firearms || 0, firearmGap / Math.max(1, elapsedDays / 7));
 
-    reports.push({ regionId: region.id, firearmsBuilt, powderMade, readiness: state.readiness });
+    reports.push({ regionId: region.id, firearmsBuilt, powderMade, readiness: state.readiness,
+      totalBuilt: state.totalBuilt, riflingReadiness: state.riflingReadiness });
   }
   return reports;
 }
@@ -103,7 +111,7 @@ export function firearmCombatProfile(region, opponent, personnel, {
   const state = ensureFirearmsState(region);
   const opponentState = ensureFirearmsState(opponent);
   if (!region.unlockedTechIds?.has(GUNPOWDER_TECH_ID) || personnel <= 0) {
-    return { multiplier: 1, firearmShare: 0, suppliedShare: 0, surpriseBonus: 0, dryPenalty: 0, powderUsed: 0, shotMetalUsed: 0, supplyFraction: 1 };
+    return { multiplier: 1, firearmShare: 0, suppliedShare: 0, surpriseBonus: 0, dryPenalty: 0, powderUsed: 0, shotMetalUsed: 0, supplyFraction: 1, riflingBonus: 0 };
   }
 
   region.stockpile ||= {};
@@ -114,7 +122,6 @@ export function firearmCombatProfile(region, opponent, personnel, {
   const metalNeeded = personnel * firearmShare * SHOT_METAL_PER_FIREARM_WEEK * weeks;
   const powderFraction = powderNeeded > 0 ? clamp01((region.stockpile.gunpowder || 0) / powderNeeded) : 1;
   const metalFraction = metalNeeded > 0 ? clamp01(availableMetal(region) / metalNeeded) : 1;
-  // Stock at home is not enough: campaign logistics must actually deliver it.
   const supplyFraction = Math.min(powderFraction, metalFraction, clamp01(logisticsSupply));
   const suppliedShare = firearmShare * supplyFraction;
 
@@ -127,19 +134,18 @@ export function firearmCombatProfile(region, opponent, personnel, {
     consumeMetal(region, shotMetalUsed);
   }
 
-  // Novel firearms are disproportionately frightening/effective until an
-  // opponent gains battlefield exposure and adapts formations and morale.
   const opponentFamiliarity = Math.max(opponentState.exposure, opponentState.readiness * 0.55);
   const surpriseBonus = suppliedShare * (1 - opponentFamiliarity) * 0.48;
   const sustainedBonus = suppliedShare * 0.52;
+  const riflingBonus = region.unlockedTechIds?.has(RIFLING_TECH_ID)
+    ? suppliedShare * (0.05 + state.riflingReadiness * 0.17)
+    : 0;
 
-  // A force that has reorganised around firearms but cannot feed those weapons
-  // is worse off than a force that never abandoned bows/spears in the first place.
   const dryShare = firearmShare * (1 - supplyFraction);
   const doctrineWithoutWorkingGuns = Math.max(0, state.readiness - suppliedShare);
   const dryPenalty = dryShare * 0.38 + doctrineWithoutWorkingGuns * 0.10;
   const metallurgyMultiplier = firearmSteelQualityMultiplier(region);
-  const multiplier = Math.max(0.68, 1 + sustainedBonus + surpriseBonus - dryPenalty) * metallurgyMultiplier;
+  const multiplier = Math.max(0.68, 1 + sustainedBonus + surpriseBonus + riflingBonus - dryPenalty) * metallurgyMultiplier;
 
   if (consumeSupplies) {
     state.combatExperience = clamp01(state.combatExperience + suppliedShare * 0.012 * weeks);
@@ -147,7 +153,7 @@ export function firearmCombatProfile(region, opponent, personnel, {
     opponentState.exposure = clamp01(opponentState.exposure + suppliedShare * 0.055 * weeks);
   }
 
-  const profile = { multiplier, firearmShare, suppliedShare, surpriseBonus, dryPenalty, powderUsed, shotMetalUsed, supplyFraction, metallurgyMultiplier };
+  const profile = { multiplier, firearmShare, suppliedShare, surpriseBonus, riflingBonus, dryPenalty, powderUsed, shotMetalUsed, supplyFraction, metallurgyMultiplier };
   state.lastCombatProfile = profile;
   return profile;
 }
