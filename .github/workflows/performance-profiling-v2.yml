@@ -29,6 +29,7 @@ jobs:
           python-version: '3.12'
 
       - name: Apply profiling integration
+        if: github.event_name == 'push'
         run: python tools/apply-performance-profiling-v2.py
 
       - name: Syntax checks
