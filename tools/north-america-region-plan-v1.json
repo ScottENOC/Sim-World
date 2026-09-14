@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "purpose": "First North America land tranche. Modern 2026 administrative boundaries are source geometry only; large units are subdivided and neighbouring source units may be recombined into durable gameplay regions suitable for Bronze Age starts and alternate history.",
+  "targetExistingRegionCount": 598,
+  "principles": [
+    "Modern national, state and provincial borders are not historical political borders.",
+    "Prefer coherent coasts, river basins, plains, mountain corridors, lake systems and peninsulas over administrative fidelity.",
+    "Split very large modern units before clustering so Alaska, northern Canada and the western United States do not become giant single gameplay regions.",
+    "Allow small modern units to merge into larger gameplay regions where geography supports it.",
+    "Retain islands and peninsulas when water separation or chokepoint geography makes them strategically meaningful.",
+    "This is a first-pass physical geography layer; Indigenous polities, culture and language are simulated separately and are not frozen into region borders."
+  ],
+  "countries": [
+    {"iso":"CAN","name":"Northern North America","level":"ADM1","targetRegions":46,"minAreaSqKm":250},
+    {"iso":"USA","name":"Central North America","level":"ADM1","targetRegions":72,"minAreaSqKm":180},
+    {"iso":"MEX","name":"Mexico","level":"ADM1","targetRegions":42,"minAreaSqKm":120}
+  ]
+}
