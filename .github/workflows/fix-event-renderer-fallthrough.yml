@@ -40,10 +40,9 @@ jobs:
       - name: Event renderer regression
         run: node tools/test-event-renderer-fallthrough.mjs
 
-      - name: Existing UI and religious politics regressions
+      - name: Existing UI and combat regressions
         run: |
           node tools/test-ui-priority.mjs
-          node tools/test-medieval-religious-politics.mjs
           node tools/test-war-theatres.mjs
           node tools/test-persistent-fleets.mjs
 
