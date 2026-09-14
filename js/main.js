@@ -38,6 +38,7 @@ import { tickMedievalInstitutions } from './politics/medievalInstitutions.js?v=2
 import { tickMedievalStateSystems } from './politics/medievalStateSystems.js?v=20260913-civil-war2';
 import { tickMedievalCommercialInstitutions } from './economy/medievalCommercialInstitutions.js?v=20260912-medieval2';
 import { tickCorporateCapital } from './economy/corporateCapital.js?v=20260913-capital2';
+import { tickProtoIndustry } from './economy/protoIndustry.js?v=20260914-protoindustry1';
 import { tickMedievalCompletion } from './politics/medievalCompletion.js?v=20260913-medieval-completion1';
 import { tickRenaissanceNetworks } from './society/renaissanceNetworks.js?v=20260913-renaissance1';
 import { tickEarlyModernReform } from './society/earlyModernReform.js?v=20260914-reform1';
@@ -392,6 +393,7 @@ async function main() {
     const medievalStateEvents = profiler.measure('Medieval state systems', () => tickMedievalStateSystems(polities, regions, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));
     profiler.measure('Medieval commerce', () => tickMedievalCommercialInstitutions(regions, polities, time.elapsedDays));
     const capitalEvents = profiler.measure('Corporate capital', () => tickCorporateCapital(regions, polities, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));
+    const protoIndustryEvents = profiler.measure('Proto-industrial private investment', () => tickProtoIndustry(regions, calendarWeek, time.elapsedDays, Math.random));
     const medievalCompletionEvents = profiler.measure('Medieval completion', () => tickMedievalCompletion(regions, polities, religiousWorld, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));
     const renaissanceEvents = profiler.measure('Renaissance networks', () => tickRenaissanceNetworks(regions, polities, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));
     const earlyModernReformEvents = profiler.measure('Early-modern religious reform', () => tickEarlyModernReform(regions, religiousWorld, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));
@@ -481,6 +483,7 @@ async function main() {
       ...diplomatEvents.filter((event) => event.homeRegionId === playerRegionId && event.type !== 'diplomat_report'),
       ...languagePolicyEvents.filter((event) => event.polityId === activePlayerPolityId),
       ...capitalEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),
+      ...protoIndustryEvents.filter((event) => event.regionId === playerRegionId),
       ...medievalCompletionEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),
       ...renaissanceEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),
       ...earlyModernReformEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),
