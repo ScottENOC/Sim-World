@@ -5,6 +5,7 @@ on:
     branches: [north-america-map-v1]
     paths:
       - '.github/workflows/build-north-america-map-v1.yml'
+      - 'tools/prepare-north-america-regeneration.py'
       - 'tools/build-north-america-expansion.py'
       - 'tools/north-america-region-plan-v1.json'
       - 'tools/build-north-america-seas.py'
@@ -31,9 +32,11 @@ jobs:
         run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2
       - name: Validate scripts and plans
         run: |
-          python -m py_compile tools/build-north-america-expansion.py tools/build-north-america-seas.py tools/repair-north-america-adjacency.py
+          python -m py_compile tools/prepare-north-america-regeneration.py tools/build-north-america-expansion.py tools/build-north-america-seas.py tools/repair-north-america-adjacency.py
           python -m json.tool tools/north-america-region-plan-v1.json >/dev/null
           python -m json.tool tools/north-america-sea-plan-v1.json >/dev/null
+      - name: Reset prior generated North America output
+        run: python tools/prepare-north-america-regeneration.py
       - name: Generate North American land regions
         run: |
           rm -rf /tmp/simworld-na-land /tmp/simworld-na-sea
