@@ -38,6 +38,15 @@ ensure_once(
     "    const climateEvents = profiler.measure('Climate change', () => tickClimateChange(regions, calendarWeek, time.elapsedDays, Math.random));\n"
     "    const waterEvents = profiler.measure('Hydrology', () => tickActiveHydrology(regions, time.endDay, time.elapsedDays));",
 )
+# Climate-science breakthroughs should use the normal player event queue, but the
+# underlying carbon/temperature state remains invisible unless knowledge warrants it.
+ensure_once(
+    'js/main.js',
+    "...climateEvents.filter((event) => event.regionId === playerRegionId)",
+    "      ...protoIndustryEvents.filter((event) => event.regionId === playerRegionId),\n",
+    "      ...protoIndustryEvents.filter((event) => event.regionId === playerRegionId),\n"
+    "      ...climateEvents.filter((event) => event.regionId === playerRegionId),\n",
+)
 
 # Weather variability and drought baseline respond to the slowly moving climate
 # state, while the existing short-term weather memory/noise remains intact.
