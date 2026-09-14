@@ -1,0 +1,33 @@
+name: Map projection settings validation
+
+on:
+  push:
+    branches: [map-projection-settings-v1]
+    paths:
+      - 'index.html'
+      - 'js/ui/mapProjectionSettings.js'
+      - 'js/ui/mapRenderer.js'
+      - 'tools/test-map-projection.mjs'
+      - '.github/workflows/map-projection-settings.yml'
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'js/ui/mapProjectionSettings.js'
+      - 'js/ui/mapRenderer.js'
+      - 'tools/test-map-projection.mjs'
+      - '.github/workflows/map-projection-settings.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks
+        run: |
+          node --check js/ui/mapProjectionSettings.js
+          node --check js/ui/mapRenderer.js
+      - name: Projection regressions
+        run: node tools/test-map-projection.mjs
