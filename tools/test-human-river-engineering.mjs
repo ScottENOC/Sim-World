@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { initialiseHydrology, tickHydrology, ensureRegionalHydrology } from '../js/world/hydrology.js';
+import fs from 'node:fs';
+import { initialiseHydrology, tickHydrology, ensureRegionalHydrology, setWaterOperatingPriority, setWaterPolicy } from '../js/world/hydrology.js';
 
 function region(id, population=10000) {
   return {
@@ -25,9 +26,15 @@ function world() {
 }
 
 {
+  const source=fs.readFileSync(new URL('../js/economy/construction.js',import.meta.url),'utf8');
+  assert.match(source,/river_weir:/,'small river-control works are ordinary construction projects');
+  assert.match(source,/reservoir_dam:/,'major dams are ordinary construction projects');
+}
+
+{
   const {graph,regions,a,b,c,river}=world();
   a.construction.assets.push(asset('irrigation'));
-  a.waterPolicy={ surfaceWithdrawalIntensity:1 };
+  setWaterPolicy(a,{ surfaceWithdrawalIntensity:1 });
   tickHydrology(graph,regions,80,30);
   const s=river.hydrology.segments;
   assert.ok(s.upstream.withdrawal>0,'irrigation withdraws surface water');
@@ -50,17 +57,30 @@ function world() {
 }
 
 {
-  const {graph,regions,a,b,river}=world();
+  const {graph,regions,a,river}=world();
   a.construction.assets.push(asset('reservoir_dam'));
-  a.waterPolicy={ targetReservoirFill:0.8,targetDownstreamFlow:0.55 };
+  setWaterOperatingPriority(a,'irrigation');
   tickHydrology(graph,regions,90,30);
   const first={...river.hydrology.segments.upstream};
   assert.ok(first.stored>=0,'dam exposes persistent storage');
+  assert.equal(a.waterPolicy.operatingPriority,'irrigation');
+  assert.ok(a.waterPolicy.targetReservoirFill>a.waterPolicy.targetDownstreamFlow,'irrigation priority favours storage over release');
   a.climate.rainfallMultiplier=0.2;
   tickHydrology(graph,regions,270,30);
   const dry={...river.hydrology.segments.upstream};
   assert.ok(Number.isFinite(dry.storageChange),'dam tracks storage/release separately from river volume');
   assert.ok(dry.outflow>=0,'release rule remains physically non-negative');
+}
+
+{
+  const {graph,regions,a,river}=world();
+  a.construction.assets.push(asset('reservoir_dam'));
+  setWaterOperatingPriority(a,'hydropower');
+  tickHydrology(graph,regions,75,30);
+  assert.equal(river.hydrology.segments.upstream.hydropowerPotential,0,'a dam does not generate electricity before relevant technology');
+  a.unlockedTechIds.add('electrical_generation');
+  tickHydrology(graph,regions,105,30);
+  assert.ok(river.hydrology.segments.upstream.hydropowerPotential>=0,'hydropower output is available to a later electricity system without inventing one here');
 }
 
 {
@@ -78,7 +98,7 @@ function world() {
   const {graph,regions,a,b}=world();
   a.population=500000; a.report.farming.workers=180000; a.industrialChemicalDischarge=0.2;
   a.construction.assets.push(asset('irrigation'));
-  a.waterPolicy={surfaceWithdrawalIntensity:1};
+  setWaterPolicy(a,{surfaceWithdrawalIntensity:1});
   b.hydrology={waterImpactAwareness:0.95,groundwater:{storage:1,rechargeMultiplier:1,withdrawal:0},report:{}};
   for(let i=0;i<5;i++) tickHydrology(graph,regions,150+i*30,30);
   const relation=b.relations.get('upstream');
