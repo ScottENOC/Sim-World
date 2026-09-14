@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 GEO_PATH = ROOT / 'data' / 'world' / 'regions.geo.json'
 META_PATH = ROOT / 'data' / 'world' / 'regions.meta.json'
 SEA_META_PATH = ROOT / 'data' / 'world' / 'seaRegions.meta.json'
+REVIEW_PATH = ROOT / 'data' / 'world' / 'north-america-v1-review.json'
 MAX_SEAM_DEGREES = 0.08
 
 
@@ -23,6 +24,8 @@ def main():
     geo = json.loads(GEO_PATH.read_text())
     meta_doc = json.loads(META_PATH.read_text())
     seas = json.loads(SEA_META_PATH.read_text()).get('seaRegions', [])
+    review = json.loads(REVIEW_PATH.read_text()) if REVIEW_PATH.exists() else []
+    review_by_id = {r['id']: r for r in review}
     features = geo.get('features', [])
     meta_by_id = {m['id']: m for m in meta_doc.get('regions', [])}
     feature_by_id = {f['properties']['id']: f for f in features}
@@ -39,7 +42,6 @@ def main():
     tree = STRtree(geoms)
     index_by_id = {rid: i for i, rid in enumerate(ids)}
     repaired = []
-    unresolved = []
 
     for rid in sorted(new_ids):
         meta = meta_by_id[rid]
@@ -63,7 +65,6 @@ def main():
             if best is None or score < best[0]:
                 best = (score, oid, distance)
         if best is None:
-            unresolved.append((rid, meta.get('name', rid), None))
             continue
         _, oid, distance = best
         meta.setdefault('neighbors', []).append(oid)
@@ -72,7 +73,6 @@ def main():
         meta_by_id[oid]['neighbors'] = sorted(set(meta_by_id[oid]['neighbors']))
         repaired.append((rid, oid, distance))
 
-    # A second pass catches regions whose nearest seam partner was itself fixed.
     still = []
     for rid in new_ids:
         meta = meta_by_id[rid]
@@ -81,7 +81,19 @@ def main():
 
     if still:
         for rid, name in still:
+            geom = geoms[index_by_id[rid]]
+            nearest = []
+            for oid, other in zip(ids, geoms):
+                if oid == rid:
+                    continue
+                nearest.append((geom.distance(other), oid, meta_by_id.get(oid, {}).get('name', oid), oid in new_ids))
+            nearest.sort(key=lambda item: (item[0], item[1]))
+            source_units = review_by_id.get(rid, {}).get('sourceUnits', [])
             print(f'UNRESOLVED_INLAND_ORPHAN {rid} {name}')
+            print('ORPHAN_SOURCE_UNITS=' + json.dumps(source_units, ensure_ascii=False))
+            print('ORPHAN_BOUNDS=' + json.dumps([round(v, 6) for v in geom.bounds]))
+            for distance, oid, other_name, is_new in nearest[:8]:
+                print(f'ORPHAN_NEAREST distanceDegrees={distance:.6f} new={int(is_new)} id={oid} name={other_name}')
         raise RuntimeError(f'{len(still)} inland North America regions remain disconnected')
 
     META_PATH.write_text(json.dumps(meta_doc, ensure_ascii=False, separators=(',', ':')))
