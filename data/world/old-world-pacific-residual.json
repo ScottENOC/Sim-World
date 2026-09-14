@@ -1,7 +1,7 @@
 {
-  "beforeRegions": 1389,
-  "residualRegions": 209,
-  "totalRegions": 1574,
+  "beforeRegions": 1494,
+  "residualRegions": 322,
+  "totalRegions": 1774,
   "targetAreaSqKm": 94208106.5,
-  "coverageRatioAfterResidual": 0.9999808217336286
+  "coverageRatioAfterResidual": 0.9999806788904821
 }
