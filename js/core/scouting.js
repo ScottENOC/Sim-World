@@ -38,6 +38,23 @@ function angularDifference(a, b) {
   return Math.abs(((a - b + 540) % 360) - 180);
 }
 
+
+export function buildScoutingContext(regions = [], regionsById = null) {
+  const byId = regionsById instanceof Map ? regionsById : new Map(regions.map((region) => [region.id, region]));
+  const coastalBySea = new Map();
+  const orderById = new Map();
+  regions.forEach((region, index) => {
+    orderById.set(region.id, index);
+    if (!region.isCoastal) return;
+    for (const seaId of region.adjacentSeaIds || []) {
+      let list = coastalBySea.get(seaId);
+      if (!list) { list = []; coastalBySea.set(seaId, list); }
+      list.push(region);
+    }
+  });
+  return { regionsById: byId, coastalBySea, orderById };
+}
+
 function sharedSeaIds(a, b) {
   const bSeas = new Set(b?.adjacentSeaIds || []);
   return (a?.adjacentSeaIds || []).filter((id) => bSeas.has(id));
@@ -78,9 +95,10 @@ function normaliseHeading(heading) {
   return Object.hasOwn(HEADINGS, key) ? key : null;
 }
 
-export function scoutingCandidates(region, regions, mode = 'auto', heading = null) {
+export function scoutingCandidates(region, regions, mode = 'auto', heading = null, scoutingContext = null) {
   if (!region) return [];
-  const byId = new Map(regions.map((candidate) => [candidate.id, candidate]));
+  const context = scoutingContext || buildScoutingContext(regions);
+  const byId = context.regionsById;
   const known = knownRegionIds(region);
   const candidates = new Map();
   const headingKey = normaliseHeading(heading);
@@ -115,8 +133,13 @@ export function scoutingCandidates(region, regions, mode = 'auto', heading = nul
 
   if (mode !== 'land' && region.isCoastal && (region.navy?.boats || 0) >= 1) {
     const maxRange = navalRangeKm(region);
-    for (const target of regions) {
-      if (target.id === region.id || !target.isCoastal || hasDirectContact(region, target)) continue;
+    const nearbyCoasts = new Map();
+    for (const seaId of region.adjacentSeaIds || []) {
+      for (const target of context.coastalBySea.get(seaId) || []) nearbyCoasts.set(target.id, target);
+    }
+    const orderedTargets = [...nearbyCoasts.values()].sort((a, b) => (context.orderById.get(a.id) ?? 0) - (context.orderById.get(b.id) ?? 0));
+    for (const target of orderedTargets) {
+      if (target.id === region.id || hasDirectContact(region, target)) continue;
       const seas = sharedSeaIds(region, target);
       if (!seas.length) continue;
       const km = distanceKm(region, target);
@@ -150,13 +173,13 @@ function randomHeading(rng) {
   return keys[Math.floor(rng() * keys.length) % keys.length];
 }
 
-export function startScoutingMission(region, regions, currentTick, rng = Math.random, mode = 'auto', heading = null) {
+export function startScoutingMission(region, regions, currentTick, rng = Math.random, mode = 'auto', heading = null, scoutingContext = null) {
   if (!region || region.scouting?.active) return null;
 
   let chosenHeading = normaliseHeading(heading);
   if (mode === 'sea' && !chosenHeading) chosenHeading = randomHeading(rng);
 
-  let candidates = scoutingCandidates(region, regions, mode, chosenHeading);
+  let candidates = scoutingCandidates(region, regions, mode, chosenHeading, scoutingContext);
   let choice = chooseWeighted(candidates, rng);
 
   // A directed naval expedition can always sail into the unknown if a boat is

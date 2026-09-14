@@ -16,10 +16,10 @@ import { chooseAiConstruction } from '../economy/construction.js?v=20260905-proj
 import { chooseAiSiegeTargets } from '../military/siegeEquipment.js?v=20260905-projects1';
 import { chooseAiReligion, religiousWarModifier } from '../society/religion.js?v=20260905-religion1';
 import { activeTradeRestrictions, setTradeRestriction, tradeActorId } from '../economy/tradePolicy.js?v=20260905-policy1';
-import { startScoutingMission } from '../core/scouting.js?v=20260906-scouting1';
+import { buildScoutingContext, startScoutingMission } from '../core/scouting.js?v=20260906-scouting1';
 import { applyMemoryDrivenNpcPolicy, npcMemorySignals } from './memoryDrivenAi.js?v=20260907-memory-ai1';
 import { setChokepointTollPolicy, setRoadTollPolicy, transitPolicySummary } from '../economy/transitTolls.js?v=20260907-transit1';
-import { chooseNpcMilitaryStrategy } from '../military/strategicPlanning.js?v=20260908-strategy1';
+import { buildMilitaryStrategyContext, chooseNpcMilitaryStrategy } from '../military/strategicPlanning.js?v=20260908-strategy1';
 import { chooseSupplyAwareCampaignDirective } from '../military/supplyAwareAi.js?v=20260908-supply-ai1';
 import { chooseDefensiveCounterLogistics } from '../military/counterLogisticsAi.js?v=20260909-counter-logistics1';
 import { coordinateExpeditionRelief } from '../military/expeditionReliefAi.js?v=20260909-relief1';
@@ -58,6 +58,8 @@ export function tickNationAi(regions, playerRegionId, activeRaids, activeCampaig
   const detail = (label, fn) => profiler?.measureDetail ? profiler.measureDetail(`Nation AI: ${label}`, fn) : fn();
   const metric = (label, value) => profiler?.metric?.(`Nation AI ${label}`, value);
   const regionsById = detail('build region index', () => new Map(regions.map((region) => [region.id, region])));
+  const militaryStrategyContext = detail('military strategy context', () => buildMilitaryStrategyContext(regions, agreements, polities, currentTick, activeCampaigns));
+  const scoutingContext = detail('scouting context', () => buildScoutingContext(regions, regionsById));
   let aiRegions = 0;
   let strategicReviews = 0;
   detail('campaign management', () => manageCampaigns(activeCampaigns, regionsById, playerRegionId, rng, currentTick, options));
@@ -69,7 +71,7 @@ export function tickNationAi(regions, playerRegionId, activeRaids, activeCampaig
     aiRegions += 1;
     // Operational posture stays responsive every monthly world tick.
     detail('military policy', () => chooseAiMilitaryPolicies(region));
-    detail('military strategy', () => chooseNpcMilitaryStrategy(region, regions, agreements, polities, currentTick, activeCampaigns));
+    detail('military strategy', () => chooseNpcMilitaryStrategy(region, regions, agreements, polities, currentTick, activeCampaigns, militaryStrategyContext));
 
     // Strategic choices are much slower-moving. Spread quarterly reviews over
     // stable cohorts so a large world does not make every ruler reconsider
@@ -84,7 +86,7 @@ export function tickNationAi(regions, playerRegionId, activeRaids, activeCampaig
     detail('religion choice', () => chooseAiReligion(region, religiousWorld, currentTick, rng, strategicWeeks));
     detail('transit tolls', () => maybeManageTransitTolls(region, regions, rng));
     detail('trade embargo', () => maybeAdjustTradeEmbargo(region, regionsById, currentTick));
-    detail('scouting choice', () => maybeScout(region, regionsById, currentTick, rng));
+    detail('scouting choice', () => maybeScout(region, regionsById, currentTick, rng, scoutingContext));
     detail('diplomat posting', () => chooseNpcDiplomatPosting(region, regions, currentTick, rng));
     detail('agreement choice', () => maybeMakeAgreement(region, regionsById, playerRegionId, agreements, polities, currentTick, toolTypes, rng, chance(DIPLOMACY_CONSIDERATION_CHANCE_PER_WEEK)));
     const launchedCivilWarCampaign = detail('civil war choice', () => maybeLaunchCivilWarCampaign(region, regionsById, activeCampaigns, polities, currentTick, rng));
@@ -158,7 +160,7 @@ function maybeAdjustTradeEmbargo(region, regionsById, currentTick) {
   }
 }
 
-function maybeScout(region, regionsById, currentTick, rng) {
+function maybeScout(region, regionsById, currentTick, rng, scoutingContext = null) {
   if (region.scouting?.active) return;
   const contacts = directContactIds(region).size;
   const demand = region.marketDemand || {};
@@ -179,7 +181,7 @@ function maybeScout(region, regionsById, currentTick, rng) {
   const motive = shortagePressure * 0.55 + (tradeExperience ? 0.25 : 0) + isolation * 0.2;
   if (motive < 0.18 || rng() > Math.min(0.65, motive)) return;
 
-  startScoutingMission(region, [...regionsById.values()], currentTick, rng, 'auto');
+  startScoutingMission(region, [...regionsById.values()], currentTick, rng, 'auto', null, scoutingContext);
 }
 
 function stableAiHash(value) {

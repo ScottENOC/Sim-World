@@ -1900,6 +1900,17 @@ function showNextEvent(clock, eventQueue) {
     return;
   }
 
+  if (event.type === 'disease_recognised' || event.type === 'disease_outbreak') {
+    const prevalencePct = Math.max(0, Number(event.prevalence) || 0) * 100;
+    const deaths = Math.max(0, Number(event.deaths) || 0);
+    const recognised = event.type === 'disease_recognised';
+    document.getElementById('event-title').textContent = recognised ? `${event.pathogenLabel || 'Disease'} recognised` : `${event.pathogenLabel || 'Disease'} outbreak`;
+    document.getElementById('event-body').textContent = recognised
+      ? `Local authorities now recognise an outbreak of ${event.pathogenLabel || 'disease'}. Estimated prevalence is ${prevalencePct.toFixed(1)}%${deaths >= 1 ? `, with about ${Math.round(deaths).toLocaleString()} recent deaths` : ''}.`
+      : `${event.pathogenLabel || 'Disease'} is spreading locally. Estimated prevalence has reached ${prevalencePct.toFixed(1)}%${deaths >= 1 ? `, with about ${Math.round(deaths).toLocaleString()} recent deaths` : ''}.`;
+    wireEventContinue(clock, eventQueue);
+    return;
+  }
   if (event.type === 'exploration_voyage_success') {
     const coastText = event.discoveredRegionIds?.length
       ? ` The crew also charted ${event.discoveredRegionIds.length} previously unknown coastal ${event.discoveredRegionIds.length === 1 ? 'region' : 'regions'}.`
