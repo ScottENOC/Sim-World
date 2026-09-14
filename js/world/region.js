@@ -112,6 +112,21 @@ export async function loadWorld() {
     // Clay is deliberately common rather than another rare strategic ore.
     // The procedural stock avoids inflating the already-large static map data
     // with an almost identical entry for every region.
+    if (!region.deposits.coal) {
+      let h = 2166136261;
+      for (const c of region.id) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+      const coalSignal = (h >>> 0) / 4294967295;
+      const sedimentary = 0.35 + Math.min(0.45, Math.max(0, 1 - Math.abs(region.centroid?.[1] || 0) / 85) * 0.25);
+      if (coalSignal < sedimentary) {
+        const scale = Math.max(1, region.areaSqKm);
+        const surface = Math.round(scale * (45 + coalSignal * 80));
+        const deep = Math.round(scale * (180 + coalSignal * 260));
+        region.deposits.coal = { tiers: [
+          { id: 'surface', label: 'Shallow coal seams', initialStock: surface, remainingStock: surface, difficulty: 0.22, requiredTechId: null, maxWorkers: Math.max(12, Math.round(scale * 0.025)) },
+          { id: 'deep', label: 'Deep coal seams', initialStock: deep, remainingStock: deep, difficulty: 0.42, requiredTechId: 'deep_mining', maxWorkers: Math.max(30, Math.round(scale * 0.06)) },
+        ] };
+      }
+    }
     if (!region.deposits.clay) {
       const clayStock = Math.max(50_000, Math.round(region.areaSqKm * 2_000));
       region.deposits.clay = { tiers: [{

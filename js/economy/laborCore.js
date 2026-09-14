@@ -66,8 +66,8 @@ const BRONZE_PER_SMITH = 2.0;
 // wanted, not by what's numerically biggest. There's no full price/market
 // system yet (that's the trade system), so this is a placeholder stand-in
 // for background (non-tool-demand) mining priority.
-const ORE_PRIORITY = { copper: 3, tin: 3, ironOre: 2, clay: 1, gold: 2, salt: 2.2, saltpetre: 1.4, sulfur: 1.2, stone: 1 };
-const MINE_SALE_BUFFER = { copper: 2000, tin: 1000, ironOre: 3000, clay: 1000 };
+const ORE_PRIORITY = { copper: 3, tin: 3, ironOre: 2, coal: 2.4, clay: 1, gold: 2, salt: 2.2, saltpetre: 1.4, sulfur: 1.2, stone: 1 };
+const MINE_SALE_BUFFER = { copper: 2000, tin: 1000, ironOre: 3000, coal: 3500, clay: 1000 };
 const METAL_SALE_BUFFER = { copper: 200, tin: 100 };
 
 // A little bronze demand exists even with every tool bought — prestige

@@ -172,6 +172,8 @@ function maybeInvest(region, currentTick, years, rng, events) {
 function operateAssets(region, years) {
   const s = ensureProtoIndustryState(region);
   let power = 0, productivity = 0, coalUse = 0;
+  region.stockpile ||= {};
+  let coalAvailableStock = Math.max(0, region.stockpile.coal || 0);
   for (const asset of s.assets) {
     if (asset.status !== 'active') continue;
     asset.ageYears += years;
@@ -180,9 +182,18 @@ function operateAssets(region, years) {
     const ageWear = clamp01(asset.ageYears / Math.max(1, cfg.lifeYears));
     asset.maintenance = Math.max(0.25, (asset.maintenance || 1) - years * (0.006 + ageWear * 0.015));
     asset.productivity = clamp01(suitability * asset.maintenance * (1 - ageWear * 0.35));
+    if (asset.type === 'coal_kiln' || asset.type === 'steam_pump') {
+      const annualFuel = asset.type === 'steam_pump' ? 28 : 18;
+      const wanted = annualFuel * years * asset.productivity;
+      const burned = Math.min(coalAvailableStock, wanted);
+      const fuelRatio = wanted > 0 ? burned / wanted : 1;
+      coalAvailableStock -= burned;
+      region.stockpile.coal = Math.max(0, (region.stockpile.coal || 0) - burned);
+      coalUse += burned;
+      asset.productivity *= fuelRatio;
+    }
     if (['water_mill','wind_mill','fulling_mill','saw_mill','trip_hammer','steam_pump'].includes(asset.type)) power += asset.productivity * (asset.type === 'steam_pump' ? 1.6 : 1);
     productivity += asset.productivity * (asset.type === 'spinning_workshop' ? 1.5 : asset.type === 'trip_hammer' ? 1.25 : 0.7);
-    if (asset.type === 'coal_kiln' || asset.type === 'steam_pump') coalUse += asset.productivity;
     if (ageWear >= 1 && asset.maintenance < 0.35) asset.status = 'retired';
   }
   s.mechanicalPowerIndex = power;
