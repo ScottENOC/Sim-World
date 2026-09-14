@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / 'data' / 'world'
 TMP = Path('/tmp/simworld-reconstruction')
+MIN_TARGET_COVERAGE = 0.995
 
 
 def run(*args, dynamic_base=False):
@@ -32,6 +33,17 @@ def feature_count():
 
 def announce(stage):
     print(f'RECONSTRUCTION_STAGE {stage} regions={feature_count()}', flush=True)
+
+
+def require_target_coverage():
+    report_path = DATA / 'old-world-pacific-coverage.json'
+    report = json.loads(report_path.read_text())
+    ratio = float(report.get('targetCoverageRatio', 0.0))
+    print(f'RECONSTRUCTION_TARGET_COVERAGE={ratio:.6f}', flush=True)
+    if ratio < MIN_TARGET_COVERAGE:
+        raise RuntimeError(
+            f'reconstructed target coverage {ratio:.3%} below required {MIN_TARGET_COVERAGE:.1%}'
+        )
 
 
 def main():
@@ -65,9 +77,13 @@ def main():
         copy_world(out, ('regions.geo.json', 'regions.meta.json', 'resources.initial.json'))
         announce(batch)
 
-    run('python', 'tools/build-old-world-map-residual.py')
+    # The geographic batches already cover essentially the full target area.
+    # Do not run the legacy residual builder here: after component splitting it
+    # creates a second cohort of regions for tiny leftovers, duplicating zone
+    # subdivisions and re-introducing disconnected inland scraps.
     run('python', 'tools/finalize-old-world-map-report.py')
-    announce('residual')
+    require_target_coverage()
+    announce('batched-land')
 
     # Reassign detached mainland scraps before canonicalisation. This preserves
     # every polygon but changes ownership to the physically adjacent region;
