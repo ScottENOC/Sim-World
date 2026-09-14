@@ -1,0 +1,27 @@
+name: Structural transformation and specialisation
+
+on:
+  push:
+    branches:
+      - structural-transformation-specialisation-v1
+  pull_request:
+    paths:
+      - 'js/economy/structuralTransformation.js'
+      - 'js/economy/labor.js'
+      - 'tools/test-structural-transformation.mjs'
+      - '.github/workflows/structural-transformation.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Structural transformation regressions
+        run: node tools/test-structural-transformation.mjs
+      - name: Existing mass education regressions
+        run: node tools/test-mass-education.mjs
+      - name: Existing proto-industry regressions
+        run: node tools/test-proto-industry.mjs
