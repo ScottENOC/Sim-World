@@ -262,7 +262,8 @@ function resolveVoyage(region, route, readiness, seaById, regionsById, currentTi
     const discoveredRegionIds = revealCoasts(region, targetSea, regionsById, currentTick);
     return {
       type: 'exploration_voyage_success', regionId: region.id, polityId: polityIdFor(region),
-      targetSeaId: route.targetSeaId, seaIds: [...route.seaIds], distanceKm: route.distanceKm,
+      targetSeaId: route.targetSeaId, targetSeaName: targetSea?.name || route.targetSeaId,
+      seaIds: [...route.seaIds], distanceKm: route.distanceKm,
       successChance, routeReliability: routeState.reliability, discoveredRegionIds,
     };
   }
@@ -279,6 +280,7 @@ function resolveVoyage(region, route, readiness, seaById, regionsById, currentTi
   return {
     type: catastrophic ? 'exploration_voyage_lost' : 'exploration_voyage_failed',
     regionId: region.id, polityId: polityIdFor(region), targetSeaId: route.targetSeaId,
+    targetSeaName: targetSea?.name || route.targetSeaId,
     seaIds: [...route.seaIds], distanceKm: route.distanceKm, successChance,
     routeReliability: routeState.reliability, shipLost: catastrophic,
   };
