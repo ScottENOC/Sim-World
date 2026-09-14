@@ -118,12 +118,21 @@ function regulateFlow(region, river, inflow, naturalFlow, elapsedDays) {
   let stored = oldStored;
   let outflow = inflow;
 
-  if (inflow > targetReleaseFlow && stored < capacity) {
-    const capture = Math.min(inflow - targetReleaseFlow, (capacity - stored) / dayScale);
+  const priority = region?.waterPolicy?.operatingPriority || 'balanced';
+  const isFloodPulse = inflow > naturalFlow * 1.18;
+  // Ordinary operation aims for the chosen target fill. Flood-control operation
+  // deliberately preserves empty capacity, but may use that spare capacity when
+  // a real high-flow pulse arrives. This makes timing matter even when annual
+  // inflow and outflow are almost equal.
+  const desiredCeiling = isFloodPulse && priority === 'flood_control' ? capacity : targetStorage;
+  if (inflow > targetReleaseFlow && stored < desiredCeiling) {
+    const capture = Math.min(inflow - targetReleaseFlow, (desiredCeiling - stored) / dayScale);
     outflow -= capture;
     stored += capture * dayScale;
-  } else if (inflow < targetReleaseFlow && stored > 0) {
-    const release = Math.min(targetReleaseFlow - inflow, stored / dayScale);
+  } else if ((inflow < targetReleaseFlow || stored > targetStorage) && stored > 0) {
+    const releaseForFlow = Math.max(0, targetReleaseFlow - inflow);
+    const releaseForLevel = Math.max(0, stored - targetStorage) / dayScale;
+    const release = Math.min(Math.max(releaseForFlow, releaseForLevel), stored / dayScale);
     outflow += release;
     stored -= release * dayScale;
   }
@@ -210,7 +219,10 @@ function riverSegments(river) {
 
 export function initialiseHydrology(graph, regions = []) {
   activeHydrologyGraph = graph || null;
-  for (const region of regions) ensureRegionalHydrology(region);
+  for (const region of regions) {
+    const h = ensureRegionalHydrology(region);
+    h.riverIds = [];
+  }
   if (!graph?.corridors) return graph;
   for (const river of graph.corridors.values()) if (river?.type === 'river') {
     if (!river.naturalHydrology) river.naturalHydrology = {
@@ -218,6 +230,13 @@ export function initialiseHydrology(graph, regions = []) {
       geometrySource: river.geometrySource || river.source || 'procedural',
     };
     if (!river.hydrology) river.hydrology = { segments: {}, lastUpdatedDay: null };
+    for (const regionId of river.regionIds || []) {
+      const region = regions.find((candidate) => candidate.id === regionId);
+      if (region) {
+        const h = ensureRegionalHydrology(region);
+        if (!h.riverIds.includes(river.id)) h.riverIds.push(river.id);
+      }
+    }
   }
   return graph;
 }
