@@ -112,6 +112,23 @@ export async function loadWorld() {
     // Clay is deliberately common rather than another rare strategic ore.
     // The procedural stock avoids inflating the already-large static map data
     // with an almost identical entry for every region.
+    if (!region.deposits.coal) {
+      let h = 2166136261;
+      for (const c of region.id) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+      const coalSignal = (h >>> 0) / 4294967295;
+      const sedimentary = 0.35 + Math.min(0.45, Math.max(0, 1 - Math.abs(region.centroid?.[1] || 0) / 85) * 0.25);
+      if (coalSignal < sedimentary) {
+        const scale = Math.max(1, region.areaSqKm);
+        const outcrop = Math.round(scale * (35 + coalSignal * 55));
+        const shaft = Math.round(scale * (145 + coalSignal * 230));
+        const deep = Math.round(scale * (420 + coalSignal * 720));
+        region.deposits.coal = { tiers: [
+          { id: 'surface', label: 'Outcropping and shallow coal seams', initialStock: outcrop, remainingStock: outcrop, difficulty: 0.20, requiredTechId: null, maxWorkers: Math.max(10, Math.round(scale * 0.02)) },
+          { id: 'shaft', label: 'Shaft-accessible coal seams', initialStock: shaft, remainingStock: shaft, difficulty: 0.38, requiredTechId: 'deep_mining', maxWorkers: Math.max(28, Math.round(scale * 0.055)) },
+          { id: 'deep', label: 'Deep water-bearing coal seams', initialStock: deep, remainingStock: deep, difficulty: 0.58, requiredTechId: 'early_steam_pumping', maxWorkers: Math.max(55, Math.round(scale * 0.11)) },
+        ] };
+      }
+    }
     if (!region.deposits.clay) {
       const clayStock = Math.max(50_000, Math.round(region.areaSqKm * 2_000));
       region.deposits.clay = { tiers: [{

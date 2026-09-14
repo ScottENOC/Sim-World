@@ -1,0 +1,70 @@
+name: Proto-industrial private investment validation
+
+on:
+  push:
+    branches: [proto-industrial-private-investment-v1]
+  pull_request:
+    paths:
+      - 'js/economy/protoIndustry.js'
+      - 'js/economy/tradeGoods.js'
+      - 'js/economy/laborCore.js'
+      - 'js/world/region.js'
+      - 'js/main.js'
+      - 'tools/apply-proto-industry-integration.py'
+      - 'tools/apply-coal-resource-integration.py'
+      - 'tools/test-proto-industry.mjs'
+      - 'tools/test-coal-resource.mjs'
+      - '.github/workflows/proto-industrial-private-investment.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply simulation integration
+        run: |
+          python tools/apply-proto-industry-integration.py
+          python tools/apply-coal-resource-integration.py
+      - name: Syntax checks
+        run: |
+          node --check js/economy/protoIndustry.js
+          node --check js/economy/tradeGoods.js
+          node --check js/economy/laborCore.js
+          node --check js/world/region.js
+          node --check js/main.js
+          python -m py_compile tools/apply-proto-industry-integration.py tools/apply-coal-resource-integration.py
+      - name: Proto-industry regressions
+        run: |
+          node tools/test-proto-industry.mjs
+          node tools/test-coal-resource.mjs
+      - name: Existing corporate-capital regressions
+        run: node tools/test-finance-corporate-capital-v2.mjs
+      - name: Existing technology regressions
+        run: |
+          node tools/test-technology-comprehension-rifling.mjs
+          node tools/test-gunpowder-firearms.mjs
+      - name: Commit integrated source
+        if: github.event_name == 'push'
+        run: |
+          if git diff --quiet -- js/main.js js/economy/protoIndustry.js js/economy/tradeGoods.js js/economy/laborCore.js js/world/region.js; then
+            echo 'Integration already committed.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/main.js js/economy/protoIndustry.js js/economy/tradeGoods.js js/economy/laborCore.js js/world/region.js
+          git commit -m 'Make coal mineable tradable and consumable'
+          git push origin HEAD:${{ github.ref_name }}
