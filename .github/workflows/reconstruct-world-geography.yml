@@ -35,10 +35,11 @@ jobs:
         run: |
           python tools/apply-map-component-splitting.py
           python tools/apply-broad-map-component-splitting.py
+          python tools/apply-reconstruction-dynamic-baselines.py
 
       - name: Syntax check reconstruction tooling
         run: |
-          python -m py_compile tools/reconstruct-world-from-598.py tools/apply-broad-map-component-splitting.py tools/build-map-expansion-v2-fast.py tools/build-old-world-asia-pacific.py tools/build-old-world-map-batch.py
+          python -m py_compile tools/reconstruct-world-from-598.py tools/apply-broad-map-component-splitting.py tools/apply-reconstruction-dynamic-baselines.py tools/build-map-expansion-v2-fast.py tools/build-silk-road-expansion.py tools/build-east-africa-expansion.py tools/build-old-world-asia-pacific.py tools/build-old-world-map-batch.py
 
       - name: Capture pre-reconstruction audit
         run: python tools/audit-region-geometry.py --focus Kursk --top 100 --json /tmp/geometry-before.json > /tmp/geometry-before.txt
@@ -58,7 +59,10 @@ jobs:
 
       - name: Reconstruct all generated land geography
         if: github.event_name == 'push'
-        run: python tools/reconstruct-world-from-598.py | tee /tmp/reconstruction.log
+        shell: bash
+        run: |
+          set -o pipefail
+          python tools/reconstruct-world-from-598.py | tee /tmp/reconstruction.log
 
       - name: Audit reconstructed geography
         run: |
@@ -85,8 +89,7 @@ jobs:
           if a:
               print('AFTER_KURSK_COMPONENTS='+str(a['components']))
               print('AFTER_KURSK_LARGEST_FRACTION='+str(a['largest_component_fraction']))
-          # Reconstruction must materially reduce pathological geometry. The
-          # name/ID may change, so absence of a Kursk-labelled region is valid.
+          assert after['feature_count'] >= 1200, after['feature_count']
           assert flagged(after) < flagged(before), (flagged(before), flagged(after))
           if a and b:
               assert a['components'] < b['components'], (b['components'], a['components'])
@@ -111,6 +114,7 @@ jobs:
           git diff --check
 
       - name: Upload reconstruction audits
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: reconstructed-world-geometry-audits
@@ -124,11 +128,11 @@ jobs:
           retention-days: 14
 
       - name: Commit reconstructed geography
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && success()
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add data/world tools/build-map-expansion-v2-fast.py
+          git add data/world tools/build-map-expansion-v2-fast.py tools/build-silk-road-expansion.py tools/build-east-africa-expansion.py
           if ! git diff --cached --quiet; then
             git commit -m 'Reconstruct generated world geography'
             git pull --rebase
