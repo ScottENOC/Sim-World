@@ -1,0 +1,108 @@
+name: Build North America map v1
+
+on:
+  push:
+    branches: [north-america-map-v1]
+    paths:
+      - '.github/workflows/build-north-america-map-v1.yml'
+      - 'tools/build-north-america-expansion.py'
+      - 'tools/north-america-region-plan-v1.json'
+      - 'tools/build-north-america-seas.py'
+      - 'tools/north-america-sea-plan-v1.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install geography dependencies
+        run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2
+      - name: Validate scripts and plans
+        run: |
+          python -m py_compile tools/build-north-america-expansion.py tools/build-north-america-seas.py
+          python -m json.tool tools/north-america-region-plan-v1.json >/dev/null
+          python -m json.tool tools/north-america-sea-plan-v1.json >/dev/null
+      - name: Generate North American land regions
+        run: |
+          rm -rf /tmp/simworld-na-land /tmp/simworld-na-sea
+          time python tools/build-north-america-expansion.py --output-dir /tmp/simworld-na-land | tee /tmp/north-america-land.log
+          cp /tmp/simworld-na-land/regions.geo.json data/world/regions.geo.json
+          cp /tmp/simworld-na-land/regions.meta.json data/world/regions.meta.json
+          cp /tmp/simworld-na-land/resources.initial.json data/world/resources.initial.json
+          cp /tmp/simworld-na-land/north-america-v1-review.json data/world/north-america-v1-review.json
+      - name: Generate North American seas and coastal adjacency
+        run: |
+          time python tools/build-north-america-seas.py --land-geo data/world/regions.geo.json --output-dir /tmp/simworld-na-sea | tee /tmp/north-america-sea.log
+          cp /tmp/simworld-na-sea/seaRegions.geo.json data/world/seaRegions.geo.json
+          cp /tmp/simworld-na-sea/seaRegions.meta.json data/world/seaRegions.meta.json
+      - name: Rebuild modern navigation metadata
+        run: python tools/build-region-navigation.py
+      - name: Sanity check generated geography
+        run: |
+          python - <<'PY'
+          import json
+          from shapely.geometry import shape
+          geo=json.load(open('data/world/regions.geo.json'))
+          meta=json.load(open('data/world/regions.meta.json'))['regions']
+          res=json.load(open('data/world/resources.initial.json'))
+          review=json.load(open('data/world/north-america-v1-review.json'))
+          nav=json.load(open('data/world/region-navigation.json'))
+          sea=json.load(open('data/world/seaRegions.meta.json'))['seaRegions']
+          ids=[f['properties']['id'] for f in geo['features']]
+          idset=set(ids)
+          mids={m['id'] for m in meta}
+          assert len(ids)==len(idset), 'duplicate land ids'
+          assert idset==mids==set(res), 'geo/meta/resource ids differ'
+          assert len(review)>=145, f'North America too coarse: {len(review)} regions'
+          new_ids={r['id'] for r in review}
+          assert new_ids <= idset
+          assert all(shape(next(f['geometry'] for f in geo['features'] if f['properties']['id']==r['id'])).is_valid for r in review), 'invalid North America geometry'
+          by_id={m['id']:m for m in meta}
+          for r in review:
+              assert r['areaSqKm']>=100, f'tiny gameplay region {r}'
+              assert by_id[r['id']]['neighbors'], f'isolated region {r["name"]}'
+          for m in meta:
+              for n in m.get('neighbors',[]):
+                  assert n in idset, f'dead neighbor {n}'
+                  assert m['id'] in by_id[n].get('neighbors',[]), f'non-reciprocal neighbor {m["id"]}->{n}'
+          cross=sum(1 for r in review if len({u.split(':',1)[0] for u in r.get('sourceUnits',[])})>1)
+          assert cross>=3, f'only {cross} regions cross modern national borders'
+          memberships=nav['regions']
+          usa=sum(1 for rid in new_ids if any(m['country']=='United States of America' for m in memberships.get(rid,[])))
+          can=sum(1 for rid in new_ids if any(m['country']=='Canada' for m in memberships.get(rid,[])))
+          mex=sum(1 for rid in new_ids if any(m['country']=='Mexico' for m in memberships.get(rid,[])))
+          assert min(usa,can,mex)>0, (usa,can,mex)
+          sea_by_id={m['id']:m for m in sea}
+          for sid in ('sea_bering','sea_gulf_alaska','sea_gulf_mexico','sea_gulf_st_lawrence','sea_hudson_bay'):
+              assert sid in sea_by_id, f'missing {sid}'
+              assert set(sea_by_id[sid].get('adjacentLand',[])) & new_ids, f'{sid} has no North American coast'
+          print('TOTAL_LAND_REGIONS='+str(len(ids)))
+          print('NORTH_AMERICA_NEW_REGIONS='+str(len(review)))
+          print('CROSS_MODERN_BORDER_REGIONS='+str(cross))
+          print(f'NAV_COUNTS USA={usa} CAN={can} MEX={mex}')
+          print('TOTAL_SEAS='+str(len(sea)))
+          PY
+          grep -q 'NEW_NORTH_AMERICA_REGIONS=' /tmp/north-america-land.log
+          git diff --check
+      - name: Commit generated North America map
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add data/world/regions.geo.json data/world/regions.meta.json data/world/resources.initial.json data/world/seaRegions.geo.json data/world/seaRegions.meta.json data/world/region-navigation.json data/world/north-america-v1-review.json
+          if git diff --cached --quiet; then
+            echo 'Generated North America map already current'
+          else
+            git commit -m 'Generate geography-first North America v1'
+            git pull --rebase
+            git push
+          fi
