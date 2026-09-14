@@ -99,6 +99,36 @@ def pacific_extra_geometry():
     return unary_union(PACIFIC_EXTRAS)
 
 
+def split_material_components(geom, min_material_area_sqkm=8):
+    geom = map_v2.repair(geom)
+    if geom.is_empty:
+        return []
+
+    def polygons(g):
+        if g.geom_type == 'Polygon':
+            yield g
+        elif hasattr(g, 'geoms'):
+            for child in g.geoms:
+                yield from polygons(child)
+
+    parts = [map_v2.repair(p) for p in polygons(geom) if not p.is_empty]
+    if len(parts) <= 1:
+        return parts
+
+    material = [p for p in parts if map_v2.area_sqkm(p) >= min_material_area_sqkm]
+    tiny = [p for p in parts if map_v2.area_sqkm(p) < min_material_area_sqkm]
+    if not material:
+        # Preserve genuine small-island groups rather than deleting land merely
+        # because no individual island reaches the source-unit threshold.
+        return [geom]
+
+    groups = [[p] for p in material]
+    for fragment in tiny:
+        nearest = min(range(len(material)), key=lambda i: fragment.distance(material[i]))
+        groups[nearest].append(fragment)
+    return [map_v2.repair(unary_union(group)) for group in groups]
+
+
 def source_units(admin0_targets, existing):
     adm1 = fast.natural_earth_admin1()
     adm1_items = []
@@ -113,9 +143,12 @@ def source_units(admin0_targets, existing):
         geom = map_v2.repair(geom.difference(existing))
         if geom.is_empty or map_v2.area_sqkm(geom) < 8:
             return
-        area = map_v2.area_sqkm(geom)
-        pieces.append({'geometry': geom, 'names': [name], 'anchor': name, 'anchorArea': area,
-                       'mergeArea': geom.area, 'source': source})
+        for component in split_material_components(geom, 8):
+            area = map_v2.area_sqkm(component)
+            if area < 8:
+                continue
+            pieces.append({'geometry': component, 'names': [name], 'anchor': name, 'anchorArea': area,
+                           'mergeArea': component.area, 'source': source})
 
     for feature, country_geom in admin0_targets:
         country_name = str(prop(feature, 'NAME_EN', 'ADMIN', 'NAME', 'name') or 'Unnamed land')
