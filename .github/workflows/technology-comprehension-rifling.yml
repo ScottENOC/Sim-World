@@ -1,0 +1,31 @@
+name: Technology comprehension and rifling
+
+on:
+  push:
+    branches: [technology-comprehension-rifling-v1]
+  pull_request:
+    paths:
+      - 'js/technology/technologyComprehension.js'
+      - 'js/technology/breakthroughs.js'
+      - 'js/military/firearms.js'
+      - 'tools/test-technology-comprehension-rifling.mjs'
+      - '.github/workflows/technology-comprehension-rifling.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks
+        run: |
+          node --check js/technology/technologyComprehension.js
+          node --check js/technology/breakthroughs.js
+          node --check js/military/firearms.js
+      - name: Technology comprehension and rifling regressions
+        run: node tools/test-technology-comprehension-rifling.mjs
+      - name: Existing gunpowder regression
+        run: node tools/test-gunpowder-firearms.mjs
