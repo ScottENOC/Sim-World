@@ -7,6 +7,7 @@ import {
 } from './education.js?v=20260906-education1';
 import { KnowledgeLedger } from '../core/knowledge.js?v=20260906-scouting1';
 import { centroidDistanceKm } from '../world/distance.js?v=20260904-kingdom1';
+import { educationAdministrativeCapacity } from './massEducation.js?v=20260914-mass-education1';
 
 const clamp = (value, low = 0, high = 1) => Math.max(low, Math.min(high, Number(value) || 0));
 const REGION_BY_ID = new Map();
@@ -96,7 +97,7 @@ function applyAdministration(sim, elapsedDays) {
     const weightedScribes = education.juniorScribes * 0.35 + education.experiencedScribes + education.masterScribes * 1.8;
     // Not every literate specialist works for the palace: temples, merchants,
     // estates and private households compete for the same tiny educated class.
-    const availableForGovernment = weightedScribes * 0.62;
+    const availableForGovernment = weightedScribes * 0.62 + educationAdministrativeCapacity(capital);
     const coverage = education.writingSystem ? clamp(availableForGovernment / demand) : 0;
     education.administrativeDemand = demand;
     education.administrativeCoverage = coverage;

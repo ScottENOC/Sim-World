@@ -7,6 +7,7 @@ import { chooseEmigrationDestinations } from './migration.js?v=20260904-weather1
 import { migrateReligion } from './religion.js?v=20260905-religion1';
 import { migrateCulture, tickCulture } from './culture.js?v=20260912-culture-scale1';
 import { tickEducation } from './education.js?v=20260906-education1';
+import { educationFertilityMultiplier, tickMassEducation } from './massEducation.js?v=20260914-mass-education1';
 import { DAYS_PER_YEAR, annualFractionRate, elapsedWeeks } from '../core/simTime.js?v=20260905-time1';
 import { tickExternalities } from './externalities.js?v=20260907-classical1';
 import { tickUrbanisation } from '../technology/classicalTransition.js?v=20260907-art1';
@@ -34,7 +35,7 @@ function clamp01(v) { return Math.max(0, Math.min(1, v)); }
 export function tickDemographics(regions, religiousWorld = null, elapsedDays = 7, profiler = null) {
   const measureDetail = (label, fn) => profiler?.measureDetail ? profiler.measureDetail(label, fn) : fn();
   const metric = (label, value) => profiler?.metric?.(label, value);
-  measureDetail('Demographics: education', () => tickEducation(regions, null, elapsedDays));
+  measureDetail('Demographics: education', () => { tickEducation(regions, null, elapsedDays); tickMassEducation(regions, elapsedDays); });
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   for (const region of regions) {
     measureDetail('Demographics: urbanisation', () => tickUrbanisation(region, elapsedDays));
@@ -63,7 +64,7 @@ function applyBaselineDemographics(region, elapsedDays) {
   const foodSecurityFactor = clamp01(region.stability);
   const effects = region.externalities?.demographicEffects || {};
   const fertilityMultiplier = Math.max(0.7, Math.min(1, effects.fertilityMultiplier ?? 1));
-  const annualBirth = BASE_ANNUAL_BIRTH_RATE * (1 - region.educationLevel * EDUCATION_BIRTH_PENALTY) * fertilityMultiplier;
+  const annualBirth = BASE_ANNUAL_BIRTH_RATE * educationFertilityMultiplier(region) * fertilityMultiplier;
   const births = totalPop * annualBirth * years * (0.4 + 0.6 * foodSecurityFactor);
   const childDeathRate = Math.min(0.2, BASE_ANNUAL_DEATH_RATE.children + (effects.childMortalityExtraAnnual || 0));
   const adultDeathRate = Math.min(0.15, BASE_ANNUAL_DEATH_RATE.workingAge + (effects.adultMortalityExtraAnnual || 0));
