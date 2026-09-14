@@ -9,6 +9,7 @@ on:
       - 'tools/north-america-region-plan-v1.json'
       - 'tools/build-north-america-seas.py'
       - 'tools/north-america-sea-plan-v1.json'
+      - 'tools/repair-north-america-adjacency.py'
   workflow_dispatch:
 
 permissions:
@@ -29,7 +30,7 @@ jobs:
         run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2
       - name: Validate scripts and plans
         run: |
-          python -m py_compile tools/build-north-america-expansion.py tools/build-north-america-seas.py
+          python -m py_compile tools/build-north-america-expansion.py tools/build-north-america-seas.py tools/repair-north-america-adjacency.py
           python -m json.tool tools/north-america-region-plan-v1.json >/dev/null
           python -m json.tool tools/north-america-sea-plan-v1.json >/dev/null
       - name: Generate North American land regions
@@ -45,6 +46,8 @@ jobs:
           time python tools/build-north-america-seas.py --land-geo data/world/regions.geo.json --output-dir /tmp/simworld-na-sea | tee /tmp/north-america-sea.log
           cp /tmp/simworld-na-sea/seaRegions.geo.json data/world/seaRegions.geo.json
           cp /tmp/simworld-na-sea/seaRegions.meta.json data/world/seaRegions.meta.json
+      - name: Repair source-boundary adjacency seams
+        run: python tools/repair-north-america-adjacency.py | tee /tmp/north-america-adjacency.log
       - name: Rebuild modern navigation metadata
         run: python tools/build-region-navigation.py
       - name: Sanity check generated geography
@@ -89,7 +92,7 @@ jobs:
           mex=sum(1 for rid in new_ids if any(m['country']=='Mexico' for m in memberships.get(rid,[])))
           assert min(usa,can,mex)>0, (usa,can,mex)
           sea_by_id={m['id']:m for m in sea}
-          for sid in ('sea_bering','sea_gulf_alaska','sea_gulf_mexico','sea_gulf_st_lawrence','sea_hudson_bay'):
+          for sid in ('sea_bering','sea_gulf_alaska','sea_gulf_mexico','sea_gulf_st_lawrence','sea_hudson_bay','sea_lake_superior','sea_lake_erie'):
               assert sid in sea_by_id, f'missing {sid}'
               assert set(sea_by_id[sid].get('adjacentLand',[])) & new_ids, f'{sid} has no North American coast'
           print('TOTAL_LAND_REGIONS='+str(len(ids)))
