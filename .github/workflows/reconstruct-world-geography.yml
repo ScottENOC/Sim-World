@@ -37,9 +37,10 @@ jobs:
           python tools/apply-broad-map-component-splitting.py
           python tools/apply-reconstruction-dynamic-baselines.py
 
-      - name: Syntax check reconstruction tooling
+      - name: Preflight reconstruction tooling
         run: |
-          python -m py_compile tools/reconstruct-world-from-598.py tools/apply-broad-map-component-splitting.py tools/apply-reconstruction-dynamic-baselines.py tools/build-map-expansion-v2-fast.py tools/build-silk-road-expansion.py tools/build-east-africa-expansion.py tools/build-old-world-asia-pacific.py tools/build-old-world-map-batch.py
+          python -m py_compile tools/reconstruct-world-from-598.py tools/repair-region-component-ownership.py tools/test-region-component-ownership.py tools/apply-broad-map-component-splitting.py tools/apply-reconstruction-dynamic-baselines.py tools/build-map-expansion-v2-fast.py tools/build-silk-road-expansion.py tools/build-east-africa-expansion.py tools/build-old-world-asia-pacific.py tools/build-old-world-map-batch.py
+          python tools/test-region-component-ownership.py
 
       - name: Capture pre-reconstruction audit
         run: python tools/audit-region-geometry.py --focus Kursk --top 100 --json /tmp/geometry-before.json > /tmp/geometry-before.txt
@@ -99,6 +100,7 @@ jobs:
         run: |
           python tools/test-old-world-asia-pacific-map.py
           python tools/test-map-component-splitting.py
+          python tools/test-region-component-ownership.py
           node tools/test-country-picker.mjs
           node tools/test-world-spatial-skeleton.mjs
           node tools/test-world-spatial-real-map.mjs
