@@ -68,9 +68,15 @@ jobs:
           assert new_ids <= idset
           assert all(shape(next(f['geometry'] for f in geo['features'] if f['properties']['id']==r['id'])).is_valid for r in review), 'invalid North America geometry'
           by_id={m['id']:m for m in meta}
+          coastal_ids=set()
+          for water in sea:
+              coastal_ids.update(water.get('adjacentLand',[]))
+          island_regions=[]
           for r in review:
               assert r['areaSqKm']>=100, f'tiny gameplay region {r}'
-              assert by_id[r['id']]['neighbors'], f'isolated region {r["name"]}'
+              if not by_id[r['id']]['neighbors']:
+                  assert r['id'] in coastal_ids, f'inland isolated region {r["name"]}'
+                  island_regions.append(r['name'])
           for m in meta:
               for n in m.get('neighbors',[]):
                   assert n in idset, f'dead neighbor {n}'
@@ -89,6 +95,7 @@ jobs:
           print('TOTAL_LAND_REGIONS='+str(len(ids)))
           print('NORTH_AMERICA_NEW_REGIONS='+str(len(review)))
           print('CROSS_MODERN_BORDER_REGIONS='+str(cross))
+          print('WATER_ISOLATED_ISLAND_REGIONS='+str(len(island_regions)))
           print(f'NAV_COUNTS USA={usa} CAN={can} MEX={mex}')
           print('TOTAL_SEAS='+str(len(sea)))
           PY
