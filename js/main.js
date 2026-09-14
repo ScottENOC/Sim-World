@@ -400,7 +400,7 @@ async function main() {
     profiler.measure('Irregular technology', () => tickIrregularTechnology(regions, religiousWorld, time.elapsedDays, Math.random));
     profiler.measure('Banditry', () => tickBanditry(regions, toolTypes, agreements, time.elapsedDays));
     profiler.measure('Nation AI', () => tickNationAi(regions, playerRegionId, activeRaids, activeCampaigns, agreements, polities,
-      religiousWorld, calendarWeek, toolTypes, Math.random, time.elapsedDays, { fleets, seaRegions }));
+      religiousWorld, calendarWeek, toolTypes, Math.random, time.elapsedDays, { fleets, seaRegions, profiler }));
 
     const { remaining, events } = profiler.measure('Raids', () => tickRaids(activeRaids, regionsById, calendarWeek, toolTypes, Math.random));
     activeRaids = remaining;
@@ -1900,6 +1900,24 @@ function showNextEvent(clock, eventQueue) {
     return;
   }
 
+  if (event.type === 'exploration_voyage_success') {
+    const coastText = event.discoveredRegionIds?.length
+      ? ` The crew also charted ${event.discoveredRegionIds.length} previously unknown coastal ${event.discoveredRegionIds.length === 1 ? 'region' : 'regions'}.`
+      : '';
+    document.getElementById('event-title').textContent = 'Exploration voyage returns';
+    document.getElementById('event-body').textContent = `A maritime expedition reached ${event.targetSeaName || event.targetSeaId || 'previously uncertain waters'} and returned with usable route knowledge after roughly ${Math.round(event.distanceKm || 0).toLocaleString()} km of sailing.${coastText}`;
+    wireEventContinue(clock, eventQueue);
+    return;
+  }
+  if (event.type === 'exploration_voyage_failed' || event.type === 'exploration_voyage_lost') {
+    const lost = event.type === 'exploration_voyage_lost' || event.shipLost;
+    document.getElementById('event-title').textContent = lost ? 'Exploration voyage lost' : 'Exploration voyage turns back';
+    document.getElementById('event-body').textContent = lost
+      ? `An expedition attempting to reach ${event.targetSeaName || event.targetSeaId || 'unknown waters'} failed to return. A ship and its accumulated maritime experience have been lost.`
+      : `An expedition attempting to reach ${event.targetSeaName || event.targetSeaId || 'unknown waters'} was forced back. The failure still leaves fragmentary knowledge that may help a later voyage.`;
+    wireEventContinue(clock, eventQueue);
+    return;
+  }
   if (event.type === 'religious_variant') {
     document.getElementById('event-title').textContent = 'A new religious branch';
     document.getElementById('event-body').textContent = `${event.religion?.name || 'A new religious tradition'} has emerged in ${event.regionName || 'the region'}, interpreting an older tradition in a new way.`;
@@ -1913,7 +1931,7 @@ function showNextEvent(clock, eventQueue) {
     return;
   }
   if (event.type !== 'raid_resolved' || !event.outcome || !event.raid) {
-    console.warn('Unhandled simulation event', event);
+    console.warn(`Unhandled simulation event: ${event.type || 'unknown'}`, event);
     document.getElementById('event-title').textContent = event.title || `Event: ${String(event.type || 'unknown').replaceAll('_', ' ')}`;
     document.getElementById('event-body').textContent = event.description || event.summary || 'An event occurred, but no dedicated presentation is available yet.';
     wireEventContinue(clock, eventQueue);
