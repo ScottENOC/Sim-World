@@ -5,13 +5,20 @@ on:
     branches: [human-river-engineering-v1]
   pull_request:
     paths:
+      - 'js/main.js'
+      - 'js/economy/construction.js'
       - 'js/world/hydrology.js'
       - 'js/world/spatialBaseLoader.js'
       - 'js/world/riverNavigation.js'
       - 'js/society/disease.js'
+      - 'js/ui/waterPolicyUi.js'
+      - 'tools/apply-water-infrastructure-v1.py'
       - 'tools/test-human-river-engineering.mjs'
       - '.github/workflows/human-river-engineering.yml'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   test:
@@ -21,7 +28,30 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: River hydrology and pollution regression
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply water infrastructure integration
+        run: python tools/apply-water-infrastructure-v1.py
+      - name: JavaScript syntax checks
+        run: |
+          node --check js/world/hydrology.js
+          node --check js/ui/waterPolicyUi.js
+          node --check js/economy/construction.js
+          node --check js/main.js
+      - name: River hydrology, infrastructure and pollution regression
         run: node tools/test-human-river-engineering.mjs
       - name: Existing river navigation regression
         run: node tools/test-real-river-navigation.mjs
+      - name: Commit integrated source on branch push
+        if: github.event_name == 'push'
+        run: |
+          if git diff --quiet; then
+            echo 'Integration already committed.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/main.js js/economy/construction.js js/world/hydrology.js
+          git commit -m 'Integrate buildable river control infrastructure'
+          git push
