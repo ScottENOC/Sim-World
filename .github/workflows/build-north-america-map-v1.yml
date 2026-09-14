@@ -32,10 +32,13 @@ jobs:
         with:
           node-version: '22'
       - name: Install geography dependencies
-        run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2 pyshp==2.3.1
+        run: |
+          python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2 pyshp==2.3.1
+          npm install --no-save d3-geo@3
       - name: Validate scripts and plans
         run: |
-          python -m py_compile tools/prepare-north-america-regeneration.py tools/build-north-america-expansion.py tools/build-north-america-seas.py tools/repair-north-america-adjacency.py tools/build-terrain.py
+          python -m py_compile tools/prepare-north-america-regeneration.py tools/build-north-america-expansion.py tools/build-north-america-seas.py tools/repair-north-america-adjacency.py tools/build-terrain.py tools/normalize-land-geojson.py tools/build-region-navigation.py
+          node --check tools/repair-d3-region-geometry.mjs
           node --check tools/generate-world-spatial-base.mjs
           python -m json.tool tools/north-america-region-plan-v1.json >/dev/null
           python -m json.tool tools/north-america-sea-plan-v1.json >/dev/null
@@ -56,6 +59,10 @@ jobs:
           cp /tmp/simworld-na-sea/seaRegions.meta.json data/world/seaRegions.meta.json
       - name: Repair source-boundary adjacency seams
         run: python tools/repair-north-america-adjacency.py | tee /tmp/north-america-adjacency.log
+      - name: Canonicalise D3-safe land geometry
+        run: |
+          python tools/normalize-land-geojson.py --input data/world/regions.geo.json --output /tmp/regions.geo.normalized.json
+          node tools/repair-d3-region-geometry.mjs --input /tmp/regions.geo.normalized.json --output data/world/regions.geo.json
       - name: Rebuild derived geography metadata
         run: |
           python tools/build-region-navigation.py
