@@ -1,0 +1,64 @@
+name: Performance profiling v2 validation
+
+on:
+  push:
+    branches:
+      - profile-ai-trade-v2
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Apply profiling integration
+        run: python tools/apply-performance-profiling-v2.py
+
+      - name: Syntax checks
+        run: |
+          python -m py_compile tools/apply-performance-profiling-v2.py
+          node --check js/main.js
+          node --check js/ai/nationAi.js
+          node --check js/economy/oceanicExploration.js
+          node --check tools/test-performance-profiling-v2.mjs
+
+      - name: Profiling regression
+        run: node tools/test-performance-profiling-v2.mjs
+
+      - name: Relevant compatibility regressions
+        run: |
+          node tools/test-strategic-military-planning.mjs
+          node tools/test-oceanic-exploration.mjs
+          node tools/test-event-renderer-fallthrough.mjs
+          node tools/test-ui-priority.mjs
+
+      - name: Diff sanity
+        run: git diff --check
+
+      - name: Commit generated runtime integration
+        if: github.event_name == 'push'
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/main.js js/ai/nationAi.js js/economy/oceanicExploration.js
+          if ! git diff --cached --quiet; then
+            git commit -m 'Instrument Nation AI performance profile'
+            git push
+          fi
