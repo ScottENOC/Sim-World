@@ -1,0 +1,66 @@
+name: AI performance optimisations validation
+
+on:
+  push:
+    branches:
+      - optimize-ai-strategy-scouting
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Apply optimisation integration
+        run: python tools/apply-ai-performance-optimisations.py
+
+      - name: Syntax checks
+        run: |
+          python -m py_compile tools/apply-ai-performance-optimisations.py
+          node --check js/main.js
+          node --check js/ai/nationAi.js
+          node --check js/military/strategicPlanning.js
+          node --check js/core/scouting.js
+          node --check tools/test-ai-performance-optimisations.mjs
+
+      - name: Optimisation regression
+        run: node tools/test-ai-performance-optimisations.mjs
+
+      - name: Relevant compatibility regressions
+        run: |
+          node tools/test-strategic-military-planning.mjs
+          node tools/test-supply-corridors-ai.mjs
+          node tools/test-disease.mjs
+          node tools/test-event-renderer-fallthrough.mjs
+          node tools/test-ui-priority.mjs
+
+      - name: Diff sanity
+        run: git diff --check
+
+      - name: Commit generated runtime optimisation
+        if: github.event_name == 'push'
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/main.js js/ai/nationAi.js js/military/strategicPlanning.js js/core/scouting.js
+          if ! git diff --cached --quiet; then
+            git commit -m 'Optimise Nation AI strategy and scouting'
+            git push
+          fi
