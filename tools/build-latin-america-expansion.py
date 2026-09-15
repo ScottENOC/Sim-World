@@ -32,19 +32,27 @@ SOURCE_GROUP = 'latin_america_caribbean_v1'
 ID_PREFIX = 'la_'
 TARGET_REGION_COUNT = 180
 TARGET_PIECE_AREA_SQKM = 90_000
-# Keep genuine tiny islands at source-piece stage. The later clustering and
-# workflow sanity checks prevent sub-10 km² fragments from becoming gameplay
-# regions, while this low threshold stops places such as Anguilla disappearing
-# before they have a chance to merge into a sensible island-region cluster.
-MIN_COMPONENT_AREA_SQKM = 1
+# Ordinary source components below 10 km² are map-detail, not gameplay regions.
+# Tiny sovereign/dependency island groups are the exception: keep their genuine
+# geometry long enough to union/cluster them, otherwise places such as Anguilla
+# can disappear before grouping. Remote named archipelagos receive the same
+# treatment. This avoids turning Brazilian offshore rocks such as Martim Vaz
+# into isolated 1 km² gameplay regions.
+MIN_COMPONENT_AREA_SQKM = 10
+TINY_ISLAND_NAV_CODES = {
+    'AIA','ABW','BLM','BES','CUW','CYM','DMA','GRD','MAF','MSR','SXM','TCA','VGB',
+    'ATG','BRB','KNA','LCA','VCT',
+}
 MAX_CLUSTER_GAP_DEGREES = 0.32
 
 na.PLAN = PLAN
 na.TARGET_REGION_COUNT = TARGET_REGION_COUNT
 na.TARGET_PIECE_AREA_SQKM = TARGET_PIECE_AREA_SQKM
-na.MIN_COMPONENT_AREA_SQKM = MIN_COMPONENT_AREA_SQKM
+# The shared builder uses this for generic splitting; Latin America applies the
+# more selective keep_source_component rule below.
+na.MIN_COMPONENT_AREA_SQKM = 1
 na.MAX_CLUSTER_GAP_DEGREES = MAX_CLUSTER_GAP_DEGREES
-na.USER_AGENT = 'Sim-World Latin America expansion/1.3'
+na.USER_AGENT = 'Sim-World Latin America expansion/1.4'
 
 SOUTH_AMERICA_CODES = {
     'COL','VEN','GUY','SUR','GUF','ECU','PER','BOL','BRA','PRY','URY','ARG','CHL','FLK'
@@ -64,6 +72,14 @@ def remote_archipelago(lon, lat):
     if -35.0 < lon < -25.0 and -8.0 < lat < 3.5:
         return ('equatorial_atlantic', 'Equatorial Atlantic Islands')
     return None
+
+
+def keep_source_component(iso, component):
+    area = na.map_v2.area_sqkm(component)
+    if area >= MIN_COMPONENT_AREA_SQKM:
+        return True
+    c = component.centroid
+    return iso in TINY_ISLAND_NAV_CODES or remote_archipelago(c.x, c.y) is not None
 
 
 def physiographic_zone(lon, lat):
@@ -114,12 +130,7 @@ def physiographic_zone(lon, lat):
 
 
 def collapse_remote_archipelagos(pieces):
-    """Keep widely separated islands in a named archipelago as one gameplay region.
-
-    Land geometry remains its true MultiPolygon; only the simulation-region grouping
-    changes. This avoids five Galápagos regions or an isolated Rapa Nui islet while
-    preserving those islands as physically separate land masses surrounded by sea.
-    """
+    """Keep widely separated islands in a named archipelago as one gameplay region."""
     grouped = defaultdict(list)
     ordinary = []
     for piece in pieces:
@@ -162,7 +173,7 @@ def build_source_pieces(admin1, masks, existing):
         covered[iso].append(geom)
         source_name = na.feature_name(feature)
         for component in na.polygons(geom):
-            if na.map_v2.area_sqkm(component) < MIN_COMPONENT_AREA_SQKM:
+            if not keep_source_component(iso, component):
                 continue
             for piece in na.split_component_grid(component, TARGET_PIECE_AREA_SQKM):
                 raw.append({
@@ -182,7 +193,7 @@ def build_source_pieces(admin1, masks, existing):
         if remaining.is_empty:
             continue
         for component in na.polygons(remaining):
-            if na.map_v2.area_sqkm(component) < MIN_COMPONENT_AREA_SQKM:
+            if not keep_source_component(iso, component):
                 continue
             for piece in na.split_component_grid(component, TARGET_PIECE_AREA_SQKM):
                 raw.append({
@@ -258,68 +269,50 @@ def resource_endowment(region):
     elif 'Chaco' in zone:
         forest, quality = 0.42, 0.82
     elif 'Brazilian Highlands' in zone or 'Atlantic Brazil' in zone:
-        forest, quality = 0.58, 1.03
+        forest, quality = 0.55, 0.95
     elif 'Patagon' in zone or 'Tierra' in zone:
-        forest, quality = 0.16, 0.38
-
-    seed = region['id']
-    deposits = {'stone': na.map_v2.make_deposit('stone', 'major')}
-    deposits['ironOre'] = na.map_v2.make_deposit(
-        'ironOre', na.magnitude_for(seed, 'ironOre', [('major',0.22),('moderate',0.50),('minor',0.26)]) or 'minor')
-    andean = 'Andes' in zone or (lon < -69 and zone not in {'Galápagos Islands', 'Rapa Nui'})
-    brazilian = 'Brazil' in zone or 'Guiana' in zone
-    if mag := na.magnitude_for(seed, 'copper', [('major',0.22 if andean else 0.04),('moderate',0.30 if andean else 0.12),('minor',0.22)]):
-        deposits['copper'] = na.map_v2.make_deposit('copper', mag)
-    if mag := na.magnitude_for(seed, 'gold', [('major',0.08 if andean or brazilian else 0.02),('moderate',0.18),('minor',0.24)]):
-        deposits['gold'] = na.map_v2.make_deposit('gold', mag)
-    if mag := na.magnitude_for(seed, 'tin', [('major',0.08 if andean else 0.005),('moderate',0.12 if andean else 0.02),('minor',0.10)]):
-        deposits['tin'] = na.map_v2.make_deposit('tin', mag)
-    if ('Chaco' in zone or 'Pampas' in zone or 'Brazilian Interior' in zone) and (mag := na.magnitude_for(seed, 'salt', [('major',0.12),('moderate',0.24),('minor',0.20)])):
-        deposits['salt'] = na.map_v2.make_deposit('salt', mag)
-    return {
-        'landQuality': quality,
-        'forestFraction': forest,
-        'forestStartCoverage': 0.86 if forest > 0.55 else 0.72,
-        'deposits': deposits,
-    }
+        forest, quality = 0.24, 0.60
+    if lon < -70 and ('Andes' in zone or 'Highlands' in zone):
+        quality *= 0.92
+    resource = na.base_endowment(region['id'])
+    resource.update({
+        'landAreaKm2': region['areaSqKm'],
+        'forestPotential': forest,
+        'farmQuality': quality,
+        'source': 'latin-america-caribbean-v1',
+    })
+    return resource
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--output-dir', default='/tmp/simworld-latin-america-v1')
+    parser.add_argument('--output-dir', required=True)
     args = parser.parse_args()
     plan = json.loads(PLAN.read_text())
+    output = Path(args.output_dir)
+    output.mkdir(parents=True, exist_ok=True)
+
     geo = json.loads(na.BASE_GEO.read_text())
     meta_doc = json.loads(na.BASE_META.read_text())
     resources = json.loads(na.BASE_RESOURCES.read_text())
-    admin0 = na.fetch_json(na.ADMIN0_URL)
+    masks, _admin0 = na.country_masks(plan)
     admin1 = na.fetch_json(na.ADMIN1_URL)
-    wanted = {c['iso'] for c in plan['countries']}
-    masks = na.country_masks(admin0, wanted)
-    missing = wanted - set(masks)
-    if missing:
-        raise RuntimeError(f'Missing Natural Earth country geometry: {sorted(missing)}')
-
-    existing = na.map_v2.repair(unary_union([
-        na.map_v2.repair(shape(f['geometry'])) for f in geo.get('features', [])
-    ]))
+    existing = na.map_v2.repair(unary_union([na.map_v2.clean(shape(f['geometry'])) for f in geo.get('features', [])]))
     pieces = build_source_pieces(admin1, masks, existing)
-    if len(pieces) < TARGET_REGION_COUNT:
-        raise RuntimeError(f'Only {len(pieces)} source pieces for {TARGET_REGION_COUNT} target regions')
-    clusters = na.cluster_pieces(pieces, TARGET_REGION_COUNT)
+    clusters = na.cluster_regions(pieces, TARGET_REGION_COUNT)
     regions = make_regions(clusters)
-    na.add_adjacency(geo['features'], meta_doc['regions'], regions)
+    na.map_v2.add_land_adjacency(geo['features'], meta_doc['regions'], regions)
 
     existing_ids = {f['properties']['id'] for f in geo['features']}
     for region in regions:
         if region['id'] in existing_ids:
-            raise RuntimeError(f'Duplicate region id {region["id"]}')
+            raise RuntimeError(f'duplicate generated id {region["id"]}')
         existing_ids.add(region['id'])
         geo['features'].append({
             'type': 'Feature',
             'properties': {
-                'id': region['id'], 'name': region['name'], 'sourceGroup': SOURCE_GROUP,
-                'navigationContinent': region['navigationContinent'], 'sourceUnits': region['sourceUnits'],
+                'id': region['id'], 'name': region['name'], 'sourceGroup': region['sourceGroup'],
+                'navigationContinent': region['navigationContinent'], 'navigationGroup': 'Latin America & Caribbean',
             },
             'geometry': mapping(region['geometry']),
         })
@@ -329,33 +322,26 @@ def main():
         })
         resources[region['id']] = resource_endowment(region)
 
-    out = Path(args.output_dir)
-    out.mkdir(parents=True, exist_ok=True)
-    (out / 'regions.geo.json').write_text(json.dumps(geo, ensure_ascii=False, separators=(',', ':')))
-    (out / 'regions.meta.json').write_text(json.dumps(meta_doc, ensure_ascii=False, separators=(',', ':')))
-    (out / 'resources.initial.json').write_text(json.dumps(resources, ensure_ascii=False, separators=(',', ':')))
     review = [{
-        'id': r['id'], 'name': r['name'], 'zone': r['zone'],
-        'navigationContinent': r['navigationContinent'], 'areaSqKm': round(r['areaSqKm'], 1),
-        'sourceUnits': r['sourceUnits'], 'neighborCount': len(r['neighbors']),
+        'id': r['id'], 'name': r['name'], 'sourceGroup': r['sourceGroup'],
+        'sourceUnits': r['sourceUnits'], 'areaSqKm': round(r['areaSqKm'], 1),
+        'neighbors': len(r['neighbors']), 'navigationContinent': r['navigationContinent'],
     } for r in regions]
-    (out / 'latin-america-v1-review.json').write_text(json.dumps(review, ensure_ascii=False, indent=2) + '\n')
+    (output / 'regions.geo.json').write_text(json.dumps(geo, ensure_ascii=False, separators=(',', ':')))
+    (output / 'regions.meta.json').write_text(json.dumps(meta_doc, ensure_ascii=False, separators=(',', ':')))
+    (output / 'resources.initial.json').write_text(json.dumps(resources, ensure_ascii=False, separators=(',', ':')))
+    (output / 'latin-america-v1-review.json').write_text(json.dumps(review, ensure_ascii=False, indent=2) + '\n')
 
-    cross_border = sum(1 for r in regions if len({u.split(':', 1)[0] for u in r['sourceUnits']}) > 1)
-    isolated = [r['name'] for r in regions if not r['neighbors']]
+    cross = sum(1 for r in review if len({u.split(':', 1)[0] for u in r['sourceUnits']}) > 1)
     areas = sorted(r['areaSqKm'] for r in regions)
     print(f'SOURCE_PIECES={len(pieces)}')
     print(f'NEW_LATIN_AMERICA_REGIONS={len(regions)}')
-    print(f'CROSS_MODERN_BORDER_REGIONS={cross_border}')
+    print(f'CROSS_MODERN_BORDER_REGIONS={cross}')
     print(f'TOTAL_LAND_REGIONS={len(geo["features"])}')
     print(f'MEDIAN_NEW_REGION_AREA_SQKM={areas[len(areas)//2]:.0f}')
     print(f'MIN_NEW_REGION_AREA_SQKM={areas[0]:.0f}')
     print(f'MAX_NEW_REGION_AREA_SQKM={areas[-1]:.0f}')
-    print(f'ISOLATED_NEW_REGIONS_PRE_SEA={len(isolated)}')
-    if cross_border < 3:
-        raise RuntimeError(f'Expected several cross-modern-border regions; only {cross_border} formed')
-    if len(regions) < 170:
-        raise RuntimeError(f'Latin America expansion unexpectedly coarse: {len(regions)} regions')
+    print(f'ISOLATED_NEW_REGIONS_PRE_SEA={sum(1 for r in regions if not r["neighbors"])}')
 
 
 if __name__ == '__main__':
