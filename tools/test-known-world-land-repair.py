@@ -15,6 +15,8 @@ ADMIN0_URL = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/mas
 BROKEN_KAL = 'r2_81f83805b72'
 GOOD_KAL = 'r2_8d84d0f082a'
 SERMERSOOQ = 'r2_a75df4701f6'
+MAX_REPLACEMENT_COMPONENT_DISTANCE_DEG = 1.0
+MIN_GROSS_COMPONENT_KM2 = 0.01
 GEOD = Geod(ellps='WGS84')
 
 
@@ -56,9 +58,24 @@ def main():
 
     replacements = [f for f in features if (f.get('properties') or {}).get('sourceGroup') == 'central_europe_repair_v1']
     assert 5 <= len(replacements) <= 9, len(replacements)
+    gross_detached = []
     for feature in replacements:
         g = shape(feature['geometry'])
         assert g.bounds[0] > -10 and g.bounds[2] < 19, (feature['properties']['name'], g.bounds)
+        parts = sorted(polygons(g), key=area_km2, reverse=True)
+        assert parts, feature['properties']['name']
+        core = parts[0]
+        for part in parts[1:]:
+            part_area = area_km2(part)
+            distance = part.distance(core)
+            if part_area >= MIN_GROSS_COMPONENT_KM2 and distance > MAX_REPLACEMENT_COMPONENT_DISTANCE_DEG:
+                gross_detached.append((
+                    feature['properties']['name'],
+                    round(part_area, 3),
+                    round(distance, 3),
+                    tuple(round(x, 3) for x in part.bounds),
+                ))
+    assert not gross_detached, f'gross detached Central-Europe components remain: {gross_detached[:12]}'
 
     req = urllib.request.Request(ADMIN0_URL, headers={'User-Agent': 'Sim-World land repair test/1.0'})
     with urllib.request.urlopen(req, timeout=120) as response:
