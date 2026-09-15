@@ -43,12 +43,6 @@ jobs:
           cp /tmp/simworld-global-seas/seaRegions.geo.json data/world/seaRegions.geo.json
           cp /tmp/simworld-global-seas/seaRegions.meta.json data/world/seaRegions.meta.json
           node tools/generate-world-spatial-base.mjs
-      - name: Validate global navigation
-        run: |
-          node tools/test-global-sea-navigation.mjs
-          python tools/test-old-world-asia-pacific-map.py
-          node tools/test-world-spatial-real-map.mjs
-          git diff --check
       - name: Commit generated ocean data
         if: github.event_name == 'push' && success()
         run: |
@@ -60,3 +54,9 @@ jobs:
             git pull --rebase
             git push
           fi
+      - name: Validate global navigation
+        run: |
+          node tools/test-global-sea-navigation.mjs
+          python tools/test-old-world-asia-pacific-map.py
+          node tools/test-world-spatial-real-map.mjs
+          git diff --check
