@@ -33,6 +33,7 @@ jobs:
           else
             echo 'KNOWN_WORLD_LAND_REPAIR_ALREADY_APPLIED=1'
           fi
+          python tools/clean-sermersooq-foreign-components.py
           python tools/rebuild-land-adjacency.py
       - name: Rebuild derived land data
         run: |
