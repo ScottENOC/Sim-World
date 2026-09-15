@@ -1,0 +1,61 @@
+name: World map audit and real benchmark
+on:
+  push:
+    branches:
+      - world-map-voids-real-benchmark-v1
+    paths:
+      - 'data/world/**'
+      - 'tools/audit-world-map.py'
+      - 'tools/calibrate.mjs'
+      - '.github/workflows/world-map-audit-real-benchmark.yml'
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install geography audit dependencies
+        run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2
+      - name: Audit checked-in geography
+        run: python tools/audit-world-map.py | tee world-map-audit.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: world-map-audit
+          path: world-map-audit.txt
+          retention-days: 14
+
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Benchmark checked-in world at weekly cadence
+        shell: bash
+        run: |
+          start=$(date +%s%N)
+          node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 7 --system-timing true --output real-world-performance.json
+          end=$(date +%s%N)
+          elapsed_ms=$(( (end - start) / 1000000 ))
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const r=JSON.parse(fs.readFileSync('real-world-performance.json','utf8'));
+          const c=r.configuration ?? {};
+          const ticks=Math.max(1, Math.round((c.years ?? 1) * 365 / (c.daysPerTick ?? 7)));
+          console.log('REAL_WORLD_REGIONS='+(c.actualRegions ?? 'unknown'));
+          console.log('REAL_WORLD_MS_PER_TICK='+(Number.isFinite(r.elapsedSeconds) ? (r.elapsedSeconds*1000/ticks).toFixed(2) : 'unknown'));
+          console.log('SYSTEM='+JSON.stringify(r.runs?.[0]?.systemTimingMsPerTick ?? {}));
+          NODE
+          echo "REAL_WORLD_TOTAL_MS=$elapsed_ms"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: real-world-performance
+          path: real-world-performance.json
+          retention-days: 14
