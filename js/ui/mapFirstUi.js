@@ -113,6 +113,9 @@ function installRuntimePatch() {
   import('./foreignInvestmentUi.js?v=20260915-investment-ui1').then(({ installForeignInvestmentUi }) =>
     installForeignInvestmentUi(sim)).catch((error) =>
     console.error('Could not install foreign investment controls', error));
+  import('./infrastructureMapUi.js?v=20260915-infra-map1').then(({ installInfrastructureMapUi }) =>
+    installInfrastructureMapUi(sim)).catch((error) =>
+    console.error('Could not install infrastructure ownership overlay', error));
   return true;
 }
 
