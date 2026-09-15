@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/full-world-browser-benchmark.yml'
       - 'tools/benchmark-world-browser.mjs'
+      - 'tools/optimise-military-strategy-cadence.py'
   workflow_dispatch:
 
 permissions:
@@ -24,6 +25,8 @@ jobs:
         with: {node-version: '22'}
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
+      - name: Apply military planning cadence optimisation
+        run: python tools/optimise-military-strategy-cadence.py
       - name: Install browser harness
         run: |
           npm install --no-save --no-package-lock playwright@1.55.0
@@ -38,22 +41,22 @@ jobs:
         env:
           CHROME_PATH: /usr/bin/google-chrome
           SIM_WORLD_BENCHMARK_SAMPLES: '12'
-          SIM_WORLD_BENCHMARK_OUTPUT: benchmarks/world-2024-ci.json
+          SIM_WORLD_BENCHMARK_OUTPUT: benchmarks/world-2024-after-ai-cadence.json
         run: |
           mkdir -p benchmarks
           set +e
-          node tools/benchmark-world-browser.mjs > benchmarks/world-2024-ci.log 2>&1
+          node tools/benchmark-world-browser.mjs > benchmarks/world-2024-after-ai-cadence.log 2>&1
           status=$?
-          cat benchmarks/world-2024-ci.log
+          cat benchmarks/world-2024-after-ai-cadence.log
           exit $status
-      - name: Commit benchmark evidence
+      - name: Commit optimisation and benchmark evidence
         if: always() && github.event_name == 'push'
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add benchmarks/world-2024-ci.json benchmarks/world-2024-ci.log 2>/dev/null || true
+          git add js/military/strategicPlanning.js benchmarks/world-2024-after-ai-cadence.json benchmarks/world-2024-after-ai-cadence.log 2>/dev/null || true
           if ! git diff --cached --quiet; then
-            git commit -m 'Record 2024-region browser benchmark evidence'
+            git commit -m 'Stagger NPC military force planning and record benchmark'
             git pull --rebase
             git push
           fi
