@@ -2,16 +2,17 @@
 """Repair two known gross land-ownership corruptions in the checked-in world.
 
 The repair is footprint-conserving: it repartitions only geometry already owned by
-malformed regions. Modern administrative data is not used to draw the new borders.
-Instead, the large Central-European component accidentally labelled Kaliningrad is
-cut into broad geography-first bands. Finite mineral stock and worker capacity are
-split by area so the operation cannot create resources.
+malformed regions. Modern administrative data is not used to draw new Central
+European borders. For the Greenland corruption, modern country geometry is used
+only as diagnostic evidence to distinguish genuine Greenland islands from remote
+Norwegian/Faroese/etc. components already mixed into Sermersooq.
 """
 from __future__ import annotations
 
 import copy
 import hashlib
 import json
+import urllib.request
 from pathlib import Path
 
 from pyproj import Geod
@@ -27,6 +28,7 @@ RES = WORLD / 'resources.initial.json'
 BROKEN_KAL = 'r2_81f83805b72'
 GOOD_KAL = 'r2_8d84d0f082a'
 SERMERSOOQ = 'r2_a75df4701f6'
+ADMIN0_URL = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries_iso.geojson'
 GEOD = Geod(ellps='WGS84')
 MIN_KEEP_KM2 = 0.01
 
@@ -68,6 +70,30 @@ def area_km2(g):
 
 def stable_id(key):
     return 'r_fix_' + hashlib.sha1(key.encode('utf-8')).hexdigest()[:11]
+
+
+def country_code(feature):
+    p = feature.get('properties') or {}
+    return str(p.get('ADM0_A3') or p.get('adm0_a3') or p.get('ISO_A3') or p.get('iso_a3') or '?')
+
+
+def load_admin0():
+    req = urllib.request.Request(ADMIN0_URL, headers={'User-Agent': 'Sim-World land repair/1.0'})
+    with urllib.request.urlopen(req, timeout=120) as response:
+        doc = json.load(response)
+    return [(country_code(f), repair(shape(f['geometry']))) for f in doc['features']]
+
+
+def best_country_overlap(part, countries):
+    best_code = '?'
+    best_area = 0.0
+    for code, country in countries:
+        if not part.intersects(country):
+            continue
+        overlap = area_km2(part.intersection(country))
+        if overlap > best_area:
+            best_code, best_area = code, overlap
+    return best_code, best_area
 
 
 def split_resource(resource, weights):
@@ -128,6 +154,7 @@ def main():
     serm_geom = repair(shape(feature_by_id[SERMERSOOQ]['geometry']))
     before_affected = repair(unary_union([broken_kal_geom, good_kal_geom, serm_geom]))
 
+    # ---- Central Europe / bogus Kaliningrad owner ----
     parts = sorted(polygons(broken_kal_geom), key=area_km2, reverse=True)
     if not parts or area_km2(parts[0]) < 300_000:
         raise RuntimeError('expected malformed Central-European core not found')
@@ -183,15 +210,20 @@ def main():
     good_name = feature_by_id[GOOD_KAL]['properties'].get('name', 'Kaliningrad')
     set_meta(meta_by_id, GOOD_KAL, good_name, good_kal_geom)
 
-    # Genuine Sermersooq and its coastal islands lie well west of 15°W. The
-    # diagnosed Norwegian/Faroese corruption is entirely east of that meridian.
-    # Use that physical separation rather than component-to-core distance, which
-    # incorrectly classifies hundreds of legitimate Greenland islands as detached.
+    # ---- Greenland / remote foreign components ----
+    # Country polygons are diagnostic evidence only. Keep every component unless
+    # another country covers a majority of it more strongly than Greenland does.
+    # This preserves Greenland's genuine east coast and islands while removing
+    # the Norwegian/Faroese/etc. polygons demonstrated by the audit.
+    countries = load_admin0()
     serm_parts = sorted(polygons(serm_geom), key=area_km2, reverse=True)
     keep = []
     detached = []
     for part in serm_parts:
-        (detached if part.bounds[0] > -15.0 else keep).append(part)
+        part_area = area_km2(part)
+        code, overlap = best_country_overlap(part, countries)
+        foreign_majority = code not in {'GRL', '?'} and overlap >= max(1.0, part_area * 0.5)
+        (detached if foreign_majority else keep).append(part)
     new_serm = repair(unary_union(keep))
     feature_by_id[SERMERSOOQ]['geometry'] = mapping(new_serm)
     serm_name = feature_by_id[SERMERSOOQ]['properties'].get('name', 'Greenland — Kommuneqarfik Sermersooq')
@@ -221,6 +253,7 @@ def main():
         if rid not in existing_meta_ids:
             meta_doc['regions'].append(meta_by_id[rid])
 
+    # Footprint conservation across all source geometry moved by this repair.
     repaired_source_union = repair(unary_union([good_kal_geom, new_serm, *[r[2] for r in zone_geoms],
                                                  *[p for ps in moved_by_target.values() for p in ps]]))
     source_delta = repair(before_affected.symmetric_difference(repaired_source_union))
@@ -228,6 +261,7 @@ def main():
     if delta_fraction > 1e-6:
         raise RuntimeError(f'affected land footprint changed by {delta_fraction:.3e}')
 
+    # Ensure finite source deposits were conserved across the new Central-Europe regions.
     for dep_name, dep in (source_resource.get('deposits') or {}).items():
         for ti, tier in enumerate(dep.get('tiers') or []):
             for field in ('initialStock', 'maxWorkers'):
