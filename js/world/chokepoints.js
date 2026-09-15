@@ -96,6 +96,7 @@ const OPEN_CONNECTIONS = [
   ['sea_celtic', 'sea_irish'], ['sea_celtic', 'sea_bristol'],
   ['sea_irish', 'sea_bristol'], ['sea_irish', 'sea_hebrides'],
   ['sea_english_channel', 'sea_north'], ['sea_biscay', 'sea_portuguese'],
+  ['sea_baltic', 'sea_gulf_finland'], ['sea_baltic', 'sea_gulf_bothnia'],
   ['sea_portuguese', 'sea_gulf_cadiz'], ['sea_portuguese', 'sea_moroccan_atlantic'],
   ['sea_portuguese', 'sea_azores'], ['sea_portuguese', 'sea_madeira'],
   ['sea_moroccan_atlantic', 'sea_gulf_cadiz'], ['sea_moroccan_atlantic', 'sea_canary'],
@@ -127,7 +128,8 @@ const OPEN_CONNECTIONS = [
   ['sea_bay_bengal', 'sea_andaman'],
 
   // Southeast Asia and the western Pacific.
-  ['sea_south_china', 'sea_gulf_thailand'], ['sea_south_china', 'sea_philippine'],
+  ['sea_south_china', 'sea_gulf_thailand'], ['sea_south_china', 'sea_gulf_tonkin'],
+  ['sea_south_china', 'sea_philippine'],
   ['sea_south_china', 'sea_java'], ['sea_java', 'sea_makassar'],
   ['sea_makassar', 'sea_banda'], ['sea_makassar', 'sea_philippine'],
   ['sea_banda', 'sea_arafura'], ['sea_banda', 'sea_timor'],
@@ -136,7 +138,8 @@ const OPEN_CONNECTIONS = [
   ['sea_philippine', 'sea_north_pacific_w'],
 
   // East Asia and North Pacific.
-  ['sea_east_china', 'sea_yellow'], ['sea_yellow', 'sea_korea_strait'],
+  ['sea_east_china', 'sea_yellow'], ['sea_yellow', 'sea_bohai'],
+  ['sea_yellow', 'sea_korea_strait'],
   ['sea_japan', 'sea_okhotsk'], ['sea_japan', 'sea_north_pacific_w'],
   ['sea_okhotsk', 'sea_bering'], ['sea_okhotsk', 'sea_north_pacific_w'],
   ['sea_bering', 'sea_bering_east'], ['sea_bering_east', 'sea_gulf_alaska'],
