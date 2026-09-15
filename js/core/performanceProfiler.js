@@ -39,7 +39,13 @@ export function createPerformanceProfiler() {
       stages: Object.create(null),
       details: Object.create(null),
       metrics: Object.create(null),
+      cooperativeYieldMs: 0,
     };
+  }
+
+  function recordCooperativeYield(durationMs) {
+    if (!active || !current) return;
+    current.cooperativeYieldMs += Math.max(0, Number(durationMs) || 0);
   }
 
   function measure(label, fn) {
@@ -67,10 +73,14 @@ export function createPerformanceProfiler() {
 
   function endTick() {
     if (!active || !current) return;
-    const total = now() - current.start;
+    const wallTotal = now() - current.start;
+    const cooperativeYieldMs = Math.min(wallTotal, current.cooperativeYieldMs || 0);
+    const total = Math.max(0, wallTotal - cooperativeYieldMs);
     const measured = Object.values(current.stages).reduce((sum, value) => sum + value, 0);
     samples.push({
       total,
+      wallTotal,
+      cooperativeYieldMs,
       unattributed: Math.max(0, total - measured),
       endDay: current.endDay,
       elapsedDays: current.elapsedDays,
@@ -152,12 +162,14 @@ export function createPerformanceProfiler() {
       return lines.join('\n');
     }
 
-    lines.push('TOTAL TICK');
+    lines.push('TOTAL TICK WORK (cooperative UI wait excluded)');
     lines.push(`  last: ${formatMs(totals[totals.length - 1])}`);
     lines.push(`  avg:  ${formatMs(average(totals))}`);
     lines.push(`  p50:  ${formatMs(percentile(totals, 50))}`);
     lines.push(`  p95:  ${formatMs(percentile(totals, 95))}`);
     lines.push(`  max:  ${formatMs(Math.max(...totals))}`);
+    const cooperativeWaits = samples.map((sample) => sample.cooperativeYieldMs || 0);
+    lines.push(`  cooperative UI wait avg: ${formatMs(average(cooperativeWaits))} · max: ${formatMs(Math.max(...cooperativeWaits))}`);
     lines.push('');
     lines.push('SUBSYSTEMS (sorted by average time)');
     lines.push('  avg | p95 | max | % total | subsystem');
@@ -314,6 +326,7 @@ export function createPerformanceProfiler() {
     measure,
     measureDetail,
     metric,
+    recordCooperativeYield,
     endTick,
     reset,
     setActive,

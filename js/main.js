@@ -312,7 +312,9 @@ async function main() {
   const yieldForUi = async () => {
     const yieldStartedAt = performance.now();
     do { await nextUiFrame(); } while (clock.isInteractionDeferred());
-    clock.recordCooperativeYield(performance.now() - yieldStartedAt);
+    const durationMs = performance.now() - yieldStartedAt;
+    clock.recordCooperativeYield(durationMs);
+    profiler.recordCooperativeYield(durationMs);
   };
 
   clock.onTick(async (time) => {

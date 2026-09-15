@@ -368,7 +368,7 @@ function ventureRouteProfile(origin, dest, regionsById) {
   };
 }
 
-function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByRegion, regionsById, regions, agreements) {
+function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByRegion, regionsById, regions, agreements, transitContext = null) {
   const opportunities = [];
   const pricesHere = pricesByRegion.get(region.id);
   const stockedResources = TRADABLE_RESOURCES.filter((resource) =>
@@ -380,7 +380,7 @@ function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByR
     if (!knownIdsByRegion.get(dest.id)?.has(region.id)) continue;
     const route = ventureRouteProfile(region, dest, regionsById);
     if (!route || route.reliability <= 0.001) continue;
-    const transit = estimateTransitToll(region, route, regions, regionsById, agreements);
+    const transit = estimateTransitToll(region, route, regions, regionsById, agreements, transitContext);
     if (transit.blocked) continue;
     const effectiveReliability = route.reliability * (transit.reliabilityMultiplier ?? 1);
     if (effectiveReliability <= 0.001) continue;
@@ -749,6 +749,7 @@ export function tickTrade(regions, currentTick = null, time = null, agreements =
     pricesByRegion = new Map(regions.map((region) => [region.id, Object.fromEntries(TRADABLE_RESOURCES.map((resource) => [resource, localPrice(region, resource)]))]));
   });
   let candidateMarketsChecked = 0; let opportunitiesFound = 0; let searchingRegions = 0;
+  const transitContext = { chokepointSnapshots: new Map() };
   measureDetail('Trade: market search and launch', () => {
   for (const region of regions) {
     const economy = ensureTradeEconomy(region);
@@ -759,7 +760,7 @@ export function tickTrade(regions, currentTick = null, time = null, agreements =
     const candidates = [...candidateIds].map((id) => regionsById.get(id)).filter(Boolean);
     candidateMarketsChecked += candidates.length; searchingRegions += 1;
     if (!candidates.length) continue;
-    const opportunities = findOpportunities(region, candidates, knownIdsByRegion, pricesByRegion, regionsById, regions, agreements);
+    const opportunities = findOpportunities(region, candidates, knownIdsByRegion, pricesByRegion, regionsById, regions, agreements, transitContext);
     opportunitiesFound += opportunities.length;
     launchVentures(region, opportunities, currentTick, time, regionsById);
   }

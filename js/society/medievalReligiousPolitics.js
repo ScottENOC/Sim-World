@@ -5,7 +5,33 @@ function ensureSet(value) { return value instanceof Set ? value : new Set(Array.
 function chanceForYears(annualChance, years) { return 1 - Math.pow(1 - clamp(annualChance), Math.max(0, years)); }
 function actorId(region) { return region?.governance?.sovereignPolityId || region?.polityId || region?.controllingActorId || region?.id; }
 
+let activePoliticsIndex = null;
+function buildPoliticsIndex(regions) {
+  const regionsByPolity = new Map();
+  const populationByPolity = new Map();
+  const followersByReligionPolity = new Map();
+  const regionById = new Map();
+  for (const region of regions) {
+    regionById.set(region.id, region);
+    const polityId = actorId(region);
+    if (!regionsByPolity.has(polityId)) regionsByPolity.set(polityId, []);
+    regionsByPolity.get(polityId).push(region);
+    const population = Math.max(0, region.population || 0);
+    populationByPolity.set(polityId, (populationByPolity.get(polityId) || 0) + population);
+    for (const [religionId, share] of Object.entries(region.religion?.shares || {})) {
+      const key = `${religionId}::${polityId}`;
+      followersByReligionPolity.set(key, (followersByReligionPolity.get(key) || 0) + population * Math.max(0, share || 0));
+    }
+  }
+  return { source: regions, regionsByPolity, populationByPolity, followersByReligionPolity, regionById };
+}
+
 function followerShareInPolity(religionId, polityId, regions) {
+  if (activePoliticsIndex?.source === regions) {
+    const population = activePoliticsIndex.populationByPolity.get(polityId) || 0;
+    const followers = activePoliticsIndex.followersByReligionPolity.get(`${religionId}::${polityId}`) || 0;
+    return population > 0 ? followers / population : 0;
+  }
   let followers = 0, pop = 0;
   for (const region of regions) {
     if (actorId(region) !== polityId) continue;
@@ -16,14 +42,20 @@ function followerShareInPolity(religionId, polityId, regions) {
 }
 
 function followersInPolity(religionId, polityId, regions) {
+  if (activePoliticsIndex?.source === regions) return activePoliticsIndex.followersByReligionPolity.get(`${religionId}::${polityId}`) || 0;
   let followers = 0;
   for (const region of regions) if (actorId(region) === polityId) followers += Math.max(0, region.population || 0) * Math.max(0, region.religion?.shares?.[religionId] || 0);
   return followers;
 }
 
-function polityRegions(polityId, regions) { return regions.filter(region => actorId(region) === polityId); }
+function polityRegions(polityId, regions) {
+  if (activePoliticsIndex?.source === regions) return activePoliticsIndex.regionsByPolity.get(polityId) || [];
+  return regions.filter(region => actorId(region) === polityId);
+}
 function authoritySeatPlace(authority, regions) {
-  const seat = regions.find(region => region.id === authority.seatRegionId);
+  const seat = activePoliticsIndex?.source === regions
+    ? activePoliticsIndex.regionById.get(authority.seatRegionId)
+    : regions.find(region => region.id === authority.seatRegionId);
   const place = seat?.subregionalControl?.places?.find?.(candidate => candidate.id === authority.seatPlaceId) ||
     seat?.subregional?.places?.find?.(candidate => candidate.id === authority.seatPlaceId) || null;
   return { seat, place };
@@ -306,6 +338,7 @@ function updatePersistentRecognition(authority, religion, polity, regions, years
 }
 
 export function tickMedievalReligiousPolitics(regions, religiousWorld, polities, currentTick, elapsedDays = 30, rng = Math.random, options = {}) {
+  activePoliticsIndex = buildPoliticsIndex(regions);
   const years = Math.max(0.001, elapsedDays / DAYS_PER_YEAR); const events=[];
   const religions = religiousWorld?.religions || []; const authorities = religiousWorld?.authorities || [];
   const religionById = new Map(religions.map(r=>[r.id,r])); const polityById = new Map(polities.map(p=>[p.id,p]));
@@ -334,5 +367,6 @@ export function tickMedievalReligiousPolitics(regions, religiousWorld, polities,
     }
     maybeIssueWarOrPeaceCall(authority,religion,polities,regions,currentTick,years,rng,events,options);
   }
+  activePoliticsIndex = null;
   return events;
 }

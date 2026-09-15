@@ -167,7 +167,8 @@ export function tickCommunicationPractices(regions, polities = [], agreements = 
     state.archiveAvailable = Boolean(admin?.breakthroughs?.has?.('palace_archives'));
     writingById.set(region.id, state.writingAvailable);
     const tradeWeight = Math.log1p(Math.max(0, region.tradeEconomy?.weeklyImports || 0) + Math.max(0, region.tradeEconomy?.weeklyExports || 0));
-    const traffic = (region.diplomaticMessages || []).filter((m) => (m.departTick ?? -Infinity) >= currentTick - 52).length;
+    let traffic = 0;
+    for (const message of region.diplomaticMessages || []) if ((message.departTick ?? -Infinity) >= currentTick - 52) traffic += 1;
     state.diplomaticTraffic += traffic * 0.025 * weekScale;
     state.messengerExperience += (traffic * 0.18 + (admin?.communications || 0) * 0.08) * weekScale;
 
@@ -189,8 +190,10 @@ export function tickCommunicationPractices(regions, polities = [], agreements = 
   }
 
   for (const region of regions) {
-    const recent = region.recentTradePartners instanceof Map ? [...region.recentTradePartners.keys()] : [...(region.tradePartnerIds || [])];
-    for (const otherId of recent.slice(0, 12)) {
+    const recent = region.recentTradePartners instanceof Map ? region.recentTradePartners.keys() : (region.tradePartnerIds || []);
+    let recentCount = 0;
+    for (const otherId of recent) {
+      if (recentCount++ >= 12) break;
       const other = byId.get(otherId); if (!other) continue;
       recordLanguageContact(region, other, 0.35 * weekScale, { written: Boolean(writingById.get(region.id) && writingById.get(other.id)) }, true);
       const medium = culturalMedium(other);
