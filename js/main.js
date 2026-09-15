@@ -219,8 +219,14 @@ async function main() {
   }));
   wireLayerToggle(map);
   const deferSimulationForInput = () => clock.deferForInteraction(350);
-  document.addEventListener('pointerdown', deferSimulationForInput, { passive: true, capture: true });
+  let pointerInteractionActive = false;
+  document.addEventListener('pointerdown', () => { pointerInteractionActive = true; deferSimulationForInput(); }, { passive: true, capture: true });
+  document.addEventListener('pointermove', () => { if (pointerInteractionActive) deferSimulationForInput(); }, { passive: true, capture: true });
+  const endPointerInteraction = () => { pointerInteractionActive = false; deferSimulationForInput(); };
+  document.addEventListener('pointerup', endPointerInteraction, { passive: true, capture: true });
+  document.addEventListener('pointercancel', endPointerInteraction, { passive: true, capture: true });
   document.addEventListener('touchstart', deferSimulationForInput, { passive: true, capture: true });
+  document.addEventListener('wheel', deferSimulationForInput, { passive: true, capture: true });
   document.addEventListener('input', deferSimulationForInput, true);
   document.addEventListener('keydown', deferSimulationForInput, true);
   map.setLayer(LAYERS.density);
@@ -298,7 +304,18 @@ async function main() {
   let languageChangeElapsedDays = 0;
   let diplomacyRelationshipElapsedDays = 0;
 
-  clock.onTick((time) => {
+  // Simulation work is intentionally cooperative. A turn may take seconds on
+  // a large world, but it must not own the browser main thread for those seconds.
+  // Yield between heavy phases; if the player is actively panning, scrolling or
+  // editing, keep yielding until the short interaction quiet-period expires.
+  const nextUiFrame = () => new Promise((resolve) => requestAnimationFrame(() => resolve()));
+  const yieldForUi = async () => {
+    const yieldStartedAt = performance.now();
+    do { await nextUiFrame(); } while (clock.isInteractionDeferred());
+    clock.recordCooperativeYield(performance.now() - yieldStartedAt);
+  };
+
+  clock.onTick(async (time) => {
     profiler.beginTick(time);
     // Legacy systems that store durations in weeks receive a calendar-week
     // index derived from absolute simulated time. The expensive scheduler can
@@ -322,6 +339,7 @@ async function main() {
     const climateEvents = profiler.measure('Climate change', () => tickClimateChange(regions, calendarWeek, time.elapsedDays, Math.random));
     const waterEvents = profiler.measure('Hydrology', () => tickActiveHydrology(regions, time.endDay, time.elapsedDays));
     profiler.measure('Economy', () => tickEconomy(regions, seaRegions, toolTypes, Math.random, calendarWeek, time.elapsedDays, time.endDay));
+    await yieldForUi();
     profiler.measure('Gunpowder industry', () => tickGunpowderIndustry(regions, time.elapsedDays));
     profiler.measure('Early-modern military industry', () => tickEarlyModernIndustry(regions, time.elapsedDays));
     profiler.measure('Knowledge pruning', () => pruneKnowledge(regions, calendarWeek));
@@ -338,6 +356,7 @@ async function main() {
     }
     profiler.measure('Transit control', () => tickTransitControl(regions, time.elapsedDays));
     profiler.measure('Trade', () => tickTrade(regions, calendarWeek, time, agreements, profiler));
+    await yieldForUi();
     profiler.measure('Maritime experience', () => tickMaritimeExperience(regions, activeRaids, time.elapsedDays));
     profiler.measure('State finance', () => tickStateFinance(regions, time.elapsedDays));
     profiler.measure('Infrastructure maintenance', () => tickInfrastructureMaintenance(regions, time.elapsedDays));
@@ -348,6 +367,7 @@ async function main() {
     const religiousInstitutionEvents = profiler.measure('Religious institutions', () => tickReligiousInstitutions(regions, religiousWorld, polities, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));
     const diseaseEvents = profiler.measure('Disease', () => tickDisease(regions, time.elapsedDays, Math.random));
     profiler.measure('Demographics', () => tickDemographics(regions, religiousWorld, time.elapsedDays, profiler));
+    await yieldForUi();
     profiler.measure('Settlements', () => {
       for (const region of regions) tickSettlements(region, calendarWeek, time.elapsedDays, Math.random);
     });
@@ -407,8 +427,10 @@ async function main() {
     const organisationInteractionEvents = profiler.measure('Organisation relations', () => tickOrganisationInteractions(regions, polities, religiousWorld, time.elapsedDays));
     profiler.measure('Irregular technology', () => tickIrregularTechnology(regions, religiousWorld, time.elapsedDays, Math.random));
     profiler.measure('Banditry', () => tickBanditry(regions, toolTypes, agreements, time.elapsedDays));
+    await yieldForUi();
     profiler.measure('Nation AI', () => tickNationAi(regions, playerRegionId, activeRaids, activeCampaigns, agreements, polities,
       religiousWorld, calendarWeek, toolTypes, Math.random, time.elapsedDays, { fleets, seaRegions, profiler }));
+    await yieldForUi();
 
     const { remaining, events } = profiler.measure('Raids', () => tickRaids(activeRaids, regionsById, calendarWeek, toolTypes, Math.random));
     activeRaids = remaining;

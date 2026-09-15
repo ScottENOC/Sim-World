@@ -11,6 +11,8 @@ assert.ok(strategy.includes('supportByRegion'), 'support agreement index missing
 assert.ok(strategy.includes('strategyContext?.regionsById.get'), 'strategy target lookup is not indexed');
 assert.ok(strategy.includes('ctx.regionsById.get(id)'), 'known military contacts are not indexed');
 assert.ok(strategy.includes('vassalLevyOffer(subject, region, currentTick)'), 'indexed vassal levy calculation missing');
+assert.ok(strategy.includes('const candidates = strategyContext'), 'no-allies military strategy path can fall back to a full-world scan');
+assert.ok(strategy.includes("? (indexed ? [...indexed.entries()].map"), 'indexed no-allies path does not resolve directly to an empty candidate set');
 
 assert.ok(scouting.includes('export function buildScoutingContext'), 'scouting context missing');
 assert.ok(scouting.includes('coastalBySea'), 'coastal sea index missing');
