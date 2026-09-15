@@ -44,7 +44,7 @@ na.TARGET_REGION_COUNT = TARGET_REGION_COUNT
 na.TARGET_PIECE_AREA_SQKM = TARGET_PIECE_AREA_SQKM
 na.MIN_COMPONENT_AREA_SQKM = 1
 na.MAX_CLUSTER_GAP_DEGREES = MAX_CLUSTER_GAP_DEGREES
-na.USER_AGENT = 'Sim-World Latin America expansion/1.4'
+na.USER_AGENT = 'Sim-World Latin America expansion/2.0'
 
 SOUTH_AMERICA_CODES = {
     'COL','VEN','GUY','SUR','GUF','ECU','PER','BOL','BRA','PRY','URY','ARG','CHL','FLK'
@@ -150,7 +150,6 @@ def build_source_pieces(admin1, masks, existing):
     names = {item['iso']: item['name'] for item in plan['countries']}
     raw = []
     covered = defaultdict(list)
-
     for feature in admin1.get('features', []):
         codes = na.feature_codes(feature) & wanted
         if not codes:
@@ -174,7 +173,6 @@ def build_source_pieces(admin1, masks, existing):
                     'anchorISO': iso,
                     'area': na.map_v2.area_sqkm(piece),
                 })
-
     for iso, mask in masks.items():
         remaining = na.map_v2.repair(mask.difference(existing))
         if covered.get(iso):
@@ -263,14 +261,28 @@ def resource_endowment(region):
         forest, quality = 0.24, 0.60
     if lon < -70 and ('Andes' in zone or 'Highlands' in zone):
         quality *= 0.92
-    resource = na.base_endowment(region['id'])
-    resource.update({
-        'landAreaKm2': region['areaSqKm'],
-        'forestPotential': forest,
-        'farmQuality': quality,
-        'source': 'latin-america-caribbean-v1',
-    })
-    return resource
+
+    seed = region['id']
+    deposits = {'stone': na.map_v2.make_deposit('stone', 'major')}
+    iron_mag = na.magnitude_for(seed, 'ironOre', [('major',0.16),('moderate',0.50),('minor',0.30)]) or 'minor'
+    deposits['ironOre'] = na.map_v2.make_deposit('ironOre', iron_mag)
+    metal_belt = ('Andes' in zone or 'Highlands' in zone or 'Brazilian' in zone or 'Guiana' in zone)
+    if magnitude := na.magnitude_for(seed, 'copper', [('major',0.14 if metal_belt else 0.03),('moderate',0.28 if metal_belt else 0.10),('minor',0.24)]):
+        deposits['copper'] = na.map_v2.make_deposit('copper', magnitude)
+    if magnitude := na.magnitude_for(seed, 'gold', [('moderate',0.10 if metal_belt else 0.03),('minor',0.22 if metal_belt else 0.08)]):
+        deposits['gold'] = na.map_v2.make_deposit('gold', magnitude)
+    tin_belt = ('Andes' in zone or 'Brazilian' in zone)
+    if magnitude := na.magnitude_for(seed, 'tin', [('moderate',0.035 if tin_belt else 0.008),('minor',0.09 if tin_belt else 0.025)]):
+        deposits['tin'] = na.map_v2.make_deposit('tin', magnitude)
+    dry_interior = ('Chaco' in zone or 'Patagon' in zone or 'Interior' in zone or 'Andes' in zone)
+    if dry_interior and (magnitude := na.magnitude_for(seed, 'salt', [('major',0.12),('moderate',0.25),('minor',0.22)])):
+        deposits['salt'] = na.map_v2.make_deposit('salt', magnitude)
+    return {
+        'landQuality': quality,
+        'forestFraction': forest,
+        'forestStartCoverage': 0.82 if forest > 0.3 else 0.70,
+        'deposits': deposits,
+    }
 
 
 def main():
@@ -292,7 +304,7 @@ def main():
     pieces = build_source_pieces(admin1, masks, existing)
     clusters = na.cluster_pieces(pieces, TARGET_REGION_COUNT)
     regions = make_regions(clusters)
-    na.map_v2.add_land_adjacency(geo['features'], meta_doc['regions'], regions)
+    na.add_adjacency(geo['features'], meta_doc['regions'], regions)
 
     existing_ids = {f['properties']['id'] for f in geo['features']}
     for region in regions:
