@@ -32,12 +32,6 @@ SOURCE_GROUP = 'latin_america_caribbean_v1'
 ID_PREFIX = 'la_'
 TARGET_REGION_COUNT = 180
 TARGET_PIECE_AREA_SQKM = 90_000
-# Ordinary source components below 10 km² are map-detail, not gameplay regions.
-# Tiny sovereign/dependency island groups are the exception: keep their genuine
-# geometry long enough to union/cluster them, otherwise places such as Anguilla
-# can disappear before grouping. Remote named archipelagos receive the same
-# treatment. This avoids turning Brazilian offshore rocks such as Martim Vaz
-# into isolated 1 km² gameplay regions.
 MIN_COMPONENT_AREA_SQKM = 10
 TINY_ISLAND_NAV_CODES = {
     'AIA','ABW','BLM','BES','CUW','CYM','DMA','GRD','MAF','MSR','SXM','TCA','VGB',
@@ -48,8 +42,6 @@ MAX_CLUSTER_GAP_DEGREES = 0.32
 na.PLAN = PLAN
 na.TARGET_REGION_COUNT = TARGET_REGION_COUNT
 na.TARGET_PIECE_AREA_SQKM = TARGET_PIECE_AREA_SQKM
-# The shared builder uses this for generic splitting; Latin America applies the
-# more selective keep_source_component rule below.
 na.MIN_COMPONENT_AREA_SQKM = 1
 na.MAX_CLUSTER_GAP_DEGREES = MAX_CLUSTER_GAP_DEGREES
 na.USER_AGENT = 'Sim-World Latin America expansion/1.4'
@@ -130,7 +122,6 @@ def physiographic_zone(lon, lat):
 
 
 def collapse_remote_archipelagos(pieces):
-    """Keep widely separated islands in a named archipelago as one gameplay region."""
     grouped = defaultdict(list)
     ordinary = []
     for piece in pieces:
@@ -184,8 +175,6 @@ def build_source_pieces(admin1, masks, existing):
                     'area': na.map_v2.area_sqkm(piece),
                 })
 
-    # ADM1 is inconsistent for small islands and dependencies. Use the uncovered
-    # ADM0 mask as a real-geometry fallback instead of inventing placeholder land.
     for iso, mask in masks.items():
         remaining = na.map_v2.repair(mask.difference(existing))
         if covered.get(iso):
@@ -295,7 +284,9 @@ def main():
     geo = json.loads(na.BASE_GEO.read_text())
     meta_doc = json.loads(na.BASE_META.read_text())
     resources = json.loads(na.BASE_RESOURCES.read_text())
-    masks, _admin0 = na.country_masks(plan)
+    wanted = {item['iso'] for item in plan['countries']}
+    admin0 = na.fetch_json(na.ADMIN0_URL)
+    masks = na.country_masks(admin0, wanted)
     admin1 = na.fetch_json(na.ADMIN1_URL)
     existing = na.map_v2.repair(unary_union([na.map_v2.clean(shape(f['geometry'])) for f in geo.get('features', [])]))
     pieces = build_source_pieces(admin1, masks, existing)
