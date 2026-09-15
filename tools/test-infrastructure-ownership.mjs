@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createInfrastructureAsset, ensureInvestmentPolicy } from '../js/economy/infrastructureInvestment.js';
+import { createInfrastructureAsset, ensureInvestmentPolicy, setForeignInvestmentPolicy, FOREIGN_INVESTMENT_POLICIES } from '../js/economy/infrastructureInvestment.js';
 import { nationaliseCorporateInfrastructure, tickInfrastructureOwnership } from '../js/economy/infrastructureOwnership.js';
 import { maybeInvestInCorporateInfrastructure } from '../js/economy/corporateInfrastructureAi.js';
 
@@ -59,4 +59,19 @@ maybeInvestInCorporateInfrastructure([], [recovering], 52, ()=>1);
 assert.ok(recovering.investmentReputation>.5,'investor reputation should recover slowly in annual review');
 assert.ok(recovering.expropriationMemory<.4,'expropriation memory should fade slowly');
 
-console.log('Infrastructure ownership, concession expiry, nationalisation and reputation regressions passed.');
+const npcHost={id:'npc-host'}; const npcOwner={id:'npc-owner'};
+setForeignInvestmentPolicy(npcHost,{general:FOREIGN_INVESTMENT_POLICIES.DOMESTIC_ONLY,strategic:FOREIGN_INVESTMENT_POLICIES.DOMESTIC_ONLY});
+const npcRegion={id:'npc-r',polityId:'npc-host',treasury:200,industrialSupply:{capability:{}},corporateInfrastructure:{nextAssetId:1,nextProposalId:1,proposals:[],assets:[]}};
+const npcAsset=createInfrastructureAsset({id:'npc-asset',type:'factory',regionId:'npc-r',hostPolityId:'npc-host',ownerPolityId:'npc-owner',operatorPolityId:'npc-owner',foreignOwner:true,value:100,concessionYears:15}); npcAsset.status='operational'; npcRegion.corporateInfrastructure.assets.push(npcAsset);
+const npcEvents=maybeInvestInCorporateInfrastructure([npcRegion],[npcHost,npcOwner],52,()=>1,{playerPolityId:'someone-else'});
+assert.ok(npcEvents.some((event)=>event.type==='corporate_infrastructure_nationalised'&&event.assetId==='npc-asset'),'NPC domestic-only governments should buy out foreign assets when they can afford compensation');
+assert.equal(npcAsset.foreignOwner,false);assert.equal(npcRegion.treasury,100);
+
+const warHost={id:'war-host',atWarWith:['war-owner']}; const warOwner={id:'war-owner'};
+const warRegion={id:'war-host-r',polityId:'war-host',treasury:0,industrialSupply:{capability:{}},corporateInfrastructure:{nextAssetId:1,nextProposalId:1,proposals:[],assets:[]}};
+const warAsset=createInfrastructureAsset({id:'war-asset',type:'port',regionId:'war-host-r',hostPolityId:'war-host',ownerPolityId:'war-owner',operatorPolityId:'war-owner',foreignOwner:true,strategic:true,value:180,concessionYears:25}); warAsset.status='operational'; warRegion.corporateInfrastructure.assets.push(warAsset);
+const warNationalisationEvents=maybeInvestInCorporateInfrastructure([warRegion],[warHost,warOwner],52,()=>1,{playerPolityId:'someone-else'});
+assert.ok(warNationalisationEvents.some((event)=>event.type==='corporate_infrastructure_nationalised'&&event.atWar),'NPC governments should seize enemy-owned infrastructure during war without needing cash compensation');
+assert.equal(warAsset.foreignOwner,false);assert.equal(warOwner.foreignClaims['war-host'],180);
+
+console.log('Infrastructure ownership, concession expiry, nationalisation, NPC decisions and reputation regressions passed.');
