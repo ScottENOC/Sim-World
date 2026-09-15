@@ -35,7 +35,8 @@ export function maybeInvestInCorporateInfrastructure(regions,polities,currentTic
         if(foreign&&options.playerPolityId===hostPolity.id){
           const offer=createCorporateInfrastructureOffer({type,hostRegion:host,hostPolity,investorRegion:candidate.region,investorPolity,firm:candidate.firm,relation,atWar,partner,warLossRate,civilDisorder,assetDamageRate,concessionYears,currentTick});
           if(offer.created){
-            events.push({type:'foreign_investment_offer',polityId:hostPolity.id,hostPolityId:hostPolity.id,investorPolityId:investorPolity.id,regionId:host.id,proposalId:offer.proposal.id,infrastructureType:type,foreign:true});
+            const infrastructureName=CORPORATE_INFRASTRUCTURE_TYPES[type]?.name||type.replaceAll('_',' ');
+            events.push({type:'foreign_investment_offer',title:'Foreign investment proposal',description:`A company based in ${candidate.region.name} proposes a ${concessionYears}-year concession to build and operate a ${infrastructureName.toLowerCase()} in ${host.name}. Review the terms with the Treasurer in Council.`,polityId:hostPolity.id,hostPolityId:hostPolity.id,investorPolityId:investorPolity.id,regionId:host.id,proposalId:offer.proposal.id,infrastructureType:type,foreign:true});
             placed=true;
             break;
           }
