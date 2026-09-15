@@ -1,4 +1,5 @@
 import { operationalInfrastructure } from '../economy/construction.js?v=20260913-early-modern1';
+import { navalGunTechnologyMultiplier, NAVAL_GUN_TYPES } from '../technology/industrialMarine.js?v=20260916-steam1';
 
 const DAYS_PER_YEAR = 365.2425;
 const clamp = (value, low = 0, high = 1) => Math.max(low, Math.min(high, Number(value) || 0));
@@ -64,6 +65,7 @@ export function ensureEarlyModernMilitary(region) {
   state.artillery.readiness = clamp(state.artillery.readiness);
   state.naval ||= { readiness: 0, guns: [], lastBuilt: null };
   state.naval.guns ||= [];
+  for (const gun of state.naval.guns) gun.technology ||= NAVAL_GUN_TYPES.SMOOTHBORE;
   state.naval.readiness = clamp(state.naval.readiness);
   region.banditTechnology ||= { firearms: 0, gunpowder: 0, firearmExperience: 0, steelExposure: 0 };
   return state;
@@ -73,8 +75,6 @@ export function firearmSteelQualityMultiplier(region) {
   if (!hasTech(region, 'steelmaking')) return 1;
   const coverage = clamp(region.steelIndustry?.militaryCoverage || 0);
   const readiness = clamp(region.steelIndustry?.readiness || 0);
-  // Steel is an improvement, never a prerequisite: better barrels, locks,
-  // springs and fittings gradually reduce failures and permit handier weapons.
   return 1 + coverage * 0.11 + readiness * 0.035;
 }
 
@@ -96,7 +96,7 @@ function buildNavalGun(region) {
   if (!metal) return false;
   region.stockpile.wood -= 0.6;
   region.stockpile.gunpowder -= 0.04;
-  const gun = { metal: dominantMaterial(metal), condition: 1 };
+  const gun = { metal: dominantMaterial(metal), condition: 1, technology: NAVAL_GUN_TYPES.SMOOTHBORE };
   const state = ensureEarlyModernMilitary(region);
   state.naval.guns.push(gun);
   state.naval.lastBuilt = gun.metal;
@@ -202,17 +202,20 @@ export function artilleryCampaignProfile(region, train = [], { elapsedDays = 7, 
 
 export function navalGunCombatProfile(region, ships = [], { elapsedDays = 7, consumeSupplies = true } = {}) {
   const state = ensureEarlyModernMilitary(region).naval;
-  if (!hasTech(region, 'gunpowder') || !ships.length || !state.guns.length) return { multiplier: 1, armedShare: 0, suppliedFraction: 0, gunsUsed: 0, steelShare: 0 };
+  if (!hasTech(region, 'gunpowder') || !ships.length || !state.guns.length) return { multiplier: 1, armedShare: 0, suppliedFraction: 0, gunsUsed: 0, steelShare: 0, rifledShare: 0, breechShare: 0 };
   const advanced = ships.filter((ship) => ship.designId === 'advanced_warship').length;
-  const capacity = Math.max(1, advanced * 6 + (ships.length - advanced));
+  const industrial = ships.filter((ship) => ['steam_warship', 'ironclad', 'steel_warship'].includes(ship.designId)).length;
+  const capacity = Math.max(1, advanced * 6 + industrial * 10 + (ships.length - advanced - industrial));
   const gunsUsed = Math.min(state.guns.length, capacity);
   const armedShare = clamp(gunsUsed / capacity);
   const selected = state.guns.slice(0, gunsUsed);
   const steelShare = selected.length ? selected.filter((gun) => gun.metal === 'steel').length / selected.length : 0;
-  const quality = selected.length ? selected.reduce((sum, gun) => sum + materialQuality(gun.metal) * clamp(gun.condition ?? 1, 0.25, 1), 0) / selected.length : 1;
+  const rifledShare = selected.length ? selected.filter((gun) => gun.technology === NAVAL_GUN_TYPES.RIFLED).length / selected.length : 0;
+  const breechShare = selected.length ? selected.filter((gun) => gun.technology === NAVAL_GUN_TYPES.BREECH).length / selected.length : 0;
+  const quality = selected.length ? selected.reduce((sum, gun) => sum + materialQuality(gun.metal) * navalGunTechnologyMultiplier(gun) * clamp(gun.condition ?? 1, 0.25, 1), 0) / selected.length : 1;
   const weeks = Math.max(0.1, elapsedDays / 7);
-  const powderNeed = gunsUsed * 0.045 * weeks;
-  const shotNeed = gunsUsed * 0.016 * weeks;
+  const powderNeed = gunsUsed * 0.045 * weeks * (1 + breechShare * 0.18);
+  const shotNeed = gunsUsed * 0.016 * weeks * (1 + rifledShare * 0.08 + breechShare * 0.16);
   const suppliedFraction = Math.min(
     powderNeed > 0 ? clamp((region.stockpile?.gunpowder || 0) / powderNeed) : 1,
     shotNeed > 0 ? clamp(availableShotMetal(region) / shotNeed) : 1,
@@ -224,7 +227,7 @@ export function navalGunCombatProfile(region, ships = [], { elapsedDays = 7, con
   }
   return {
     multiplier: 1 + armedShare * suppliedFraction * (0.58 + (quality - 0.9) * 0.45),
-    armedShare, suppliedFraction, gunsUsed, steelShare,
+    armedShare, suppliedFraction, gunsUsed, steelShare, rifledShare, breechShare,
   };
 }
 
