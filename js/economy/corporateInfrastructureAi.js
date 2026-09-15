@@ -1,6 +1,6 @@
 import { CORPORATE_INFRASTRUCTURE_TYPES, createCorporateInfrastructureOffer, ensureCorporateInfrastructure, eligibleInfrastructureFirms, expireCorporateInfrastructureOffers, infrastructureTypeAvailable, proposeCorporateInfrastructure, tickCorporateInfrastructureAsset } from './corporateInfrastructure.js';
 import { tickInvestmentReputation } from './infrastructureInvestment.js';
-import { tickInfrastructureOwnership } from './infrastructureOwnership.js';
+import { maybeNationaliseNpcInfrastructure, tickInfrastructureOwnership } from './infrastructureOwnership.js';
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 function polityId(region){return region.governance?.sovereignPolityId||region.polityId||null;}
 function hostRegions(regions,id){return regions.filter(r=>polityId(r)===id);}
@@ -12,7 +12,8 @@ export function tickExistingCorporateInfrastructure(regions,elapsedDays){for(con
 export function maybeInvestInCorporateInfrastructure(regions,polities,currentTick,rng=Math.random,options={}){
   if(currentTick%52!==0)return[];
   const polityMap=new Map((polities||[]).map(p=>[p.id,p])),events=[],firmsByType=new Map();
-  for(const polity of polities||[])tickInvestmentReputation(polity,1);
+  if(currentTick>0)for(const polity of polities||[])tickInvestmentReputation(polity,1);
+  events.push(...maybeNationaliseNpcInfrastructure(regions,polities,currentTick,options));
   for(const region of regions||[])expireCorporateInfrastructureOffers(region,currentTick);
   for(const type of Object.keys(CORPORATE_INFRASTRUCTURE_TYPES))firmsByType.set(type,eligibleInfrastructureFirms(regions,type).slice(0,24));
   for(const hostPolity of polities||[]){
