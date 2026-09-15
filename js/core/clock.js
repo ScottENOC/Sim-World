@@ -26,6 +26,7 @@ export class Clock {
     this._rafHandle = null;
     this._running = false;
     this._estimatedTickMs = null;
+    this._cooperativeYieldMs = 0;
     this._deferUntil = 0;
     this._now = now;
     this._requestFrame = requestFrame;
@@ -92,6 +93,10 @@ export class Clock {
     return this._now() < this._deferUntil;
   }
 
+  recordCooperativeYield(durationMs) {
+    this._cooperativeYieldMs += Math.max(0, Number(durationMs) || 0);
+  }
+
   _targetIntervalMs(speed = this.speed) { return MS_PER_TICK_AT_1X / speed; }
 
   _recordTickDuration(durationMs) {
@@ -122,6 +127,7 @@ export class Clock {
             return;
           }
           const startedAt = this._now();
+          this._cooperativeYieldMs = 0;
           const startDay = this.elapsedDays;
           const elapsedDays = this.daysPerTick;
           this.tickIndex++;
@@ -139,7 +145,7 @@ export class Clock {
             if (!this._running) return;
           }
           const finishedAt = this._now();
-          const durationMs = Math.max(0, finishedAt - startedAt);
+          const durationMs = Math.max(0, finishedAt - startedAt - this._cooperativeYieldMs);
           this._recordTickDuration(durationMs);
           if (this.speed > 0) this._nextTickAt = Math.max(finishedAt, startedAt + this._targetIntervalMs());
         }
