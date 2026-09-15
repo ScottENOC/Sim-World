@@ -15,8 +15,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply patch
-        run: python3 tools/apply-ios-hotspot-no-regrets.py
+      - name: Apply code patch
+        run: |
+          cp .github/workflows/performance-calibration.yml /tmp/performance-calibration.yml
+          python3 tools/apply-ios-hotspot-no-regrets.py
+          cp /tmp/performance-calibration.yml .github/workflows/performance-calibration.yml
       - name: Syntax check touched JavaScript
         run: |
           node --check js/core/performanceProfiler.js
@@ -25,14 +28,10 @@ jobs:
           node --check js/economy/transitTolls.js
           node --check js/society/medievalReligiousPolitics.js
           node --check js/diplomacy/languageCommunication.js
-      - name: Remove one-time patch machinery
-        run: |
-          rm tools/apply-ios-hotspot-no-regrets.py
-          rm .github/workflows/apply-ios-hotspot-no-regrets.yml
       - name: Commit implementation
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
+          git add js/core/performanceProfiler.js js/main.js js/economy/trade.js js/economy/transitTolls.js js/society/medievalReligiousPolitics.js js/diplomacy/languageCommunication.js
           git commit -m 'Optimise iOS simulation hotspots without reducing fidelity'
           git push
