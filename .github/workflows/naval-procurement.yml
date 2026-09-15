@@ -1,0 +1,55 @@
+name: Naval procurement
+on:
+  push:
+    branches: [naval-procurement-v1]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/military/fleets.js'
+      - 'js/economy/laborCore.js'
+      - 'js/world/region.js'
+      - 'tools/apply-naval-procurement-v1.py'
+      - 'tools/test-naval-procurement.mjs'
+      - '.github/workflows/naval-procurement.yml'
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Apply class-aware procurement
+        run: python tools/apply-naval-procurement-v1.py
+      - name: Syntax checks
+        run: |
+          node --check js/military/fleets.js
+          node --check js/economy/laborCore.js
+          node --check js/world/region.js
+      - name: Procurement regressions
+        run: |
+          node tools/test-naval-procurement.mjs
+          node tools/test-fleet-ship-progression.mjs
+          node tools/test-persistent-fleets.mjs
+          node tools/test-industrial-marine.mjs
+      - name: Economy compatibility
+        run: |
+          node tools/test-gunpowder-firearms.mjs
+          git diff --check
+      - name: Commit integrated procurement
+        if: github.event_name == 'push' && success()
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/military/fleets.js js/economy/laborCore.js js/world/region.js
+          if ! git diff --cached --quiet; then
+            git commit -m 'Integrate class-aware naval procurement'
+            git pull --rebase
+            git push
+          fi

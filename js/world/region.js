@@ -10,6 +10,7 @@ export class Region {
     this.safetyRating = 1.0; this.educationLevel = 0.05; this.experience = {};
     this.targetArmySize = 0; this.army = { personnel: 0, away: 0 };
     this.targetNavySize = 0; this.navy = { boats: 0, advancedBoats: 0, personnel: 0, scoutingBoats: 0 };
+    this.navalProcurement = { targets: {}, built: {}, lastDecisionTick: null };
     this.scouting = { active: false, lastResult: null };
     this.militaryPolicy = { armyPermanence: 0.5, defensivePosture: 'settlements',
       raiderTreatment: 'reintegrate', navalPriority: 'trade', warHorseAllocation: 0.5 };

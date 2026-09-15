@@ -115,6 +115,40 @@ export function preferredWarshipDesign(region, serial = 0) {
   return 'basic_war_boat';
 }
 
+export function desiredWarshipComposition(region, total = region?.targetNavySize || 0) {
+  const count = Math.max(0, Math.round(total || 0));
+  const targets = {};
+  for (let i = 0; i < count; i++) {
+    const id = preferredWarshipDesign(region, i);
+    targets[id] = (targets[id] || 0) + 1;
+  }
+  return targets;
+}
+
+export function ensureNavalProcurement(region) {
+  region.navalProcurement ||= { targets: {}, built: {}, lastDecisionTick: null };
+  region.navalProcurement.targets ||= {};
+  region.navalProcurement.built ||= {};
+  return region.navalProcurement;
+}
+
+export function refreshNavalProcurementTargets(region, currentTick = null) {
+  const procurement = ensureNavalProcurement(region);
+  procurement.targets = desiredWarshipComposition(region);
+  procurement.lastDecisionTick = currentTick;
+  return procurement.targets;
+}
+
+function targetCountForClass(region, designId) {
+  return Math.max(0, Math.round(ensureNavalProcurement(region).targets?.[designId] || 0));
+}
+
+function actualClassCounts(fleets) {
+  const counts = {};
+  for (const fleet of fleets) for (const ship of fleet.ships || []) counts[ship.designId] = (counts[ship.designId] || 0) + 1;
+  return counts;
+}
+
 function makeShip(designId, ownerRegionId, overrides = {}) {
   const spec = SHIP_DESIGNS[designId] || SHIP_DESIGNS.basic_war_boat;
   return {
@@ -299,8 +333,12 @@ export function reconcileFleetLedger(regions, fleets, events = null, weeks = 1) 
   for (const region of regions) {
     if (!(region.adjacentSeaIds || []).length) continue;
     const owned = byOwner.get(region.id) || [];
-    const wantedTotal = Math.max(0, Math.round(region.navy?.boats || 0));
-    const wantedAdvanced = Math.min(wantedTotal, Math.max(0, Math.round(region.navy?.advancedBoats || 0)));
+    const procurement = ensureNavalProcurement(region);
+    const explicitTargets = Object.values(procurement.targets || {}).reduce((sum, value) => sum + Math.max(0, Math.round(value || 0)), 0);
+    const wantedTotal = explicitTargets > 0 ? explicitTargets : Math.max(0, Math.round(region.navy?.boats || 0));
+    const wantedAdvanced = explicitTargets > 0
+      ? Object.entries(procurement.targets).reduce((sum, [id, value]) => sum + (SHIP_DESIGNS[id]?.advanced ? Math.max(0, Math.round(value || 0)) : 0), 0)
+      : Math.min(wantedTotal, Math.max(0, Math.round(region.navy?.advancedBoats || 0)));
 
     // The old economy models wear fractionally. Once that fractional ledger
     // crosses an integer boundary, retire a real persistent ship and report
@@ -334,10 +372,19 @@ export function reconcileFleetLedger(regions, fleets, events = null, weeks = 1) 
       if (target) { fleets.push(target); owned.push(target); }
     }
     if (!target) continue;
-    for (let i = actualAdvanced; i < wantedAdvanced; i++) target.ships.push(makeShip(preferredWarshipDesign(region, i), region.id));
-    const basicActual = actualTotal - actualAdvanced;
-    const basicWanted = wantedTotal - wantedAdvanced;
-    for (let i = basicActual; i < basicWanted; i++) target.ships.push(makeShip('basic_war_boat', region.id));
+    if (explicitTargets > 0) {
+      const classCounts = actualClassCounts(owned);
+      for (const [designId, wanted] of Object.entries(procurement.targets)) {
+        if (!SHIP_DESIGNS[designId]) continue;
+        const actual = classCounts[designId] || 0;
+        for (let i = actual; i < Math.max(0, Math.round(wanted || 0)); i++) target.ships.push(makeShip(designId, region.id));
+      }
+    } else {
+      for (let i = actualAdvanced; i < wantedAdvanced; i++) target.ships.push(makeShip(preferredWarshipDesign(region, i), region.id));
+      const basicActual = actualTotal - actualAdvanced;
+      const basicWanted = wantedTotal - wantedAdvanced;
+      for (let i = basicActual; i < basicWanted; i++) target.ships.push(makeShip('basic_war_boat', region.id));
+    }
     moderniseOwnedFleet(region, owned, weeks, events);
   }
   return fleets;
