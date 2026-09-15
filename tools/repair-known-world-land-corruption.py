@@ -183,12 +183,15 @@ def main():
     good_name = feature_by_id[GOOD_KAL]['properties'].get('name', 'Kaliningrad')
     set_meta(meta_by_id, GOOD_KAL, good_name, good_kal_geom)
 
+    # Genuine Sermersooq and its coastal islands lie well west of 15°W. The
+    # diagnosed Norwegian/Faroese corruption is entirely east of that meridian.
+    # Use that physical separation rather than component-to-core distance, which
+    # incorrectly classifies hundreds of legitimate Greenland islands as detached.
     serm_parts = sorted(polygons(serm_geom), key=area_km2, reverse=True)
-    core = serm_parts[0]
     keep = []
     detached = []
     for part in serm_parts:
-        (keep if part.distance(core) < 2.0 else detached).append(part)
+        (detached if part.bounds[0] > -15.0 else keep).append(part)
     new_serm = repair(unary_union(keep))
     feature_by_id[SERMERSOOQ]['geometry'] = mapping(new_serm)
     serm_name = feature_by_id[SERMERSOOQ]['properties'].get('name', 'Greenland — Kommuneqarfik Sermersooq')
@@ -200,9 +203,6 @@ def main():
     for part in detached:
         if area_km2(part) < MIN_KEEP_KM2:
             continue
-        # These components have already been classified as remote from the
-        # Greenland core. Keeping a known European outlier attached to Greenland
-        # is worse than assigning it to the physically nearest non-Greenland region.
         target_id, _target_geom = min(current, key=lambda row: part.distance(row[1]))
         moved_by_target.setdefault(target_id, []).append(part)
 
