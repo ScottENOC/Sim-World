@@ -1,0 +1,2583 @@
+[
+  {
+    "id": "la_bf3196340bd4",
+    "name": "Northeastern Central American Isthmus",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BHS:Central Abaco",
+      "BHS:City of Freeport",
+      "BHS:East Grand Bahama",
+      "BHS:Moore's Island",
+      "BHS:North Abaco",
+      "BHS:South Abaco",
+      "BHS:West Grand Bahama"
+    ],
+    "areaSqKm": 2313.8,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_18d42053827e",
+    "name": "Northeastern Central American Isthmus — Berry Islands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BHS:Berry Islands"
+    ],
+    "areaSqKm": 13.0,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_86116e9a9166",
+    "name": "Northern Central American Isthmus",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BHS:Bimini"
+    ],
+    "areaSqKm": 14.9,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_0906e18198b0",
+    "name": "Northwestern Greater Antilles",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BHS:Central Eleuthera",
+      "BHS:North Eleuthera",
+      "BHS:South Eleuthera"
+    ],
+    "areaSqKm": 514.8,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_6d357f109f83",
+    "name": "Northeastern Central American Isthmus — New Providence",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BHS:New Providence"
+    ],
+    "areaSqKm": 184.0,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_b35c3465cb74",
+    "name": "Northeastern Central American Isthmus — North Andros",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BHS:Central Andros",
+      "BHS:Mangrove Cay",
+      "BHS:North Andros",
+      "BHS:South Andros"
+    ],
+    "areaSqKm": 4983.2,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_1a26daf11719",
+    "name": "Northern Greater Antilles",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BHS:Bahamas",
+      "BHS:Cat Island"
+    ],
+    "areaSqKm": 415.9,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_7b02f0111dca",
+    "name": "Western Greater Antilles",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BHS:Black Point"
+    ],
+    "areaSqKm": 33.7,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_25a820a08a88",
+    "name": "Northern Greater Antilles — San Salvador",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BHS:San Salvador"
+    ],
+    "areaSqKm": 144.6,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_560f1b004d9e",
+    "name": "Western Greater Antilles — Exuma",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BHS:Exuma"
+    ],
+    "areaSqKm": 207.8,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_514e55c1ca8f",
+    "name": "Northwestern Greater Antilles — Long Island",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BHS:Long Island",
+      "BHS:Rum Cay"
+    ],
+    "areaSqKm": 490.6,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_dacc83a95d4a",
+    "name": "Eastern Greater Antilles",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BHS:Crooked Island and Long Cay"
+    ],
+    "areaSqKm": 29.1,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_89a0ea1d3b7b",
+    "name": "Eastern Greater Antilles — Acklins",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BHS:Acklins",
+      "BHS:Crooked Island and Long Cay"
+    ],
+    "areaSqKm": 765.3,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_140fe3f82f2b",
+    "name": "Northwestern Northern Caribbean Islands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BHS:Mayaguana"
+    ],
+    "areaSqKm": 267.7,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_c47ec5c4ff18",
+    "name": "Northwestern Northern Caribbean Islands — Middle Caicos",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "TCA:Middle Caicos",
+      "TCA:North Caicos",
+      "TCA:Providenciales and West Caicos",
+      "TCA:South Caicos and East Caicos",
+      "TCA:Turks and Caicos Islands"
+    ],
+    "areaSqKm": 422.6,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_ae38b33aba1b",
+    "name": "Northern Central American Isthmus — Isla de la Juventud",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "CUB:Isla de la Juventud"
+    ],
+    "areaSqKm": 2219.7,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_2ab040939a0b",
+    "name": "Northern Central American Isthmus — Isla de la Juventud 2",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "CUB:Isla de la Juventud"
+    ],
+    "areaSqKm": 36.9,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_4ae9035d57f3",
+    "name": "Eastern Central American Isthmus",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "CUB:Artemisa",
+      "CUB:Camagüey",
+      "CUB:Ciego de Ávila",
+      "CUB:Cienfuegos",
+      "CUB:Ciudad de la Habana",
+      "CUB:Cuba",
+      "CUB:Granma",
+      "CUB:Guantánamo",
+      "CUB:Holguín",
+      "CUB:Las Tunas",
+      "CUB:Matanzas",
+      "CUB:Mayabeque",
+      "CUB:Pinar del Río",
+      "CUB:Sancti Spíritus",
+      "CUB:Santiago de Cuba",
+      "CUB:Villa Clara"
+    ],
+    "areaSqKm": 106772.9,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_0e3cb7134682",
+    "name": "Northern Central American Isthmus — Isla de la Juventud 3",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "CUB:Isla de la Juventud"
+    ],
+    "areaSqKm": 19.2,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_53dcf48eb400",
+    "name": "Northwestern Northern Caribbean Islands — Grand Turk",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "TCA:Grand Turk",
+      "TCA:Salt Cay",
+      "TCA:Turks and Caicos Islands"
+    ],
+    "areaSqKm": 19.0,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_4ab4601b3b5f",
+    "name": "Western Northern Caribbean Islands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "TCA:South Caicos and East Caicos",
+      "TCA:Turks and Caicos Islands"
+    ],
+    "areaSqKm": 3.5,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_db174a60961c",
+    "name": "Southeastern Greater Antilles",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BHS:Inagua"
+    ],
+    "areaSqKm": 1693.8,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_b1540c706e43",
+    "name": "Eastern Central American Isthmus — Cayman Islands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "CYM:Cayman Islands"
+    ],
+    "areaSqKm": 86.4,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_f78dd62be9fd",
+    "name": "Northern Central American Isthmus — Cayman Islands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "CYM:Cayman Islands"
+    ],
+    "areaSqKm": 222.8,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_83d9bf77995b",
+    "name": "Southwestern Northern Caribbean Islands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "DOM:Azua",
+      "DOM:Bahoruco",
+      "DOM:Barahona",
+      "DOM:Dajabón",
+      "DOM:Distrito Nacional",
+      "DOM:Dominican Republic",
+      "DOM:Duarte",
+      "DOM:El Seybo",
+      "DOM:Espaillat",
+      "DOM:Hato Mayor",
+      "DOM:Hermanas",
+      "DOM:Independencia",
+      "DOM:La Altagracia",
+      "DOM:La Estrelleta",
+      "DOM:La Romana",
+      "DOM:La Vega",
+      "DOM:María Trinidad Sánchez",
+      "DOM:Monseñor Nouel",
+      "DOM:Monte Cristi",
+      "DOM:Monte Plata",
+      "DOM:Pedernales",
+      "DOM:Peravia",
+      "DOM:Puerto Plata",
+      "DOM:Samaná",
+      "DOM:San Cristóbal",
+      "DOM:San José de Ocoa",
+      "DOM:San Juan",
+      "DOM:San Pedro de Macorís",
+      "DOM:Santiago",
+      "DOM:Santiago Rodríguez",
+      "DOM:Santo Domingo",
+      "DOM:Sánchez Ramírez",
+      "DOM:Valverde",
+      "HTI:Centre",
+      "HTI:Grand'Anse",
+      "HTI:Haiti",
+      "HTI:L'Artibonite",
+      "HTI:Nippes",
+      "HTI:Nord",
+      "HTI:Nord-Est",
+      "HTI:Nord-Ouest",
+      "HTI:Ouest",
+      "HTI:Sud",
+      "HTI:Sud-Est"
+    ],
+    "areaSqKm": 74810.8,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_0b06729fbe9f",
+    "name": "Southeastern Northern Caribbean Islands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "VGB:British Virgin Islands"
+    ],
+    "areaSqKm": 34.1,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_4a2077730b8f",
+    "name": "Southeastern Northern Caribbean Islands — Unnamed",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "AIA:Unnamed"
+    ],
+    "areaSqKm": 0.3,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_4b36b8588508",
+    "name": "Southeastern Northern Caribbean Islands — British Virgin Islands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "VGB:British Virgin Islands",
+      "VIR:Saint John",
+      "VIR:Saint Thomas"
+    ],
+    "areaSqKm": 227.9,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_da8973ee169c",
+    "name": "Southern Northern Caribbean Islands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "PRI:Puerto Rico"
+    ],
+    "areaSqKm": 8868.3,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_a72ebdea2653",
+    "name": "Eastern Central American Isthmus — Saint Thomas",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "JAM:Clarendon",
+      "JAM:Hanover",
+      "JAM:Kingston",
+      "JAM:Manchester",
+      "JAM:Portland",
+      "JAM:Saint Andrew",
+      "JAM:Saint Ann",
+      "JAM:Saint Catherine",
+      "JAM:Saint Elizabeth",
+      "JAM:Saint James",
+      "JAM:Saint Mary",
+      "JAM:Saint Thomas",
+      "JAM:Trelawny",
+      "JAM:Westmoreland"
+    ],
+    "areaSqKm": 10930.4,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_a62462178cc9",
+    "name": "Southeastern Northern Caribbean Islands — St. Martin",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "AIA:Anguilla",
+      "AIA:Blowing Point",
+      "AIA:East End",
+      "AIA:George Hill",
+      "AIA:Island Harbour",
+      "AIA:North Hill",
+      "AIA:North Side",
+      "AIA:Sandy Ground",
+      "AIA:Sandy Hill",
+      "AIA:South Hill",
+      "AIA:Stoney Ground",
+      "AIA:The Farrington",
+      "AIA:The Quarter",
+      "AIA:The Valley",
+      "AIA:Unnamed",
+      "AIA:West End",
+      "MAF:Saint Martin",
+      "MAF:St. Martin",
+      "SXM:Sint Maarten"
+    ],
+    "areaSqKm": 178.8,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_2e6813906136",
+    "name": "Southern Northern Caribbean Islands — Puerto Rico",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "PRI:Puerto Rico"
+    ],
+    "areaSqKm": 44.9,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_caac1e763077",
+    "name": "Northern Lesser Antilles",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "VIR:Saint Croix"
+    ],
+    "areaSqKm": 201.3,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_9764603ff223",
+    "name": "Northern Lesser Antilles — Barbuda",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ATG:Antigua and Barbuda",
+      "ATG:Barbuda"
+    ],
+    "areaSqKm": 169.5,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_763fa58cbe0d",
+    "name": "Northern Lesser Antilles — Caribbean Netherlands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BES:Caribbean Netherlands"
+    ],
+    "areaSqKm": 7.1,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_e0368bc0497f",
+    "name": "Northern Lesser Antilles — Saint Peter Basseterre",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BES:Caribbean Netherlands",
+      "KNA:Christ Church Nichola Town",
+      "KNA:Saint Anne Sandy Point",
+      "KNA:Saint George Basseterre",
+      "KNA:Saint George Gingerland",
+      "KNA:Saint James Windward",
+      "KNA:Saint John Capesterre",
+      "KNA:Saint John Figtree",
+      "KNA:Saint Kitts and Nevis",
+      "KNA:Saint Mary Cayon",
+      "KNA:Saint Paul Capesterre",
+      "KNA:Saint Paul Charlestown",
+      "KNA:Saint Peter Basseterre",
+      "KNA:Saint Thomas Lowland",
+      "KNA:Saint Thomas Middle Island",
+      "KNA:Trinity Palmetto Point"
+    ],
+    "areaSqKm": 283.2,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_73ad08a499e1",
+    "name": "Northern Lesser Antilles — Saint Paul",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ATG:Antigua and Barbuda",
+      "ATG:Saint George",
+      "ATG:Saint John",
+      "ATG:Saint Mary",
+      "ATG:Saint Paul",
+      "ATG:Saint Peter",
+      "ATG:Saint Philip"
+    ],
+    "areaSqKm": 281.9,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_fcd7cd526480",
+    "name": "Northern Lesser Antilles — Saint Peter",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ATG:Antigua and Barbuda",
+      "ATG:Redonda",
+      "MSR:Montserrat",
+      "MSR:Saint Anthony",
+      "MSR:Saint Georges",
+      "MSR:Saint Peter"
+    ],
+    "areaSqKm": 100.0,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_c6c7cc92d218",
+    "name": "Western Central American Isthmus",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "HND:Islas de la Bahía"
+    ],
+    "areaSqKm": 52.4,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_a2aee24ed997",
+    "name": "Northeastern Maya and Central American Highlands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "HND:Islas de la Bahía"
+    ],
+    "areaSqKm": 138.7,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_3cba862f5719",
+    "name": "Northeastern Lesser Antilles",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "GLP:Guadeloupe"
+    ],
+    "areaSqKm": 1600.3,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_43b4db61a7b4",
+    "name": "Southwestern Maya and Central American Highlands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BLZ:Belize",
+      "BLZ:Cayo",
+      "BLZ:Corozal",
+      "BLZ:Orange Walk",
+      "GTM:Alta Verapaz",
+      "GTM:Baja Verapaz",
+      "GTM:Chimaltenango",
+      "GTM:Chiquimula",
+      "GTM:El Progreso",
+      "GTM:Escuintla",
+      "GTM:Guatemala",
+      "GTM:Huehuetenango",
+      "GTM:Izabal",
+      "GTM:Jalapa",
+      "GTM:Jutiapa",
+      "GTM:Petén",
+      "GTM:Quezaltenango",
+      "GTM:Quiché",
+      "GTM:Retalhuleu",
+      "GTM:Sacatepéquez",
+      "GTM:San Marcos",
+      "GTM:Santa Rosa",
+      "GTM:Sololá",
+      "GTM:Suchitepéquez",
+      "GTM:Totonicapán",
+      "GTM:Zacapa",
+      "SLV:Ahuachapán",
+      "SLV:Sonsonate"
+    ],
+    "areaSqKm": 125137.9,
+    "neighbors": 2,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_0f9e6575f82c",
+    "name": "Eastern Lesser Antilles",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "DMA:Dominica",
+      "DMA:Saint Andrew",
+      "DMA:Saint David",
+      "DMA:Saint George",
+      "DMA:Saint John",
+      "DMA:Saint Joseph",
+      "DMA:Saint Luke",
+      "DMA:Saint Mark",
+      "DMA:Saint Patrick",
+      "DMA:Saint Paul",
+      "DMA:Saint Peter"
+    ],
+    "areaSqKm": 730.3,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_2677a0c60f72",
+    "name": "Eastern Lesser Antilles — Martinique",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "MTQ:Martinique"
+    ],
+    "areaSqKm": 1066.0,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_e0dc3fa43f6e",
+    "name": "Southern Central American Isthmus",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "NIC:Atlántico Norte"
+    ],
+    "areaSqKm": 31.5,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_ed556dd2e71c",
+    "name": "Western Central American Isthmus — Olancho",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "HND:Atlántida",
+      "HND:Choluteca",
+      "HND:Colón",
+      "HND:Comayagua",
+      "HND:Copán",
+      "HND:Cortés",
+      "HND:El Paraíso",
+      "HND:Francisco Morazán",
+      "HND:Gracias a Dios",
+      "HND:Honduras",
+      "HND:Intibucá",
+      "HND:Islas de la Bahía",
+      "HND:La Paz",
+      "HND:Lempira",
+      "HND:Ocotepeque",
+      "HND:Olancho",
+      "HND:Santa Bárbara",
+      "HND:Valle",
+      "HND:Yoro",
+      "NIC:Atlántico Norte",
+      "NIC:Atlántico Sur",
+      "NIC:Boaco",
+      "NIC:Chinandega",
+      "NIC:Chontales",
+      "NIC:Estelí",
+      "NIC:Jinotega",
+      "NIC:León",
+      "NIC:Madriz",
+      "NIC:Matagalpa",
+      "NIC:Nicaragua",
+      "NIC:Nueva Segovia",
+      "SLV:Cabañas",
+      "SLV:Chalatenango",
+      "SLV:Cuscatlán",
+      "SLV:El Salvador",
+      "SLV:La Libertad",
+      "SLV:La Paz",
+      "SLV:La Unión",
+      "SLV:Morazán",
+      "SLV:San Miguel",
+      "SLV:San Salvador",
+      "SLV:San Vicente",
+      "SLV:Santa Ana",
+      "SLV:Usulután"
+    ],
+    "areaSqKm": 234436.3,
+    "neighbors": 2,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_83e5d8fdb575",
+    "name": "Eastern Lesser Antilles — Dennery",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "LCA:Anse-la-Raye",
+      "LCA:Castries",
+      "LCA:Choiseul",
+      "LCA:Dauphin",
+      "LCA:Dennery",
+      "LCA:Gros Islet",
+      "LCA:Laborie",
+      "LCA:Micoud",
+      "LCA:Praslin",
+      "LCA:Saint Lucia",
+      "LCA:Soufrière",
+      "LCA:Vieux Fort"
+    ],
+    "areaSqKm": 605.1,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_868026bbb202",
+    "name": "Southern Central American Isthmus — San Andrés y Providencia",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "COL:San Andrés y Providencia"
+    ],
+    "areaSqKm": 12.3,
+    "neighbors": 0,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_62eaf62dc6f4",
+    "name": "Eastern Lesser Antilles — Saint David",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "VCT:Charlotte",
+      "VCT:Grenadines",
+      "VCT:Saint Andrew",
+      "VCT:Saint David",
+      "VCT:Saint George",
+      "VCT:Saint Patrick",
+      "VCT:Saint Vincent and the Grenadines"
+    ],
+    "areaSqKm": 353.2,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_f315a04a2739",
+    "name": "Eastern Lesser Antilles — Saint Lucy",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRB:Barbados",
+      "BRB:Christ Church",
+      "BRB:Saint Andrew",
+      "BRB:Saint George",
+      "BRB:Saint James",
+      "BRB:Saint John",
+      "BRB:Saint Joseph",
+      "BRB:Saint Lucy",
+      "BRB:Saint Michael",
+      "BRB:Saint Peter",
+      "BRB:Saint Philip",
+      "BRB:Saint Thomas"
+    ],
+    "areaSqKm": 444.2,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_c0555281cef2",
+    "name": "Southern Central American Isthmus — San Andrés y Providencia 2",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "COL:San Andrés y Providencia"
+    ],
+    "areaSqKm": 15.2,
+    "neighbors": 0,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_96221a27475d",
+    "name": "Southeastern Lesser Antilles",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "GRD:Carriacou and Petite Martinique",
+      "GRD:Grenada",
+      "VCT:Grenadines",
+      "VCT:Saint Vincent and the Grenadines"
+    ],
+    "areaSqKm": 48.6,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_18ebe7e6f544",
+    "name": "Northeastern Southern Caribbean Coast",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ABW:Aruba"
+    ],
+    "areaSqKm": 169.8,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_074fa55525d0",
+    "name": "Western Lesser Antilles",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "CUW:Curaçao"
+    ],
+    "areaSqKm": 463.3,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_d2ff3f7cc291",
+    "name": "Western Lesser Antilles — Caribbean Netherlands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BES:Caribbean Netherlands"
+    ],
+    "areaSqKm": 269.1,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_dd80ebeb1457",
+    "name": "Southeastern Lesser Antilles — Saint Patrick",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "GRD:Grenada",
+      "GRD:Saint Andrew",
+      "GRD:Saint David",
+      "GRD:Saint George",
+      "GRD:Saint John",
+      "GRD:Saint Mark",
+      "GRD:Saint Patrick"
+    ],
+    "areaSqKm": 313.1,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_6b8175a6aa82",
+    "name": "Southern Lesser Antilles",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "VEN:Dependencias Federales"
+    ],
+    "areaSqKm": 57.0,
+    "neighbors": 0,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_9372b26a585a",
+    "name": "Southern Lesser Antilles — Dependencias Federales",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "VEN:Dependencias Federales"
+    ],
+    "areaSqKm": 27.3,
+    "neighbors": 0,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_3410ba3cd390",
+    "name": "Southern Lesser Antilles — Dependencias Federales 2",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "VEN:Dependencias Federales"
+    ],
+    "areaSqKm": 23.4,
+    "neighbors": 0,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_19302869bda3",
+    "name": "Southeastern Lesser Antilles — Eastern Tobago",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "TTO:Eastern Tobago",
+      "TTO:Western Tobago"
+    ],
+    "areaSqKm": 275.9,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_dd5970eff566",
+    "name": "Southern Lesser Antilles — Dependencias Federales 3",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "VEN:Dependencias Federales"
+    ],
+    "areaSqKm": 151.4,
+    "neighbors": 0,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_af6ee4c6dfb4",
+    "name": "Northern Upper Amazon and Andean Foothills",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "VEN:Anzoátegui",
+      "VEN:Aragua",
+      "VEN:Barinas",
+      "VEN:Carabobo",
+      "VEN:Cojedes",
+      "VEN:Distrito Capital",
+      "VEN:Falcón",
+      "VEN:Lara",
+      "VEN:Miranda",
+      "VEN:Portuguesa",
+      "VEN:Trujillo",
+      "VEN:Vargas",
+      "VEN:Venezuela",
+      "VEN:Yaracuy",
+      "VEN:Zulia"
+    ],
+    "areaSqKm": 206163.2,
+    "neighbors": 4,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_0b2318a84635",
+    "name": "Southern Southern Caribbean Coast",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "COL:Antioquia",
+      "COL:Atlántico",
+      "COL:Bolívar",
+      "COL:Cesar",
+      "COL:Colombia",
+      "COL:Córdoba",
+      "COL:La Guajira",
+      "COL:Magdalena",
+      "COL:Santander",
+      "COL:Sucre"
+    ],
+    "areaSqKm": 225309.9,
+    "neighbors": 2,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_27b5e84109ef",
+    "name": "Southern Central American Isthmus — Panama",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "PAN:Panama"
+    ],
+    "areaSqKm": 298.5,
+    "neighbors": 0,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_88b050629d46",
+    "name": "Northwestern Guiana Shield and Equatorial Amazon",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "TTO:Chaguanas",
+      "TTO:Couva-Tabaquite-Talparo",
+      "TTO:Diego Martin",
+      "TTO:Penal-Debe",
+      "TTO:Point Fortin",
+      "TTO:Port of Spain",
+      "TTO:Princes Town",
+      "TTO:Rio Claro-Mayaro",
+      "TTO:San Fernando",
+      "TTO:San Juan-Laventille",
+      "TTO:Sangre Grande",
+      "TTO:Siparia",
+      "TTO:Tunapuna/Piarco",
+      "VEN:Bolívar",
+      "VEN:Delta Amacuro",
+      "VEN:Monagas",
+      "VEN:Nueva Esparta",
+      "VEN:Sucre",
+      "VEN:Venezuela"
+    ],
+    "areaSqKm": 161213.5,
+    "neighbors": 4,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_04039e18f92e",
+    "name": "Northeastern Upper Amazon and Andean Foothills",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "VEN:Bolívar",
+      "VEN:Guárico"
+    ],
+    "areaSqKm": 137020.8,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_2a40e26d1c23",
+    "name": "Southwestern Southern Caribbean Coast",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "COL:Bogota",
+      "COL:Caldas",
+      "COL:Chocó",
+      "COL:Cundinamarca",
+      "COL:Quindío",
+      "COL:Risaralda",
+      "COL:Valle del Cauca",
+      "CRI:Alajuela",
+      "CRI:Cartago",
+      "CRI:Costa Rica",
+      "CRI:Guanacaste",
+      "CRI:Heredia",
+      "CRI:Limón",
+      "CRI:Puntarenas",
+      "CRI:San José",
+      "NIC:Carazo",
+      "NIC:Granada",
+      "NIC:Managua",
+      "NIC:Masaya",
+      "NIC:Nicaragua",
+      "NIC:Rio San Juan",
+      "NIC:Rivas",
+      "PAN:Bocas del Toro",
+      "PAN:Chiriquí",
+      "PAN:Coclé",
+      "PAN:Colón",
+      "PAN:Darién",
+      "PAN:Emberá",
+      "PAN:Herrera",
+      "PAN:Kuna Yala",
+      "PAN:Los Santos",
+      "PAN:Ngöbe Buglé",
+      "PAN:Panama",
+      "PAN:Veraguas"
+    ],
+    "areaSqKm": 252548.8,
+    "neighbors": 5,
+    "navigationContinent": "North America"
+  },
+  {
+    "id": "la_aa7a9be8d52d",
+    "name": "Southern Southern Caribbean Coast — Arauca",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "COL:Arauca",
+      "COL:Boyacá",
+      "COL:Casanare",
+      "COL:Colombia",
+      "COL:Norte de Santander",
+      "VEN:Mérida",
+      "VEN:Táchira",
+      "VEN:Venezuela",
+      "VEN:Zulia"
+    ],
+    "areaSqKm": 171464.4,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_69a8bd21d17c",
+    "name": "Northeastern Upper Amazon and Andean Foothills — Apure",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "COL:Colombia",
+      "COL:Vichada",
+      "VEN:Apure"
+    ],
+    "areaSqKm": 131483.8,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_9b5ce05e6cc5",
+    "name": "Western Guiana Shield and Equatorial Amazon",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Brazil",
+      "BRA:Roraima",
+      "VEN:Bolívar"
+    ],
+    "areaSqKm": 137817.1,
+    "neighbors": 4,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_886a25ed6246",
+    "name": "Northern Guiana Shield and Equatorial Amazon",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "GUF:French Guiana",
+      "GUF:Guyane française",
+      "SUR:Sipaliwini"
+    ],
+    "areaSqKm": 190957.1,
+    "neighbors": 2,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_0e71fb1e0c90",
+    "name": "Eastern Upper Amazon and Andean Foothills",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "COL:Guainía",
+      "VEN:Amazonas"
+    ],
+    "areaSqKm": 156266.1,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_c880b7c1e2dd",
+    "name": "Western Guiana Shield and Equatorial Amazon — Amazonas",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Brazil",
+      "BRA:Roraima",
+      "VEN:Amazonas",
+      "VEN:Bolívar",
+      "VEN:Venezuela"
+    ],
+    "areaSqKm": 176987.3,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_7652b65c085c",
+    "name": "Western Upper Amazon and Andean Foothills",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "COL:Caquetá",
+      "COL:Meta"
+    ],
+    "areaSqKm": 176331.0,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_ca8f58efabec",
+    "name": "Western Guiana Shield and Equatorial Amazon — Pará",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Amazonas",
+      "BRA:Brazil",
+      "BRA:Pará",
+      "GUY:Demerara-Mahaica",
+      "GUY:East Berbice-Corentyne",
+      "GUY:Essequibo Islands-West Demerara",
+      "GUY:Guyana",
+      "GUY:Mahaica-Berbice",
+      "GUY:Potaro-Siparuni",
+      "GUY:Upper Demerara-Berbice",
+      "GUY:Upper Takutu-Upper Essequibo",
+      "SUR:Brokopondo",
+      "SUR:Commewijne",
+      "SUR:Coronie",
+      "SUR:Marowijne",
+      "SUR:Nickerie",
+      "SUR:Para",
+      "SUR:Paramaribo",
+      "SUR:Saramacca",
+      "SUR:Suriname",
+      "SUR:Wanica"
+    ],
+    "areaSqKm": 254112.9,
+    "neighbors": 7,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_1ab5c3e9fec9",
+    "name": "Southern Guiana Shield and Equatorial Amazon",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Amapá",
+      "BRA:Brazil",
+      "BRA:Pará",
+      "GUF:French Guiana"
+    ],
+    "areaSqKm": 140727.3,
+    "neighbors": 3,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_12b120bb862f",
+    "name": "Southeastern Upper Amazon and Andean Foothills",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Brazil",
+      "COL:Amazonas",
+      "COL:Colombia",
+      "COL:Guaviare",
+      "COL:Vaupés",
+      "COL:Vichada"
+    ],
+    "areaSqKm": 217471.0,
+    "neighbors": 8,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_bbc0f0fe395c",
+    "name": "Western Guiana Shield and Equatorial Amazon — Roraima",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Amazonas",
+      "BRA:Roraima"
+    ],
+    "areaSqKm": 130616.4,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_8562a5f86841",
+    "name": "Western Upper Amazon and Andean Foothills — Cauca",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "COL:Cauca",
+      "COL:Colombia",
+      "COL:Huila",
+      "COL:Putumayo",
+      "COL:Tolima",
+      "ECU:Ecuador",
+      "ECU:Morona Santiago",
+      "ECU:Orellana",
+      "ECU:Pastaza",
+      "ECU:Sucumbios",
+      "PER:Peru"
+    ],
+    "areaSqKm": 190846.7,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_d8ba8caee040",
+    "name": "Eastern Upper Amazon and Andean Foothills — Amazonas",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Amazonas",
+      "VEN:Venezuela"
+    ],
+    "areaSqKm": 181541.1,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_fc9ae1a4a9ce",
+    "name": "Western Upper Amazon and Andean Foothills — Bolivar",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "COL:Colombia",
+      "COL:Nariño",
+      "ECU:Bolivar",
+      "ECU:Carchi",
+      "ECU:Cañar",
+      "ECU:Chimborazo",
+      "ECU:Cotopaxi",
+      "ECU:Ecuador",
+      "ECU:Esmeraldas",
+      "ECU:Guayas",
+      "ECU:Imbabura",
+      "ECU:Los Rios",
+      "ECU:Manabi",
+      "ECU:Napo",
+      "ECU:Pichincha",
+      "ECU:Santa Elena",
+      "ECU:Santo Domingo de los Tsáchilas",
+      "ECU:Tungurahua"
+    ],
+    "areaSqKm": 149315.6,
+    "neighbors": 2,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_413854e95997",
+    "name": "Galápagos Islands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ECU:Ecuador",
+      "ECU:Galápagos"
+    ],
+    "areaSqKm": 7701.5,
+    "neighbors": 0,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_127da22de387",
+    "name": "Southern Guiana Shield and Equatorial Amazon — Pará",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Amapá",
+      "BRA:Brazil",
+      "BRA:Pará"
+    ],
+    "areaSqKm": 211511.8,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_8e8ff4d95f20",
+    "name": "Southern Upper Amazon and Andean Foothills",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "COL:Amazonas",
+      "PER:Loreto"
+    ],
+    "areaSqKm": 134196.3,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_6c846f444b39",
+    "name": "Southern Guiana Shield and Equatorial Amazon — Pará 2",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Brazil",
+      "BRA:Pará"
+    ],
+    "areaSqKm": 118077.4,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_0f0b8193b138",
+    "name": "Eastern Upper Amazon and Andean Foothills — Amazonas 2",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Amazonas"
+    ],
+    "areaSqKm": 234127.1,
+    "neighbors": 7,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_05f3bb7deaa8",
+    "name": "Southwestern Guiana Shield and Equatorial Amazon",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Amazonas"
+    ],
+    "areaSqKm": 224241.3,
+    "neighbors": 7,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_94fedfe5aab7",
+    "name": "Southeastern Guiana Shield and Equatorial Amazon",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Brazil",
+      "BRA:Maranhão",
+      "BRA:Pará"
+    ],
+    "areaSqKm": 184358.9,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_1d342b5a8c87",
+    "name": "Southeastern Guiana Shield and Equatorial Amazon — Maranhão",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Brazil",
+      "BRA:Maranhão"
+    ],
+    "areaSqKm": 110388.6,
+    "neighbors": 4,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_7dee18ad9e7f",
+    "name": "Southern Upper Amazon and Andean Foothills — Loreto",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "PER:Loreto"
+    ],
+    "areaSqKm": 131642.0,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_cdf51ff86d53",
+    "name": "Southern Upper Amazon and Andean Foothills — Loreto 2",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Amazonas",
+      "PER:Loreto"
+    ],
+    "areaSqKm": 162971.0,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_53512d839959",
+    "name": "Northwestern Central Andes",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ECU:Azuay",
+      "ECU:El Oro",
+      "ECU:Loja",
+      "ECU:Zamora Chinchipe",
+      "PER:Amazonas",
+      "PER:Cajamarca",
+      "PER:Lambayeque",
+      "PER:Peru",
+      "PER:Piura",
+      "PER:Tumbes"
+    ],
+    "areaSqKm": 165530.3,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_2423b791c9fa",
+    "name": "Northern Brazilian Interior",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Pará"
+    ],
+    "areaSqKm": 123182.7,
+    "neighbors": 8,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_79f78c357a18",
+    "name": "Northern Brazilian Interior — Pará",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Pará"
+    ],
+    "areaSqKm": 123182.7,
+    "neighbors": 7,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_76a86c2ca3b9",
+    "name": "Northern Brazilian Interior — Amazonas",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Amazonas",
+      "BRA:Pará"
+    ],
+    "areaSqKm": 150304.6,
+    "neighbors": 8,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_06dc1412159a",
+    "name": "Northern Amazon Basin",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Amazonas"
+    ],
+    "areaSqKm": 129483.9,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_0f73417eb2d8",
+    "name": "Northwestern Brazilian Interior",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Amazonas"
+    ],
+    "areaSqKm": 129483.9,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_a2189b2fc534",
+    "name": "Northern Atlantic Brazil",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Ceará",
+      "BRA:Piauí"
+    ],
+    "areaSqKm": 106998.9,
+    "neighbors": 4,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_7cdc081660da",
+    "name": "Northeastern Atlantic Brazil",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Brazil",
+      "BRA:Ceará",
+      "BRA:Pernambuco",
+      "BRA:Rio Grande do Norte"
+    ],
+    "areaSqKm": 192117.2,
+    "neighbors": 2,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_a9f48f176e95",
+    "name": "Northern Amazon Basin — Amazonas",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Amazonas"
+    ],
+    "areaSqKm": 221544.6,
+    "neighbors": 8,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_fe556c86d86e",
+    "name": "Northeastern Brazilian Interior",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Pará",
+      "BRA:Tocantins"
+    ],
+    "areaSqKm": 137888.4,
+    "neighbors": 7,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_888cc4c1a01b",
+    "name": "Northern Atlantic Brazil — Piauí",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Piauí"
+    ],
+    "areaSqKm": 110198.3,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_35ab99af2758",
+    "name": "Northwestern Atlantic Brazil",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Brazil",
+      "BRA:Maranhão"
+    ],
+    "areaSqKm": 120759.6,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_6c6a5679e288",
+    "name": "Western Amazon Basin",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Amazonas",
+      "BRA:Brazil",
+      "PER:Huánuco",
+      "PER:Loreto",
+      "PER:Peru",
+      "PER:San Martín"
+    ],
+    "areaSqKm": 189764.9,
+    "neighbors": 8,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_5ec448561c51",
+    "name": "Eastern Amazon Basin",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Amazonas",
+      "BRA:Brazil"
+    ],
+    "areaSqKm": 171189.2,
+    "neighbors": 7,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_2ba131015508",
+    "name": "Northeastern Brazilian Interior — Pará",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Pará"
+    ],
+    "areaSqKm": 110602.3,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_cc304011f44c",
+    "name": "Northern Brazilian Interior — Pará 2",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Pará"
+    ],
+    "areaSqKm": 113388.1,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_5bbc691e3725",
+    "name": "Eastern Atlantic Brazil",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Alagoas",
+      "BRA:Brazil",
+      "BRA:Paraíba",
+      "BRA:Pernambuco",
+      "BRA:Sergipe"
+    ],
+    "areaSqKm": 151949.4,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_3efa76113932",
+    "name": "Northwestern Brazilian Interior — Pará",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Amazonas",
+      "BRA:Mato Grosso",
+      "BRA:Pará"
+    ],
+    "areaSqKm": 209486.6,
+    "neighbors": 11,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_4a7513cffd1b",
+    "name": "Northern Atlantic Brazil — Piauí 2",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Bahia",
+      "BRA:Piauí"
+    ],
+    "areaSqKm": 192679.3,
+    "neighbors": 7,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_577b01d9082d",
+    "name": "Southeastern Central Andes",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "PER:Callao",
+      "PER:La Libertad",
+      "PER:Lima",
+      "PER:Lima Province",
+      "PER:Pasco",
+      "PER:Peru",
+      "PER:Áncash"
+    ],
+    "areaSqKm": 119194.5,
+    "neighbors": 3,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_45ac6e456238",
+    "name": "Western Amazon Basin — Madre de Dios",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Acre",
+      "PER:Madre de Dios",
+      "PER:Peru"
+    ],
+    "areaSqKm": 161186.8,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_bcaf63dd92ff",
+    "name": "Northeastern Amazon Basin",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BOL:Pando",
+      "BRA:Acre",
+      "BRA:Brazil"
+    ],
+    "areaSqKm": 138844.0,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_c75d6fae9731",
+    "name": "Eastern Amazon Basin — Rondônia",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Brazil",
+      "BRA:Rondônia"
+    ],
+    "areaSqKm": 203033.4,
+    "neighbors": 8,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_7b96a7bed850",
+    "name": "Western Amazon Basin — Ucayali",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "PER:Huancavelica",
+      "PER:Ica",
+      "PER:Junín",
+      "PER:Ucayali"
+    ],
+    "areaSqKm": 190568.6,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_eb6992395838",
+    "name": "Western Atlantic Brazil",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Bahia",
+      "BRA:Brazil",
+      "BRA:Tocantins"
+    ],
+    "areaSqKm": 133873.3,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_aa45c4c38028",
+    "name": "Eastern Brazilian Interior",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Mato Grosso"
+    ],
+    "areaSqKm": 110424.7,
+    "neighbors": 4,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_c6d63674460a",
+    "name": "Western Brazilian Interior",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Mato Grosso"
+    ],
+    "areaSqKm": 122418.7,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_c18feacf681c",
+    "name": "Eastern Atlantic Brazil — Bahia",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Bahia"
+    ],
+    "areaSqKm": 158667.1,
+    "neighbors": 3,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_5ab269acc165",
+    "name": "Western Brazilian Interior — Mato Grosso",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Brazil",
+      "BRA:Mato Grosso"
+    ],
+    "areaSqKm": 169386.6,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_aabe44c44e9f",
+    "name": "Eastern Brazilian Interior — Tocantins",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Mato Grosso",
+      "BRA:Tocantins"
+    ],
+    "areaSqKm": 200911.3,
+    "neighbors": 9,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_6044399e113f",
+    "name": "Southeastern Amazon Basin",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BOL:Bolivia",
+      "BOL:El Beni",
+      "BOL:La Paz",
+      "PER:Peru"
+    ],
+    "areaSqKm": 117722.0,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_c8d7a555ccbf",
+    "name": "Western Atlantic Brazil — Goiás",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Bahia",
+      "BRA:Goiás"
+    ],
+    "areaSqKm": 195798.9,
+    "neighbors": 8,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_37d268e3ee07",
+    "name": "Southeastern Amazon Basin — Rondônia",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BOL:El Beni",
+      "BRA:Rondônia"
+    ],
+    "areaSqKm": 183777.2,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_4955a89d4a3f",
+    "name": "Southern Brazilian Interior",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Mato Grosso"
+    ],
+    "areaSqKm": 121169.3,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_60a5fa2897d8",
+    "name": "Southern Amazon Basin",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BOL:Bolivia",
+      "PER:Cusco",
+      "PER:Peru",
+      "PER:Puno"
+    ],
+    "areaSqKm": 146031.0,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_af384008ccb1",
+    "name": "Southwestern Amazon Basin",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "PER:Apurímac",
+      "PER:Arequipa",
+      "PER:Ayacucho",
+      "PER:Peru"
+    ],
+    "areaSqKm": 127846.2,
+    "neighbors": 3,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_9992b8b8b941",
+    "name": "Western Brazilian Interior — Santa Cruz",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BOL:Bolivia",
+      "BOL:Santa Cruz",
+      "BRA:Mato Grosso"
+    ],
+    "areaSqKm": 111148.4,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_365c0ffe125c",
+    "name": "Southern Atlantic Brazil",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Bahia",
+      "BRA:Brazil",
+      "BRA:Espírito Santo"
+    ],
+    "areaSqKm": 215450.3,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_43d1872f72d6",
+    "name": "Southern Brazilian Interior — Mato Grosso",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Goiás",
+      "BRA:Mato Grosso"
+    ],
+    "areaSqKm": 193716.4,
+    "neighbors": 10,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_22c23a603a84",
+    "name": "Southwestern Atlantic Brazil",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Brazil",
+      "BRA:Distrito Federal",
+      "BRA:Goiás",
+      "BRA:Minas Gerais"
+    ],
+    "areaSqKm": 170167.5,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_6daa1830566a",
+    "name": "Southern Amazon Basin — La Paz",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BOL:Bolivia",
+      "BOL:Cochabamba",
+      "BOL:La Paz"
+    ],
+    "areaSqKm": 132966.0,
+    "neighbors": 7,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_0a554237de9c",
+    "name": "Southwestern Brazilian Interior",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BOL:Santa Cruz"
+    ],
+    "areaSqKm": 164974.1,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_bab06295e956",
+    "name": "Southern Atlantic Brazil — Minas Gerais",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Minas Gerais"
+    ],
+    "areaSqKm": 167421.7,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_d0f9ca11f83a",
+    "name": "Southern Brazilian Interior — Goiás",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Goiás"
+    ],
+    "areaSqKm": 117298.1,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_084567a18f69",
+    "name": "Northeastern Southern Brazilian and Uruguayan Highlands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Minas Gerais"
+    ],
+    "areaSqKm": 125409.3,
+    "neighbors": 4,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_30ec718dc066",
+    "name": "Northwestern Gran Chaco and Interior Lowlands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BOL:Oruro",
+      "BOL:Potosí",
+      "CHL:Arica y Parinacota",
+      "CHL:Chile",
+      "CHL:Tarapacá",
+      "PER:Moquegua",
+      "PER:Tacna"
+    ],
+    "areaSqKm": 194809.4,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_af0b01511741",
+    "name": "Northern Brazilian Highlands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BOL:Bolivia",
+      "BRA:Mato Grosso do Sul"
+    ],
+    "areaSqKm": 118825.9,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_33c79ca2a2d5",
+    "name": "Northwestern Brazilian Highlands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BOL:Bolivia",
+      "BOL:Santa Cruz",
+      "PRY:Alto Paraguay",
+      "PRY:Paraguay"
+    ],
+    "areaSqKm": 199699.5,
+    "neighbors": 8,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_681eecde753c",
+    "name": "Northern Southern Brazilian and Uruguayan Highlands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Minas Gerais",
+      "BRA:São Paulo"
+    ],
+    "areaSqKm": 112346.9,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_272321511ea8",
+    "name": "Northeastern Brazilian Highlands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Mato Grosso do Sul",
+      "BRA:São Paulo"
+    ],
+    "areaSqKm": 182087.8,
+    "neighbors": 7,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_7162aefd0ba3",
+    "name": "Eastern Southern Brazilian and Uruguayan Highlands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Minas Gerais",
+      "BRA:Rio de Janeiro",
+      "BRA:São Paulo"
+    ],
+    "areaSqKm": 173983.4,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_320822ad1196",
+    "name": "Northern Brazilian Highlands — Mato Grosso do Sul",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Mato Grosso do Sul"
+    ],
+    "areaSqKm": 148635.6,
+    "neighbors": 4,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_03e0a02099f8",
+    "name": "Western Gran Chaco and Interior Lowlands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ARG:Argentina",
+      "BOL:Bolivia",
+      "BOL:Potosí",
+      "CHL:Antofagasta"
+    ],
+    "areaSqKm": 129470.3,
+    "neighbors": 3,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_9eb84641d55c",
+    "name": "Eastern Gran Chaco and Interior Lowlands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ARG:Argentina",
+      "ARG:Salta",
+      "BOL:Bolivia",
+      "BOL:Chuquisaca",
+      "BOL:Tarija",
+      "PRY:Paraguay"
+    ],
+    "areaSqKm": 191019.0,
+    "neighbors": 8,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_b8d83c58903e",
+    "name": "Western Brazilian Highlands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ARG:Formosa",
+      "PRY:Boquerón"
+    ],
+    "areaSqKm": 164072.5,
+    "neighbors": 4,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_8a54b6620cb8",
+    "name": "Northeastern Southern Brazilian and Uruguayan Highlands — São Paulo",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Brazil",
+      "BRA:Paraná",
+      "BRA:São Paulo"
+    ],
+    "areaSqKm": 139214.1,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_004d9eb0e79c",
+    "name": "Eastern Brazilian Highlands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Brazil",
+      "BRA:Paraná",
+      "BRA:São Paulo",
+      "PRY:Amambay",
+      "PRY:Caaguazú",
+      "PRY:Caazapá",
+      "PRY:Canindeyú",
+      "PRY:Concepción",
+      "PRY:Paraguay",
+      "PRY:San Pedro"
+    ],
+    "areaSqKm": 205330.4,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_5276581eaf96",
+    "name": "Western Gran Chaco and Interior Lowlands — Catamarca",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ARG:Argentina",
+      "ARG:Catamarca",
+      "ARG:Jujuy",
+      "ARG:Salta",
+      "CHL:Antofagasta",
+      "CHL:Chile"
+    ],
+    "areaSqKm": 227647.7,
+    "neighbors": 4,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_d7a2eabe7a23",
+    "name": "Western Brazilian Highlands — Presidente Hayes",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ARG:Argentina",
+      "PRY:Alto Paraná",
+      "PRY:Asunción",
+      "PRY:Central",
+      "PRY:Cordillera",
+      "PRY:Guairá",
+      "PRY:Itapúa",
+      "PRY:Misiones",
+      "PRY:Paraguarí",
+      "PRY:Presidente Hayes",
+      "PRY:Ñeembucú"
+    ],
+    "areaSqKm": 143599.1,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_0fa019fcc028",
+    "name": "Western Brazilian Highlands — Chaco",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ARG:Chaco",
+      "ARG:Santiago del Estero"
+    ],
+    "areaSqKm": 171530.4,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_2d66b691f777",
+    "name": "Eastern Brazilian Highlands — Misiones",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ARG:Misiones",
+      "BRA:Paraná",
+      "BRA:Santa Catarina"
+    ],
+    "areaSqKm": 171749.7,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_30df379ee027",
+    "name": "Rapa Nui",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "CHL:Chile",
+      "CHL:Valparaíso"
+    ],
+    "areaSqKm": 175.3,
+    "neighbors": 0,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_8991216c0c9e",
+    "name": "Southern Gran Chaco and Interior Lowlands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ARG:Argentina",
+      "ARG:Catamarca",
+      "ARG:Santiago del Estero",
+      "ARG:Tucumán"
+    ],
+    "areaSqKm": 125309.6,
+    "neighbors": 7,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_336f350325d4",
+    "name": "Southeastern Brazilian Highlands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Brazil",
+      "BRA:Rio Grande do Sul"
+    ],
+    "areaSqKm": 113184.8,
+    "neighbors": 3,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_ae63a9644cd1",
+    "name": "Southern Brazilian Highlands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ARG:Argentina",
+      "ARG:Corrientes",
+      "ARG:Santa Fe"
+    ],
+    "areaSqKm": 173570.1,
+    "neighbors": 7,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_ab87d6edc2ad",
+    "name": "Northeastern Southern Andes",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ARG:Argentina",
+      "CHL:Atacama",
+      "CHL:Chile",
+      "CHL:Coquimbo",
+      "CHL:Región Metropolitana de Santiago",
+      "CHL:Valparaíso"
+    ],
+    "areaSqKm": 149092.5,
+    "neighbors": 4,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_b24bf8596768",
+    "name": "Northwestern Pampas and Rio de la Plata",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ARG:Argentina",
+      "ARG:La Rioja",
+      "ARG:San Juan",
+      "CHL:Chile"
+    ],
+    "areaSqKm": 178203.9,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_8e8ca62996b4",
+    "name": "Western Southern Brazilian and Uruguayan Highlands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Rio Grande do Sul",
+      "URY:Cerro Largo",
+      "URY:Colonia",
+      "URY:Durazno",
+      "URY:Rivera",
+      "URY:Río Negro",
+      "URY:Soriano",
+      "URY:Uruguay"
+    ],
+    "areaSqKm": 169855.0,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_bd1efdb3aba2",
+    "name": "Eastern Pampas and Rio de la Plata",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ARG:Argentina",
+      "ARG:Entre Ríos",
+      "URY:Artigas",
+      "URY:Paysandú",
+      "URY:Salto",
+      "URY:Tacuarembó"
+    ],
+    "areaSqKm": 134563.2,
+    "neighbors": 4,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_66d81ff8152a",
+    "name": "Northern Pampas and Rio de la Plata",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ARG:Córdoba",
+      "ARG:Santa Fe"
+    ],
+    "areaSqKm": 216264.8,
+    "neighbors": 7,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_e0010ed82273",
+    "name": "Southwestern Southern Brazilian and Uruguayan Highlands",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "BRA:Rio Grande do Sul",
+      "URY:Canelones",
+      "URY:Flores",
+      "URY:Florida",
+      "URY:Lavalleja",
+      "URY:Maldonado",
+      "URY:Montevideo",
+      "URY:Rocha",
+      "URY:San José",
+      "URY:Treinta y Tres"
+    ],
+    "areaSqKm": 109360.5,
+    "neighbors": 2,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_2d71328b6c6b",
+    "name": "Northwestern Southern Andes",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "CHL:Valparaíso"
+    ],
+    "areaSqKm": 81.3,
+    "neighbors": 0,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_199213ed35b2",
+    "name": "Western Southern Andes",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "CHL:Valparaíso"
+    ],
+    "areaSqKm": 46.0,
+    "neighbors": 0,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_61a30d7fd8f2",
+    "name": "Eastern Southern Andes",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ARG:Mendoza",
+      "CHL:Bío-Bío",
+      "CHL:Libertador General Bernardo O'Higgins",
+      "CHL:Maule",
+      "CHL:Ñuble"
+    ],
+    "areaSqKm": 162699.8,
+    "neighbors": 3,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_ec22f7247880",
+    "name": "Eastern Pampas and Rio de la Plata — Buenos Aires",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ARG:Argentina",
+      "ARG:Buenos Aires",
+      "ARG:Ciudad de Buenos Aires"
+    ],
+    "areaSqKm": 189955.4,
+    "neighbors": 4,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_c666a37ecc15",
+    "name": "Western Pampas and Rio de la Plata",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ARG:Argentina",
+      "ARG:Mendoza",
+      "ARG:Neuquén",
+      "ARG:San Luis",
+      "CHL:Chile",
+      "CHL:La Araucanía",
+      "CHL:Los Ríos"
+    ],
+    "areaSqKm": 245893.0,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_20537b5f56ee",
+    "name": "Southern Pampas and Rio de la Plata",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ARG:Argentina",
+      "ARG:La Pampa",
+      "ARG:Río Negro"
+    ],
+    "areaSqKm": 202056.6,
+    "neighbors": 6,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_c7dbd2fa9e2c",
+    "name": "Northeastern Patagonian Steppe",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ARG:Argentina",
+      "ARG:Buenos Aires"
+    ],
+    "areaSqKm": 116195.4,
+    "neighbors": 3,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_f610ef9e7f36",
+    "name": "Northeastern Southern Andes — La Araucanía",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "CHL:La Araucanía"
+    ],
+    "areaSqKm": 39.4,
+    "neighbors": 0,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_2ffb47e25bd0",
+    "name": "Eastern Southern Andes — Neuquén",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ARG:Neuquén",
+      "ARG:Río Negro",
+      "CHL:Los Lagos"
+    ],
+    "areaSqKm": 170642.0,
+    "neighbors": 5,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_87d25b4960a3",
+    "name": "Southern Patagonian Steppe",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ARG:Argentina",
+      "ARG:Chubut",
+      "ARG:Río Negro"
+    ],
+    "areaSqKm": 108380.1,
+    "neighbors": 4,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_3943bda3ace1",
+    "name": "Southeastern Southern Andes",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "CHL:Aisén del General Carlos Ibáñez del Campo"
+    ],
+    "areaSqKm": 183.5,
+    "neighbors": 0,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_4dcb62ce5f90",
+    "name": "Southwestern Patagonian Steppe",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ARG:Chubut"
+    ],
+    "areaSqKm": 184188.6,
+    "neighbors": 3,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_31673860b82f",
+    "name": "Eastern Southern Andes — Santa Cruz",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ARG:Santa Cruz",
+      "CHL:Aisén del General Carlos Ibáñez del Campo",
+      "CHL:Chile"
+    ],
+    "areaSqKm": 245273.8,
+    "neighbors": 3,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_204bc94e68a8",
+    "name": "Northern Tierra del Fuego and Southern Patagonia",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "FLK:Falkland Islands"
+    ],
+    "areaSqKm": 10.0,
+    "neighbors": 0,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_7009dcd04d5b",
+    "name": "Eastern Tierra del Fuego and Southern Patagonia",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "FLK:Falkland Islands"
+    ],
+    "areaSqKm": 11296.5,
+    "neighbors": 0,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_5bbb3baff518",
+    "name": "Southeastern Southern Andes — Magallanes y Antártica Chilena",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ARG:Argentina",
+      "ARG:Santa Cruz",
+      "ARG:Tierra del Fuego",
+      "CHL:Aisén del General Carlos Ibáñez del Campo",
+      "CHL:Chile",
+      "CHL:Magallanes y Antártica Chilena"
+    ],
+    "areaSqKm": 239456.0,
+    "neighbors": 1,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_53642ad6e8fd",
+    "name": "Southern Southern Andes",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "CHL:Magallanes y Antártica Chilena"
+    ],
+    "areaSqKm": 23.2,
+    "neighbors": 0,
+    "navigationContinent": "South America"
+  },
+  {
+    "id": "la_b8ec40b99de0",
+    "name": "Southwestern Tierra del Fuego and Southern Patagonia",
+    "sourceGroup": "latin_america_caribbean_v1",
+    "sourceUnits": [
+      "ARG:Tierra del Fuego"
+    ],
+    "areaSqKm": 480.4,
+    "neighbors": 0,
+    "navigationContinent": "South America"
+  }
+]
