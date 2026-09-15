@@ -206,14 +206,18 @@ function roadRateForTransit(origin, pathIds, regionsById, agreements) {
   return { rate: Math.min(MAX_TOTAL_ROUTE_TOLL_RATE, total), charges, reliabilityMultiplier: 1, blocked: false };
 }
 
-function seaRateForTransit(origin, passageIds, regions, regionsById, agreements) {
+function seaRateForTransit(origin, passageIds, regions, regionsById, agreements, context = null) {
   const payerActor = tradeActorId(origin);
   let total = 0;
   let reliabilityMultiplier = 1;
   let blocked = false;
   const charges = [];
   for (const passageId of passageIds || []) {
-    const snapshot = chokepointControlSnapshot(passageId, regions);
+    let snapshot = context?.chokepointSnapshots?.get(passageId);
+    if (snapshot === undefined) {
+      snapshot = chokepointControlSnapshot(passageId, regions);
+      context?.chokepointSnapshots?.set(passageId, snapshot);
+    }
     const controller = snapshot?.controller;
     if (!snapshot?.controlled || !controller) continue;
     const controllerRegion = regionsById.get(controller.controllerRegionId);
@@ -242,10 +246,10 @@ function seaRateForTransit(origin, passageIds, regions, regionsById, agreements)
   };
 }
 
-export function estimateTransitToll(origin, route, regions, regionsById, agreements = []) {
+export function estimateTransitToll(origin, route, regions, regionsById, agreements = [], context = null) {
   if (!route) return { rate: 0, charges: [], reliabilityMultiplier: 1, blocked: false };
   return route.mode === 'sea'
-    ? seaRateForTransit(origin, route.passageIds || [], regions, regionsById, agreements)
+    ? seaRateForTransit(origin, route.passageIds || [], regions, regionsById, agreements, context)
     : roadRateForTransit(origin, route.pathIds || [], regionsById, agreements);
 }
 
