@@ -11,6 +11,7 @@ on:
       - 'tools/build-latin-america-seas.py'
       - 'tools/latin-america-sea-plan-v1.json'
       - 'tools/repair-latin-america-adjacency.py'
+      - 'tools/test-country-picker.mjs'
   pull_request:
     branches: [main]
   workflow_dispatch:
