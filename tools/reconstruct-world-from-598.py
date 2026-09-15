@@ -78,21 +78,20 @@ def main():
         announce(batch)
 
     # Bounded batch masks intentionally leave narrow seams and outlying pieces.
-    # Fill those gaps by assigning each genuine residual source piece to the
-    # nearest existing region in the same physical zone. This preserves the
-    # intended region count instead of creating a second residual cohort.
-    run('python', 'tools/absorb-old-world-map-residual.py')
-    announce('residual-absorption')
+    # Keep those residuals as their own compact physical regions. The previous
+    # absorption pass preserved an old region-count target by unioning residuals
+    # into the nearest same-zone owner even when they were geographically remote;
+    # that produced failures such as a Kaliningrad-labelled region spanning much
+    # of Germany. Region count is a soft target; physical coherence is not.
+    run('python', 'tools/build-old-world-map-residual.py')
+    announce('residual-regions')
     run('python', 'tools/finalize-old-world-map-report.py')
     require_target_coverage()
 
-    # Reassign detached mainland scraps before canonicalisation. This preserves
-    # every polygon but changes ownership to the physically adjacent region;
-    # isolated islands remain with their existing owner.
-    run('python', 'tools/repair-region-component-ownership.py',
-        '--geo', DATA / 'regions.geo.json', '--meta', DATA / 'regions.meta.json')
-    announce('ownership-repair')
-
+    # Residuals and generated regions are now built from connected physical
+    # source pieces, so do not perform a post-hoc ownership reassignment that can
+    # fragment otherwise coherent regions. Canonicalisation below handles ring
+    # orientation and D3-safe polygon structure without changing ownership.
     normal = TMP / 'regions.geo.normalized.json'
     run('python', 'tools/normalize-land-geojson.py', '--input', DATA / 'regions.geo.json', '--output', normal)
     run('node', 'tools/repair-d3-region-geometry.mjs', '--input', normal, '--output', DATA / 'regions.geo.json')
