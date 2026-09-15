@@ -23,7 +23,9 @@ function parseSubsystems(report) {
   return rows;
 }
 
-const browser = await chromium.launch({ headless: true });
+const launchOptions = { headless: true };
+if (process.env.CHROME_PATH) launchOptions.executablePath = process.env.CHROME_PATH;
+const browser = await chromium.launch(launchOptions);
 const context = await browser.newContext({
   viewport: { width: 393, height: 852 },
   deviceScaleFactor: 3,
@@ -84,7 +86,7 @@ try {
 
   const benchmark = {
     generatedAt: new Date().toISOString(),
-    environment: 'GitHub Actions Ubuntu / headless Chromium / iPhone-sized viewport (not iPhone hardware)',
+    environment: 'GitHub Actions Ubuntu / hosted Chrome / iPhone-sized viewport (not iPhone hardware)',
     viewportCssPx: [393, 852],
     deviceScaleFactor: 3,
     regionCount: world.regions,
