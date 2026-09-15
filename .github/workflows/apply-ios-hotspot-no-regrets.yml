@@ -1,0 +1,38 @@
+name: Apply iOS hotspot no-regrets patch
+
+on:
+  push:
+    branches: [ios-hotspot-no-regrets-v1]
+    paths:
+      - 'tools/apply-ios-hotspot-no-regrets.py'
+      - '.github/workflows/apply-ios-hotspot-no-regrets.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python3 tools/apply-ios-hotspot-no-regrets.py
+      - name: Syntax check touched JavaScript
+        run: |
+          node --check js/core/performanceProfiler.js
+          node --check js/main.js
+          node --check js/economy/trade.js
+          node --check js/economy/transitTolls.js
+          node --check js/society/medievalReligiousPolitics.js
+          node --check js/diplomacy/languageCommunication.js
+      - name: Remove one-time patch machinery
+        run: |
+          rm tools/apply-ios-hotspot-no-regrets.py
+          rm .github/workflows/apply-ios-hotspot-no-regrets.yml
+      - name: Commit implementation
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Optimise iOS simulation hotspots without reducing fidelity'
+          git push
