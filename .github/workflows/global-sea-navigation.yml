@@ -1,0 +1,62 @@
+name: Global sea navigation
+
+on:
+  push:
+    branches: [global-sea-navigation-v1]
+    paths:
+      - '.github/workflows/global-sea-navigation.yml'
+      - 'tools/global-ocean-sea-plan-v1.json'
+      - 'tools/build-global-ocean-seas.py'
+      - 'tools/build-sea-expansion-v2.py'
+      - 'tools/test-global-sea-navigation.mjs'
+      - 'js/world/chokepoints.js'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install geography dependencies
+        run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2
+      - name: Validate inputs
+        run: |
+          python -m py_compile tools/build-global-ocean-seas.py tools/build-sea-expansion-v2.py
+          python -m json.tool tools/global-ocean-sea-plan-v1.json >/dev/null
+      - name: Fill remaining open-ocean gaps
+        run: |
+          rm -rf /tmp/simworld-global-seas
+          python tools/build-global-ocean-seas.py --land-geo data/world/regions.geo.json --output-dir /tmp/simworld-global-seas
+          cp /tmp/simworld-global-seas/seaRegions.geo.json data/world/seaRegions.geo.json
+          cp /tmp/simworld-global-seas/seaRegions.meta.json data/world/seaRegions.meta.json
+          node tools/generate-world-spatial-base.mjs
+      - name: Validate global navigation
+        run: |
+          node tools/test-global-sea-navigation.mjs
+          python tools/test-old-world-asia-pacific-map.py
+          node tools/test-world-spatial-real-map.mjs
+          git diff --check
+      - name: Commit generated ocean data
+        if: github.event_name == 'push' && success()
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add data/world/seaRegions.geo.json data/world/seaRegions.meta.json data/world/spatial.base.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Generate remaining global ocean regions'
+            git pull --rebase
+            git push
+          fi
