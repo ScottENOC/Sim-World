@@ -14,6 +14,7 @@ from shapely.geometry import shape
 
 ROOT=Path(__file__).resolve().parents[1]
 GEO=ROOT/'data/world/regions.geo.json'
+RES=ROOT/'data/world/resources.initial.json'
 ADMIN0='https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries_iso.geojson'
 GEOD=Geod(ellps='WGS84')
 FOCUS=('Kaliningrad','Sermersooq')
@@ -40,15 +41,16 @@ def codes(f):
 
 
 def main():
-    geo=json.loads(GEO.read_text())
+    geo=json.loads(GEO.read_text()); resources=json.loads(RES.read_text())
     req=urllib.request.Request(ADMIN0,headers={'User-Agent':'Sim-World detached land audit/1.0'})
     with urllib.request.urlopen(req,timeout=120) as r: admin=json.load(r)
     countries=[(codes(f),shape(f['geometry'])) for f in admin['features']]
     for f in geo['features']:
         p=f.get('properties') or {}; name=str(p.get('name') or '')
         if not any(x in name for x in FOCUS): continue
-        g=shape(f['geometry']); parts=sorted(polygons(g),key=area,reverse=True)
-        print(f"REGION id={p.get('id')} name={name!r} area={area(g):.1f} parts={len(parts)} bounds={tuple(round(x,3) for x in g.bounds)}")
+        rid=p.get('id'); g=shape(f['geometry']); parts=sorted(polygons(g),key=area,reverse=True)
+        print(f"REGION id={rid} name={name!r} area={area(g):.1f} parts={len(parts)} bounds={tuple(round(x,3) for x in g.bounds)}")
+        print('  RESOURCE '+json.dumps(resources.get(rid),ensure_ascii=False,sort_keys=True))
         core=parts[0] if parts else g
         for i,part in enumerate(parts[:40]):
             a=area(part)
