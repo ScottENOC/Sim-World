@@ -24,6 +24,7 @@ export class Clock {
     this._speedListeners = [];
     this._pendingResponseRequired = 0;
     this._rafHandle = null;
+    this._running = false;
     this._estimatedTickMs = null;
     this._deferUntil = 0;
     this._now = now;
@@ -87,6 +88,10 @@ export class Clock {
     this._deferUntil = Math.max(this._deferUntil, this._now() + Math.max(0, ms));
   }
 
+  isInteractionDeferred() {
+    return this._now() < this._deferUntil;
+  }
+
   _targetIntervalMs(speed = this.speed) { return MS_PER_TICK_AT_1X / speed; }
 
   _recordTickDuration(durationMs) {
@@ -102,15 +107,18 @@ export class Clock {
   }
 
   start() {
-    if (this._rafHandle !== null) return;
-    const loop = (frameTime) => {
+    if (this._running || this._rafHandle !== null) return;
+    this._running = true;
+    const loop = async (frameTime) => {
+      this._rafHandle = null;
+      if (!this._running) return;
       if (this.speed > 0) {
         if (this._nextTickAt === null) {
           this._nextTickAt = frameTime + this._targetIntervalMs();
         } else if (frameTime >= this._nextTickAt) {
           if (frameTime < this._deferUntil) {
             this._nextTickAt = this._deferUntil;
-            this._rafHandle = this._requestFrame(loop);
+            if (this._running) this._rafHandle = this._requestFrame(loop);
             return;
           }
           const startedAt = this._now();
@@ -125,7 +133,11 @@ export class Clock {
             elapsedDays,
             resolution: this.resolution.id,
           };
-          for (const fn of this._tickListeners) fn(timeContext);
+          for (const fn of this._tickListeners) {
+            const result = fn(timeContext);
+            if (result && typeof result.then === 'function') await result;
+            if (!this._running) return;
+          }
           const finishedAt = this._now();
           const durationMs = Math.max(0, finishedAt - startedAt);
           this._recordTickDuration(durationMs);
@@ -134,12 +146,13 @@ export class Clock {
       } else {
         this._nextTickAt = null;
       }
-      this._rafHandle = this._requestFrame(loop);
+      if (this._running) this._rafHandle = this._requestFrame(loop);
     };
     this._rafHandle = this._requestFrame(loop);
   }
 
   stop() {
+    this._running = false;
     if (this._rafHandle !== null) this._cancelFrame(this._rafHandle);
     this._rafHandle = null;
     this._nextTickAt = null;
