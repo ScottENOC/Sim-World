@@ -40,7 +40,7 @@ jobs:
           node tools/test-industrial-marine.mjs
       - name: Existing military compatibility
         run: |
-          node tools/test-firearms.mjs
+          node tools/test-gunpowder-firearms.mjs
           git diff --check
       - name: Commit integrated fleet progression
         if: github.event_name == 'push' && success()
