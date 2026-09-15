@@ -32,7 +32,11 @@ SOURCE_GROUP = 'latin_america_caribbean_v1'
 ID_PREFIX = 'la_'
 TARGET_REGION_COUNT = 180
 TARGET_PIECE_AREA_SQKM = 90_000
-MIN_COMPONENT_AREA_SQKM = 12
+# Keep genuine tiny islands at source-piece stage. The later clustering and
+# workflow sanity checks prevent sub-10 km² fragments from becoming gameplay
+# regions, while this low threshold stops places such as Anguilla disappearing
+# before they have a chance to merge into a sensible island-region cluster.
+MIN_COMPONENT_AREA_SQKM = 1
 MAX_CLUSTER_GAP_DEGREES = 0.32
 
 na.PLAN = PLAN
@@ -40,7 +44,7 @@ na.TARGET_REGION_COUNT = TARGET_REGION_COUNT
 na.TARGET_PIECE_AREA_SQKM = TARGET_PIECE_AREA_SQKM
 na.MIN_COMPONENT_AREA_SQKM = MIN_COMPONENT_AREA_SQKM
 na.MAX_CLUSTER_GAP_DEGREES = MAX_CLUSTER_GAP_DEGREES
-na.USER_AGENT = 'Sim-World Latin America expansion/1.2'
+na.USER_AGENT = 'Sim-World Latin America expansion/1.3'
 
 SOUTH_AMERICA_CODES = {
     'COL','VEN','GUY','SUR','GUF','ECU','PER','BOL','BRA','PRY','URY','ARG','CHL','FLK'
