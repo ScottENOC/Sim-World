@@ -41,7 +41,7 @@ const fleets = initialiseFleets(regions);
 const essexFleet = fleets.find((f) => f.ownerRegionId === 'essex');
 const kentFleet = fleets.find((f) => f.ownerRegionId === 'kent');
 assert.equal(essexFleet.ships.length, 8);
-assert.equal(fleetShipCounts(essexFleet)['advanced warship'], 2);
+assert.equal(fleetShipCounts(essexFleet).galley, 2);
 
 // Own-faction registry beats deceptive flags: Essex cannot be tricked by an
 // outsider merely painting an Essex flag on its ships.
