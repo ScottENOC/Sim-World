@@ -51,6 +51,7 @@ jobs:
           python tools/audit-region-geometry.py --focus Kaliningrad --top 30 --json /tmp/after.json | tee /tmp/after.txt
           python tools/audit-inland-region-components.py > /tmp/inland.txt
           python tools/test-known-world-land-repair.py
+          python tools/diagnose-central-europe-repair.py
           python - <<'PY'
           import json
           before=json.load(open('/tmp/before.json')); after=json.load(open('/tmp/after.json'))
