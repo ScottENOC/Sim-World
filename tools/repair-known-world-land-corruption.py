@@ -200,10 +200,10 @@ def main():
     for part in detached:
         if area_km2(part) < MIN_KEEP_KM2:
             continue
-        target_id, target_geom = min(current, key=lambda row: part.distance(row[1]))
-        if part.distance(target_geom) > 1.0:
-            new_serm = repair(unary_union([new_serm, part]))
-            continue
+        # These components have already been classified as remote from the
+        # Greenland core. Keeping a known European outlier attached to Greenland
+        # is worse than assigning it to the physically nearest non-Greenland region.
+        target_id, _target_geom = min(current, key=lambda row: part.distance(row[1]))
         moved_by_target.setdefault(target_id, []).append(part)
 
     for target_id, extras in moved_by_target.items():
