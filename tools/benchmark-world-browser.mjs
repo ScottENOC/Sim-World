@@ -61,9 +61,10 @@ try {
       tickIndex: window.__worldsim.clock.tickIndex,
     }));
     if (state.samples >= sampleTarget) break;
-    if (state.speed === 0) {
-      // Player-facing decisions can auto-pause the real game. For a throughput
-      // benchmark, clear that pause and continue without changing simulation code.
+    if (state.speed !== 4) {
+      // The product should auto-step down when a real device cannot sustain 4x.
+      // The benchmark deliberately restores 4x between samples so wall-clock
+      // pacing does not turn a slow-tick measurement into a multi-minute test.
       await page.evaluate(() => {
         for (let i = 0; i < 8; i++) window.__worldsim.clock.releaseAutoPause();
         window.__worldsim.clock.setSpeed(4);
