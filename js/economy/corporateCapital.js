@@ -1,3 +1,4 @@
+import { maybeInvestInCorporateInfrastructure, tickExistingCorporateInfrastructure } from './corporateInfrastructureAi.js';
 const DAYS_PER_YEAR = 365.2425;
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
 const average = (values) => values.length ? values.reduce((s, v) => s + (Number(v) || 0), 0) / values.length : 0;
@@ -310,5 +311,7 @@ export function tickCorporateCapital(regions, polities, currentTick = 0, elapsed
     }
   }
   for (const polity of polities) updatePolityFinance(polity, territoriesByPolity.get(polity.id) || [], currentTick, years, events);
+  tickExistingCorporateInfrastructure(regions, elapsedDays);
+  events.push(...maybeInvestInCorporateInfrastructure(regions, polities, currentTick, rng, options));
   return events.filter((event) => !options.playerPolityId || event.polityId === options.playerPolityId || event.type !== 'state_borrowing');
 }
