@@ -7,6 +7,7 @@ from pathlib import Path
 from pyproj import Geod
 from shapely.geometry import box, mapping, shape
 from shapely.ops import unary_union
+from shapely.strtree import STRtree
 
 ROOT = Path(__file__).resolve().parents[1]
 PLAN = ROOT / 'tools' / 'sea-region-expansion-plan-v2.json'
@@ -15,7 +16,7 @@ BASE_SEA_META = ROOT / 'data' / 'world' / 'seaRegions.meta.json'
 WORLD_LAND_URL = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries_iso.geojson'
 WORLD_LAKES_URL = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_lakes.geojson'
 GEOD = Geod(ellps='WGS84')
-USER_AGENT = 'Sim-World sea expansion v2/1.2'
+USER_AGENT = 'Sim-World sea expansion v2/1.3'
 
 
 def fetch_json(url):
@@ -49,13 +50,7 @@ def update_meta_geometry(meta, geom):
 
 
 def inland_lake_water(candidate, lakes_geo):
-    """Return the dominant Natural Earth lake polygon inside a requested box.
-
-    Admin-0 country polygons often fill inland lakes, so subtracting land cannot
-    discover the Great Lakes or major Canadian lakes. For explicitly designated
-    inland-water specs, use Natural Earth's physical lake polygons directly and
-    select the largest substantial overlap in the box.
-    """
+    """Return the dominant Natural Earth lake polygon inside a requested box."""
     matches = []
     for feature in lakes_geo.get('features', []):
         geom = repair(shape(feature['geometry']))
@@ -88,6 +83,9 @@ def main():
     meta_by_id = {m['id']: m for m in sea_meta.get('seaRegions', [])}
     existing_ids = set(feature_by_id)
     new_count = 0
+    # Building a unary union of the complete sea map is expensive. Keep one
+    # occupied-water geometry and extend it incrementally for ordinary additions.
+    occupied = occupied_geometry(sea_geo.get('features', []))
 
     for spec in plan['regions']:
         if spec['id'] in existing_ids:
@@ -128,8 +126,9 @@ def main():
             if not carved_parts:
                 raise RuntimeError(f"{spec['id']}: requested carve produced no water")
             water = repair(unary_union(carved_parts))
-        else:
+            # Carving changes an existing feature, so rebuild once for correctness.
             occupied = occupied_geometry(sea_geo.get('features', []))
+        else:
             water = candidate_water if occupied is None else repair(candidate_water.difference(occupied))
 
         if water.is_empty or area_sqkm(water) < 100:
@@ -151,12 +150,15 @@ def main():
         feature_by_id[spec['id']] = feature
         meta_by_id[spec['id']] = meta
         existing_ids.add(spec['id'])
+        occupied = water if occupied is None else repair(unary_union([occupied, water]))
         new_count += 1
         print(f"SEA_ADD {spec['name']} area={area_sqkm(water):.0f}")
 
     tolerance = float(plan.get('coastalToleranceDegrees', 0.06))
     land = [(f['properties']['id'], f['properties'].get('name',''), repair(shape(f['geometry'])))
             for f in land_geo.get('features', [])]
+    land_geoms = [item[2] for item in land]
+    land_tree = STRtree(land_geoms) if land_geoms else None
     feature_by_id = {f['properties']['id']: f for f in sea_geo['features']}
     for meta in sea_meta['seaRegions']:
         feature = feature_by_id.get(meta['id'])
@@ -166,10 +168,10 @@ def main():
         update_meta_geometry(meta, water)
         minx, miny, maxx, maxy = water.bounds
         adjacent = []
-        for land_id, land_name, g in land:
-            gx1, gy1, gx2, gy2 = g.bounds
-            if gx2 < minx-tolerance or gx1 > maxx+tolerance or gy2 < miny-tolerance or gy1 > maxy+tolerance:
-                continue
+        query_box = box(minx - tolerance, miny - tolerance, maxx + tolerance, maxy + tolerance)
+        candidate_indexes = land_tree.query(query_box) if land_tree is not None else range(len(land))
+        for index in candidate_indexes:
+            land_id, _land_name, g = land[int(index)]
             if g.distance(water) <= tolerance:
                 adjacent.append(land_id)
         meta['adjacentLand'] = sorted(set(adjacent))
