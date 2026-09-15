@@ -1,0 +1,57 @@
+name: Complete world sea coverage v1
+on:
+  push:
+    branches: [complete-world-seas-v1]
+    paths:
+      - 'tools/fill-open-ocean-seas.py'
+      - 'tools/audit-world-map.py'
+      - 'data/world/regions.geo.json'
+      - 'data/world/seaRegions.geo.json'
+      - 'data/world/seaRegions.meta.json'
+      - '.github/workflows/complete-world-seas-v1.yml'
+  workflow_dispatch:
+
+jobs:
+  generate-and-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install geography dependencies
+        run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2
+      - name: Validate generator
+        run: python -m py_compile tools/fill-open-ocean-seas.py tools/audit-world-map.py
+      - name: Generate fallback ocean layer
+        run: |
+          rm -rf /tmp/simworld-open-seas
+          python tools/fill-open-ocean-seas.py --output-dir /tmp/simworld-open-seas | tee /tmp/open-seas-generation.txt
+          cp /tmp/simworld-open-seas/seaRegions.geo.json data/world/seaRegions.geo.json
+          cp /tmp/simworld-open-seas/seaRegions.meta.json data/world/seaRegions.meta.json
+      - name: Audit completed water coverage
+        run: |
+          python tools/audit-world-map.py | tee /tmp/world-map-after-sea-fill.txt
+          python - <<'PY'
+          import json
+          sea=json.load(open('data/world/seaRegions.geo.json'))
+          meta=json.load(open('data/world/seaRegions.meta.json'))
+          ids=[f['properties']['id'] for f in sea['features']]
+          mids=[m['id'] for m in meta['seaRegions']]
+          assert len(ids)==len(set(ids)), 'duplicate sea ids'
+          assert set(ids)==set(mids), 'sea geo/meta ids differ'
+          fallback=[x for x in ids if x.startswith('sea_open_')]
+          assert 20 <= len(fallback) <= 100, len(fallback)
+          print('FALLBACK_SEAS='+str(len(fallback)))
+          print('TOTAL_SEAS='+str(len(ids)))
+          PY
+          git diff --check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: complete-world-seas-preview
+          path: |
+            /tmp/simworld-open-seas/
+            /tmp/open-seas-generation.txt
+            /tmp/world-map-after-sea-fill.txt
+          retention-days: 14
