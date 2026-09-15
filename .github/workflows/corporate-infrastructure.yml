@@ -1,12 +1,15 @@
 name: Corporate infrastructure rollout
 on:
   push:
-    branches: [corporate-infrastructure-catalogue-v1]
+    branches: [corporate-infrastructure-catalogue-v1, foreign-investment-ui-v1]
   pull_request:
     paths:
       - 'js/economy/corporateInfrastructure.js'
       - 'js/economy/corporateInfrastructureAi.js'
+      - 'js/ui/foreignInvestmentUi.js'
+      - 'js/ui/mapFirstUi.js'
       - 'tools/test-corporate-infrastructure.mjs'
+      - 'tools/test-foreign-investment-ui.mjs'
       - '.github/workflows/corporate-infrastructure.yml'
 jobs:
   validate:
@@ -17,5 +20,6 @@ jobs:
         with:
           node-version: 22
       - run: node tools/test-corporate-infrastructure.mjs
+      - run: node tools/test-foreign-investment-ui.mjs
       - run: node tools/test-infrastructure-investment-damage.mjs
       - run: node tools/test-industrial-railways.mjs
