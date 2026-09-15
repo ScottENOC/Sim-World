@@ -1,7 +1,7 @@
 name: Corporate infrastructure rollout
 on:
   push:
-    branches: [corporate-infrastructure-catalogue-v1, foreign-investment-ui-v1, foreign-investment-nationalisation-v1, foreign-investment-procurement-v1]
+    branches: [corporate-infrastructure-catalogue-v1, foreign-investment-ui-v1, foreign-investment-nationalisation-v1, foreign-investment-procurement-v1, infrastructure-ownership-map-v1]
   pull_request:
     paths:
       - 'js/economy/corporateInfrastructure.js'
@@ -11,10 +11,13 @@ on:
       - 'js/economy/governmentEconomicPolicy.js'
       - 'js/economy/railways.js'
       - 'js/ui/foreignInvestmentUi.js'
+      - 'js/ui/infrastructureMapUi.js'
+      - 'js/ui/infrastructureMapView.js'
       - 'js/ui/mapFirstUi.js'
       - 'tools/test-corporate-infrastructure.mjs'
       - 'tools/test-foreign-investment-ui.mjs'
       - 'tools/test-infrastructure-ownership.mjs'
+      - 'tools/test-infrastructure-map-view.mjs'
       - 'tools/test-procurement-policy.mjs'
       - 'tools/test-industrial-railways.mjs'
       - '.github/workflows/corporate-infrastructure.yml'
@@ -29,6 +32,7 @@ jobs:
       - run: node tools/test-corporate-infrastructure.mjs
       - run: node tools/test-foreign-investment-ui.mjs
       - run: node tools/test-infrastructure-ownership.mjs
+      - run: node tools/test-infrastructure-map-view.mjs
       - run: node tools/test-procurement-policy.mjs
       - run: node tools/test-infrastructure-investment-damage.mjs
       - run: node tools/test-industrial-railways.mjs
