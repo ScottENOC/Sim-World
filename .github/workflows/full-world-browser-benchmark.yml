@@ -14,7 +14,7 @@ permissions:
 jobs:
   benchmark:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,7 +27,7 @@ jobs:
       - name: Install browser harness
         run: |
           npm install --no-save --no-package-lock playwright@1.55.0
-          npx playwright install --with-deps chromium
+          test -x "$(command -v google-chrome)"
       - name: Start Sim-World
         run: |
           python -m http.server 8000 > /tmp/sim-world-http.log 2>&1 &
@@ -36,6 +36,7 @@ jobs:
           exit 1
       - name: Benchmark real full-world ticks
         env:
+          CHROME_PATH: /usr/bin/google-chrome
           SIM_WORLD_BENCHMARK_SAMPLES: '24'
           SIM_WORLD_BENCHMARK_OUTPUT: benchmarks/world-2024-ci.json
         run: node tools/benchmark-world-browser.mjs
