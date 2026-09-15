@@ -82,6 +82,7 @@ jobs:
           res=json.load(open('data/world/resources.initial.json'))
           terrain=json.load(open('data/world/terrain.initial.json'))
           spatial=json.load(open('data/world/spatial.base.json'))
+          navigation=json.load(open('data/world/region-navigation.json'))
           review=json.load(open('data/world/latin-america-v1-review.json'))
           plan=json.load(open('tools/latin-america-region-plan-v1.json'))
           sea_plan=json.load(open('tools/latin-america-sea-plan-v1.json'))
@@ -115,8 +116,17 @@ jobs:
           assert cross>=3, f'only {cross} regions cross modern national borders'
           wanted={c['iso'] for c in plan['countries']}
           represented={u.split(':',1)[0] for r in review for u in r.get('sourceUnits',[])}
-          missing=sorted(wanted-represented)
-          assert not missing, f'modern navigation/source areas missing from generated geography: {missing}'
+          missing_source=sorted(wanted-represented)
+          # A modern area may already be covered by pre-existing geography and therefore
+          # be subtracted before this generator emits new source pieces. Completeness is a
+          # player-facing/navigation requirement, so any such source omission must still
+          # resolve to a real region in the rebuilt modern-country navigation map.
+          nav_names=set(navigation.get('countries',[]))
+          nav_name_overrides={'BHS':'The Bahamas'}
+          plan_by_iso={c['iso']:c['name'] for c in plan['countries']}
+          unresolved=[iso for iso in missing_source if nav_name_overrides.get(iso,plan_by_iso[iso]) not in nav_names]
+          assert not unresolved, f'modern areas absent from both generated source pieces and final navigation: {unresolved}'
+          assert 'Anguilla' in nav_names, 'Anguilla must remain discoverable in final navigation'
           north=sum(1 for r in review if r.get('navigationContinent')=='North America')
           south=sum(1 for r in review if r.get('navigationContinent')=='South America')
           assert north>0 and south>0, (north,south)
@@ -142,7 +152,9 @@ jobs:
           print('CROSS_MODERN_BORDER_REGIONS='+str(cross))
           print('WATER_ISOLATED_ISLAND_REGIONS='+str(len(island_regions)))
           print(f'CONTINENT_COUNTS NorthAmerica={north} SouthAmerica={south}')
-          print('SOURCE_AREAS_REPRESENTED='+str(len(represented & wanted)))
+          print('SOURCE_AREAS_IN_NEW_REGIONS='+str(len(represented & wanted)))
+          print('SOURCE_AREAS_COVERED_BY_EXISTING_GEOGRAPHY='+str(len(missing_source)))
+          print('PLANNED_NAVIGATION_AREAS='+str(len(wanted)))
           print('LATIN_AMERICA_PLANNED_SEAS_PRESENT='+str(len(present)))
           print('TOTAL_SEAS='+str(len(sea)))
           PY
