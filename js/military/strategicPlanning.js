@@ -140,9 +140,12 @@ function allyContribution(region, regions, agreements, assumption, strategyConte
   const factor = SUPPORT_FACTOR[assumption] ?? 0;
   if (factor <= 0) return { nominal: 0, expected: 0, sources: [] };
   let nominal = 0; let expected = 0; const sources = [];
+  // When a strategy context exists, absence from the index means exactly that:
+  // this ruler has no active military-support agreement. Falling back to a
+  // full regions × agreements scan here made the common no-allies case O(N²).
   const indexed = strategyContext?.supportByRegion.get(region.id);
-  const candidates = indexed
-    ? [...indexed.entries()].map(([otherId, active]) => ({ other: strategyContext.regionsById.get(otherId), active }))
+  const candidates = strategyContext
+    ? (indexed ? [...indexed.entries()].map(([otherId, active]) => ({ other: strategyContext.regionsById.get(otherId), active })) : [])
     : regions.map((other) => ({
         other,
         active: other.id === region.id ? null : activeAgreementBetween(agreements, region.id, other.id, 'war_commitment') || activeAgreementBetween(agreements, region.id, other.id, 'military_support'),
