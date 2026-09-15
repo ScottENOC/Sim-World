@@ -23,20 +23,23 @@ for (const forbidden of ['Anatolia', 'Mesopotamia', 'Kazakh Steppe', 'Mongolian 
 }
 assert.ok((navigation.multiCountryRegionCount || 0) > 0, 'at least one simulation region should be discoverable through multiple modern countries');
 
-// North America now includes the continental USA, Canada and Mexico tranche,
-// alongside the pre-existing Greenland/Hawaii coverage. Keep this explicit so
-// unrelated countries cannot leak into the picker through physical-region tags.
+// North America includes Canada/USA/Mexico plus Central America and the Caribbean.
+// Spot-check the expansion rather than freezing an exhaustive allow-list: modern
+// territories are intentionally allowed to grow as geographic coverage expands.
 const northAmericaCountries = new Set();
 for (const memberships of Object.values(navigation.regions)) {
   for (const membership of memberships) {
     if (membership.continent === 'North America') northAmericaCountries.add(membership.country);
   }
 }
-for (const expected of ['Canada', 'Greenland', 'Mexico', 'United States of America']) {
+for (const expected of [
+  'Canada', 'Greenland', 'Mexico', 'United States of America',
+  'Guatemala', 'Panama', 'Cuba', 'Jamaica', 'Dominican Republic', 'The Bahamas', 'Anguilla',
+]) {
   assert.ok(northAmericaCountries.has(expected), `expected North America picker country ${expected}`);
 }
-for (const country of northAmericaCountries) {
-  assert.ok(['Canada', 'Greenland', 'Mexico', 'United States of America'].includes(country), `unexpected North America picker country ${country}`);
+for (const southAmerican of ['Argentina', 'Brazil', 'Chile', 'Peru', 'Uruguay']) {
+  assert.ok(!northAmericaCountries.has(southAmerican), `${southAmerican} must not leak into the North America picker group`);
 }
 
 // Spot-check that country memberships carry their modern geographic continent,
@@ -44,6 +47,9 @@ for (const country of northAmericaCountries) {
 const expectedContinents = new Map([
   ['Sudan', 'Africa'], ['Ethiopia', 'Africa'], ['Kenya', 'Africa'], ['Somalia', 'Africa'],
   ['Papua New Guinea', 'Oceania'], ['United Kingdom', 'Europe'], ['Faroe Islands', 'Europe'],
+  ['Brazil', 'South America'], ['Argentina', 'South America'], ['Chile', 'South America'],
+  ['Peru', 'South America'], ['Colombia', 'South America'],
+  ['Guatemala', 'North America'], ['Panama', 'North America'], ['Cuba', 'North America'],
 ]);
 for (const memberships of Object.values(navigation.regions)) {
   for (const membership of memberships) {
