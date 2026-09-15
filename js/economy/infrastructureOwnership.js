@@ -1,8 +1,15 @@
 import { CORPORATE_INFRASTRUCTURE_TYPES } from './corporateInfrastructure.js';
-import { nationaliseAsset } from './infrastructureInvestment.js';
+import { FOREIGN_INVESTMENT_POLICIES, ensureInvestmentPolicy, nationaliseAsset } from './infrastructureInvestment.js';
 
 const DAYS_PER_YEAR = 365.2425;
 const clamp = (value, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(value) || 0));
+
+function polityId(region) { return region?.governance?.sovereignPolityId || region?.polityId || null; }
+function defaultWarState(a, b) {
+  const ids = new Set([...(a?.atWarWith || []), ...(a?.enemiesAtWar || [])]);
+  if (ids.has(b?.id)) return true;
+  return (a?.wars || []).some((war) => war?.active !== false && (war?.opponentId === b?.id || war?.participants?.includes?.(b?.id)));
+}
 
 function hasKnowledge(region, id) {
   for (const source of [region?.breakthroughs, region?.technologies, region?.tech?.breakthroughs, region?.tech?.known]) {
@@ -97,4 +104,42 @@ export function nationaliseCorporateInfrastructure({ asset, hostRegion, hostPoli
   applyLocalManagement(asset, hostRegion, false);
   recordOwnership(asset, { type: 'nationalisation', tick: currentTick, previousOwnerPolityId: result.previousOwner, previousOwnerFirmId, compensationShare: share, compensationDue, uncompensatedClaim: result.uncompensatedClaim || 0 });
   return { nationalised: true, ...result, compensationDue, managementCapability: asset.managementCapability };
+}
+
+export function maybeNationaliseNpcInfrastructure(regions, polities, currentTick = 0, options = {}) {
+  if (currentTick % 52 !== 0) return [];
+  const playerPolityId = options.playerPolityId || null;
+  const polityMap = new Map((polities || []).map((polity) => [polity.id, polity]));
+  const territories = new Map();
+  for (const region of regions || []) {
+    const id = polityId(region);
+    if (!territories.has(id)) territories.set(id, []);
+    territories.get(id).push(region);
+  }
+  const events = [];
+  for (const region of regions || []) {
+    const hostPolity = polityMap.get(polityId(region));
+    if (!hostPolity || hostPolity.id === playerPolityId) continue;
+    const policy = ensureInvestmentPolicy(hostPolity);
+    for (const asset of region.corporateInfrastructure?.assets || []) {
+      if (!asset.foreignOwner || asset.status === 'destroyed') continue;
+      const ownerPolity = polityMap.get(asset.ownerPolityId);
+      if (!ownerPolity) continue;
+      const atWar = options.atWarResolver?.(hostPolity.id, ownerPolity.id) ?? defaultWarState(hostPolity, ownerPolity);
+      const domesticOnly = policy.general === FOREIGN_INVESTMENT_POLICIES.DOMESTIC_ONLY;
+      const strategicDomesticOnly = asset.strategic && policy.strategic === FOREIGN_INVESTMENT_POLICIES.DOMESTIC_ONLY;
+      if (!atWar && !domesticOnly && !strategicDomesticOnly) continue;
+      const payer = [...(territories.get(hostPolity.id) || [])].sort((a, b) => (b.treasury || 0) - (a.treasury || 0))[0] || region;
+      const value = Math.max(0, Number(asset.value) || 0);
+      let compensationShare = 0;
+      if (!atWar) {
+        if ((payer.treasury || 0) >= value) compensationShare = 1;
+        else if (strategicDomesticOnly && (payer.treasury || 0) >= value * .5) compensationShare = .5;
+        else continue;
+      }
+      const result = nationaliseCorporateInfrastructure({ asset, hostRegion: region, hostPolity, ownerPolity, payerRegion: payer, regions, compensationShare, currentTick });
+      if (result.nationalised) events.push({ type:'corporate_infrastructure_nationalised', polityId:hostPolity.id, hostPolityId:hostPolity.id, ownerPolityId:ownerPolity.id, regionId:region.id, assetId:asset.id, compensationShare, atWar });
+    }
+  }
+  return events;
 }
