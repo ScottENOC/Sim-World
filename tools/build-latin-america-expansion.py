@@ -290,7 +290,7 @@ def main():
     admin1 = na.fetch_json(na.ADMIN1_URL)
     existing = na.map_v2.repair(unary_union([na.map_v2.clean(shape(f['geometry'])) for f in geo.get('features', [])]))
     pieces = build_source_pieces(admin1, masks, existing)
-    clusters = na.cluster_regions(pieces, TARGET_REGION_COUNT)
+    clusters = na.cluster_pieces(pieces, TARGET_REGION_COUNT)
     regions = make_regions(clusters)
     na.map_v2.add_land_adjacency(geo['features'], meta_doc['regions'], regions)
 
