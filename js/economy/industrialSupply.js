@@ -1,3 +1,5 @@
+import { foreignMarketAccess } from './infrastructureInvestment.js';
+
 const DAYS_PER_YEAR = 365.2425;
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
 
@@ -26,6 +28,14 @@ export function ensureProcurementPolicy(polity) {
 export function setInfrastructureProcurementPolicy(polity, policy) {
   if (!Object.values(PROCUREMENT_POLICIES).includes(policy)) throw new Error(`Unknown procurement policy: ${policy}`);
   ensureProcurementPolicy(polity).infrastructure = policy;
+  return polity.procurementPolicy.infrastructure;
+}
+export function chooseNpcProcurementPolicy(polity, { securityThreat = 0, industrialAmbition = 0, domesticCapability = 0, capitalShortage = 0, foreignDependence = 0 } = {}) {
+  const security = clamp(securityThreat), ambition = clamp(industrialAmbition), capability = clamp(domesticCapability), shortage = clamp(capitalShortage), dependence = clamp(foreignDependence);
+  let policy = PROCUREMENT_POLICIES.BEST_AVAILABLE;
+  if (security > 0.78 || (security > 0.58 && dependence > 0.55)) policy = PROCUREMENT_POLICIES.DOMESTIC_ONLY;
+  else if (ambition > 0.48 || dependence > 0.42 || (capability > 0.55 && shortage < 0.65)) policy = PROCUREMENT_POLICIES.PREFER_DOMESTIC;
+  return setInfrastructureProcurementPolicy(polity, policy);
 }
 function manufacturingBase(region) {
   const structural = region.structuralTransformation || {};
@@ -45,22 +55,41 @@ export function tickIndustrialSupply(region, elapsedDays = 7) {
 }
 export function supplierCapability(region, requirement) {
   const s = ensureIndustrialSupply(region); const entries = Object.entries(requirement || {}).filter(([, needed]) => Number(needed) > 0); if (!entries.length) return 1;
-  // Score partial coverage rather than taking the single weakest input. A supplier that can provide
-  // 80% of every requirement is genuinely stronger than one that can provide 20%; both used to clamp to zero too easily.
   const coverage = entries.map(([key, needed]) => clamp((s.outputCapacity[key] || 0) / needed));
   const average = coverage.reduce((sum, v) => sum + v, 0) / coverage.length;
   const minimum = Math.min(...coverage);
   return clamp(average * 0.7 + minimum * 0.3);
 }
-export function chooseInfrastructureSupplier({ polity, domesticRegions = [], foreignOffers = [], requirements = {} }) {
+function accessibleForeignOffer(polity, offer, strategic) {
+  if (!offer?.region) return false;
+  const investorPolity = offer.polity || { id: offer.polityId || offer.region?.governance?.sovereignPolityId || offer.region?.polityId || 'foreign-supplier' };
+  return foreignMarketAccess({ hostPolity: polity, investorPolity, strategic, relation: Number(offer.relation) || 0, atWar: !!offer.atWar, partner: !!offer.partner });
+}
+export function chooseInfrastructureSupplier({ polity, domesticRegions = [], foreignOffers = [], requirements = {}, strategic = true }) {
   const policy = ensureProcurementPolicy(polity).infrastructure;
-  const domestic = domesticRegions.map(region => ({ region, foreign: false, capability: supplierCapability(region, requirements) })).sort((a,b)=>b.capability-a.capability)[0] || null;
-  const foreign = foreignOffers.filter(o=>o?.region).map(o=>({ ...o, foreign:true, capability:supplierCapability(o.region, requirements) })).sort((a,b)=>(b.capability-(b.costPremium||0)*0.08)-(a.capability-(a.costPremium||0)*0.08))[0] || null;
-  if (policy === PROCUREMENT_POLICIES.DOMESTIC_ONLY) return domestic; if (!foreign) return domestic; if (!domestic) return foreign;
+  const domestic = domesticRegions.map(region => ({ region, foreign: false, polityId: polity.id, capability: supplierCapability(region, requirements) })).sort((a,b)=>b.capability-a.capability)[0] || null;
+  const foreign = policy === PROCUREMENT_POLICIES.DOMESTIC_ONLY ? null : foreignOffers.filter(o => accessibleForeignOffer(polity, o, strategic)).map(o=>({ ...o, foreign:true, capability:supplierCapability(o.region, requirements) })).sort((a,b)=>(b.capability-(b.costPremium||0)*0.08)-(a.capability-(a.costPremium||0)*0.08))[0] || null;
+  if (!foreign) return domestic; if (!domestic) return foreign;
   if (policy === PROCUREMENT_POLICIES.PREFER_DOMESTIC && domestic.capability >= foreign.capability * 0.72) return domestic;
   return foreign.capability > domestic.capability * 1.08 ? foreign : domestic;
 }
 export function applyForeignSupplierExposure(hostRegion, supplierRegion, intensity = 1) {
   const host = ensureIndustrialSupply(hostRegion); const supplier = ensureIndustrialSupply(supplierRegion);
   for (const key of Object.keys(host.exposure)) { const gap = Math.max(0, (supplier.capability[key] || 0) - (host.capability[key] || 0)); host.exposure[key] = clamp(host.exposure[key] + gap * 0.08 * clamp(intensity)); }
+}
+export function applyDomesticSupplierExperience(hostRegion, supplierRegion = hostRegion, intensity = 1) {
+  const host = ensureIndustrialSupply(hostRegion); const supplier = ensureIndustrialSupply(supplierRegion); const practice = clamp(intensity);
+  for (const key of CAPABILITY_KEYS) {
+    const current = host.capability[key] || 0;
+    const supplierLevel = supplier.capability[key] || 0;
+    const practiceCeiling = Math.min(1, Math.max(current + 0.12, supplierLevel + 0.04));
+    const gap = Math.max(0, practiceCeiling - current);
+    host.exposure[key] = clamp((host.exposure[key] || 0) + 0.018 * practice + gap * 0.035 * practice);
+  }
+}
+export function describeProcurementConsequence(polity) {
+  const policy = ensureProcurementPolicy(polity).infrastructure;
+  if (policy === PROCUREMENT_POLICIES.DOMESTIC_ONLY) return 'Government infrastructure orders are restricted to domestic suppliers. Weak domestic capability can make projects much slower, but construction experience and demand stay at home.';
+  if (policy === PROCUREMENT_POLICIES.PREFER_DOMESTIC) return 'Domestic suppliers receive preference when reasonably competitive; foreign expertise remains available when the capability gap is large.';
+  return 'Government projects use the strongest accessible supplier, including foreign firms. Delivery is usually faster, but more profits and engineering control may remain abroad.';
 }
