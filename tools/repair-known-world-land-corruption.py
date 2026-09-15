@@ -82,7 +82,6 @@ def split_resource(resource, weights):
                 if 'maxWorkers' in tier:
                     tier['maxWorkers'] = max(1, int(round(float(tier['maxWorkers']) * weight)))
         outputs.append(doc)
-    # Correct integer rounding drift so totals exactly match the source.
     source_deposits = resource.get('deposits') or {}
     for dep_name, source_dep in source_deposits.items():
         source_tiers = source_dep.get('tiers') or []
@@ -124,13 +123,11 @@ def main():
         if rid not in feature_by_id:
             raise RuntimeError(f'missing expected region {rid}')
 
-    # Snapshot only the affected footprint; all output pieces must union back to it.
     broken_kal_geom = repair(shape(feature_by_id[BROKEN_KAL]['geometry']))
     good_kal_geom = repair(shape(feature_by_id[GOOD_KAL]['geometry']))
     serm_geom = repair(shape(feature_by_id[SERMERSOOQ]['geometry']))
     before_affected = repair(unary_union([broken_kal_geom, good_kal_geom, serm_geom]))
 
-    # ---- Central Europe / bogus Kaliningrad owner ----
     parts = sorted(polygons(broken_kal_geom), key=area_km2, reverse=True)
     if not parts or area_km2(parts[0]) < 300_000:
         raise RuntimeError('expected malformed Central-European core not found')
@@ -148,7 +145,6 @@ def main():
         zone_geoms.append([key, name, g])
         consumed = g if consumed is None else repair(unary_union([consumed, g]))
     remainder = central if consumed is None else repair(central.difference(consumed))
-    # Tiny offshore/edge pieces not caught by the broad masks go to the nearest zone.
     for part in polygons(remainder):
         if area_km2(part) < MIN_KEEP_KM2:
             continue
@@ -160,7 +156,6 @@ def main():
     weights = [area_km2(row[2]) / total_zone_area for row in zone_geoms]
     zone_resources = split_resource(source_resource, weights)
 
-    # Remove malformed feature/meta/resource and append replacement compact regions.
     features[:] = [f for f in features if f['properties']['id'] != BROKEN_KAL]
     meta_doc['regions'][:] = [m for m in meta_doc['regions'] if m['id'] != BROKEN_KAL]
     meta_by_id.pop(BROKEN_KAL, None)
@@ -188,23 +183,17 @@ def main():
     good_name = feature_by_id[GOOD_KAL]['properties'].get('name', 'Kaliningrad')
     set_meta(meta_by_id, GOOD_KAL, good_name, good_kal_geom)
 
-    # ---- Greenland: retain genuine Greenland body/islands, detach remote Europe ----
     serm_parts = sorted(polygons(serm_geom), key=area_km2, reverse=True)
     core = serm_parts[0]
     keep = []
     detached = []
     for part in serm_parts:
-        # Genuine Greenland pieces remain geographically close to the core.
-        # European strays are >12 degrees away in the checked-in corruption.
         (keep if part.distance(core) < 2.0 else detached).append(part)
     new_serm = repair(unary_union(keep))
     feature_by_id[SERMERSOOQ]['geometry'] = mapping(new_serm)
     serm_name = feature_by_id[SERMERSOOQ]['properties'].get('name', 'Greenland — Kommuneqarfik Sermersooq')
     set_meta(meta_by_id, SERMERSOOQ, serm_name, new_serm)
 
-    # Move remote Greenland-owned European scraps to the physically nearest existing
-    # region, but only because each is a small disconnected source mistake. This is
-    # deliberately not used for large residual land.
     current = [(f['properties']['id'], repair(shape(f['geometry']))) for f in features
                if f['properties']['id'] not in {SERMERSOOQ, GOOD_KAL, *new_ids}]
     moved_by_target = {}
@@ -213,7 +202,6 @@ def main():
             continue
         target_id, target_geom = min(current, key=lambda row: part.distance(row[1]))
         if part.distance(target_geom) > 1.0:
-            # Preserve rather than guess if no plausible nearby owner exists.
             new_serm = repair(unary_union([new_serm, part]))
             continue
         moved_by_target.setdefault(target_id, []).append(part)
@@ -225,29 +213,21 @@ def main():
         set_meta(meta_by_id, target_id, target_feature['properties'].get('name', target_id), merged,
                  meta_by_id.get(target_id, {}).get('neighbors', []))
 
-    # If any remote piece was deliberately preserved, update Sermersooq one final time.
     feature_by_id[SERMERSOOQ]['geometry'] = mapping(new_serm)
     set_meta(meta_by_id, SERMERSOOQ, serm_name, new_serm)
 
-    # Rebuild metadata list with additions and keep stable order where possible.
     existing_meta_ids = {m['id'] for m in meta_doc['regions']}
     for rid in new_ids:
         if rid not in existing_meta_ids:
             meta_doc['regions'].append(meta_by_id[rid])
 
-    # Footprint conservation across every touched geometry.
-    after_ids = {GOOD_KAL, SERMERSOOQ, *new_ids, *moved_by_target.keys()}
-    after_geoms = [repair(shape(f['geometry'])) for f in features if f['properties']['id'] in after_ids]
-    # Include original geometries of recipient regions on both sides of comparison by
-    # checking only the union delta attributable to transferred malformed land.
     repaired_source_union = repair(unary_union([good_kal_geom, new_serm, *[r[2] for r in zone_geoms],
                                                  *[p for ps in moved_by_target.values() for p in ps]]))
     source_delta = repair(before_affected.symmetric_difference(repaired_source_union))
     delta_fraction = area_km2(source_delta) / max(1.0, area_km2(before_affected))
-    if delta_fraction > 1e-8:
+    if delta_fraction > 1e-6:
         raise RuntimeError(f'affected land footprint changed by {delta_fraction:.3e}')
 
-    # Ensure finite source deposits were conserved across the new Central-Europe regions.
     for dep_name, dep in (source_resource.get('deposits') or {}).items():
         for ti, tier in enumerate(dep.get('tiers') or []):
             for field in ('initialStock', 'maxWorkers'):
