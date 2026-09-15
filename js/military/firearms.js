@@ -1,4 +1,5 @@
 import { firearmSteelQualityMultiplier } from './earlyModernWarfare.js?v=20260913-early-modern1';
+import { tickIndustrialMarine } from '../technology/industrialMarine.js?v=20260916-steam1';
 
 const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
 
@@ -100,6 +101,10 @@ export function tickGunpowderIndustry(regions, elapsedDays = 30) {
     reports.push({ regionId: region.id, firearmsBuilt, powderMade, readiness: state.readiness,
       totalBuilt: state.totalBuilt, riflingReadiness: state.riflingReadiness });
   }
+  // Steam power and industrial shipbuilding are not gunpowder technologies,
+  // but this established industry cadence gives them a cheap bounded tick
+  // without adding another full-world weekly pass.
+  reports.industrialMarineEvents = tickIndustrialMarine(regions, elapsedDays);
   return reports;
 }
 
