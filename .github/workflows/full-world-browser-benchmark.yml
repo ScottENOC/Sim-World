@@ -39,15 +39,21 @@ jobs:
           CHROME_PATH: /usr/bin/google-chrome
           SIM_WORLD_BENCHMARK_SAMPLES: '12'
           SIM_WORLD_BENCHMARK_OUTPUT: benchmarks/world-2024-ci.json
-        run: node tools/benchmark-world-browser.mjs
-      - name: Commit benchmark baseline
-        if: github.event_name == 'push' && success()
+        run: |
+          mkdir -p benchmarks
+          set +e
+          node tools/benchmark-world-browser.mjs > benchmarks/world-2024-ci.log 2>&1
+          status=$?
+          cat benchmarks/world-2024-ci.log
+          exit $status
+      - name: Commit benchmark evidence
+        if: always() && github.event_name == 'push'
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add benchmarks/world-2024-ci.json
+          git add benchmarks/world-2024-ci.json benchmarks/world-2024-ci.log 2>/dev/null || true
           if ! git diff --cached --quiet; then
-            git commit -m 'Record 2024-region browser benchmark'
+            git commit -m 'Record 2024-region browser benchmark evidence'
             git pull --rebase
             git push
           fi
