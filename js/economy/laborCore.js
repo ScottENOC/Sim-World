@@ -811,8 +811,8 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng, elapsedDays 
     boatMakers += marketBuild.makers;
 
     accumulateExperience(region, 'boatbuilding', boatMakers);
-    report.boatmaking = { workers: Math.round(boatMakers), navyBoats: navyBuild.built,
-      advancedNavyBoats: navyBuild.advanced, fishingBoats: fishBuild.built,
+    report.boatmaking = { workers: Math.round(boatMakers), navyBoats: navyBuilt,
+      advancedNavyBoats: navyAdvancedBuilt, navalClasses: { ...(procurement.built || {}) }, fishingBoats: fishBuild.built,
       advancedFishingBoats: fishBuild.advanced, newBoatsForMarket: marketBuild.built };
   }
   remainingSurplus -= boatMakers;
