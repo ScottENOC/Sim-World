@@ -310,7 +310,9 @@ async function main() {
   // editing, keep yielding until the short interaction quiet-period expires.
   const nextUiFrame = () => new Promise((resolve) => requestAnimationFrame(() => resolve()));
   const yieldForUi = async () => {
+    const yieldStartedAt = performance.now();
     do { await nextUiFrame(); } while (clock.isInteractionDeferred());
+    clock.recordCooperativeYield(performance.now() - yieldStartedAt);
   };
 
   clock.onTick(async (time) => {
