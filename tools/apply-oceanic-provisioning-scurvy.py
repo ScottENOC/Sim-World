@@ -11,6 +11,21 @@ def replace_once(path, old, new):
     p.write_text(text.replace(old, new, 1))
     return True
 
+# Later fleet features legitimately add state between history initialisation and
+# the provisioning hook. Detect the completed integration semantically so this
+# old feature-branch helper remains safe on newer fleet implementations.
+fleet_text = Path('js/military/fleets.js').read_text()
+if all(marker in fleet_text for marker in [
+    "from './oceanicProvisioning.js?v=20260913-provisioning1'",
+    'ensureFleetProvisioning(fleet);',
+    'serviceProvisioningInPort(fleet, port, owner, weeks, fleetCrewCount(fleet))',
+    'provisioningCombatMultiplier(fleet)',
+    'shouldReturnForProvisioning(fleet)',
+    'tickProvisioningAtSea(fleet, origin, weeks)',
+]):
+    print('Oceanic provisioning and scurvy integration already present')
+    raise SystemExit(0)
+
 replace_once(
     'js/military/fleets.js',
     "import { navalGunCombatProfile } from './earlyModernWarfare.js?v=20260913-early-modern1';\n",
