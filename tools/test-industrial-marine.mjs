@@ -20,9 +20,7 @@ function industrialPort() {
       { id: 's', typeId: 'shipyard', condition: 1, scale: 1 },
     ] },
     corporateCapital: { firms: [{ status: 'active', capitalIndex: 30 }] },
-    earlyModernMilitary: { naval: { readiness: 0.8, guns: [
-      { metal: 'iron', condition: 1 }, { metal: 'iron', condition: 1 }, { metal: 'steel', condition: 1 },
-    ] } },
+    earlyModernMilitary: { naval: { readiness: 0.8, guns: Array.from({ length: 16 }, (_, i) => ({ metal: i < 8 ? 'iron' : 'steel', condition: 1 })) } },
   };
 }
 
