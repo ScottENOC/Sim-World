@@ -1,0 +1,80 @@
+name: Repair known world land corruption
+on:
+  push:
+    branches: [repair-current-world-land-v1]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install geography dependencies
+        run: |
+          python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2 pyshp==2.3.1
+          npm install --no-save d3-geo@3
+      - name: Capture baseline geometry audit
+        run: python tools/audit-region-geometry.py --focus Kaliningrad --top 30 --json /tmp/before.json > /tmp/before.txt
+      - name: Repair malformed ownership
+        run: |
+          if grep -q '"r2_81f83805b72"' data/world/regions.geo.json; then
+            python tools/repair-known-world-land-corruption.py
+          else
+            echo 'KNOWN_WORLD_LAND_REPAIR_ALREADY_APPLIED=1'
+          fi
+          python tools/clean-sermersooq-foreign-components.py
+          python tools/clean-central-europe-detached-components.py
+          python tools/rebuild-land-adjacency.py
+      - name: Rebuild derived land data
+        run: |
+          python tools/build-region-navigation.py
+          python tools/build-terrain.py --geo data/world/regions.geo.json --resources data/world/resources.initial.json --output data/world/terrain.initial.json
+          node tools/generate-world-spatial-base.mjs
+      - name: Rebuild sea-to-land adjacency
+        run: |
+          rm -rf /tmp/repaired-seas
+          python tools/build-sea-expansion-v2.py --land-geo data/world/regions.geo.json --output-dir /tmp/repaired-seas
+          cp /tmp/repaired-seas/seaRegions.geo.json data/world/seaRegions.geo.json
+          cp /tmp/repaired-seas/seaRegions.meta.json data/world/seaRegions.meta.json
+      - name: Validate repaired geography
+        run: |
+          python tools/audit-region-geometry.py --focus Kaliningrad --top 30 --json /tmp/after.json | tee /tmp/after.txt
+          python tools/audit-inland-region-components.py > /tmp/inland.txt
+          python tools/test-known-world-land-repair.py
+          python tools/diagnose-central-europe-repair.py
+          python - <<'PY'
+          import json
+          before=json.load(open('/tmp/before.json')); after=json.load(open('/tmp/after.json'))
+          bflags={r['id']:r for r in before['regions'] if r.get('flag')}
+          aflags={r['id']:r for r in after['regions'] if r.get('flag')}
+          print('GEOMETRY_FLAGS_BEFORE',len(bflags)); print('GEOMETRY_FLAGS_AFTER',len(aflags))
+          for rid in sorted(aflags.keys()-bflags.keys()):
+              print('NEW_GEOMETRY_REVIEW_FLAG',json.dumps(aflags[rid],ensure_ascii=False))
+          print('NOTE: generic compactness flags are manual-review signals; gross detached ownership is enforced by test-known-world-land-repair.py')
+          PY
+          python tools/test-old-world-asia-pacific-map.py
+          node tools/test-country-picker.mjs
+          node tools/test-world-spatial-real-map.mjs
+          git diff --check
+      - name: Commit repaired world data
+        if: github.event_name == 'push' && success()
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add data/world
+          if ! git diff --cached --quiet; then
+            git commit -m 'Materialise repaired world land geography'
+            git pull --rebase
+            git push
+          fi

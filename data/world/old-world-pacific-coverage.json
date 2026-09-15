@@ -1,14 +1,14 @@
 {
   "baseRegions": 903,
-  "newRegions": 775,
-  "totalRegions": 1678,
+  "newRegions": 774,
+  "totalRegions": 1677,
   "targetAreaSqKm": 94208106.5,
   "coveredTargetAreaSqKm": 94206222.8,
   "targetCoverageRatio": 0.9999800042365252,
   "regionsByZone": {
     "ow_greenland": 3,
     "ow_fennoscandia": 8,
-    "ow_east_europe_plain": 10,
+    "ow_east_europe_plain": 9,
     "ow_danube_carpathian": 8,
     "ow_balkan_aegean": 7,
     "ow_med_islands": 5,
