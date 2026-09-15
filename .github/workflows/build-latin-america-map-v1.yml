@@ -46,6 +46,7 @@ jobs:
         run: python tools/prepare-latin-america-regeneration.py
       - name: Generate Latin American land regions
         run: |
+          set -o pipefail
           rm -rf /tmp/simworld-la-land /tmp/simworld-la-sea
           time python tools/build-latin-america-expansion.py --output-dir /tmp/simworld-la-land | tee /tmp/latin-america-land.log
           cp /tmp/simworld-la-land/regions.geo.json data/world/regions.geo.json
@@ -54,11 +55,14 @@ jobs:
           cp /tmp/simworld-la-land/latin-america-v1-review.json data/world/latin-america-v1-review.json
       - name: Generate Latin American seas and coastal adjacency
         run: |
+          set -o pipefail
           time python tools/build-latin-america-seas.py --land-geo data/world/regions.geo.json --output-dir /tmp/simworld-la-sea | tee /tmp/latin-america-sea.log
           cp /tmp/simworld-la-sea/seaRegions.geo.json data/world/seaRegions.geo.json
           cp /tmp/simworld-la-sea/seaRegions.meta.json data/world/seaRegions.meta.json
       - name: Repair source-boundary adjacency seams
-        run: python tools/repair-latin-america-adjacency.py | tee /tmp/latin-america-adjacency.log
+        run: |
+          set -o pipefail
+          python tools/repair-latin-america-adjacency.py | tee /tmp/latin-america-adjacency.log
       - name: Canonicalise D3-safe land geometry
         run: |
           python tools/normalize-land-geojson.py --input data/world/regions.geo.json --output /tmp/regions.geo.normalized.json
@@ -126,10 +130,13 @@ jobs:
           sea_by_id={m['id']:m for m in sea}
           planned={s['id'] for s in sea_plan['regions']}
           present=planned & set(sea_by_id)
-          assert len(present)>=10, f'too few planned Latin American seas survived overlap clipping: {sorted(present)}'
-          for sid in ('sea_caribbean_west','sea_caribbean_central','sea_caribbean_east','sea_panama_bight','sea_tropical_pacific_sa','sea_rio_plata','sea_patagonian_atlantic'):
+          assert len(present)>=13, f'too few planned Latin American seas survived overlap clipping: {sorted(present)}'
+          for sid in ('sea_caribbean_west','sea_caribbean_central','sea_caribbean_east','sea_panama_bight','sea_galapagos_waters','sea_tropical_pacific_sa','sea_rapa_nui_waters','sea_equatorial_atlantic_islands','sea_rio_plata','sea_patagonian_atlantic'):
               assert sid in sea_by_id, f'missing strategic water region {sid}'
               assert set(sea_by_id[sid].get('adjacentLand',[])) & new_ids, f'{sid} has no Latin American coast'
+          names={r['name'] for r in review}
+          assert 'Galápagos Islands' in names, 'Galápagos not represented as a coherent archipelago'
+          assert 'Rapa Nui' in names, 'Rapa Nui not represented as a coherent island region'
           print('TOTAL_LAND_REGIONS='+str(len(ids)))
           print('LATIN_AMERICA_NEW_REGIONS='+str(len(review)))
           print('CROSS_MODERN_BORDER_REGIONS='+str(cross))
