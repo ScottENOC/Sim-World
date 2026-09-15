@@ -1,0 +1,129 @@
+name: Build Latin America map v2
+
+on:
+  push:
+    branches: [latin-america-map-v2]
+    paths:
+      - '.github/workflows/build-latin-america-map-v2.yml'
+      - 'tools/prepare-latin-america-regeneration.py'
+      - 'tools/build-latin-america-expansion.py'
+      - 'tools/latin-america-region-plan-v1.json'
+      - 'tools/build-latin-america-seas.py'
+      - 'tools/latin-america-sea-plan-v1.json'
+      - 'tools/repair-latin-america-adjacency.py'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install geography dependencies
+        run: |
+          python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2 pyshp==2.3.1
+          npm install --no-save d3-geo@3
+      - name: Validate generator inputs
+        run: |
+          python -m py_compile tools/prepare-latin-america-regeneration.py tools/build-latin-america-expansion.py tools/build-latin-america-seas.py tools/repair-latin-america-adjacency.py
+          python -m json.tool tools/latin-america-region-plan-v1.json >/dev/null
+          python -m json.tool tools/latin-america-sea-plan-v1.json >/dev/null
+      - name: Regenerate Latin American land
+        run: |
+          set -o pipefail
+          python tools/prepare-latin-america-regeneration.py
+          rm -rf /tmp/simworld-la-land /tmp/simworld-la-sea
+          time python tools/build-latin-america-expansion.py --output-dir /tmp/simworld-la-land | tee /tmp/latin-america-land.log
+          cp /tmp/simworld-la-land/regions.geo.json data/world/regions.geo.json
+          cp /tmp/simworld-la-land/regions.meta.json data/world/regions.meta.json
+          cp /tmp/simworld-la-land/resources.initial.json data/world/resources.initial.json
+          cp /tmp/simworld-la-land/latin-america-v1-review.json data/world/latin-america-v1-review.json
+      - name: Regenerate Latin American seas
+        run: |
+          set -o pipefail
+          time python tools/build-latin-america-seas.py --land-geo data/world/regions.geo.json --output-dir /tmp/simworld-la-sea | tee /tmp/latin-america-sea.log
+          cp /tmp/simworld-la-sea/seaRegions.geo.json data/world/seaRegions.geo.json
+          cp /tmp/simworld-la-sea/seaRegions.meta.json data/world/seaRegions.meta.json
+          python tools/repair-latin-america-adjacency.py
+      - name: Rebuild derived world data
+        run: |
+          python tools/normalize-land-geojson.py --input data/world/regions.geo.json --output /tmp/regions.geo.normalized.json
+          node tools/repair-d3-region-geometry.mjs --input /tmp/regions.geo.normalized.json --output data/world/regions.geo.json
+          python tools/build-region-navigation.py
+          python tools/build-terrain.py --geo data/world/regions.geo.json --resources data/world/resources.initial.json --output data/world/terrain.initial.json
+          node tools/generate-world-spatial-base.mjs
+      - name: Validate Latin America and repaired baseline
+        run: |
+          python - <<'PY'
+          import json
+          from shapely.geometry import shape
+          geo=json.load(open('data/world/regions.geo.json'))
+          meta=json.load(open('data/world/regions.meta.json'))['regions']
+          res=json.load(open('data/world/resources.initial.json'))
+          terrain=json.load(open('data/world/terrain.initial.json'))
+          review=json.load(open('data/world/latin-america-v1-review.json'))
+          nav=json.load(open('data/world/region-navigation.json'))
+          seas=json.load(open('data/world/seaRegions.meta.json'))['seaRegions']
+          ids=[f['properties']['id'] for f in geo['features']]
+          idset=set(ids); by_meta={m['id']:m for m in meta}; by_feature={f['properties']['id']:f for f in geo['features']}
+          assert len(ids)==len(idset), 'duplicate land ids'
+          assert idset==set(by_meta)==set(res)==set(terrain), 'derived land ids differ'
+          assert len(review)>=170, f'Latin America too coarse: {len(review)}'
+          new_ids={r['id'] for r in review}
+          assert all(shape(by_feature[rid]['geometry']).is_valid for rid in new_ids), 'invalid Latin America geometry'
+          cross=sum(1 for r in review if len({u.split(':',1)[0] for u in r.get('sourceUnits',[])})>1)
+          assert cross>=3, f'only {cross} cross-modern-border regions'
+          names={r['name'] for r in review}
+          assert {'Galápagos Islands','Rapa Nui'} <= names, 'remote archipelagos missing'
+          nav_names=set(nav.get('countries',[]))
+          assert 'Anguilla' in nav_names, 'Anguilla missing from navigation'
+          stitched=sum(1 for rid in new_ids for n in by_meta[rid].get('neighbors',[]) if n.startswith('na_'))
+          assert stitched>0, 'Central America did not stitch to Mexico/North America'
+          coastal=set()
+          sea_by_id={s['id']:s for s in seas}
+          for sea in seas: coastal.update(sea.get('adjacentLand',[]))
+          for rid in new_ids:
+              if not by_meta[rid].get('neighbors'):
+                  assert rid in coastal, f'inland isolated region {rid}'
+          strategic=('sea_caribbean_west','sea_caribbean_central','sea_caribbean_east','sea_panama_bight','sea_galapagos_waters','sea_tropical_pacific_sa','sea_rapa_nui_waters','sea_equatorial_atlantic_islands','sea_rio_plata','sea_patagonian_atlantic')
+          for sid in strategic:
+              assert sid in sea_by_id, f'missing strategic sea {sid}'
+              assert set(sea_by_id[sid].get('adjacentLand',[])) & new_ids, f'{sid} has no Latin American coast'
+          north=sum(r.get('navigationContinent')=='North America' for r in review)
+          south=sum(r.get('navigationContinent')=='South America' for r in review)
+          assert north and south, (north,south)
+          print(f'TOTAL_LAND_REGIONS={len(ids)}')
+          print(f'LATIN_AMERICA_NEW_REGIONS={len(review)}')
+          print(f'CROSS_MODERN_BORDER_REGIONS={cross}')
+          print(f'CONTINENT_COUNTS NorthAmerica={north} SouthAmerica={south}')
+          print(f'TOTAL_SEAS={len(seas)}')
+          PY
+          python tools/test-known-world-land-repair.py
+          python tools/test-old-world-asia-pacific-map.py
+          node tools/test-country-picker.mjs
+          node tools/test-world-spatial-real-map.mjs
+          grep -q 'NEW_LATIN_AMERICA_REGIONS=' /tmp/latin-america-land.log
+          git diff --check
+      - name: Commit generated Latin America map
+        if: github.event_name == 'push' && success()
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add data/world/regions.geo.json data/world/regions.meta.json data/world/resources.initial.json data/world/terrain.initial.json data/world/spatial.base.json data/world/seaRegions.geo.json data/world/seaRegions.meta.json data/world/region-navigation.json data/world/latin-america-v1-review.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Generate Latin America from repaired world baseline'
+            git pull --rebase
+            git push
+          fi
