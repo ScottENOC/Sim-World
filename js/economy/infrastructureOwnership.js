@@ -52,6 +52,7 @@ function applyLocalManagement(asset, hostRegion, plannedHandover = false) {
 export function tickInfrastructureOwnership(asset, hostRegion, elapsedDays = 30) {
   if (!asset || !hostRegion) return asset;
   const years = Math.max(0, Number(elapsedDays) || 0) / DAYS_PER_YEAR;
+  let transferredThisTick = false;
   if (asset.status === 'operational' && asset.foreignOwner && Number(asset.concessionYearsRemaining) > 0) {
     asset.concessionYearsRemaining = Math.max(0, asset.concessionYearsRemaining - years);
     if (asset.concessionYearsRemaining <= 0) {
@@ -64,10 +65,11 @@ export function tickInfrastructureOwnership(asset, hostRegion, elapsedDays = 30)
       asset.concessionYearsRemaining = 0;
       asset.concessionExpired = true;
       applyLocalManagement(asset, hostRegion, true);
+      transferredThisTick = true;
       recordOwnership(asset, { type: 'concession_expiry', previousOwnerPolityId, previousOwnerFirmId });
     }
   }
-  if (!asset.foreignOwner && asset.status === 'operational') {
+  if (!asset.foreignOwner && asset.status === 'operational' && !transferredThisTick) {
     const def = CORPORATE_INFRASTRUCTURE_TYPES[asset.type];
     const capable = !def?.breakthrough || hasKnowledge(hostRegion, def.breakthrough);
     const recoveryPerYear = capable ? .18 : .035;
