@@ -1,0 +1,16 @@
+name: Industrial railways
+
+on:
+  push:
+    branches: [industrial-procurement-railways-v1]
+  pull_request:
+
+jobs:
+  industrial-railways:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tools/test-industrial-railways.mjs
