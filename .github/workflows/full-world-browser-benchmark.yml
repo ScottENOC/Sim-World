@@ -37,7 +37,7 @@ jobs:
       - name: Benchmark real full-world ticks
         env:
           CHROME_PATH: /usr/bin/google-chrome
-          SIM_WORLD_BENCHMARK_SAMPLES: '24'
+          SIM_WORLD_BENCHMARK_SAMPLES: '12'
           SIM_WORLD_BENCHMARK_OUTPUT: benchmarks/world-2024-ci.json
         run: node tools/benchmark-world-browser.mjs
       - name: Commit benchmark baseline
