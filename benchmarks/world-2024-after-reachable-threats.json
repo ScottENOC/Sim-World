@@ -1,0 +1,103 @@
+{
+  "generatedAt": "2026-09-15T08:35:42.291Z",
+  "environment": "GitHub Actions Ubuntu / hosted Chrome / iPhone-sized viewport (not iPhone hardware)",
+  "viewportCssPx": [
+    393,
+    852
+  ],
+  "deviceScaleFactor": 3,
+  "regionCount": 2024,
+  "seaRegionCount": 161,
+  "samples": 12,
+  "endingTickIndex": 13,
+  "avgTickMs": 2357,
+  "p95TickMs": 3541,
+  "maxTickMs": 3541,
+  "topSubsystems": [
+    {
+      "avgMs": 534.7,
+      "p95Ms": 817.4,
+      "maxMs": 817.4,
+      "sharePct": 22.7,
+      "subsystem": "Nation AI"
+    },
+    {
+      "avgMs": 485.1,
+      "p95Ms": 718.3,
+      "maxMs": 718.3,
+      "sharePct": 20.6,
+      "subsystem": "Trade"
+    },
+    {
+      "avgMs": 252.5,
+      "p95Ms": 313.9,
+      "maxMs": 313.9,
+      "sharePct": 10.7,
+      "subsystem": "Economy"
+    },
+    {
+      "avgMs": 200.6,
+      "p95Ms": 322.1,
+      "maxMs": 322.1,
+      "sharePct": 8.5,
+      "subsystem": "Demographics"
+    },
+    {
+      "avgMs": 163.6,
+      "p95Ms": 765.9,
+      "maxMs": 765.9,
+      "sharePct": 6.9,
+      "subsystem": "Communication practices"
+    },
+    {
+      "avgMs": 105.8,
+      "p95Ms": 119.3,
+      "maxMs": 119.3,
+      "sharePct": 4.5,
+      "subsystem": "Medieval state systems"
+    },
+    {
+      "avgMs": 88.24,
+      "p95Ms": 229.3,
+      "maxMs": 229.3,
+      "sharePct": 3.7,
+      "subsystem": "Religious politics"
+    },
+    {
+      "avgMs": 68.98,
+      "p95Ms": 99.6,
+      "maxMs": 99.6,
+      "sharePct": 2.9,
+      "subsystem": "Technology breakthroughs"
+    },
+    {
+      "avgMs": 53.98,
+      "p95Ms": 65.8,
+      "maxMs": 65.8,
+      "sharePct": 2.3,
+      "subsystem": "Polities"
+    },
+    {
+      "avgMs": 50.18,
+      "p95Ms": 62.1,
+      "maxMs": 62.1,
+      "sharePct": 2.1,
+      "subsystem": "Political continuity"
+    },
+    {
+      "avgMs": 33.52,
+      "p95Ms": 177.5,
+      "maxMs": 177.5,
+      "sharePct": 1.4,
+      "subsystem": "Religion"
+    },
+    {
+      "avgMs": 30.2,
+      "p95Ms": 73.1,
+      "maxMs": 73.1,
+      "sharePct": 1.3,
+      "subsystem": "Diplomats"
+    }
+  ],
+  "report": "SIM-WORLD IOS TICK PROFILE\nGenerated: 2026-09-15T08:35:42.290Z\nProfiler: STOPPED\nSamples: 12\nViewport: 393x852 CSS px\nDevice pixel ratio: 3\nCPU logical cores: 4\nUser agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36\n\nTOTAL TICK\n  last: 2824 ms\n  avg:  2357 ms\n  p50:  2349 ms\n  p95:  3541 ms\n  max:  3541 ms\n\nSUBSYSTEMS (sorted by average time)\n  avg | p95 | max | % total | subsystem\n    534.7 ms |   817.4 ms |   817.4 ms |   22.7% | Nation AI\n    485.1 ms |   718.3 ms |   718.3 ms |   20.6% | Trade\n    252.5 ms |   313.9 ms |   313.9 ms |   10.7% | Economy\n    200.6 ms |   322.1 ms |   322.1 ms |    8.5% | Demographics\n    163.6 ms |   765.9 ms |   765.9 ms |    6.9% | Communication practices\n    105.8 ms |   119.3 ms |   119.3 ms |    4.5% | Medieval state systems\n    88.24 ms |   229.3 ms |   229.3 ms |    3.7% | Religious politics\n    68.98 ms |   99.60 ms |   99.60 ms |    2.9% | Technology breakthroughs\n    53.98 ms |   65.80 ms |   65.80 ms |    2.3% | Polities\n    50.18 ms |   62.10 ms |   62.10 ms |    2.1% | Political continuity\n    33.52 ms |   177.5 ms |   177.5 ms |    1.4% | Religion\n    30.20 ms |   73.10 ms |   73.10 ms |    1.3% | Diplomats\n    29.28 ms |   36.50 ms |   36.50 ms |    1.2% | Knowledge diffusion\n    27.17 ms |   36.70 ms |   36.70 ms |    1.2% | Disease\n    24.68 ms |   27.70 ms |   27.70 ms |    1.0% | UI world-map draw\n    23.33 ms |   42.50 ms |   42.50 ms |    1.0% | Private military actors\n    22.46 ms |   28.40 ms |   28.40 ms |    1.0% | Corporate capital\n    20.17 ms |   23.80 ms |   23.80 ms |    0.9% | Proto-industrial private investment\n    18.15 ms |   23.00 ms |   23.00 ms |    0.8% | Medieval commerce\n    18.04 ms |   24.00 ms |   24.00 ms |    0.8% | Banditry\n    10.86 ms |   15.70 ms |   15.70 ms |    0.5% | State finance\n     9.44 ms |   113.3 ms |   113.3 ms |    0.4% | Language change\n     9.04 ms |   35.70 ms |   35.70 ms |    0.4% | Diplomacy\n     8.85 ms |   11.30 ms |   11.30 ms |    0.4% | Medieval doctrine\n     8.35 ms |   15.20 ms |   15.20 ms |    0.4% | Non-state organisations\n     5.66 ms |   13.00 ms |   13.00 ms |    0.2% | Climate change\n     5.24 ms |   62.40 ms |   62.40 ms |    0.2% | Medieval completion\n     4.87 ms |    9.20 ms |    9.20 ms |    0.2% | Transit control\n     4.73 ms |    5.90 ms |    5.90 ms |    0.2% | Knowledge pruning\n     4.34 ms |    8.20 ms |    8.20 ms |    0.2% | Settlements\n     3.94 ms |    7.70 ms |    7.70 ms |    0.2% | Religious institutions\n     3.78 ms |    5.40 ms |    5.40 ms |    0.2% | Hydrology\n     3.07 ms |   36.60 ms |   36.60 ms |    0.1% | Renaissance networks\n     2.57 ms |    3.80 ms |    3.80 ms |    0.1% | Oceanic exploration\n     2.43 ms |   29.20 ms |   29.20 ms |    0.1% | Early-modern religious reform\n     2.40 ms |    4.60 ms |    4.60 ms |    0.1% | Gunpowder industry\n     2.11 ms |   16.30 ms |   16.30 ms |    0.1% | Fleets\n     1.75 ms |    3.10 ms |    3.10 ms |    0.1% | Irregular technology\n     1.62 ms |    4.40 ms |    4.40 ms |    0.1% | Construction + siege prep\n     1.51 ms |    4.60 ms |    4.60 ms |    0.1% | Language policy\n     1.47 ms |    4.00 ms |    4.00 ms |    0.1% | Maritime experience\n     1.18 ms |    2.50 ms |    2.50 ms |    0.1% | Military strategy review\n     0.98 ms |    5.90 ms |    5.90 ms |    0.0% | Construction\n     0.90 ms |    1.30 ms |    1.30 ms |    0.0% | Siege equipment\n     0.86 ms |    1.30 ms |    1.30 ms |    0.0% | Medieval politics\n     0.83 ms |    1.90 ms |    1.90 ms |    0.0% | Early-modern military industry\n     0.64 ms |    0.90 ms |    0.90 ms |    0.0% | Scouting\n     0.62 ms |    1.20 ms |    1.20 ms |    0.0% | Infrastructure maintenance\n     0.41 ms |    1.10 ms |    1.10 ms |    0.0% | Diplomatic couriers\n     0.39 ms |    1.30 ms |    1.30 ms |    0.0% | Campaign command advisor\n     0.35 ms |    0.90 ms |    0.90 ms |    0.0% | Organisation relations\n     0.19 ms |    0.80 ms |    0.80 ms |    0.0% | Raids\n     0.17 ms |    0.40 ms |    0.40 ms |    0.0% | War theatres\n     0.05 ms |    0.20 ms |    0.20 ms |    0.0% | Campaigns\n     0.04 ms |    0.20 ms |    0.20 ms |    0.0% | Joint operation advisor\n     0.01 ms |    0.10 ms |    0.10 ms |    0.0% | UI council refresh\n     0.60 ms |    1.30 ms |    1.30 ms |    0.0% | Unattributed/event plumbing\n\nHOTSPOT DETAILS (nested inside subsystem totals)\n  avg | p95 | max | detail\n    454.1 ms |   744.7 ms |   744.7 ms | Nation AI: military strategy\n    361.3 ms |   595.8 ms |   595.8 ms | Trade: market search and launch\n    100.1 ms |   152.0 ms |   152.0 ms | Demographics: famine and migration\n    49.70 ms |   56.80 ms |   56.80 ms | Trade: knowledge hubs and prices\n    43.27 ms |   54.00 ms |   54.00 ms | Trade: process ventures\n    23.32 ms |   34.80 ms |   34.80 ms | Nation AI: diplomat posting\n    15.23 ms |   32.50 ms |   32.50 ms | Nation AI: scouting choice\n    14.19 ms |   20.30 ms |   20.30 ms | Demographics: military formations\n    13.47 ms |   18.90 ms |   18.90 ms | Demographics: artist migration\n    12.53 ms |   18.60 ms |   18.60 ms | Demographics: education\n     9.74 ms |   13.10 ms |   13.10 ms | Trade: diffuse network knowledge\n     9.67 ms |   16.10 ms |   16.10 ms | Nation AI: transit tolls\n     9.66 ms |   17.10 ms |   17.10 ms | Demographics: urbanisation\n     9.51 ms |   13.90 ms |   13.90 ms | Demographics: arts\n     9.33 ms |   18.60 ms |   18.60 ms | Demographics: cultural memory\n     8.37 ms |   91.20 ms |   91.20 ms | Demographics: culture\n     8.15 ms |   10.80 ms |   10.80 ms | Nation AI: civil war choice\n     8.07 ms |   18.50 ms |   18.50 ms | Trade: initialise regions\n     7.95 ms |   34.50 ms |   34.50 ms | Diplomacy: relationship maintenance\n     7.47 ms |    9.70 ms |    9.70 ms | Demographics: externalities\n     6.34 ms |    8.30 ms |    8.30 ms | Demographics: settlements\n     5.84 ms |    8.10 ms |    8.10 ms | Trade: careers and history\n     4.72 ms |   12.00 ms |   12.00 ms | Trade: reconcile merchants\n     4.28 ms |    5.80 ms |    5.80 ms | Nation AI: military policy\n     3.47 ms |   10.10 ms |   10.10 ms | Demographics: state patronage\n     3.24 ms |    5.20 ms |    5.20 ms | Nation AI: construction choice\n     2.75 ms |    5.10 ms |    5.10 ms | Demographics: births deaths aging\n     2.49 ms |    4.40 ms |    4.40 ms | Nation AI: trade embargo\n     2.38 ms |    3.50 ms |    3.50 ms | Nation AI: memory policy\n     2.24 ms |    3.60 ms |    3.60 ms | Nation AI: religion choice\n     1.56 ms |    2.60 ms |    2.60 ms | Nation AI: agreement choice\n     1.20 ms |    4.60 ms |    4.60 ms | Nation AI: raid choice\n     1.07 ms |    3.30 ms |    3.30 ms | Nation AI: military strategy context\n     1.03 ms |    1.80 ms |    1.80 ms | Nation AI: joint operations\n     0.51 ms |    2.10 ms |    2.10 ms | Demographics: climate displacement\n     0.37 ms |    0.80 ms |    0.80 ms | Diplomacy: agreements and payments\n     0.35 ms |    1.00 ms |    1.00 ms | Nation AI: campaign choice\n     0.31 ms |    0.40 ms |    0.40 ms | Nation AI: scouting context\n     0.28 ms |    0.60 ms |    0.60 ms | Nation AI: build region index\n     0.27 ms |    0.50 ms |    0.50 ms | Nation AI: siege choice\n     0.03 ms |    0.10 ms |    0.10 ms | Nation AI: campaign management\n\nSTATE METRICS\n  last | avg | max | metric\n  160705001 | 209207474.9 | 249480198 | Demographics total population\n     60967 |  54637.9 |    60967 | Trade known-region links\n     60049 |  53786.8 |    60049 | Trade route geometry cache entries\n     48317 |  39071.1 |    48317 | Trade opportunities found\n     42083 |  35953.2 |    42083 | Trade candidate markets checked\n     33106 |  29021.3 |    33106 | Trade land path cache entries\n     16660 |   9741.3 |    16660 | Trade route habits\n     14162 |   8979.4 |    14162 | Diplomacy relationship records before\n     14162 |   8979.4 |    14162 | Diplomacy relationship records\n     13958 |   8860.5 |    13958 | Trade recent partner links\n     10387 |   6372.3 |    10387 | Demographics culture groups\n      6596 |   5689.3 |     6655 | Trade active ventures\n      2023 |   2023.0 |     2023 | Nation AI regions evaluated\n      1908 |   1814.0 |     1932 | Trade searching regions\n      1406 |    959.1 |     1454 | Demographics famine regions\n       637 |    660.8 |      799 | Nation AI strategic reviews\n        48 |     26.8 |       48 | Diplomacy active agreements\n         6 |      3.4 |        8 | Nation AI active raids\n         0 |      0.0 |        0 | Nation AI active campaigns\n\nRECENT TICKS\n  1425 ms at sim day 60 · rel=1685 ventures=3117 known=49562 candidates=22749\n  1924 ms at sim day 90 · rel=3719 ventures=3782 known=49920 candidates=32125\n  1792 ms at sim day 120 · rel=5217 ventures=4613 known=50660 candidates=31399\n  1987 ms at sim day 150 · rel=6546 ventures=5310 known=51551 candidates=35620\n  2462 ms at sim day 180 · rel=7704 ventures=5963 known=52511 candidates=34463\n  2384 ms at sim day 210 · rel=9009 ventures=6211 known=53683 candidates=38412\n  2112 ms at sim day 240 · rel=10057 ventures=6470 known=54914 candidates=36326\n  2802 ms at sim day 270 · rel=11169 ventures=6470 known=56168 candidates=38463\n  2349 ms at sim day 300 · rel=12081 ventures=6495 known=57444 candidates=38498\n  2683 ms at sim day 330 · rel=12843 ventures=6590 known=58585 candidates=41064\n  3541 ms at sim day 360 · rel=13561 ventures=6655 known=59690 candidates=40236\n  2824 ms at sim day 390 · rel=14162 ventures=6596 known=60967 candidates=42083\n\nInterpretation: if one subsystem has a much larger share/p95 on iOS than expected, optimise that path first. If most rows scale up similarly, the issue is broader JavaScript/device/browser throughput rather than one system."
+}
