@@ -51,4 +51,9 @@ assert.equal(ironclad.built, 1);
 assert.equal(industrial.stockpile.iron, ironBefore - 150);
 assert.equal(industrial.industrialSupply.inventory.machine_components, machineBefore - 24);
 
+// The economy report now records the class ledger rather than referencing the removed generic navyBuild result.
+const laborSource = await (await import('node:fs/promises')).readFile(new URL('../js/economy/laborCore.js', import.meta.url), 'utf8');
+assert.ok(laborSource.includes('navalClasses: { ...(procurement.built || {}) }'));
+assert.ok(!laborSource.includes('navyBoats: navyBuild.built'));
+
 console.log('naval procurement regressions passed');
