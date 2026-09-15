@@ -20,6 +20,7 @@ jobs:
           python3 tools/apply-ai-performance-optimisations.py
           node --check js/military/strategicPlanning.js
           node tools/test-ai-performance-optimisations.mjs
+          echo 'generator fast path validated'
       - name: Commit patch
         run: |
           git config user.name 'github-actions[bot]'
