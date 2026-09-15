@@ -1,0 +1,21 @@
+name: Foreign investment and infrastructure damage
+on:
+  push:
+    branches: [foreign-investment-infrastructure-v1]
+  pull_request:
+    paths:
+      - 'js/economy/infrastructureInvestment.js'
+      - 'js/economy/railways.js'
+      - 'js/military/infrastructureDamage.js'
+      - 'tools/test-infrastructure-investment-damage.mjs'
+      - '.github/workflows/infrastructure-investment-damage.yml'
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node tools/test-infrastructure-investment-damage.mjs
+      - run: node tools/test-industrial-railways.mjs
