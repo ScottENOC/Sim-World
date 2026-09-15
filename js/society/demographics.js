@@ -3,6 +3,7 @@
 // underlying annual demography.
 
 import { FOOD_PER_PERSON_PER_WEEK } from '../economy/labor.js?v=20260907-art1';
+import { housingPopulationLimit } from '../economy/housing.js?v=20260916-housing1';
 import { chooseEmigrationDestinations } from './migration.js?v=20260904-weather1';
 import { migrateReligion } from './religion.js?v=20260905-religion1';
 import { migrateCulture, tickCulture } from './culture.js?v=20260912-culture-scale1';
@@ -65,13 +66,19 @@ function applyBaselineDemographics(region, elapsedDays) {
   const effects = region.externalities?.demographicEffects || {};
   const fertilityMultiplier = Math.max(0.7, Math.min(1, effects.fertilityMultiplier ?? 1));
   const annualBirth = BASE_ANNUAL_BIRTH_RATE * educationFertilityMultiplier(region) * fertilityMultiplier;
-  const births = totalPop * annualBirth * years * (0.4 + 0.6 * foodSecurityFactor);
+  const birthsWanted = totalPop * annualBirth * years * (0.4 + 0.6 * foodSecurityFactor);
   const childDeathRate = Math.min(0.2, BASE_ANNUAL_DEATH_RATE.children + (effects.childMortalityExtraAnnual || 0));
   const adultDeathRate = Math.min(0.15, BASE_ANNUAL_DEATH_RATE.workingAge + (effects.adultMortalityExtraAnnual || 0));
   const childDeaths = d.children * annualFractionRate(childDeathRate, elapsedDays);
   const workingDeaths = d.workingAge * annualFractionRate(adultDeathRate, elapsedDays);
   const elderlyDeaths = d.elderly * annualFractionRate(BASE_ANNUAL_DEATH_RATE.elderly +
     (effects.adultMortalityExtraAnnual || 0) * 0.6, elapsedDays);
+  const deaths = childDeaths + workingDeaths + elderlyDeaths;
+  // Deaths vacate dwellings during the tick; net population growth cannot run
+  // ahead of the ordinary housing stock. This makes construction, not an
+  // arbitrary demographic multiplier, the physical ceiling on growth.
+  const housingRoom = Math.max(0, housingPopulationLimit(region) - Math.max(0, totalPop - deaths));
+  const births = Math.min(birthsWanted, housingRoom);
   const childToWorking = d.children * Math.min(1, years / CHILD_BAND_YEARS);
   const workingToElderly = d.workingAge * Math.min(1, years / WORKING_BAND_YEARS);
 
@@ -168,7 +175,10 @@ function addToBands(region, count) {
 
 export function addWorkingAgePopulation(region, count) {
   if (count <= 0) return;
-  region.demographics.workingAge += count;
+  const room = Math.max(0, housingPopulationLimit(region) - region.population);
+  const admitted = Math.min(count, room);
+  if (admitted <= 0) return;
+  region.demographics.workingAge += admitted;
   syncPopulation(region);
 }
 

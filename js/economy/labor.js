@@ -2,7 +2,9 @@ import { tickEconomy as tickCoreEconomy } from './laborCore.js?v=20260905-mercha
 import { artistPopulation } from '../society/arts.js?v=20260907-art1';
 import { finalizeStructuralTransformation, prepareStructuralTransformation } from './structuralTransformation.js?v=20260915-structural1';
 import { tickIndustrialSupply } from './industrialSupply.js?v=20260915-industrial1';
+import { enforceHousingEmployment, housingSummary, prepareHousingConstruction } from './housing.js?v=20260916-housing1';
 export * from './laborCore.js?v=20260905-merchant1';
+export * from './housing.js?v=20260916-housing1';
 
 function committedMerchantCount(region) {
   const workingAge = Math.max(0, Number(region.demographics?.workingAge) || 0);
@@ -18,7 +20,7 @@ function committedArtistCount(region, availableAfterMerchants) {
 }
 
 function normaliseReportMetadata(region) {
-  for (const key of ['conflict', 'structuralTransformation', 'industrialSupply']) {
+  for (const key of ['conflict', 'structuralTransformation', 'industrialSupply', 'housing']) {
     if (region.report?.[key] && !Number.isFinite(region.report[key].workers)) region.report[key].workers = 0;
   }
 }
@@ -26,6 +28,12 @@ function normaliseReportMetadata(region) {
 export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, currentTick = null, elapsedDays = 7, endDay = null) {
   const reservations = [];
   for (const region of regions) {
+    const previousOccupations = { ...(region.occupations || {}) };
+    const housingConstruction = prepareHousingConstruction(region, elapsedDays);
+    const fullWorkingAge = Math.max(0, Number(region.demographics?.workingAge) || 0);
+    const housingBuilders = Math.min(fullWorkingAge, Math.max(0, housingConstruction.workers || 0));
+    if (housingBuilders > 0 && region.demographics) region.demographics.workingAge = Math.max(0, fullWorkingAge - housingBuilders);
+
     const workingAge = Math.max(0, Number(region.demographics?.workingAge) || 0);
     const merchants = committedMerchantCount(region);
     const artists = committedArtistCount(region, workingAge - merchants);
@@ -35,24 +43,35 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
     const industrialSupport = structural.industrialSupport * structuralScale;
     const services = structural.services * structuralScale;
     const reserved = merchants + artists.total + industrialSupport + services;
-    reservations.push([region, merchants, artists, industrialSupport, services]);
+    reservations.push([region, housingBuilders, housingConstruction, previousOccupations, merchants, artists, industrialSupport, services]);
     if (reserved > 0 && region.demographics) region.demographics.workingAge = Math.max(0, region.demographics.workingAge - reserved);
   }
 
   try {
     tickCoreEconomy(regions, seaRegions, toolTypes, rng, currentTick, elapsedDays, endDay);
   } finally {
-    for (const [region, merchants, artists, industrialSupport, services] of reservations) {
-      if (region.demographics) region.demographics.workingAge += merchants + artists.total + industrialSupport + services;
+    for (const [region, housingBuilders, housingConstruction, previousOccupations, merchants, artists, industrialSupport, services] of reservations) {
+      if (region.demographics) region.demographics.workingAge += housingBuilders + merchants + artists.total + industrialSupport + services;
       if (!region.occupations) region.occupations = {};
       region.occupations.trader = merchants;
       region.occupations.artist = Math.min(artists.professionalArtists, artists.total);
       region.occupations.artStudent = Math.max(0, artists.total - region.occupations.artist);
       region.occupations.industrialSupport = industrialSupport;
       region.occupations.services = services;
+      region.occupations.housingBuilder = housingBuilders;
       finalizeStructuralTransformation(region, elapsedDays);
       tickIndustrialSupply(region, elapsedDays);
+
+      const housingEmployment = enforceHousingEmployment(region, previousOccupations);
       region.report ||= {};
+      region.report.housing = {
+        workers: Math.round(housingBuilders),
+        capacityBuilt: housingConstruction.capacityBuilt || 0,
+        materials: housingConstruction.materials || { wood: 0, stone: 0, clay: 0 },
+        blockedWorkers: housingEmployment.blockedTotal || 0,
+        blockedBySite: housingEmployment.blockedBySite || {},
+        ...housingSummary(region),
+      };
       region.report.industrialSupply = { workers: 0, capability: { ...region.industrialSupply.capability }, outputCapacity: { ...region.industrialSupply.outputCapacity } };
       normaliseReportMetadata(region);
     }

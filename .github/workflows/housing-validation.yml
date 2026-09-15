@@ -1,0 +1,38 @@
+name: Housing and labour validation
+
+on:
+  pull_request:
+    paths:
+      - 'js/economy/housing.js'
+      - 'js/economy/labor.js'
+      - 'js/society/demographics.js'
+      - 'js/society/migration.js'
+      - 'tools/housing-regression.mjs'
+      - '.github/workflows/housing-validation.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'js/economy/housing.js'
+      - 'js/economy/labor.js'
+      - 'js/society/demographics.js'
+      - 'js/society/migration.js'
+      - 'tools/housing-regression.mjs'
+      - '.github/workflows/housing-validation.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax checks
+        run: |
+          node --check js/economy/housing.js
+          node --check js/economy/labor.js
+          node --check js/society/demographics.js
+          node --check js/society/migration.js
+          node --check tools/housing-regression.mjs
+      - name: Housing regression
+        run: node tools/housing-regression.mjs
