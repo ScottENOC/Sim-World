@@ -247,7 +247,6 @@ export function chooseNpcMilitaryStrategy(region, regions, agreements, polities,
   const strategy = ensureMilitaryStrategy(region);
   const ctx = strategyContext || buildMilitaryStrategyContext(regions, agreements, polities, currentTick, activeCampaigns);
   const previousPosture = strategy.posture;
-  const previousTarget = strategy.targetRegionId;
   const known = [...directContactIds(region)].map((id) => ctx.regionsById.get(id)).filter(Boolean);
   let threat = null;
   let threatScore = 0;
@@ -276,7 +275,7 @@ export function chooseNpcMilitaryStrategy(region, regions, agreements, polities,
   // rebuild the complete manpower/vassal/ally/campaign establishment plan every
   // month when nothing changed. Spread routine force-plan reviews across an
   // annual cohort; posture/target changes still force an immediate recalculation.
-  const postureChanged = strategy.posture !== previousPosture || strategy.targetRegionId !== previousTarget;
+  const postureChanged = strategy.posture !== previousPosture;
   const offset = stableStrategyHash(region.id) % NPC_FORCE_PLAN_INTERVAL_TICKS;
   const bucket = Number.isFinite(currentTick)
     ? Math.floor((currentTick - offset) / NPC_FORCE_PLAN_INTERVAL_TICKS)
