@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "purpose": "Fill the remaining open-ocean gaps between the existing coastal and regional sea map. These are deliberately broad deep-water navigation basins; they are not fishing-coast proxies and may legitimately have no adjacent land regions.",
+  "coastalToleranceDegrees": 0.08,
+  "regions": [
+    {"id":"sea_north_atlantic_w","name":"Western North Atlantic","bbox":[-62.0,24.0,-30.0,61.0],"openOcean":true},
+    {"id":"sea_north_atlantic_e","name":"Eastern North Atlantic","bbox":[-35.0,24.0,-9.0,62.0],"openOcean":true},
+    {"id":"sea_equatorial_atlantic_w","name":"Western Equatorial Atlantic","bbox":[-62.0,-16.0,-24.0,26.0],"openOcean":true},
+    {"id":"sea_equatorial_atlantic_e","name":"Eastern Equatorial Atlantic","bbox":[-30.0,-16.0,16.0,27.0],"openOcean":true},
+    {"id":"sea_south_atlantic_w","name":"Western South Atlantic","bbox":[-66.0,-47.0,-24.0,-10.0],"openOcean":true},
+    {"id":"sea_south_atlantic_e","name":"Eastern South Atlantic","bbox":[-30.0,-47.0,21.0,-10.0],"openOcean":true},
+    {"id":"sea_cape_waters","name":"Cape of Good Hope Waters","bbox":[10.0,-46.0,43.0,-29.0],"openOcean":true},
+    {"id":"sea_southern_indian_w","name":"Southwest Indian Ocean","bbox":[20.0,-61.0,70.0,-34.0],"openOcean":true},
+    {"id":"sea_southern_indian_e","name":"Southeast Indian Ocean","bbox":[65.0,-61.0,116.0,-34.0],"openOcean":true},
+    {"id":"sea_southern_ocean_australia","name":"Southern Ocean south of Australia","bbox":[110.0,-62.0,151.0,-39.0],"openOcean":true},
+    {"id":"sea_southern_ocean_pacific_w","name":"Southwest Southern Ocean","bbox":[145.0,-64.0,180.0,-49.0],"openOcean":true},
+    {"id":"sea_southern_ocean_pacific_e","name":"South-Central Southern Ocean","bbox":[-180.0,-64.0,-120.0,-49.0],"openOcean":true},
+    {"id":"sea_southern_ocean_america","name":"Southeast Southern Ocean","bbox":[-125.0,-64.0,-64.0,-49.0],"openOcean":true},
+    {"id":"sea_east_pacific_north","name":"Northeast Pacific","bbox":[-153.0,20.0,-119.0,53.0],"openOcean":true},
+    {"id":"sea_east_pacific_tropical","name":"Eastern Tropical Pacific","bbox":[-148.0,-21.0,-84.0,25.0],"openOcean":true},
+    {"id":"sea_east_pacific_south","name":"Eastern South Pacific","bbox":[-138.0,-56.0,-78.0,-14.0],"openOcean":true}
+  ]
+}
