@@ -4,7 +4,9 @@
 Natural Earth modern boundaries are source/navigation metadata only. Source pieces
 are pooled and clustered by physical proximity so simulation regions can cross
 modern borders. Small island states fall back to ADM0 geometry when ADM1 has no
-useful coverage, preventing the Caribbean from silently disappearing.
+useful coverage, preventing the Caribbean from silently disappearing. Remote
+archipelagos are kept as coherent gameplay regions rather than one region per
+islet.
 """
 from __future__ import annotations
 
@@ -38,7 +40,7 @@ na.TARGET_REGION_COUNT = TARGET_REGION_COUNT
 na.TARGET_PIECE_AREA_SQKM = TARGET_PIECE_AREA_SQKM
 na.MIN_COMPONENT_AREA_SQKM = MIN_COMPONENT_AREA_SQKM
 na.MAX_CLUSTER_GAP_DEGREES = MAX_CLUSTER_GAP_DEGREES
-na.USER_AGENT = 'Sim-World Latin America expansion/1.1'
+na.USER_AGENT = 'Sim-World Latin America expansion/1.2'
 
 SOUTH_AMERICA_CODES = {
     'COL','VEN','GUY','SUR','GUF','ECU','PER','BOL','BRA','PRY','URY','ARG','CHL','FLK'
@@ -50,7 +52,20 @@ def stable_id(source_units, lon, lat):
     return ID_PREFIX + hashlib.sha1(token.encode('utf-8')).hexdigest()[:12]
 
 
+def remote_archipelago(lon, lat):
+    if -93.5 < lon < -88.0 and -3.0 < lat < 2.5:
+        return ('galapagos', 'Galápagos Islands')
+    if lon < -100.0 and -32.0 < lat < -20.0:
+        return ('rapa_nui', 'Rapa Nui')
+    if -35.0 < lon < -25.0 and -8.0 < lat < 3.5:
+        return ('equatorial_atlantic', 'Equatorial Atlantic Islands')
+    return None
+
+
 def physiographic_zone(lon, lat):
+    remote = remote_archipelago(lon, lat)
+    if remote:
+        return remote[1]
     if lat > 15 and lon < -86:
         return 'Maya and Central American Highlands'
     if lat > 8 and lon < -77:
@@ -92,6 +107,35 @@ def physiographic_zone(lon, lat):
     if lat > -50:
         return 'Patagonian Steppe'
     return 'Tierra del Fuego and Southern Patagonia'
+
+
+def collapse_remote_archipelagos(pieces):
+    """Keep widely separated islands in a named archipelago as one gameplay region.
+
+    Land geometry remains its true MultiPolygon; only the simulation-region grouping
+    changes. This avoids five Galápagos regions or an isolated Rapa Nui islet while
+    preserving those islands as physically separate land masses surrounded by sea.
+    """
+    grouped = defaultdict(list)
+    ordinary = []
+    for piece in pieces:
+        c = piece['geometry'].centroid
+        remote = remote_archipelago(c.x, c.y)
+        if remote:
+            grouped[remote].append(piece)
+        else:
+            ordinary.append(piece)
+    for (_key, label), members in grouped.items():
+        geom = na.map_v2.repair(unary_union([m['geometry'] for m in members]))
+        source_units = sorted({u for m in members for u in m['sourceUnits']})
+        ordinary.append({
+            'geometry': geom,
+            'sourceUnits': source_units,
+            'anchor': label,
+            'anchorISO': members[0]['anchorISO'],
+            'area': na.map_v2.area_sqkm(geom),
+        })
+    return ordinary
 
 
 def build_source_pieces(admin1, masks, existing):
@@ -144,7 +188,7 @@ def build_source_pieces(admin1, masks, existing):
                     'anchorISO': iso,
                     'area': na.map_v2.area_sqkm(piece),
                 })
-    return raw
+    return collapse_remote_archipelagos(raw)
 
 
 def make_regions(clusters):
@@ -160,8 +204,12 @@ def make_regions(clusters):
     out = []
     for item in sorted(provisional, key=lambda x: (-x['centroid'][1], x['centroid'][0])):
         lon, lat = item['centroid']
-        qualifier = na.directional_qualifier(lon, lat, by_zone[item['zone']])
-        name = f'{qualifier} {item["zone"]}'.strip()
+        remote = remote_archipelago(lon, lat)
+        if remote:
+            name = remote[1]
+        else:
+            qualifier = na.directional_qualifier(lon, lat, by_zone[item['zone']])
+            name = f'{qualifier} {item["zone"]}'.strip()
         if name in used:
             name = f'{name} — {item["anchor"]}'
         suffix = 2
@@ -191,7 +239,9 @@ def resource_endowment(region):
     lon, _lat = region['centroid']
     zone = region['zone']
     forest, quality = 0.58, 0.90
-    if 'Amazon' in zone:
+    if 'Islands' in zone or zone == 'Rapa Nui':
+        forest, quality = 0.34, 0.78
+    elif 'Amazon' in zone:
         forest, quality = 0.86, 0.58
     elif 'Guiana' in zone:
         forest, quality = 0.82, 0.54
@@ -212,7 +262,7 @@ def resource_endowment(region):
     deposits = {'stone': na.map_v2.make_deposit('stone', 'major')}
     deposits['ironOre'] = na.map_v2.make_deposit(
         'ironOre', na.magnitude_for(seed, 'ironOre', [('major',0.22),('moderate',0.50),('minor',0.26)]) or 'minor')
-    andean = 'Andes' in zone or lon < -69
+    andean = 'Andes' in zone or (lon < -69 and zone not in {'Galápagos Islands', 'Rapa Nui'})
     brazilian = 'Brazil' in zone or 'Guiana' in zone
     if mag := na.magnitude_for(seed, 'copper', [('major',0.22 if andean else 0.04),('moderate',0.30 if andean else 0.12),('minor',0.22)]):
         deposits['copper'] = na.map_v2.make_deposit('copper', mag)
