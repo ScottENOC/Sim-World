@@ -14,6 +14,7 @@ import { maritimeSkillMultiplier, MARITIME_SKILLS } from '../technology/seamansh
 import { applyFoodPreservation, tickFoodLuxuries } from './foodLuxuries.js?v=20260913-food-luxuries1';
 import { agriculturalWaterProfile } from './agriculturalWater.js?v=20260914-water3';
 import { educationLaborReservation } from '../society/massEducation.js?v=20260914-mass-education1';
+import { ensureNavalProcurement, refreshNavalProcurementTargets, SHIP_DESIGNS } from '../military/fleets.js?v=20260916-procurement1';
 
 // --- Tunable constants -----------------------------------------------------
 // All placeholders, calibrated so a "typical" region can just about feed
@@ -122,6 +123,23 @@ const BOATMAKER_BUILD_RATE = 0.02; // boats/week per worker — roughly a year p
 const BOAT_WOOD_COST = 200;
 const ADVANCED_BOAT_BUILD_RATE_MULTIPLIER = 0.6;
 const ADVANCED_BOAT_COST = { wood: 300, pitch: 20, textiles: 15, metal: 5 };
+const WARSHIP_BUILD_COST = {
+  basic_war_boat: { wood: 200 },
+  galley: { wood: 300, pitch: 20, textiles: 15, metal: 5 },
+  ocean_sailing_warship: { wood: 420, pitch: 28, textiles: 30, metal: 8 },
+  gunpowder_sailing_warship: { wood: 520, pitch: 32, textiles: 38, metal: 14, gunpowder: 2 },
+  frigate: { wood: 700, pitch: 42, textiles: 52, metal: 25, gunpowder: 5 },
+  ship_of_line: { wood: 1100, pitch: 65, textiles: 80, metal: 45, gunpowder: 10 },
+  paddle_steam_warship: { wood: 650, iron: 45, coal: 25, machine: 10 },
+  steam_frigate: { wood: 600, iron: 70, coal: 35, machine: 16 },
+  ironclad: { wood: 350, iron: 150, coal: 45, machine: 24 },
+  steel_warship: { wood: 180, steel: 220, coal: 55, machine: 34 },
+};
+const WARSHIP_BUILD_RATE = {
+  basic_war_boat: 0.020, galley: 0.012, ocean_sailing_warship: 0.009,
+  gunpowder_sailing_warship: 0.007, frigate: 0.0045, ship_of_line: 0.0025,
+  paddle_steam_warship: 0.0040, steam_frigate: 0.0035, ironclad: 0.0025, steel_warship: 0.0022,
+};
 const BASIC_BOAT_ANNUAL_WEAR = 0.08;
 const ADVANCED_BOAT_ANNUAL_WEAR = 0.03;
 const PITCH_PER_WORKER = 0.5;
@@ -198,6 +216,40 @@ function consumeAdvancedBoatMetal(region, boatsBuilt) {
   const ironUsed = Math.min(region.stockpile.iron || 0, metalNeeded);
   region.stockpile.iron = (region.stockpile.iron || 0) - ironUsed;
   return { bronzeUsed, ironUsed };
+}
+
+function availableShipbuildingInput(region, key) {
+  if (key === 'metal') return (region.stockpile.bronze || 0) + (region.stockpile.iron || 0) + (region.stockpile.steel || 0);
+  if (key === 'machine') return region.industrialSupply?.inventory?.machine_components || 0;
+  return region.stockpile[key] || 0;
+}
+
+function consumeShipbuildingInput(region, key, amount) {
+  if (key === 'metal') {
+    for (const metal of ['bronze', 'iron', 'steel']) {
+      const used = Math.min(amount, region.stockpile[metal] || 0);
+      region.stockpile[metal] = (region.stockpile[metal] || 0) - used;
+      amount -= used;
+    }
+    return;
+  }
+  if (key === 'machine') {
+    region.industrialSupply.inventory.machine_components -= amount;
+    return;
+  }
+  region.stockpile[key] = (region.stockpile[key] || 0) - amount;
+}
+
+export function buildWarshipClass(region, designId, gap, makersAvailable) {
+  const cost = WARSHIP_BUILD_COST[designId];
+  const rate = WARSHIP_BUILD_RATE[designId] || 0;
+  if (!cost || rate <= 0 || gap <= 0 || makersAvailable <= 0) return { built: 0, makers: 0, designId };
+  let possible = Math.min(gap, makersAvailable * rate);
+  for (const [key, amount] of Object.entries(cost)) possible = Math.min(possible, availableShipbuildingInput(region, key) / amount);
+  possible = Math.max(0, possible);
+  if (possible <= 0) return { built: 0, makers: 0, designId };
+  for (const [key, amount] of Object.entries(cost)) consumeShipbuildingInput(region, key, possible * amount);
+  return { built: possible, makers: possible / rate, designId };
 }
 
 export function buildFleetBoats(region, gap, makersAvailable) {
@@ -713,14 +765,28 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng, elapsedDays 
       region.fishingBoats += basicImported;
     }
 
+    const procurement = ensureNavalProcurement(region);
+    const targetTotal = Object.values(procurement.targets || {}).reduce((sum, value) => sum + Math.max(0, Math.round(value || 0)), 0);
+    if (targetTotal !== Math.max(0, Math.round(region.targetNavySize || 0))) refreshNavalProcurementTargets(region, currentTick);
+    procurement.built = { ...(procurement.built || {}) };
     const navyGap = Math.max(0, region.targetNavySize - region.navy.boats);
-    const navyBoatsWanted = navyGap * Math.min(1, BOAT_MOBILIZATION_RATE * weekScale);
-    const navyMakersWanted = BOATMAKER_BUILD_RATE > 0 ? navyBoatsWanted / BOATMAKER_BUILD_RATE : 0;
-    const navyMakersAvailable = Math.min(navyMakersWanted, remainingSurplus);
-    const navyBuild = buildFleetBoats(region, Math.min(navyGap, navyBoatsWanted), navyMakersAvailable);
-    region.navy.boats += navyBuild.built;
-    region.navy.advancedBoats = (region.navy.advancedBoats || 0) + navyBuild.advanced;
-    const navyMakersUsed = navyBuild.makers;
+    let navyMakersUsed = 0;
+    let navyBuilt = 0;
+    let navyAdvancedBuilt = 0;
+    for (const [designId, wanted] of Object.entries(procurement.targets)) {
+      const already = Math.max(0, procurement.built[designId] || 0);
+      const classGap = Math.max(0, wanted - already);
+      if (classGap <= 0) continue;
+      const classWanted = classGap * Math.min(1, BOAT_MOBILIZATION_RATE * weekScale);
+      const build = buildWarshipClass(region, designId, classWanted, Math.max(0, remainingSurplus - navyMakersUsed));
+      if (build.built <= 0) continue;
+      procurement.built[designId] = already + build.built;
+      navyBuilt += build.built;
+      if (SHIP_DESIGNS[designId]?.advanced) navyAdvancedBuilt += build.built;
+      navyMakersUsed += build.makers;
+    }
+    region.navy.boats += navyBuilt;
+    region.navy.advancedBoats = (region.navy.advancedBoats || 0) + navyAdvancedBuilt;
 
     const fishGap = Math.max(0, region.targetFishingBoats - region.fishingBoats);
     const fishBoatsWanted = fishGap * Math.min(1, BOAT_MOBILIZATION_RATE * weekScale);
