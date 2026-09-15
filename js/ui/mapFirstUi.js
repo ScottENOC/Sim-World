@@ -110,6 +110,9 @@ function installRuntimePatch() {
     console.error('Could not install map-first advisor extensions', error));
   import('./economicImportanceUi.js?v=20260907-importance2').catch((error) =>
     console.error('Could not install economic importance overlay', error));
+  import('./foreignInvestmentUi.js?v=20260915-investment-ui1').then(({ installForeignInvestmentUi }) =>
+    installForeignInvestmentUi(sim)).catch((error) =>
+    console.error('Could not install foreign investment controls', error));
   return true;
 }
 
