@@ -1,0 +1,55 @@
+name: Fleet ship progression
+on:
+  push:
+    branches: [fleet-ship-progression-v1]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/military/fleets.js'
+      - 'js/military/earlyModernWarfare.js'
+      - 'js/technology/industrialMarine.js'
+      - 'tools/apply-fleet-ship-progression-v1.py'
+      - 'tools/test-fleet-ship-progression.mjs'
+      - 'tools/test-persistent-fleets.mjs'
+      - '.github/workflows/fleet-ship-progression.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Apply fleet ship progression
+        run: python tools/apply-fleet-ship-progression-v1.py
+      - name: Syntax checks
+        run: |
+          node --check js/military/fleets.js
+          node --check js/military/earlyModernWarfare.js
+      - name: Fleet progression regressions
+        run: |
+          node tools/test-fleet-ship-progression.mjs
+          node tools/test-persistent-fleets.mjs
+          node tools/test-industrial-marine.mjs
+      - name: Existing military compatibility
+        run: |
+          node tools/test-gunpowder-firearms.mjs
+          git diff --check
+      - name: Commit integrated fleet progression
+        if: github.event_name == 'push' && success()
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/military/fleets.js js/military/earlyModernWarfare.js tools/test-persistent-fleets.mjs
+          if ! git diff --cached --quiet; then
+            git commit -m 'Integrate historical and steam warship progression'
+            git pull --rebase
+            git push
+          fi

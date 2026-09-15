@@ -203,9 +203,12 @@ export function artilleryCampaignProfile(region, train = [], { elapsedDays = 7, 
 export function navalGunCombatProfile(region, ships = [], { elapsedDays = 7, consumeSupplies = true } = {}) {
   const state = ensureEarlyModernMilitary(region).naval;
   if (!hasTech(region, 'gunpowder') || !ships.length || !state.guns.length) return { multiplier: 1, armedShare: 0, suppliedFraction: 0, gunsUsed: 0, steelShare: 0, rifledShare: 0, breechShare: 0 };
-  const advanced = ships.filter((ship) => ship.designId === 'advanced_warship').length;
-  const industrial = ships.filter((ship) => ['steam_warship', 'ironclad', 'steel_warship'].includes(ship.designId)).length;
-  const capacity = Math.max(1, advanced * 6 + industrial * 10 + (ships.length - advanced - industrial));
+  const capacity = Math.max(1, ships.reduce((sum, ship) => {
+    if (Number.isFinite(ship.gunCapacity)) return sum + Math.max(1, ship.gunCapacity);
+    if (ship.designId === 'advanced_warship') return sum + 6;
+    if (['paddle_steam_warship', 'steam_frigate', 'ironclad', 'steel_warship'].includes(ship.designId)) return sum + 10;
+    return sum + 1;
+  }, 0));
   const gunsUsed = Math.min(state.guns.length, capacity);
   const armedShare = clamp(gunsUsed / capacity);
   const selected = state.guns.slice(0, gunsUsed);
