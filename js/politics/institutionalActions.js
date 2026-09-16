@@ -1,9 +1,12 @@
-import { authorityFor, canExecutiveAct, ensureInstitutionalGovernment } from './institutionalPowers.js?v=20260916-institutions1';
+import { authorityFor, canExecutiveAct, ensureInstitutionalGovernment } from './institutionalPowers.js?v=20260916-force1';
 
 const clamp = (value, low = 0, high = 1) => Math.max(low, Math.min(high, Number(value) || 0));
 
 export const GOVERNMENT_ACTIONS = Object.freeze({
-  launch_offensive_war: { power: 'offensiveWar', label: 'Launch offensive military action' },
+  launch_offensive_war: { power: 'offensiveWar', label: 'Launch offensive war' },
+  launch_limited_military_action: { power: 'limitedForce', label: 'Launch a limited punitive expedition' },
+  launch_raid: { power: 'limitedForce', label: 'Launch a cross-border raid' },
+  launch_reprisals: { power: 'limitedForce', label: 'Launch military reprisals' },
   change_taxation: { power: 'taxation', label: 'Change taxation' },
   change_spending: { power: 'spending', label: 'Change government spending' },
   change_economic_policy: { power: 'economicRegulation', label: 'Change economic regulation' },
@@ -37,12 +40,16 @@ function parliamentSupport(polity, action, context = {}) {
   const wellbeing = context.wellbeing || {};
   const threat = clamp(context.threat);
   const defensive = Boolean(context.defensive);
+  const reprisal = Boolean(context.reprisal);
   const hostility = clamp(context.hostility);
   const fiscalStress = clamp(context.fiscalStress);
   const publicSupport = clamp(context.publicSupport ?? 0.5);
   const representation = clamp(parliament.representation);
   let support = 0.5 + (publicSupport - 0.5) * (0.35 + representation * 0.45);
   if (action === 'launch_offensive_war') support += defensive ? 0.35 : threat * 0.18 + hostility * 0.12 - 0.2 - fiscalStress * 0.16;
+  if (action === 'launch_limited_military_action') support += threat * 0.12 + hostility * 0.08 - 0.1 - fiscalStress * 0.08;
+  if (action === 'launch_raid') support += threat * 0.08 + hostility * 0.06 - 0.08 - fiscalStress * 0.05;
+  if (action === 'launch_reprisals') support += 0.2 + threat * 0.22 + hostility * 0.08 + (reprisal ? 0.12 : 0) - fiscalStress * 0.05;
   if (action === 'change_taxation') support += fiscalStress * 0.2 - clamp(wellbeing.grievance) * 0.22;
   if (action === 'detain_political_actor' || action === 'prosecute_political_actor') support -= parliament.independence * 0.15;
   return clamp(support);
