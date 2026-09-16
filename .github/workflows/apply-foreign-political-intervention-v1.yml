@@ -25,10 +25,6 @@ jobs:
             '"      ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),\\n      ...medievalPoliticalEvents.filter",',
             '"      ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),\\n      ...regimeCivilWarEvents.filter((event) => event.playerRelevant),\\n      ...medievalPoliticalEvents.filter",'
           )
-          s = s.replace(
-            '"      ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),\\n      ...foreignInterventionEvents.filter((event) => event.playerRelevant),\\n      ...regimeCivilWarEvents.filter((event) => event.playerRelevant),\\n      ...medievalPoliticalEvents.filter"',
-            '"      ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),\\n      ...foreignInterventionEvents.filter((event) => event.playerRelevant),\\n      ...regimeCivilWarEvents.filter((event) => event.playerRelevant),\\n      ...medievalPoliticalEvents.filter"'
-          )
           s = s.replace("\"'feature/regime-change-*']\",", "\"'feature/regime-civil-war-*']\",")
           s = s.replace("\"'feature/regime-change-*', 'feature/foreign-political-intervention-*']\")", "\"'feature/regime-civil-war-*', 'feature/foreign-political-intervention-*']\")")
           p.write_text(s)
@@ -47,6 +43,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add js/main.js js/politics/foreignPoliticalIntervention.js js/ui/diplomaticServicePanel.js tools/test-foreign-political-intervention.mjs .github/workflows/institutional-actions.yml
-          git rm tools/apply-foreign-political-intervention-v1.py tools/apply-foreign-political-intervention-v1.mjs .github/workflows/apply-foreign-political-intervention-v1.yml
+          git rm -f tools/apply-foreign-political-intervention-v1.py tools/apply-foreign-political-intervention-v1.mjs .github/workflows/apply-foreign-political-intervention-v1.yml
           git commit -m "Wire governed foreign political intervention"
           git push origin HEAD:feature/foreign-political-intervention-v1
