@@ -135,6 +135,10 @@ function launchFromOption(option, conflict, campaigns, regions, polities, curren
   return campaign;
 }
 
+function optionSide(regionId, regions) {
+  return regions.find((region) => region.id === regionId)?.governance?.sovereignPolityId || null;
+}
+
 export function tickRegimeCivilWars(polities, regions, campaigns, currentTick, rng = Math.random, options = {}) {
   const events = [];
   const incumbents = (polities || []).filter((polity) => polity.regimeConflict?.status === 'active' &&
@@ -172,21 +176,23 @@ export function tickRegimeCivilWars(polities, regions, campaigns, currentTick, r
     if (!campaign) continue;
 
     syncConflictState(polities, conflict, { lastCampaignTick: currentTick });
+    const attackerPolityId = optionSide(campaign.attackerId, regions);
+    const defenderPolityId = optionSide(campaign.defenderId, regions);
+    const attackerName = polities.find((candidate) => candidate.id === attackerPolityId)?.name || campaign.attackerId;
+    const defenderName = polities.find((candidate) => candidate.id === defenderPolityId)?.name || campaign.defenderId;
     events.push({
       type: 'regime_civil_war_campaign_started',
       incumbentPolityId: incumbent.id,
       revolutionaryPolityId: revolutionary.id,
-      attackerPolityId: campaign.regimeConflict.attackerPolityId || optionSide(campaign.attackerId, regions),
+      attackerPolityId,
+      defenderPolityId,
       attackerRegionId: campaign.attackerId,
       defenderRegionId: campaign.defenderId,
       campaignId: campaign.id,
       playerRelevant: options.playerPolityId === incumbent.id || options.playerPolityId === revolutionary.id,
+      summary: `${attackerName} has opened a civil-war campaign against territory held by ${defenderName}. The ordinary campaign system will resolve movement, supply, battle, siege and casualties.`,
     });
   }
 
   return events;
-}
-
-function optionSide(regionId, regions) {
-  return regions.find((region) => region.id === regionId)?.governance?.sovereignPolityId || null;
 }
