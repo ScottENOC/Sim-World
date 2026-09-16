@@ -1,7 +1,7 @@
 name: Institutional actions
 on:
   push:
-    branches: [feature/institutional-action-constraints, feature/wire-institutional-actions, 'feature/institutional-player-ui-*']
+    branches: [feature/institutional-action-constraints, feature/wire-institutional-actions, 'feature/institutional-player-ui-*', 'feature/institutional-region-controls-*']
   pull_request:
     branches: [main]
     paths:
@@ -16,12 +16,14 @@ on:
       - 'js/ui/diplomaticServicePanel.js'
       - 'js/ui/institutionalCouncilUi.js'
       - 'js/ui/institutionalCouncilSpendingUi.js'
+      - 'js/ui/institutionalRegionControlsUi.js'
       - 'index.html'
       - 'js/ai/nationAi.js'
       - 'tools/test-institutional-actions.mjs'
       - 'tools/test-institutional-crises.mjs'
       - 'tools/test-institutional-integration.mjs'
       - 'tools/test-institutional-council-ui.mjs'
+      - 'tools/test-institutional-region-controls.mjs'
       - 'tools/test-institutional-player-war.mjs'
       - 'tools/test-joint-operations-command.mjs'
       - 'tools/test-diplomatic-service-ui.mjs'
@@ -46,11 +48,13 @@ jobs:
           node --check js/ui/diplomaticServicePanel.js
           node --check js/ui/institutionalCouncilUi.js
           node --check js/ui/institutionalCouncilSpendingUi.js
+          node --check js/ui/institutionalRegionControlsUi.js
           node --check js/ai/nationAi.js
           node tools/test-institutional-actions.mjs
           node tools/test-institutional-crises.mjs
           node tools/test-institutional-integration.mjs
           node tools/test-institutional-council-ui.mjs
+          node tools/test-institutional-region-controls.mjs
           node tools/test-institutional-player-war.mjs
           node tools/test-joint-operations-command.mjs
           node tools/test-diplomatic-service-ui.mjs
