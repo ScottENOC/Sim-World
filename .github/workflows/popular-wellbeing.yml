@@ -1,0 +1,23 @@
+name: Popular wellbeing
+
+on:
+  push:
+    paths:
+      - 'js/politics/popularWellbeing.js'
+      - 'tools/test-popular-wellbeing.mjs'
+      - '.github/workflows/popular-wellbeing.yml'
+  pull_request:
+    paths:
+      - 'js/politics/popularWellbeing.js'
+      - 'tools/test-popular-wellbeing.mjs'
+      - '.github/workflows/popular-wellbeing.yml'
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tools/test-popular-wellbeing.mjs
