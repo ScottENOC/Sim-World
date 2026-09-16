@@ -1,0 +1,26 @@
+name: Institutional actions
+on:
+  push:
+    branches: [feature/institutional-action-constraints]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/politics/institutionalPowers.js'
+      - 'js/politics/institutionalActions.js'
+      - 'tools/test-institutional-actions.mjs'
+      - '.github/workflows/institutional-actions.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: |
+          node --check js/politics/institutionalActions.js
+          node tools/test-institutional-actions.mjs
+          node tools/test-institutional-powers.mjs
+          node tools/test-popular-wellbeing.mjs
+          git diff --check
