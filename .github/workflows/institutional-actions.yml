@@ -1,7 +1,7 @@
 name: Institutional actions
 on:
   push:
-    branches: [feature/institutional-action-constraints, feature/wire-institutional-actions, feature/institutional-player-ui-v1]
+    branches: [feature/institutional-action-constraints, feature/wire-institutional-actions, 'feature/institutional-player-ui-*']
   pull_request:
     branches: [main]
     paths:
