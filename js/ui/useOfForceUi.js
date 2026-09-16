@@ -1,3 +1,4 @@
+import { calendarWeekIndex } from '../core/simTime.js?v=20260905-time2';
 import { attitudeToward } from '../diplomacy/relations.js?v=20260904-save1';
 import { institutionalActionPrompt } from '../politics/institutionalActions.js?v=20260916-force1';
 import { governingPolityForRegion } from '../politics/institutionalRuntimeAuthority.js?v=20260916-region-controls1';
@@ -17,8 +18,8 @@ function currentTarget(state) {
   return id ? state?.regions?.find((region) => region.id === id) || null : null;
 }
 
-function currentTick(state) {
-  return Number(state?.clock?.tickIndex) || 0;
+function currentWeek(state) {
+  return calendarWeekIndex(Number(state?.clock?.elapsedDays) || 0);
 }
 
 function describe(kind) {
@@ -32,7 +33,7 @@ function appendClassification() {
   const defender = currentTarget(state);
   const info = document.getElementById('raid-info');
   if (!attacker || !defender || !info) return;
-  const kind = classifyRaidUseOfForce(attacker, defender, currentTick(state));
+  const kind = classifyRaidUseOfForce(attacker, defender, currentWeek(state));
   const polity = governingPolityForRegion(attacker, state.polities || []);
   const prompt = polity ? institutionalActionPrompt(polity, governmentActionForUseOfForce(kind)) : null;
   const authority = prompt?.executiveCanActAlone === false
@@ -54,7 +55,7 @@ document.addEventListener('click', (event) => {
   const defender = currentTarget(state);
   if (!state || !attacker || !defender) return;
 
-  const tick = currentTick(state);
+  const tick = currentWeek(state);
   const kind = classifyRaidUseOfForce(attacker, defender, tick);
   const polity = governingPolityForRegion(attacker, state.polities || []);
   const action = governmentActionForUseOfForce(kind);
