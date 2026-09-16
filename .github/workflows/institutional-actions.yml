@@ -17,6 +17,7 @@ on:
       - 'tools/test-institutional-crises.mjs'
       - 'tools/test-institutional-integration.mjs'
       - 'tools/test-institutional-council-ui.mjs'
+      - 'tools/test-institutional-player-war.mjs'
       - '.github/workflows/institutional-actions.yml'
 permissions:
   contents: read
@@ -38,6 +39,7 @@ jobs:
           node tools/test-institutional-crises.mjs
           node tools/test-institutional-integration.mjs
           node tools/test-institutional-council-ui.mjs
+          node tools/test-institutional-player-war.mjs
           node tools/test-institutional-powers.mjs
           node tools/test-popular-wellbeing.mjs
           node tools/test-ai-performance-optimisations.mjs
