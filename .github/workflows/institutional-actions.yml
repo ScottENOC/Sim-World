@@ -1,7 +1,7 @@
 name: Institutional actions
 on:
   push:
-    branches: [feature/institutional-action-constraints, feature/wire-institutional-actions]
+    branches: [feature/institutional-action-constraints, feature/wire-institutional-actions, 'feature/institutional-player-ui-*']
   pull_request:
     branches: [main]
     paths:
@@ -10,10 +10,14 @@ on:
       - 'js/politics/governmentActionExecution.js'
       - 'js/politics/institutionalCrises.js'
       - 'js/politics/institutionalIntegration.js'
+      - 'js/ui/institutionalCouncilUi.js'
+      - 'index.html'
       - 'js/ai/nationAi.js'
       - 'tools/test-institutional-actions.mjs'
       - 'tools/test-institutional-crises.mjs'
       - 'tools/test-institutional-integration.mjs'
+      - 'tools/test-institutional-council-ui.mjs'
+      - 'tools/test-institutional-player-war.mjs'
       - '.github/workflows/institutional-actions.yml'
 permissions:
   contents: read
@@ -29,10 +33,13 @@ jobs:
           node --check js/politics/governmentActionExecution.js
           node --check js/politics/institutionalCrises.js
           node --check js/politics/institutionalIntegration.js
+          node --check js/ui/institutionalCouncilUi.js
           node --check js/ai/nationAi.js
           node tools/test-institutional-actions.mjs
           node tools/test-institutional-crises.mjs
           node tools/test-institutional-integration.mjs
+          node tools/test-institutional-council-ui.mjs
+          node tools/test-institutional-player-war.mjs
           node tools/test-institutional-powers.mjs
           node tools/test-popular-wellbeing.mjs
           node tools/test-ai-performance-optimisations.mjs
