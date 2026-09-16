@@ -48,6 +48,11 @@ if old not in s: raise RuntimeError('corporate capital profit anchor missing')
 s=s.replace(old,new,1)
 p.write_text(s)
 
+# Update prior regression for corrected balance-sheet semantics.
+p=Path('tools/test-public-private-economy-integration.mjs'); s=p.read_text()
+s=s.replace("assert.equal(soe.enterprise.governmentCapital,210);", "assert.equal(soe.enterprise.governmentCapital,400);\nassert.equal(soe.enterprise.cash,210);\nassert.equal(soe.enterprise.investedCapital,190);")
+p.write_text(s)
+
 Path('tools/test-enterprise-finance-externalities.mjs').write_text(r'''import assert from 'node:assert/strict';
 import { borrowStateEnterprise, createStateEnterprise, fundStateEnterprise, serviceStateEnterpriseDebt } from '../js/economy/economicOwnership.js';
 import { enterpriseCostExternalityProfile, enterpriseDebtCapacity } from '../js/economy/enterpriseBehaviour.js';
