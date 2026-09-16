@@ -1,4 +1,4 @@
-import { enterGovernmentInExile, initialisePoliticalContinuity } from './continuity.js?v=20260916-regime1';
+import { enterGovernmentInExile, initialisePoliticalContinuity } from './continuityCore.js?v=20260916-regime1';
 import { ensureInstitutionalGovernment } from './institutionalPowers.js?v=20260916-regime1';
 import { ensureInstitutionalCrisisState } from './institutionalCrises.js?v=20260916-regime1';
 import { polityPopularWellbeing } from './popularWellbeing.js?v=20260916-regime1';
@@ -136,14 +136,18 @@ function completeReplacement(polity, successor, regions, polities, currentTick, 
   polity.regimeHistory.push({ kind: `${kind}_displaced`, tick: currentTick, successorPolityId: successor.id });
   const crisis = ensureInstitutionalCrisisState(polity);
   crisis.lastRegimeChangeTick = currentTick;
+  const type = kind === 'coup' ? 'coup_succeeded' : 'revolution_succeeded';
   return {
-    type: kind === 'coup' ? 'coup_succeeded' : 'revolution_succeeded',
+    type,
     polityId: polity.id,
     successorPolityId: successor.id,
     successorName: successor.name,
     hostPolityId: exile.hostPolityId || null,
     hostRegionId: exile.hostRegionId || null,
     assessment,
+    summary: kind === 'coup'
+      ? 'A coup has removed the incumbent government. The displaced government survives through the political-continuity and exile system.'
+      : 'A mass uprising has overthrown the incumbent government. The displaced government survives through the political-continuity and exile system.',
   };
 }
 
@@ -166,6 +170,13 @@ function startRevolutionaryCivilWar(polity, successor, regions, polities, curren
   successor.rulerRegionId = capital.id;
   polities.push(successor);
   for (const region of supporters) setRegionGovernment(region, successor, region.id === capital.id, true);
+  const incumbentTerritories = sovereignTerritories(polity, regions);
+  if (incumbentTerritories.length && !incumbentTerritories.some((region) => region.id === polity.capitalRegionId)) {
+    const newSeat = incumbentTerritories.sort((a, b) => (b.population || 0) - (a.population || 0))[0];
+    polity.capitalRegionId = newSeat.id;
+    polity.rulerRegionId = newSeat.id;
+    if (polity.continuity) polity.continuity.seatRegionId = newSeat.id;
+  }
   initialisePoliticalContinuity([successor], regions, currentTick);
   successor.continuity.status = 'claimant';
   successor.continuity.legitimacy = clamp(successor.administration.legitimacy);
@@ -195,7 +206,9 @@ function startRevolutionaryCivilWar(polity, successor, regions, polities, curren
     successorPolityId: successor.id,
     successorName: successor.name,
     revolutionaryRegionIds: supporters.map((region) => region.id),
+    incumbentSeatRegionId: polity.capitalRegionId,
     assessment,
+    summary: 'A revolution has gained enough support to establish a rival government, but not enough to decide the country immediately. The state is divided between incumbent and revolutionary authorities.',
   };
 }
 
@@ -208,7 +221,14 @@ function failedAttempt(polity, kind, currentTick, assessment) {
   else crisis.coupRisk = clamp(crisis.coupRisk * 0.82);
   polity.institutionalPolicy ||= {};
   polity.institutionalPolicy.repression = clamp((polity.institutionalPolicy.repression || 0) + (kind === 'revolution' ? 0.05 : 0.025));
-  return { type: kind === 'coup' ? 'coup_failed' : 'revolution_failed', polityId: polity.id, assessment };
+  return {
+    type: kind === 'coup' ? 'coup_failed' : 'revolution_failed',
+    polityId: polity.id,
+    assessment,
+    summary: kind === 'coup'
+      ? 'A coup attempt has failed. Political pressure remains high and the government becomes more repressive.'
+      : 'A revolutionary attempt has failed to displace the government. Protests and repression intensify rather than vanishing without consequence.',
+  };
 }
 
 export function resolveRegimeChangeAttempt(polity, kind, regions, polities, currentTick, assessment = regimeChangeAssessment(polity, regions), rng = Math.random) {
@@ -248,13 +268,31 @@ export function tickRegimeChange(polities, regions, currentTick, elapsedDays = 3
       ? clamp((assessment.coupRisk - 0.5) * (0.14 + (1 - assessment.eliteCohesion) * 0.38) * years)
       : 0;
     if (revolutionHazard <= 0 && coupHazard <= 0) continue;
+
+    // The direct resolver is symmetric and fully supports the player polity.
+    // Automatic live overthrow of the player is deferred until main.js has an
+    // explicit handoff that can move the player's private current-region pointer
+    // into exile/civil-war territory. NPCs can safely resolve immediately now.
+    if (polity.id === options.playerPolityId) {
+      if (Math.max(revolutionHazard, coupHazard) > 0) {
+        events.push({
+          type: 'player_regime_crisis',
+          polityId: polity.id,
+          assessment,
+          summary: `Political crisis is acute: revolution risk ${Math.round(assessment.revolutionRisk * 100)}%, coup risk ${Math.round(assessment.coupRisk * 100)}%. A player-facing regime-change handoff is required before automatic overthrow is enabled.`,
+          playerRelevant: true,
+        });
+      }
+      continue;
+    }
+
     const revolutionFirst = revolutionHazard >= coupHazard;
     const primaryKind = revolutionFirst ? 'revolution' : 'coup';
     const primaryHazard = revolutionFirst ? revolutionHazard : coupHazard;
     if (rng() >= primaryHazard) continue;
     const event = resolveRegimeChangeAttempt(polity, primaryKind, regions, polities, currentTick, assessment, rng);
     if (!event) continue;
-    event.playerRelevant = polity.id === options.playerPolityId;
+    event.playerRelevant = false;
     events.push(event);
   }
   return events;
