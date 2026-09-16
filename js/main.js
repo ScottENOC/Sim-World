@@ -493,6 +493,20 @@ async function main() {
         map.refreshLayer();
       }
     }
+    for (const captureEvent of campaignResult.events.filter((event) => event.type === 'regime_civil_war_region_captured')) {
+      if (captureEvent.fromPolityId !== activePlayerPolityId) continue;
+      const currentPlayerRegion = regionsById.get(playerRegionId);
+      const lostCurrentSeat = captureEvent.regionId === playerRegionId || captureEvent.wasCapital ||
+        currentPlayerRegion?.governance?.sovereignPolityId !== activePlayerPolityId;
+      if (!lostCurrentSeat) continue;
+      const nextSeat = captureEvent.newSeatRegionId || polityById(polities, activePlayerPolityId)?.continuity?.seatRegionId || null;
+      if (!nextSeat || !regionsById.has(nextSeat)) continue;
+      playerRegionId = nextSeat;
+      selectedRegion = regionsById.get(nextSeat);
+      map.selectedId = nextSeat;
+      fogOfWar.setPlayerRegion(nextSeat);
+      map.refreshLayer();
+    }
     for (const settlementEvent of campaignResult.events.filter((event) => event.type === 'settlement_required')) {
       const attacker = regionsById.get(settlementEvent.attackerId);
       const defender = regionsById.get(settlementEvent.defenderId);
@@ -565,6 +579,7 @@ async function main() {
       ...campaignResult.events.filter((event) => {
         if (event.type === 'settlement_required') return event.attackerPolityId === activePlayerPolityId || event.defenderPolityId === activePlayerPolityId;
         if (event.type === 'claimant_retreat') return event.conquerorPolityId === activePlayerPolityId || event.defeatedPolityId === activePlayerPolityId;
+        if (event.type === 'regime_civil_war_region_captured') return event.fromPolityId === activePlayerPolityId || event.toPolityId === activePlayerPolityId;
         const attacker = regionsById.get(event.campaign.attackerId);
         const defender = regionsById.get(event.campaign.defenderId);
         const playerPolity = activePlayerPolityId;
