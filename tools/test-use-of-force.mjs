@@ -32,7 +32,7 @@ const stranger = { id: 'c', polityId: 'stranger-polity', governance: { sovereign
 assert.equal(isRecentReprisal(attacker, enemy, 100), true);
 assert.equal(classifyRaidUseOfForce(attacker, enemy, 100), USE_OF_FORCE.REPRISAL);
 assert.equal(classifyRaidUseOfForce(attacker, stranger, 100), USE_OF_FORCE.RAID);
-assert.equal(classifyRaidUseOfForce(attacker, enemy, 117), false ? USE_OF_FORCE.REPRISAL : USE_OF_FORCE.RAID);
+assert.equal(classifyRaidUseOfForce(attacker, enemy, 117), USE_OF_FORCE.RAID);
 assert.equal(classifyCampaignUseOfForce(attacker, enemy, 'punitive', 100), USE_OF_FORCE.LIMITED_CAMPAIGN);
 assert.equal(classifyCampaignUseOfForce(attacker, enemy, 'subjugation', 100), USE_OF_FORCE.FORMAL_WAR);
 assert.equal(classifyCampaignUseOfForce(attacker, enemy, 'devastation', 100), USE_OF_FORCE.FORMAL_WAR);
@@ -54,11 +54,17 @@ assert.ok(raidSource.indexOf('authoriseUseOfForce(attacker, defender') < raidSou
   'raid authority must be resolved before home-army mutation');
 assert.ok(raidSource.includes('defender.militaryThreat.lastRaiderActorId = actorId(attacker)'),
   'resolved raids should record the aggressor for later reprisal classification');
+assert.ok(raidSource.includes('calendarWeekIndex(elapsedDays)'),
+  'runtime raid dates must use historical calendar weeks rather than monthly scheduler ticks');
+assert.ok(raidSource.includes('departTick: historicalWeek, arriveTick: historicalWeek + travelWeeks'),
+  'player and NPC raids should share the weekly lifecycle used by tickRaids');
 
 const uiSource = fs.readFileSync(new URL('../js/ui/useOfForceUi.js', import.meta.url), 'utf8');
 assert.ok(uiSource.includes("document.addEventListener('click'"));
 assert.ok(uiSource.includes('event.stopImmediatePropagation()'));
 assert.ok(uiSource.includes('No troops were mustered.'), 'player refusal should occur before the legacy raid handler musters vassals');
+assert.ok(uiSource.includes('calendarWeekIndex(Number(state?.clock?.elapsedDays) || 0)'),
+  'player reprisal classification should use historical weeks');
 assert.ok(uiSource.includes('}, true);'), 'raid pre-authorisation listener must run in capture phase');
 
 console.log('use-of-force regressions passed');
