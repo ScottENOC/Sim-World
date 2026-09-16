@@ -1,7 +1,7 @@
 name: Institutional actions
 on:
   push:
-    branches: [feature/institutional-action-constraints, feature/wire-institutional-actions, 'feature/institutional-player-ui-*', 'feature/institutional-region-controls-*']
+    branches: [feature/institutional-action-constraints, feature/wire-institutional-actions, 'feature/institutional-player-ui-*', 'feature/institutional-region-controls-*', 'feature/use-of-force-spectrum-*']
   pull_request:
     branches: [main]
     paths:
@@ -11,12 +11,15 @@ on:
       - 'js/politics/institutionalRuntimeAuthority.js'
       - 'js/politics/institutionalCrises.js'
       - 'js/politics/institutionalIntegration.js'
+      - 'js/politics/useOfForce.js'
+      - 'js/military/raiding.js'
       - 'js/diplomacy/relations.js'
       - 'js/diplomacy/couriers.js'
       - 'js/ui/diplomaticServicePanel.js'
       - 'js/ui/institutionalCouncilUi.js'
       - 'js/ui/institutionalCouncilSpendingUi.js'
       - 'js/ui/institutionalRegionControlsUi.js'
+      - 'js/ui/useOfForceUi.js'
       - 'index.html'
       - 'js/ai/nationAi.js'
       - 'tools/test-institutional-actions.mjs'
@@ -25,6 +28,7 @@ on:
       - 'tools/test-institutional-council-ui.mjs'
       - 'tools/test-institutional-region-controls.mjs'
       - 'tools/test-institutional-player-war.mjs'
+      - 'tools/test-use-of-force.mjs'
       - 'tools/test-joint-operations-command.mjs'
       - 'tools/test-diplomatic-service-ui.mjs'
       - '.github/workflows/institutional-actions.yml'
@@ -43,12 +47,15 @@ jobs:
           node --check js/politics/institutionalRuntimeAuthority.js
           node --check js/politics/institutionalCrises.js
           node --check js/politics/institutionalIntegration.js
+          node --check js/politics/useOfForce.js
+          node --check js/military/raiding.js
           node --check js/diplomacy/relations.js
           node --check js/diplomacy/couriers.js
           node --check js/ui/diplomaticServicePanel.js
           node --check js/ui/institutionalCouncilUi.js
           node --check js/ui/institutionalCouncilSpendingUi.js
           node --check js/ui/institutionalRegionControlsUi.js
+          node --check js/ui/useOfForceUi.js
           node --check js/ai/nationAi.js
           node tools/test-institutional-actions.mjs
           node tools/test-institutional-crises.mjs
@@ -56,6 +63,7 @@ jobs:
           node tools/test-institutional-council-ui.mjs
           node tools/test-institutional-region-controls.mjs
           node tools/test-institutional-player-war.mjs
+          node tools/test-use-of-force.mjs
           node tools/test-joint-operations-command.mjs
           node tools/test-diplomatic-service-ui.mjs
           node tools/test-institutional-powers.mjs
