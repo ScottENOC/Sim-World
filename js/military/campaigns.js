@@ -83,7 +83,13 @@ export function canCampaign(attacker, defender, campaigns = [], regions = null, 
 
 export function launchCampaign(attacker, defender, objective, requestedPersonnel, currentTick, options = {}) {
   if (!CAMPAIGN_OBJECTIVES[objective]) return null;
-  const reach = canCampaign(attacker, defender, options.campaigns, options.regions, options.polities);
+  let reach = canCampaign(attacker, defender, options.campaigns, options.regions, options.polities);
+  // Rival governments created by an internal revolution know their own frontier.
+  // Do not let fog-of-war contact bookkeeping prevent adjacent civil-war forces
+  // from fighting through the normal campaign engine.
+  if (!reach.possible && options.regimeConflict && attacker.neighbors?.includes(defender.id)) {
+    reach = { possible: true, viaSea: false, stagingRegionId: attacker.id };
+  }
   if (!reach.possible) return null;
   let personnel = Math.floor(Math.min(requestedPersonnel, attacker.army.personnel));
   if (reach.viaSea) personnel = Math.min(personnel, reach.seaCapacity);
@@ -101,6 +107,7 @@ export function launchCampaign(attacker, defender, objective, requestedPersonnel
     siegeEquipment,
     gunpowderArtillery: takeGunpowderSiegeTrain(attacker, personnel),
     beneficiaryPolityId: options.beneficiaryPolityId || null,
+    regimeConflict: options.regimeConflict ? { ...options.regimeConflict } : null,
     pressure: 0, damage: 0, attackerMorale: 1, defenderMorale: 1, supply: 1,
     attackerCasualties: 0, defenderCasualties: 0, civilianDeaths: 0,
     weeksEngaged: 0, stage: 'marching', lastWeek: null, history: [], outcome: null,
@@ -358,6 +365,54 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   }
 }
 
+export function resolveRegimeConflictCapture(campaign, attacker, defender, polities, regions, currentTick = 0) {
+  const conflict = campaign?.regimeConflict;
+  if (!conflict || !attacker || !defender) return { resolved: false, reason: 'not_regime_conflict' };
+  const attackerPolity = sovereignPolity(attacker, polities);
+  const defenderPolity = sovereignPolity(defender, polities);
+  const sides = new Set([conflict.incumbentPolityId, conflict.revolutionaryPolityId]);
+  if (!attackerPolity || !defenderPolity || attackerPolity.id === defenderPolity.id ||
+      !sides.has(attackerPolity.id) || !sides.has(defenderPolity.id)) {
+    return { resolved: false, reason: 'conflict_sides_changed' };
+  }
+  const wasCapital = defenderPolity.capitalRegionId === defender.id;
+  const result = transferRegion(defender, defenderPolity, attackerPolity, regions, polities, currentTick, 'regime_civil_war');
+  if (!result.transferred) return { resolved: false, reason: result.reason || 'transfer_failed' };
+
+  // Civil-war territory is held by a rival central government, not granted as
+  // a near-independent vassal. Administration is contested but direct.
+  defender.governance.relationship = defender.id === attackerPolity.capitalRegionId ? 'core' : 'integrated';
+  defender.governance.autonomy = defender.id === attackerPolity.capitalRegionId ? 0 : 0.42;
+  defender.governance.administrativeControl = defender.id === attackerPolity.capitalRegionId ? 1 : 0.52;
+  defender.governance.tributeRate = 0;
+  defender.controllingActorId = attackerPolity.capitalRegionId;
+
+  let newSeatRegionId = null;
+  const remaining = regions.filter((region) => region.governance?.sovereignPolityId === defenderPolity.id);
+  if (wasCapital && remaining.length) {
+    const newSeat = [...remaining].sort((a, b) => (b.population || 0) - (a.population || 0))[0];
+    defenderPolity.capitalRegionId = newSeat.id;
+    defenderPolity.rulerRegionId = newSeat.id;
+    defenderPolity.continuity ||= {};
+    defenderPolity.continuity.seatRegionId = newSeat.id;
+    defenderPolity.continuity.status = 'claimant';
+    newSeatRegionId = newSeat.id;
+  }
+
+  campaign.settlementResolved = true;
+  campaign.settlementQueued = true;
+  campaign.outcome = 'region_lost';
+  campaign.regimeConflictCapture = {
+    tick: currentTick,
+    regionId: defender.id,
+    fromPolityId: defenderPolity.id,
+    toPolityId: attackerPolity.id,
+    wasCapital,
+    newSeatRegionId,
+  };
+  return { resolved: true, ...campaign.regimeConflictCapture };
+}
+
 export function tickCampaigns(campaigns, regionsById, polities, currentTick, toolTypes, rng = Math.random, options = {}) {
   const events = [];
   const regionList = [...regionsById.values()];
@@ -399,6 +454,23 @@ export function tickCampaigns(campaigns, regionsById, polities, currentTick, too
       if (campaign.phase === 'returning') {
         events.push({ type: 'campaign_decided', campaign, attackerName: attacker.name, defenderName: defender.name });
         break;
+      }
+    }
+    if (campaign.phase === 'returning' && campaign.outcome === 'submission_pending' && !campaign.settlementResolved && !campaign.settlementQueued && campaign.regimeConflict) {
+      const capture = resolveRegimeConflictCapture(campaign, attacker, defender, polities, regionList, currentTick);
+      if (capture.resolved) {
+        events.push({
+          type: 'regime_civil_war_region_captured',
+          campaign,
+          ...capture,
+          attackerName: attacker.name,
+          defenderName: defender.name,
+          summary: `${attacker.name} captured ${defender.name} for its side of the revolutionary civil war.`,
+        });
+      } else {
+        campaign.settlementResolved = true;
+        campaign.settlementQueued = true;
+        campaign.outcome = 'withdrawn';
       }
     }
     if (campaign.phase === 'returning' && campaign.outcome === 'submission_pending' && !campaign.settlementResolved && !campaign.settlementQueued) {

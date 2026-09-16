@@ -49,6 +49,7 @@ import { tickNonStateOrganisations } from './politics/nonStateOrganisations.js?v
 import { tickPrivateMilitaryActors } from './politics/privateMilitaryActors.js?v=20260912-pmc1';
 import { tickOrganisationInteractions } from './politics/nonStateInteractions.js?v=20260912-organisations2';
 import { SETTLEMENT_TYPES, acceptSettlementOffer, createConquestSettlementOffer, grantRegionalAutonomy, initialisePoliticalContinuity, lobbyForRestoration, plausibleGovernedRegions, rejectSettlementOffer, restorationBacking, resolveNpcSettlement, tickPoliticalContinuity, transferRegion } from './politics/continuity.js?v=20260907-continuity1';
+import { tickRegimeCivilWars } from './politics/regimeCivilWar.js?v=20260917-regime-war1';
 import { createGameSnapshot, readSave, restoreGameSnapshot, saveSummary, writeSave } from './core/saveGame.js?v=20260904-war1';
 import { syncNextCampaignId, tickCampaigns } from './military/campaigns.js?v=20260912-medieval1';
 import { prepareConstructionLabor, syncNextProjectId, tickConstruction, tickInfrastructureMaintenance } from './economy/construction.js?v=20260905-projects1';
@@ -436,6 +437,19 @@ async function main() {
         map.refreshLayer();
       }
     }
+    const regimeCivilWarEvents = profiler.measure('Regime civil wars', () =>
+      tickRegimeCivilWars(polities, regions, activeCampaigns, calendarWeek, Math.random, { playerPolityId: activePlayerPolityId }));
+    for (const civilWarEvent of regimeCivilWarEvents) {
+      if (civilWarEvent.type !== 'regime_civil_war_resolved' || civilWarEvent.loserPolityId !== activePlayerPolityId) continue;
+      const exileSeat = civilWarEvent.hostRegionId || polityById(polities, activePlayerPolityId)?.continuity?.seatRegionId || null;
+      if (exileSeat && regionsById.has(exileSeat)) {
+        playerRegionId = exileSeat;
+        selectedRegion = regionsById.get(exileSeat);
+        map.selectedId = exileSeat;
+        fogOfWar.setPlayerRegion(exileSeat);
+        map.refreshLayer();
+      }
+    }
     const medievalPoliticalEvents = profiler.measure('Medieval politics', () => tickMedievalInstitutions(polities, regions, calendarWeek, time.elapsedDays, { playerPolityId: activePlayerPolityId }));
     const medievalStateEvents = profiler.measure('Medieval state systems', () => tickMedievalStateSystems(polities, regions, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));
     profiler.measure('Medieval commerce', () => tickMedievalCommercialInstitutions(regions, polities, time.elapsedDays));
@@ -540,6 +554,7 @@ async function main() {
       ...oceanicExplorationEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),
       ...polityEvents.filter((event) => event.regionId === playerRegionId),
       ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),
+      ...regimeCivilWarEvents.filter((event) => event.playerRelevant),
       ...medievalPoliticalEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId || event.rebelPolityId === activePlayerPolityId),
       ...medievalStateEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId || event.claimantPolityId === activePlayerPolityId),
       ...medievalReligiousEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId || event.targetPolityId === activePlayerPolityId || event.polityIds?.includes?.(activePlayerPolityId)),
