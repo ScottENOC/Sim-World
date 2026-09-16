@@ -15,6 +15,24 @@ jobs:
         with: { ref: feature/foreign-political-intervention-v1 }
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
+      - name: Adapt patch anchors to current main
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('tools/apply-foreign-political-intervention-v1.py')
+          s = p.read_text()
+          s = s.replace(
+            '"      ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),\\n      ...medievalPoliticalEvents.filter",',
+            '"      ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),\\n      ...regimeCivilWarEvents.filter((event) => event.playerRelevant),\\n      ...medievalPoliticalEvents.filter",'
+          )
+          s = s.replace(
+            '"      ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),\\n      ...foreignInterventionEvents.filter((event) => event.playerRelevant),\\n      ...regimeCivilWarEvents.filter((event) => event.playerRelevant),\\n      ...medievalPoliticalEvents.filter"',
+            '"      ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),\\n      ...foreignInterventionEvents.filter((event) => event.playerRelevant),\\n      ...regimeCivilWarEvents.filter((event) => event.playerRelevant),\\n      ...medievalPoliticalEvents.filter"'
+          )
+          s = s.replace("\"'feature/regime-change-*']\",", "\"'feature/regime-civil-war-*']\",")
+          s = s.replace("\"'feature/regime-change-*', 'feature/foreign-political-intervention-*']\")", "\"'feature/regime-civil-war-*', 'feature/foreign-political-intervention-*']\")")
+          p.write_text(s)
+          PY
       - name: Apply integration
         run: python3 tools/apply-foreign-political-intervention-v1.py
       - name: Validate focused files
