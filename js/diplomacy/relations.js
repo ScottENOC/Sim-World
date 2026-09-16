@@ -1,5 +1,6 @@
 import { hasDirectContact } from '../core/knowledge.js?v=20260904-diplomacy1';
 import { effectivePower } from '../military/army.js?v=20260904-diplomacy1';
+import { authoriseRuntimeGovernmentAction } from '../politics/institutionalRuntimeAuthority.js?v=20260916-institution-diplomacy1';
 import { cultureDiplomaticBias, cultureTradeMultiplier, recordCulturalContact } from '../society/culture.js?v=20260912-culture-scale1';
 
 const ATTITUDE_DECAY_PER_WEEK = 0.0015;
@@ -68,8 +69,6 @@ export function powerRatio(demander, target, toolTypes) {
 export function tradeRelationMultiplier(a, b) {
   const mutual = (attitudeToward(a, b.id) + attitudeToward(b, a.id)) / 2;
   const diplomatic = clamp(1 + mutual * 0.45, 0.45, 1.35);
-  // Culture is a modest entry/trust friction, never a trade prohibition.
-  // Repeated commerce builds cultural familiarity and largely erases the gap.
   return diplomatic * cultureTradeMultiplier(a, b);
 }
 
@@ -115,6 +114,24 @@ export function proposeAgreement(type, proposer, target, agreements, toolTypes, 
     return { accepted: false, reason: type === 'military_support' ? 'too_few_troops_or_hostile' : 'target_not_weak_enough' };
   }
 
+  const authorisation = authoriseRuntimeGovernmentAction(proposer, 'sign_treaty', {
+    polities: options.polities,
+    approvals: options.institutionalApprovals,
+    context: {
+      publicSupport: options.publicSupport ?? Math.max(0, Math.min(1, (targetAttitude + 1) / 2)),
+      fiscalStress: options.fiscalStress || 0,
+      threat: options.threat || 0,
+      agreementType: type,
+      targetRegionId: target.id,
+    },
+    rng: options.institutionalRng || options.rng,
+    currentTick,
+    registerRefusal: options.registerInstitutionalRefusal !== false,
+  });
+  if (!authorisation.allowed) {
+    return { accepted: false, reason: 'institutional_authorisation_refused', authorisation };
+  }
+
   if (type === 'military_support') {
     proposer.army.personnel -= personnel;
     proposer.army.away = (proposer.army.away || 0) + personnel;
@@ -130,7 +147,7 @@ export function proposeAgreement(type, proposer, target, agreements, toolTypes, 
     personnel, startTick: currentTick, active: true, endedTick: null,
   };
   agreements.push(agreement);
-  return { accepted: true, agreement };
+  return { accepted: true, agreement, authorisation };
 }
 
 export function endAgreement(agreement, regionsById, currentTick) {
@@ -176,9 +193,6 @@ export function tickDiplomacy(regions, agreements, toolTypes, currentTick, elaps
     region.diplomacyReport = { paid: 0, received: 0, woodTaken: 0, support: 0 };
     if (options.maintainRelationships === false) continue;
     for (const [otherId, relation] of region.relations.entries()) {
-      // Older builds created neutral relationship records merely by reading an
-      // attitude during trade-route evaluation. They carry no simulation state
-      // and make diplomacy maintenance trend toward an all-to-all graph.
       if (!relation.lastCause && Math.abs(Number(relation.attitude) || 0) < 1e-12) {
         region.relations.delete(otherId);
         continue;

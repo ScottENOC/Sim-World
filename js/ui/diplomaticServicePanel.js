@@ -1,4 +1,5 @@
 import { DIPLOMAT_AUTHORITY, attemptBribeDiplomat, detainDiplomat, diplomatPublicProfile, dispatchDiplomat, diplomatsFor, expelDiplomat, foreignGovernmentTrust, recallDiplomat, releaseDiplomat, setDiplomatAuthority } from '../diplomacy/diplomats.js?v=20260909-agent-trust1';
+import { authoriseRuntimeGovernmentAction } from '../politics/institutionalRuntimeAuthority.js?v=20260916-institution-diplomacy1';
 
 const pct = (v) => `${Math.round(Math.max(0, Math.min(1, Number(v) || 0)) * 100)}%`;
 const actorId = (r) => r?.governance?.sovereignPolityId || r?.controllingActorId || r?.id;
@@ -67,6 +68,7 @@ export function renderDiplomaticServicePanel(container, home, regions, currentTi
   const section = document.createElement('div');
   section.className = 'raid-section diplomatic-service-panel';
   section.innerHTML = `<strong>Diplomatic service</strong><div class="raid-status">Envoys are real agents. Reputation and suspicion are known; hidden compromise is not.</div>
+    <div class="raid-status" data-dip-government-result></div>
     <div class="diplomatic-own"><strong>Your envoys</strong>${view.own.map((d)=>ownCard({...d,homeRegionId:home.id},regions)).join('') || '<div class="raid-status">No envoys available.</div>'}</div>
     <div class="diplomatic-foreign"><strong>Foreign envoys at your court</strong>${view.foreign.map(foreignCard).join('') || '<div class="raid-status">No resident foreign envoys.</div>'}</div>`;
   container.appendChild(section);
@@ -78,7 +80,32 @@ export function renderDiplomaticServicePanel(container, home, regions, currentTi
   const foreignOrigin=(b)=>regions.find(r=>r.id===b.dataset.origin);
   section.querySelectorAll('[data-dip-bribe]').forEach((b)=>b.addEventListener('click',()=>{ const origin=foreignOrigin(b); const val=Number(section.querySelector(`[data-bribe-value="${CSS.escape(b.dataset.dipBribe)}"]`)?.value||0); const result=origin?attemptBribeDiplomat(origin,b.dataset.dipBribe,actorId(home),val,0):{attempted:false}; const out=section.querySelector(`[data-dip-result="${CSS.escape(b.dataset.dipBribe)}"]`); if(out) out.textContent=result.success?'The approach appears to have succeeded. Whether the envoy remains trustworthy to their own court is hidden from them.':result.attempted?'The envoy refused. The approach may itself create suspicion.':'The attempt could not be made.'; options.onAction?.(result); }));
   section.querySelectorAll('[data-dip-expel]').forEach((b)=>b.addEventListener('click',()=>{ const origin=foreignOrigin(b); if(origin) expelDiplomat(origin,b.dataset.dipExpel,home,regions,currentTick,'player_expulsion'); rerender(); }));
-  section.querySelectorAll('[data-dip-detain]').forEach((b)=>b.addEventListener('click',()=>{ const origin=foreignOrigin(b); if(origin) detainDiplomat(origin,b.dataset.dipDetain,home,currentTick,'player_security_order'); rerender(); }));
+  section.querySelectorAll('[data-dip-detain]').forEach((b)=>b.addEventListener('click',()=>{
+    const origin=foreignOrigin(b);
+    if(!origin) return;
+    const authorisation=authoriseRuntimeGovernmentAction(home,'detain_political_actor',{
+      polities:options.polities,
+      approvals:options.detentionApprovals,
+      context:{
+        evidence:options.detentionEvidence ?? 0.5,
+        legalBasis:options.detentionLegalBasis ?? 0.5,
+        emergency:options.detentionEmergency ?? 0,
+        foreignActorId:actorId(origin),
+      },
+      rng:options.institutionalRng,
+      currentTick,
+      registerRefusal:options.registerInstitutionalRefusal !== false,
+    });
+    if(!authorisation.allowed){
+      const out=section.querySelector('[data-dip-government-result]');
+      if(out) out.textContent='The required institution refused authority to detain this envoy.';
+      options.onAction?.({detained:false,reason:'institutional_authorisation_refused',authorisation});
+      return;
+    }
+    const result=detainDiplomat(origin,b.dataset.dipDetain,home,currentTick,'player_security_order');
+    options.onAction?.({detained:Boolean(result),result,authorisation});
+    rerender();
+  }));
   section.querySelectorAll('[data-dip-release]').forEach((b)=>b.addEventListener('click',()=>{ const origin=foreignOrigin(b); if(origin) releaseDiplomat(origin,b.dataset.dipRelease,home,regions,currentTick); rerender(); }));
   return section;
 }

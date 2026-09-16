@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { establishJudiciary, establishParliament, delegateGovernmentPower, requireInstitutionalConsent } from '../js/politics/institutionalPowers.js';
 import { chooseNpcInstitutionalApprovals, governmentActionAuthority, institutionalActionPrompt, requestExecutiveAction } from '../js/politics/institutionalActions.js';
-import { executeGovernmentAction, executeGovernmentMilitaryPolicy } from '../js/politics/governmentActionExecution.js';
+import { executeGovernmentAction, executeGovernmentDetention, executeGovernmentMilitaryPolicy, executeGovernmentProsecution, executeGovernmentTreaty } from '../js/politics/governmentActionExecution.js';
 
 const absolute = { id: 'absolute' };
 assert.equal(requestExecutiveAction(absolute, 'launch_offensive_war').allowed, true);
@@ -16,6 +16,7 @@ requireInstitutionalConsent(constitutional, 'spending', 'parliament');
 requireInstitutionalConsent(constitutional, 'legislation', 'parliament');
 requireInstitutionalConsent(constitutional, 'economicRegulation', 'parliament');
 requireInstitutionalConsent(constitutional, 'intelligenceOperations', 'parliament');
+requireInstitutionalConsent(constitutional, 'treaties', 'parliament');
 delegateGovernmentPower(constitutional, 'adjudication', 'judiciary', { entrenched: 0.8 });
 
 const warAuthority = governmentActionAuthority(constitutional, 'launch_offensive_war');
@@ -23,7 +24,7 @@ assert.deepEqual(warAuthority.consentRequiredFrom, ['parliament']);
 assert.equal(requestExecutiveAction(constitutional, 'launch_offensive_war').allowed, false);
 assert.equal(requestExecutiveAction(constitutional, 'launch_offensive_war', ['parliament']).allowed, true);
 
-for (const action of ['change_taxation', 'change_spending', 'change_economic_policy', 'change_military_policy', 'order_intelligence_operation']) {
+for (const action of ['change_taxation', 'change_spending', 'change_economic_policy', 'change_military_policy', 'order_intelligence_operation', 'sign_treaty']) {
   const prompt = institutionalActionPrompt(constitutional, action);
   assert.equal(prompt.executiveCanActAlone, false, `${action} should expose its institutional consent requirement`);
   assert.deepEqual(prompt.requiredInstitutions, ['parliament']);
@@ -42,6 +43,7 @@ assert.equal(defensiveWar.approved, true, 'parliamentary constraints should not 
 const detention = { id: 'legal-state' };
 establishJudiciary(detention, { strength: 0.9, independence: 0.95 });
 delegateGovernmentPower(detention, 'detention', 'judiciary', { entrenched: 0.8 });
+delegateGovernmentPower(detention, 'prosecution', 'judiciary', { entrenched: 0.8 });
 const weakCase = chooseNpcInstitutionalApprovals(detention, 'detain_political_actor', { evidence: 0.1, legalBasis: 0.1 }, () => 0.4);
 assert.equal(weakCase.approved, false, 'independent legal institutions should be able to reject arbitrary detention');
 const strongCase = chooseNpcInstitutionalApprovals(detention, 'detain_political_actor', { evidence: 1, legalBasis: 1 }, () => 0.4);
@@ -62,6 +64,31 @@ assert.equal(taxMutation, 0, 'blocked generic government actions must not run th
 const approvedTax = executeGovernmentAction(governedRegion, 'change_taxation', () => { taxMutation += 1; return true; }, [constitutional], { approvals: ['parliament'] });
 assert.equal(approvedTax.changed, true);
 assert.equal(taxMutation, 1, 'approved generic government actions should execute exactly once');
+
+let treatyMutation = 0;
+const blockedTreaty = executeGovernmentTreaty(governedRegion, () => { treatyMutation += 1; return true; }, [constitutional]);
+assert.equal(blockedTreaty.changed, false, 'treaty mutation must not bypass required institutional consent');
+assert.equal(treatyMutation, 0);
+const approvedTreaty = executeGovernmentTreaty(governedRegion, () => { treatyMutation += 1; return true; }, [constitutional], { approvals: ['parliament'] });
+assert.equal(approvedTreaty.changed, true);
+assert.equal(treatyMutation, 1, 'approved treaty mutation should execute exactly once');
+
+const legalRegion = { id: 'legal-capital', polityId: 'legal-state', governance: { sovereignPolityId: 'legal-state' } };
+let detentionMutation = 0;
+const blockedDetention = executeGovernmentDetention(legalRegion, () => { detentionMutation += 1; return true; }, [detention]);
+assert.equal(blockedDetention.changed, false, 'detention mutation must respect judicial authority');
+assert.equal(detentionMutation, 0);
+const approvedDetention = executeGovernmentDetention(legalRegion, () => { detentionMutation += 1; return true; }, [detention], { approvals: ['judiciary'] });
+assert.equal(approvedDetention.changed, true);
+assert.equal(detentionMutation, 1);
+
+let prosecutionMutation = 0;
+const blockedProsecution = executeGovernmentProsecution(legalRegion, () => { prosecutionMutation += 1; return true; }, [detention]);
+assert.equal(blockedProsecution.changed, false, 'prosecution mutation must respect judicial authority');
+assert.equal(prosecutionMutation, 0);
+const approvedProsecution = executeGovernmentProsecution(legalRegion, () => { prosecutionMutation += 1; return true; }, [detention], { approvals: ['judiciary'] });
+assert.equal(approvedProsecution.changed, true);
+assert.equal(prosecutionMutation, 1);
 
 const npcPolicy = { id: 'npc-policy' };
 establishParliament(npcPolicy, { strength: 0.8, independence: 0.8, representation: 0.8 });
