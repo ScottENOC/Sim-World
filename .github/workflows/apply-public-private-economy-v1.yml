@@ -1,0 +1,34 @@
+name: Apply public-private economy v1
+on:
+  push:
+    branches: [feature/public-private-economy-v1]
+    paths:
+      - 'tools/apply-public-private-economy-v1.py'
+      - '.github/workflows/apply-public-private-economy-v1.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: feature/public-private-economy-v1 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Apply integration
+        run: python3 tools/apply-public-private-economy-v1.py
+      - name: Validate focused files
+        run: |
+          node --check js/economy/economicOwnership.js
+          node --check js/economy/infrastructureInvestment.js
+          node --check js/economy/corporateInfrastructure.js
+          node tools/test-economic-ownership.mjs
+          node tools/test-public-private-economy-integration.mjs
+          git diff --check
+      - name: Commit source and regressions
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/economy/economicOwnership.js js/economy/infrastructureInvestment.js js/economy/corporateInfrastructure.js tools/test-public-private-economy-integration.mjs
+          git commit -m "Enforce ownership rules in infrastructure investment"
+          git push origin HEAD:feature/public-private-economy-v1
