@@ -2,6 +2,7 @@ import { launchCampaign } from '../military/campaigns.js?v=20260916-institution-
 import { setMilitaryPolicy } from '../military/policies.js?v=20260916-institution-actions1';
 import { polityById } from './polities.js?v=20260916-institution-actions1';
 import { chooseNpcInstitutionalApprovals, requestExecutiveAction } from './institutionalActions.js?v=20260916-institution-actions1';
+import { registerInstitutionalRefusal } from './institutionalCrises.js?v=20260916-institution-integration1';
 
 function governingPolity(region, polities = []) {
   const id = region?.governance?.sovereignPolityId || region?.polityId;
@@ -12,9 +13,13 @@ function authorisation(polity, action, options = {}) {
   if (!polity) return { allowed: false, reason: 'no_governing_polity', action };
   if (options.npc) {
     const decision = chooseNpcInstitutionalApprovals(polity, action, options.context || {}, options.rng || Math.random);
-    return { allowed: decision.approved, ...decision.result, institutionalDecision: decision };
+    const result = { allowed: decision.approved, ...decision.result, institutionalDecision: decision };
+    if (!result.allowed) registerInstitutionalRefusal(polity, action, { ...(options.context || {}), power: result.power, tick: options.currentTick });
+    return result;
   }
-  return requestExecutiveAction(polity, action, options.approvals || []);
+  const result = requestExecutiveAction(polity, action, options.approvals || []);
+  if (!result.allowed && options.registerRefusal) registerInstitutionalRefusal(polity, action, { ...(options.context || {}), power: result.power, tick: options.currentTick });
+  return result;
 }
 
 export function executeGovernmentMilitaryPolicy(region, key, value, polities, options = {}) {
@@ -27,7 +32,7 @@ export function executeGovernmentMilitaryPolicy(region, key, value, polities, op
 
 export function executeGovernmentCampaign(attacker, defender, objective, requestedPersonnel, currentTick, options = {}) {
   const polity = governingPolity(attacker, options.polities || []);
-  const approval = authorisation(polity, 'launch_offensive_war', options);
+  const approval = authorisation(polity, 'launch_offensive_war', { ...options, currentTick });
   if (!approval.allowed) return { campaign: null, authorisation: approval };
   const campaign = launchCampaign(attacker, defender, objective, requestedPersonnel, currentTick, options);
   return { campaign, authorisation: approval };
