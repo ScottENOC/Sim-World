@@ -1,0 +1,26 @@
+name: Institutional powers
+on:
+  push:
+    branches: [feature/institutional-powers-v1]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/politics/institutionalPowers.js'
+      - 'js/politics/popularWellbeing.js'
+      - 'tools/test-institutional-powers.mjs'
+      - '.github/workflows/institutional-powers.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: |
+          node --check js/politics/institutionalPowers.js
+          node --check js/politics/popularWellbeing.js
+          node tools/test-institutional-powers.mjs
+          node tools/test-popular-wellbeing.mjs
+          git diff --check

@@ -1,3 +1,5 @@
+import { institutionalPoliticalVoice } from './institutionalPowers.js?v=20260916-institutions1';
+
 const DAYS_PER_YEAR = 365.2425;
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
 
@@ -40,11 +42,7 @@ function culturalAccess(region) {
 
 function politicalVoice(polity) {
   if (!polity) return 0.12;
-  const delegated = polity.delegatedPowers || polity.delegatedPower || polity.governance?.delegatedPowers || {};
-  const parliament = polity.parliament || polity.institutions?.parliament || {};
-  const judiciary = polity.judiciary || polity.institutions?.judiciary || {};
-  const delegatedCount = Object.values(delegated).filter(Boolean).length;
-  return clamp(0.08 + delegatedCount * 0.07 + clamp(parliament.power ?? parliament.strength ?? 0) * 0.52 + clamp(judiciary.independence ?? 0) * 0.12);
+  return clamp(0.08 + institutionalPoliticalVoice(polity) * 0.92);
 }
 
 function stateLegitimacy(polity) {
