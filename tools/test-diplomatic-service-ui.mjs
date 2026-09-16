@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { diplomaticServiceView } from '../js/ui/diplomaticServicePanel.js';
 import { dispatchDiplomat, ensureDiplomaticService, setDiplomatAuthority } from '../js/diplomacy/diplomats.js';
 
@@ -17,4 +18,11 @@ bDip.status='posted'; bDip.route=null;
 view=diplomaticServiceView(a,regions);
 assert.equal(view.foreign.length,1); assert.equal(view.foreign[0].homeName,'B');
 assert.equal('turnedByActorId' in view.foreign[0],false,'UI must not reveal hidden compromise');
+
+const source = await readFile(new URL('../js/ui/diplomaticServicePanel.js', import.meta.url), 'utf8');
+const detentionHandler = source.slice(source.indexOf("querySelectorAll('[data-dip-detain]')"), source.indexOf("querySelectorAll('[data-dip-release]')"));
+assert.match(detentionHandler, /authoriseRuntimeGovernmentAction\(home,'detain_political_actor'/, 'player detention must request constitutional authority');
+assert.match(detentionHandler, /if\(!authorisation\.allowed\)/, 'refused detention authority must have an explicit blocked path');
+assert.ok(detentionHandler.indexOf('if(!authorisation.allowed)') < detentionHandler.indexOf('detainDiplomat('), 'authority must be checked before detention mutates diplomat state');
+
 console.log('diplomatic service UI regressions passed');
