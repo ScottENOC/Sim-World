@@ -5,6 +5,7 @@ import { battleParticipationFraction } from '../js/military/battleCommand.js';
 import { resolveSubregionalArmyBattles } from '../js/military/subregionalArmyBattles.js';
 import { ensureCommunicationState } from '../js/diplomacy/languageCommunication.js';
 import { adoptInstitutionalLanguage, ensureLanguageNetwork } from '../js/diplomacy/languageNetworks.js';
+import { establishParliament, requireInstitutionalConsent } from '../js/politics/institutionalPowers.js';
 
 function region(id, actor, neighbors = []) {
   return {
@@ -13,6 +14,14 @@ function region(id, actor, neighbors = []) {
     population: 10000, army: { personnel: 2000, away: 0 },
     relations: new Map(), diplomaticMessages: [], stockpile: { food: 5000 },
   };
+}
+
+function shareDiplomaticLanguage(...courts) {
+  for (const court of courts) {
+    ensureCommunicationState(court);
+    ensureLanguageNetwork(court).specialists['lang:diplomatic-test'] = { conversational: 8, working: 5, fluent: 3, literate: 0, scribes: 0, interpreters: 2 };
+    adoptInstitutionalLanguage(court, 'court', 'lang:diplomatic-test');
+  }
 }
 
 // Proposal and reply both travel as physical courier messages. Acceptance is not instant knowledge.
@@ -25,13 +34,7 @@ sender.relations.set('ally', { attitude: 0.2 });
 ally.relations.set('sender', { attitude: -0.6 });
 ally.relations.set('essex', { attitude: 0.8 });
 const regions = [sender, ally, essex];
-// This regression is about courier timing/betrayal, not first-contact translation.
-// Give the two negotiating courts an already-shared diplomatic language.
-ensureCommunicationState(sender); ensureCommunicationState(ally);
-for (const court of [sender, ally]) {
-  ensureLanguageNetwork(court).specialists['lang:diplomatic-test'] = { conversational: 8, working: 5, fluent: 3, literate: 0, scribes: 0, interpreters: 2 };
-  adoptInstitutionalLanguage(court, 'court', 'lang:diplomatic-test');
-}
+shareDiplomaticLanguage(sender, ally);
 const agreements = [];
 const proposal = sendJointOperationProposal(sender, ally, essex, regions, 0, {
   attackTick: 12, commitmentFraction: 0.6, secrecy: 0.65,
@@ -46,6 +49,49 @@ assert.notEqual(proposal.message.response?.replyMessageId, null);
 assert.ok(essex.diplomaticIntelligence?.some((r) => r.type === 'joint_operation_leak'), 'a duplicitous partner can deliberately show the plan to the target');
 events = tickDiplomaticCouriers(regions, agreements, [], 2, 7, () => 0.99);
 assert.ok(events.some((e) => e.type === 'joint_operation_reply_delivered'), 'the acceptance itself must travel back');
+
+// Foreign acceptance cannot bypass the target government's constitutional treaty rules.
+const parliament = { id: 'PB' };
+establishParliament(parliament, { strength: 0.85, independence: 0.9, representation: 0.85, appointment: 'elected' });
+requireInstitutionalConsent(parliament, 'treaties', 'parliament');
+const constitutionalSender = region('constitutional-sender', 'PA', ['constitutional-ally']);
+const constitutionalAlly = region('constitutional-ally', 'PB', ['constitutional-sender', 'constitutional-enemy']);
+const constitutionalEnemy = region('constitutional-enemy', 'PE', ['constitutional-ally']);
+constitutionalSender.relations.set('constitutional-ally', { attitude: 0.5 });
+constitutionalAlly.relations.set('constitutional-sender', { attitude: 0.5 });
+constitutionalAlly.relations.set('constitutional-enemy', { attitude: -0.8 });
+shareDiplomaticLanguage(constitutionalSender, constitutionalAlly);
+const constitutionalRegions = [constitutionalSender, constitutionalAlly, constitutionalEnemy];
+const blockedAgreements = [];
+const blockedProposal = sendJointOperationProposal(constitutionalSender, constitutionalAlly, constitutionalEnemy, constitutionalRegions, 0, {
+  attackTick: 12, commitmentFraction: 0.6, secrecy: 0.9,
+});
+assert.equal(blockedProposal.sent, true);
+events = tickDiplomaticCouriers(constitutionalRegions, blockedAgreements, [], 1, 7, () => 0.05, {
+  polities: [parliament], institutionalApprovals: [], registerInstitutionalRefusal: false,
+});
+assert.equal(blockedAgreements.length, 0, 'foreign acceptance must not create a treaty when parliament has not approved it');
+assert.ok(events.some((event) => event.type === 'joint_operation_response_sent' && event.refusalReason === 'institutional_authorisation_refused'));
+assert.equal(blockedProposal.message.response?.accepted, false);
+
+const approvedSender = region('approved-sender', 'PAA', ['approved-ally']);
+const approvedAlly = region('approved-ally', 'PB', ['approved-sender', 'approved-enemy']);
+const approvedEnemy = region('approved-enemy', 'PEE', ['approved-ally']);
+approvedSender.relations.set('approved-ally', { attitude: 0.5 });
+approvedAlly.relations.set('approved-sender', { attitude: 0.5 });
+approvedAlly.relations.set('approved-enemy', { attitude: -0.8 });
+shareDiplomaticLanguage(approvedSender, approvedAlly);
+const approvedRegions = [approvedSender, approvedAlly, approvedEnemy];
+const approvedAgreements = [];
+const approvedProposal = sendJointOperationProposal(approvedSender, approvedAlly, approvedEnemy, approvedRegions, 0, {
+  attackTick: 12, commitmentFraction: 0.6, secrecy: 0.9,
+});
+assert.equal(approvedProposal.sent, true);
+events = tickDiplomaticCouriers(approvedRegions, approvedAgreements, [], 1, 7, () => 0.05, {
+  polities: [parliament], institutionalApprovals: ['parliament'], registerInstitutionalRefusal: false,
+});
+assert.equal(approvedAgreements.length, 1, 'the same treaty should become active once the required parliament approves it');
+assert.deepEqual(approvedAgreements[0].constitutionalAuthorisation?.approvals, ['parliament']);
 
 // Couriers can be intercepted and physically lost before the message arrives.
 const s2 = region('s2', 'S', ['mid']);
