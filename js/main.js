@@ -50,6 +50,7 @@ import { tickPrivateMilitaryActors } from './politics/privateMilitaryActors.js?v
 import { tickOrganisationInteractions } from './politics/nonStateInteractions.js?v=20260912-organisations2';
 import { SETTLEMENT_TYPES, acceptSettlementOffer, createConquestSettlementOffer, grantRegionalAutonomy, initialisePoliticalContinuity, lobbyForRestoration, plausibleGovernedRegions, rejectSettlementOffer, restorationBacking, resolveNpcSettlement, tickPoliticalContinuity, transferRegion } from './politics/continuity.js?v=20260907-continuity1';
 import { tickRegimeCivilWars } from './politics/regimeCivilWar.js?v=20260917-regime-war1';
+import { tickForeignPoliticalIntervention } from './politics/foreignPoliticalIntervention.js?v=20260917-intervention1';
 import { createGameSnapshot, readSave, restoreGameSnapshot, saveSummary, writeSave } from './core/saveGame.js?v=20260904-war1';
 import { syncNextCampaignId, tickCampaigns } from './military/campaigns.js?v=20260912-medieval1';
 import { prepareConstructionLabor, syncNextProjectId, tickConstruction, tickInfrastructureMaintenance } from './economy/construction.js?v=20260905-projects1';
@@ -437,6 +438,18 @@ async function main() {
         map.refreshLayer();
       }
     }
+    const foreignInterventionEvents = profiler.measure('Foreign political intervention', () =>
+      tickForeignPoliticalIntervention(polities, regions, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));
+    for (const interventionEvent of foreignInterventionEvents) {
+      if (interventionEvent.type !== 'foreign_backed_restoration_uprising' || interventionEvent.exilePolityId !== activePlayerPolityId || !interventionEvent.targetRegionId) continue;
+      if (regionsById.has(interventionEvent.targetRegionId)) {
+        playerRegionId = interventionEvent.targetRegionId;
+        selectedRegion = regionsById.get(playerRegionId);
+        map.selectedId = playerRegionId;
+        fogOfWar.setPlayerRegion(playerRegionId);
+        map.refreshLayer();
+      }
+    }
     const regimeCivilWarEvents = profiler.measure('Regime civil wars', () =>
       tickRegimeCivilWars(polities, regions, activeCampaigns, calendarWeek, Math.random, { playerPolityId: activePlayerPolityId }));
     for (const civilWarEvent of regimeCivilWarEvents) {
@@ -568,6 +581,7 @@ async function main() {
       ...oceanicExplorationEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),
       ...polityEvents.filter((event) => event.regionId === playerRegionId),
       ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),
+      ...foreignInterventionEvents.filter((event) => event.playerRelevant),
       ...regimeCivilWarEvents.filter((event) => event.playerRelevant),
       ...medievalPoliticalEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId || event.rebelPolityId === activePlayerPolityId),
       ...medievalStateEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId || event.claimantPolityId === activePlayerPolityId),
@@ -1377,7 +1391,10 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
       renderRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
     });
   });
-  if (region.id === playerRegionId) renderDiplomaticServicePanel(document.getElementById('region-controls'), region, regions, calendarWeekIndex(clock.elapsedDays || 0));
+  if (region.id === playerRegionId) renderDiplomaticServicePanel(document.getElementById('region-controls'), region, regions, calendarWeekIndex(clock.elapsedDays || 0), {
+    polities,
+    visiblePolityIds: [...new Set(regions.filter((candidate) => fogOfWar.isVisible(candidate)).map((candidate) => candidate.governance?.sovereignPolityId).filter(Boolean))],
+  });
 }
 
 function renderSubjectRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes) {
@@ -1761,6 +1778,21 @@ function showNextEvent(clock, eventQueue) {
   if (event.type === 'fleet_hail') {
     document.getElementById('event-title').textContent = 'Fleet hailed';
     document.getElementById('event-body').textContent = event.targetResponded ? 'The other fleet answered the hail. Your observers gained a closer look at its ships and flag.' : 'The other fleet ignored the hail and kept its distance.';
+    wireEventContinue(clock, eventQueue); return;
+  }
+  if (event.type === 'foreign_restoration_support_detected') {
+    document.getElementById('event-title').textContent = 'Foreign covert support detected';
+    document.getElementById('event-body').textContent = event.summary || 'Counter-intelligence has detected foreign material support for a restoration network inside your state.';
+    wireEventContinue(clock, eventQueue); return;
+  }
+  if (event.type === 'foreign_backed_restoration_uprising') {
+    document.getElementById('event-title').textContent = event.exilePolityId === activePlayerPolityId ? 'Your restoration uprising succeeds' : 'Foreign-backed restoration uprising';
+    document.getElementById('event-body').textContent = event.summary || 'An exile claimant has re-established territorial government and a civil war has begun.';
+    wireEventContinue(clock, eventQueue); return;
+  }
+  if (event.type === 'restoration_uprising_failed') {
+    document.getElementById('event-title').textContent = 'Restoration uprising fails';
+    document.getElementById('event-body').textContent = event.summary || 'A restoration network attempted to rise and was suppressed.';
     wireEventContinue(clock, eventQueue); return;
   }
   if (event.type === 'restoration_backing') {

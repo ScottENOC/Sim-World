@@ -96,6 +96,72 @@ export function fundRestorationOperation(sponsorPolity, exilePolity, targetPolit
   return { funded: true, amount: spend, gain, detected, detectionChance, operation };
 }
 
+export function ensureDestabilisationOperation(targetPolity, sponsorPolityId, mode = 'revolution') {
+  if (!targetPolity || !sponsorPolityId || !['revolution', 'coup'].includes(mode)) return null;
+  targetPolity.foreignPoliticalIntervention ||= {};
+  targetPolity.foreignPoliticalIntervention.operations ||= {};
+  const key = `${sponsorPolityId}:${mode}`;
+  targetPolity.foreignPoliticalIntervention.operations[key] ||= {
+    sponsorPolityId,
+    mode,
+    funding: 0,
+    network: 0,
+    materialSupport: 0,
+    propaganda: 0,
+    eliteContacts: 0,
+    exposure: 0,
+    detected: false,
+    lastSupportTick: null,
+  };
+  return targetPolity.foreignPoliticalIntervention.operations[key];
+}
+
+export function fundPoliticalDestabilisation(sponsorPolity, targetPolity, regions, currentTick, mode = 'revolution', amount = 10, rng = Math.random) {
+  if (!sponsorPolity || !targetPolity || sponsorPolity.id === targetPolity.id || !['revolution', 'coup'].includes(mode)) {
+    return { funded: false, reason: 'invalid_parties' };
+  }
+  if (targetPolity.continuity?.status === 'exile') return { funded: false, reason: 'target_not_governing' };
+  const sponsorCapital = capitalRegion(sponsorPolity, regions);
+  if (!sponsorCapital) return { funded: false, reason: 'no_sponsor_capital' };
+  const spend = Math.max(0, Math.min(Number(amount) || 0, sponsorCapital.treasury || 0));
+  if (spend < 1) return { funded: false, reason: 'insufficient_treasury' };
+
+  sponsorCapital.treasury -= spend;
+  const operation = ensureDestabilisationOperation(targetPolity, sponsorPolity.id, mode);
+  operation.funding += spend;
+  operation.lastSupportTick = currentTick;
+
+  const tradecraft = sponsorTradecraft(sponsorPolity, regions);
+  const defence = targetCounterIntelligence(targetPolity, regions);
+  const efficiency = clamp(0.22 + tradecraft * 0.46 - defence * 0.22, 0.06, 0.68);
+  const gain = clamp((spend / 100) * efficiency, 0, 0.16);
+  operation.network = clamp(operation.network + gain * (mode === 'coup' ? 0.32 : 0.5));
+  operation.materialSupport = clamp(operation.materialSupport + gain * (mode === 'coup' ? 0.24 : 0.34));
+  operation.propaganda = clamp(operation.propaganda + gain * (mode === 'coup' ? 0.12 : 0.5));
+  operation.eliteContacts = clamp(operation.eliteContacts + gain * (mode === 'coup' ? 0.62 : 0.1));
+
+  const detectionChance = clamp(0.035 + defence * 0.26 + spend / 500 * 0.18 - tradecraft * 0.2, 0.01, 0.58);
+  const detected = rng() < detectionChance;
+  operation.exposure = clamp(operation.exposure + detectionChance * (detected ? 0.7 : 0.08));
+  if (detected) operation.detected = true;
+
+  const crisis = ensureInstitutionalCrisisState(targetPolity);
+  if (mode === 'revolution') {
+    crisis.pressure = clamp(crisis.pressure + gain * 0.15);
+    crisis.protests = clamp(crisis.protests + gain * 0.1);
+    crisis.revolutionRisk = clamp(crisis.revolutionRisk + gain * (0.18 + operation.network * 0.12));
+  } else {
+    crisis.pressure = clamp(crisis.pressure + gain * 0.05);
+    crisis.coupRisk = clamp(crisis.coupRisk + gain * (0.2 + operation.eliteContacts * 0.15));
+  }
+  if (detected) {
+    targetPolity.institutionalPolicy ||= {};
+    targetPolity.institutionalPolicy.repression = clamp((targetPolity.institutionalPolicy.repression || 0) + 0.015 + operation.exposure * 0.02);
+  }
+
+  return { funded: true, amount: spend, mode, gain, detected, detectionChance, operation };
+}
+
 function uprisingCandidate(exilePolity, targetPolity, regions) {
   const claims = exilePolity.continuity?.claims || {};
   return sovereignRegions(targetPolity.id, regions)
@@ -209,7 +275,7 @@ export function tickForeignPoliticalIntervention(polities, regions, currentTick,
         exilePolityId: exile.id,
         sponsorPolityId: host.id,
         amount: support.amount,
-        playerRelevant: options.playerPolityId === target.id || options.playerPolityId === exile.id || options.playerPolityId === host.id,
+        playerRelevant: options.playerPolityId === target.id,
         summary: `${target.name} has detected signs that ${host.name} is materially supporting the restoration network of ${exile.name}.`,
       });
     }
