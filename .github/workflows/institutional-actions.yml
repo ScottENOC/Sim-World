@@ -7,6 +7,7 @@ on:
     paths:
       - 'js/politics/institutionalPowers.js'
       - 'js/politics/institutionalActions.js'
+      - 'js/politics/governmentActionExecution.js'
       - 'tools/test-institutional-actions.mjs'
       - '.github/workflows/institutional-actions.yml'
 permissions:
@@ -20,6 +21,7 @@ jobs:
         with: {node-version: '22'}
       - run: |
           node --check js/politics/institutionalActions.js
+          node --check js/politics/governmentActionExecution.js
           node tools/test-institutional-actions.mjs
           node tools/test-institutional-powers.mjs
           node tools/test-popular-wellbeing.mjs
