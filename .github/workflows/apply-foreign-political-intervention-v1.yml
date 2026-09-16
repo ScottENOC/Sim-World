@@ -1,0 +1,34 @@
+name: Apply foreign political intervention v1
+on:
+  push:
+    branches: [feature/foreign-political-intervention-v1]
+    paths:
+      - 'tools/apply-foreign-political-intervention-v1.mjs'
+      - '.github/workflows/apply-foreign-political-intervention-v1.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: feature/foreign-political-intervention-v1 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Apply integration
+        run: node tools/apply-foreign-political-intervention-v1.mjs
+      - name: Validate focused files
+        run: |
+          node --check js/politics/foreignPoliticalIntervention.js
+          node --check js/ui/diplomaticServicePanel.js
+          node --check js/main.js
+          node tools/test-foreign-political-intervention.mjs
+          git diff --check
+      - name: Commit resulting source only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/main.js js/politics/foreignPoliticalIntervention.js js/ui/diplomaticServicePanel.js tools/test-foreign-political-intervention.mjs .github/workflows/institutional-actions.yml
+          git rm tools/apply-foreign-political-intervention-v1.mjs .github/workflows/apply-foreign-political-intervention-v1.yml
+          git commit -m "Wire governed foreign political intervention"
+          git push origin HEAD:feature/foreign-political-intervention-v1
