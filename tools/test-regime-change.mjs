@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { initialisePoliticalContinuity } from '../js/politics/continuityCore.js';
 import { ensureInstitutionalCrisisState } from '../js/politics/institutionalCrises.js';
-import { resolveRegimeChangeAttempt, regimeChangeAssessment } from '../js/politics/regimeChange.js';
+import { resolveRegimeChangeAttempt, regimeChangeAssessment, tickRegimeChange } from '../js/politics/regimeChange.js';
 
 function region(id, polityId, pressure = 0.75, mobilisation = 0.65, grievance = 0.78) {
   return {
@@ -97,6 +97,51 @@ function polity(id, capitalRegionId) {
   assert.equal(revolutionary.regimeConflict.incumbentPolityId, incumbent.id);
 }
 
+// If the revolutionary side takes the old capital, the surviving incumbent must
+// receive a valid new seat before the player/UI handoff tries to follow it.
+{
+  const incumbent = polity('capital-test', 'c1');
+  const regions = [
+    region('c1', incumbent.id, 0.95, 0.82, 0.90),
+    region('c2', incumbent.id, 0.84, 0.72, 0.84),
+    region('c3', incumbent.id, 0.35, 0.30, 0.45),
+    region('c4', incumbent.id, 0.30, 0.28, 0.42),
+  ];
+  regions[2].population = 14000;
+  const polities = [incumbent];
+  initialisePoliticalContinuity(polities, regions, 0);
+  const crisis = ensureInstitutionalCrisisState(incumbent);
+  crisis.revolutionRisk = 0.78;
+  crisis.pressure = 0.82;
+  const assessment = regimeChangeAssessment(incumbent, regions);
+  assert.ok(assessment.revolutionaryStrength < 0.72, 'fixture should remain a contested revolution');
+  const event = resolveRegimeChangeAttempt(incumbent, 'revolution', regions, polities, 220, assessment, () => 0.001);
+  assert.equal(event.type, 'revolution_civil_war_started');
+  assert.notEqual(incumbent.capitalRegionId, 'c1', 'incumbent capital should move when rebels seize it');
+  assert.equal(event.incumbentSeatRegionId, incumbent.capitalRegionId);
+  assert.equal(regions.find((item) => item.id === incumbent.capitalRegionId)?.governance?.sovereignPolityId, incumbent.id,
+    'replacement incumbent seat must remain under incumbent sovereignty');
+}
+
+// The live tick must no longer special-case the player out of regime change.
+// Zero RNG guarantees both the hazard trigger and the resulting attempt succeed.
+{
+  const incumbent = polity('player-state', 'p1');
+  const regions = [region('p1', incumbent.id), region('p2', incumbent.id)];
+  const polities = [incumbent];
+  initialisePoliticalContinuity(polities, regions, 0);
+  const crisis = ensureInstitutionalCrisisState(incumbent);
+  crisis.revolutionRisk = 0.96;
+  crisis.coupRisk = 0.92;
+  crisis.pressure = 0.95;
+  incumbent.stateAdministration = { court: { factionalism: 0.85 } };
+  const events = tickRegimeChange(polities, regions, 400, 365.2425, () => 0, { playerPolityId: incumbent.id });
+  assert.ok(events.some((event) => ['coup_succeeded', 'revolution_succeeded', 'revolution_civil_war_started'].includes(event.type)),
+    'player polity should resolve a real regime-change event rather than a warning-only placeholder');
+  assert.ok(events.every((event) => event.type !== 'player_regime_crisis'), 'warning-only player suppression should be gone');
+  assert.ok(events.some((event) => event.playerRelevant === true), 'player regime-change event should be marked player-relevant');
+}
+
 const wrapper = fs.readFileSync(new URL('../js/politics/continuity.js', import.meta.url), 'utf8');
 const wellbeingAt = wrapper.indexOf('tickPopularWellbeing(');
 const institutionsAt = wrapper.indexOf('tickInstitutionalPolitics(');
@@ -104,5 +149,14 @@ const regimeAt = wrapper.indexOf('tickRegimeChange(');
 const continuityAt = wrapper.indexOf('tickPoliticalContinuityCore(');
 assert.ok(wellbeingAt >= 0 && wellbeingAt < institutionsAt && institutionsAt < regimeAt && regimeAt < continuityAt,
   'live political pass should run wellbeing, institutions, regime change, then continuity');
+assert.equal(wrapper.includes('player_regime_crisis'), false, 'continuity wrapper should not suppress player overthrow behind warning events');
+
+const mainSource = fs.readFileSync(new URL('../js/main.js', import.meta.url), 'utf8');
+assert.ok(mainSource.includes("politicalEvent.type === 'coup_succeeded' || politicalEvent.type === 'revolution_succeeded'"),
+  'main loop should hand a displaced player government to its exile seat');
+assert.ok(mainSource.includes("politicalEvent.type === 'revolution_civil_war_started'"),
+  'main loop should hand a player incumbent to a surviving civil-war seat');
+assert.ok(mainSource.includes('playerRegionId = nextPlayerRegionId;') && mainSource.includes('fogOfWar.setPlayerRegion(nextPlayerRegionId);'),
+  'player handoff should update both the private region pointer and fog-of-war origin');
 
 console.log('regime change regressions passed');
