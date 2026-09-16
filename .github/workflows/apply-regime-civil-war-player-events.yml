@@ -1,0 +1,27 @@
+name: Apply regime civil war player event patch
+on:
+  push:
+    branches: [feature/regime-civil-war-v1]
+    paths:
+      - 'tools/apply-regime-civil-war-player-events.mjs'
+      - '.github/workflows/apply-regime-civil-war-player-events.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/regime-civil-war-v1
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node tools/apply-regime-civil-war-player-events.mjs
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm tools/apply-regime-civil-war-player-events.mjs .github/workflows/apply-regime-civil-war-player-events.yml
+          git add js/main.js
+          git diff --cached --check
+          git commit -m "Keep player view with surviving civil war government"
+          git push origin HEAD:feature/regime-civil-war-v1
