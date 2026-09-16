@@ -1,0 +1,34 @@
+import { launchCampaign } from '../military/campaigns.js?v=20260916-institution-actions1';
+import { setMilitaryPolicy } from '../military/policies.js?v=20260916-institution-actions1';
+import { polityById } from './polities.js?v=20260916-institution-actions1';
+import { chooseNpcInstitutionalApprovals, requestExecutiveAction } from './institutionalActions.js?v=20260916-institution-actions1';
+
+function governingPolity(region, polities = []) {
+  const id = region?.governance?.sovereignPolityId || region?.polityId;
+  return polityById(polities, id);
+}
+
+function authorisation(polity, action, options = {}) {
+  if (!polity) return { allowed: false, reason: 'no_governing_polity', action };
+  if (options.npc) {
+    const decision = chooseNpcInstitutionalApprovals(polity, action, options.context || {}, options.rng || Math.random);
+    return { allowed: decision.approved, ...decision.result, institutionalDecision: decision };
+  }
+  return requestExecutiveAction(polity, action, options.approvals || []);
+}
+
+export function executeGovernmentMilitaryPolicy(region, key, value, polities, options = {}) {
+  const polity = governingPolity(region, polities);
+  const approval = authorisation(polity, 'change_military_policy', options);
+  if (!approval.allowed) return { changed: false, authorisation: approval };
+  const changed = setMilitaryPolicy(region, key, value);
+  return { changed, authorisation: approval };
+}
+
+export function executeGovernmentCampaign(attacker, defender, objective, requestedPersonnel, currentTick, options = {}) {
+  const polity = governingPolity(attacker, options.polities || []);
+  const approval = authorisation(polity, 'launch_offensive_war', options);
+  if (!approval.allowed) return { campaign: null, authorisation: approval };
+  const campaign = launchCampaign(attacker, defender, objective, requestedPersonnel, currentTick, options);
+  return { campaign, authorisation: approval };
+}
