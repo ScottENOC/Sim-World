@@ -1,7 +1,7 @@
 name: Institutional actions
 on:
   push:
-    branches: [feature/institutional-action-constraints, feature/wire-institutional-actions, 'feature/institutional-player-ui-*', 'feature/institutional-region-controls-*', 'feature/use-of-force-spectrum-*', 'feature/regime-change-*', 'feature/regime-civil-war-*']
+    branches: [feature/institutional-action-constraints, feature/wire-institutional-actions, 'feature/institutional-player-ui-*', 'feature/institutional-region-controls-*', 'feature/use-of-force-spectrum-*', 'feature/regime-change-*', 'feature/regime-civil-war-*', 'feature/foreign-political-intervention-*']
   pull_request:
     branches: [main]
     paths:
@@ -14,6 +14,7 @@ on:
       - 'js/politics/useOfForce.js'
       - 'js/politics/regimeChange.js'
       - 'js/politics/regimeCivilWar.js'
+      - 'js/politics/foreignPoliticalIntervention.js'
       - 'js/politics/continuity.js'
       - 'js/politics/continuityCore.js'
       - 'js/military/raiding.js'
@@ -37,6 +38,7 @@ on:
       - 'tools/test-use-of-force.mjs'
       - 'tools/test-regime-change.mjs'
       - 'tools/test-regime-civil-war.mjs'
+      - 'tools/test-foreign-political-intervention.mjs'
       - 'tools/test-joint-operations-command.mjs'
       - 'tools/test-diplomatic-service-ui.mjs'
       - '.github/workflows/institutional-actions.yml'
@@ -58,6 +60,7 @@ jobs:
           node --check js/politics/useOfForce.js
           node --check js/politics/regimeChange.js
           node --check js/politics/regimeCivilWar.js
+          node --check js/politics/foreignPoliticalIntervention.js
           node --check js/politics/continuity.js
           node --check js/politics/continuityCore.js
           node --check js/military/raiding.js
@@ -80,6 +83,7 @@ jobs:
           node tools/test-use-of-force.mjs
           node tools/test-regime-change.mjs
           node tools/test-regime-civil-war.mjs
+          node tools/test-foreign-political-intervention.mjs
           node tools/test-joint-operations-command.mjs
           node tools/test-diplomatic-service-ui.mjs
           node tools/test-institutional-powers.mjs
