@@ -1,0 +1,34 @@
+name: Apply enterprise finance externalities v1
+on:
+  push:
+    branches: [feature/enterprise-finance-externalities-v1]
+    paths:
+      - 'tools/apply-enterprise-finance-externalities-v1.py'
+      - '.github/workflows/apply-enterprise-finance-externalities-v1.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: feature/enterprise-finance-externalities-v1 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: python3 tools/apply-enterprise-finance-externalities-v1.py
+      - run: |
+          node --check js/economy/enterpriseBehaviour.js
+          node --check js/economy/economicOwnership.js
+          node --check js/economy/corporateInfrastructure.js
+          node --check js/economy/corporateCapital.js
+          node tools/test-enterprise-finance-externalities.mjs
+          node tools/test-economic-ownership.mjs
+          node tools/test-public-private-economy-integration.mjs
+          git diff --check
+      - name: Commit validated source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/economy/enterpriseBehaviour.js js/economy/economicOwnership.js js/economy/corporateInfrastructure.js js/economy/corporateCapital.js tools/test-enterprise-finance-externalities.mjs
+          git commit -m "Model enterprise debt and externalised operating costs"
+          git push origin HEAD:feature/enterprise-finance-externalities-v1
