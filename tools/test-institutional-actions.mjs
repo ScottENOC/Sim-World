@@ -46,4 +46,12 @@ const approvedPolicy = executeGovernmentMilitaryPolicy(governedRegion, 'navalPri
 assert.equal(approvedPolicy.changed, true);
 assert.equal(governedRegion.militaryPolicy.navalPriority, 'war');
 
+const npcPolicy = { id: 'npc-policy' };
+establishParliament(npcPolicy, { strength: 0.8, independence: 0.8, representation: 0.8 });
+requireInstitutionalConsent(npcPolicy, 'legislation', 'parliament');
+const npcRegion = { id: 'npc-capital', polityId: 'npc-policy', governance: { sovereignPolityId: 'npc-policy' } };
+const refusedNpcPolicy = executeGovernmentMilitaryPolicy(npcRegion, 'navalPriority', 'war', [npcPolicy], { npc: true, rng: () => 0.99, context: { publicSupport: 0.1 }, currentTick: 50 });
+assert.equal(refusedNpcPolicy.changed, false);
+assert.ok(npcPolicy.institutionalCrisis.pressure > 0, 'NPC refusal should feed institutional crisis pressure');
+
 console.log('institutional action regressions passed');
