@@ -15,6 +15,22 @@ export const ECONOMIC_SECTORS = Object.freeze([
   'infrastructure',
 ]);
 
+export const INFRASTRUCTURE_OWNERSHIP_SECTORS = Object.freeze({
+  port: 'shipping',
+  canal: 'infrastructure',
+  mine: 'mining',
+  steelworks: 'manufacture',
+  factory: 'manufacture',
+  telegraph: 'telecommunications',
+  power_generation: 'power_generation',
+  power_grid: 'power_grid',
+  water_supply: 'water',
+});
+
+export function ownershipSectorForInfrastructureType(type) {
+  return INFRASTRUCTURE_OWNERSHIP_SECTORS[type] || 'infrastructure';
+}
+
 export const SECTOR_ACCESS = Object.freeze({
   OPEN: 'open',
   DOMESTIC_ONLY: 'domestic_only',
@@ -119,6 +135,10 @@ export function createStateEnterprise(polity, {
   };
   state.stateEnterprises.push(enterprise);
   return { created: true, enterprise };
+}
+
+export function stateEnterpriseById(polity, enterpriseId) {
+  return ensureEconomicOwnershipPolicy(polity).stateEnterprises.find((candidate) => candidate.id === enterpriseId) || null;
 }
 
 export function fundStateEnterprise(polity, enterpriseId, amount) {
