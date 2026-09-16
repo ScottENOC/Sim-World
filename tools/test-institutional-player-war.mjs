@@ -20,12 +20,14 @@ const options = { polities: [polity], regions: [attacker, defender], campaigns: 
 
 const refused = chooseNpcInstitutionalApprovals(polity, 'launch_offensive_war', { publicSupport: 0.1, threat: 0, hostility: 0, fiscalStress: 0.9 }, () => 0.99);
 assert.equal(refused.approved, false, 'parliament can refuse a discretionary offensive war');
-const blocked = executeGovernmentCampaign(attacker, defender, 'punitive', 300, 1, { ...options, approvals: refused.approvals, registerRefusal: true });
-assert.equal(blocked.campaign, null, 'campaign cannot bypass missing parliamentary consent');
+const blocked = executeGovernmentCampaign(attacker, defender, 'subjugation', 300, 1, { ...options, approvals: refused.approvals, registerRefusal: true });
+assert.equal(blocked.useOfForce, 'formal_war');
+assert.equal(blocked.campaign, null, 'formal campaign cannot bypass missing parliamentary consent');
 
 const approved = chooseNpcInstitutionalApprovals(polity, 'launch_offensive_war', { publicSupport: 0.95, threat: 1, hostility: 1, fiscalStress: 0 }, () => 0.01);
 assert.equal(approved.approved, true, 'parliament can approve an offensive when support and security context are strong');
-const launched = executeGovernmentCampaign(attacker, defender, 'punitive', 300, 2, { ...options, approvals: approved.approvals });
-assert.ok(launched.campaign, 'approved campaign should launch through governed execution');
+const launched = executeGovernmentCampaign(attacker, defender, 'subjugation', 300, 2, { ...options, approvals: approved.approvals });
+assert.equal(launched.useOfForce, 'formal_war');
+assert.ok(launched.campaign, 'approved formal campaign should launch through governed execution');
 
 console.log('institutional player war regression passed');
