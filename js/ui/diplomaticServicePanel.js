@@ -1,5 +1,6 @@
 import { DIPLOMAT_AUTHORITY, attemptBribeDiplomat, detainDiplomat, diplomatPublicProfile, dispatchDiplomat, diplomatsFor, expelDiplomat, foreignGovernmentTrust, recallDiplomat, releaseDiplomat, setDiplomatAuthority } from '../diplomacy/diplomats.js?v=20260909-agent-trust1';
 import { authoriseRuntimeGovernmentAction } from '../politics/institutionalRuntimeAuthority.js?v=20260916-institution-diplomacy1';
+import { fundPoliticalDestabilisation, fundRestorationOperation, restorationTarget } from '../politics/foreignPoliticalIntervention.js?v=20260917-intervention1';
 
 const pct = (v) => `${Math.round(Math.max(0, Math.min(1, Number(v) || 0)) * 100)}%`;
 const actorId = (r) => r?.governance?.sovereignPolityId || r?.controllingActorId || r?.id;
@@ -52,6 +53,37 @@ function ownCard(d, regions) {
     ${posting}</div>`;
 }
 
+function interventionTargets(home, regions, options = {}) {
+  const polities = options.polities || [];
+  const sponsorId = actorId(home);
+  const sponsor = polities.find((candidate) => candidate.id === sponsorId) || null;
+  const visible = new Set(options.visiblePolityIds || []);
+  const exiles = polities
+    .filter((candidate) => candidate.continuity?.status === 'exile')
+    .map((exile) => ({ exile, target: restorationTarget(exile, polities) }))
+    .filter(({ exile, target }) => target && target.id !== sponsorId &&
+      (exile.continuity?.hostPolityId === sponsorId || (exile.continuity?.exileSupport?.[sponsorId] || 0) >= 0.1));
+  const destabilise = polities.filter((candidate) => candidate.id !== sponsorId && candidate.continuity?.status !== 'exile' &&
+    (!visible.size || visible.has(candidate.id)));
+  return { sponsor, exiles, destabilise };
+}
+
+function interventionHtml(view) {
+  if (!view.sponsor) return '';
+  const exileOptions = view.exiles.map(({ exile, target }) =>
+    `<option value="${esc(exile.id)}">${esc(exile.name)} → ${esc(target.name)}</option>`).join('');
+  const targetOptions = view.destabilise.map((target) => `<option value="${esc(target.id)}">${esc(target.name)}</option>`).join('');
+  const exileControls = exileOptions
+    ? `<label class="control-row">Back exile claimant<select data-covert-exile>${exileOptions}</select></label><label class="control-row">Funding <input data-covert-exile-amount type="number" min="1" step="5" value="10"></label><button data-covert-restoration>Fund restoration network</button>`
+    : '<div class="raid-status">No exile claimant is currently hosted by or meaningfully connected to your government.</div>';
+  const destabiliseControls = targetOptions
+    ? `<label class="control-row">Destabilise government<select data-covert-target>${targetOptions}</select></label><label class="control-row">Operation<select data-covert-mode><option value="revolution">Support revolutionary underground</option><option value="coup">Cultivate coup network</option></select></label><label class="control-row">Funding <input data-covert-target-amount type="number" min="1" step="5" value="10"></label><button data-covert-destabilise>Authorise covert support</button>`
+    : '<div class="raid-status">No known foreign government is currently available as a covert-action target.</div>';
+  return `<div class="diplomatic-covert"><strong>Covert political intervention</strong>
+    <div class="raid-status">These are state intelligence operations, not omnipotent commands. Money builds networks over time; counter-intelligence can expose them, and coups or revolutions still depend on conditions inside the target state.</div>
+    ${exileControls}${destabiliseControls}<div class="raid-status" data-covert-result></div></div>`;
+}
+
 function foreignCard(d) {
   const detained = d.status === 'detained';
   return `<div class="raid-status diplomatic-agent-card" data-foreign-diplomat="${esc(d.id)}"><strong>${esc(d.name)}</strong> of ${esc(d.homeName)} · ${esc(d.status)}<br>
@@ -65,14 +97,62 @@ function foreignCard(d) {
 export function renderDiplomaticServicePanel(container, home, regions, currentTick, options = {}) {
   if (!container || !home) return null;
   const view = diplomaticServiceView(home, regions);
+  const covert = interventionTargets(home, regions, options);
   const section = document.createElement('div');
   section.className = 'raid-section diplomatic-service-panel';
   section.innerHTML = `<strong>Diplomatic service</strong><div class="raid-status">Envoys are real agents. Reputation and suspicion are known; hidden compromise is not.</div>
     <div class="raid-status" data-dip-government-result></div>
+    ${interventionHtml(covert)}
     <div class="diplomatic-own"><strong>Your envoys</strong>${view.own.map((d)=>ownCard({...d,homeRegionId:home.id},regions)).join('') || '<div class="raid-status">No envoys available.</div>'}</div>
     <div class="diplomatic-foreign"><strong>Foreign envoys at your court</strong>${view.foreign.map(foreignCard).join('') || '<div class="raid-status">No resident foreign envoys.</div>'}</div>`;
   container.appendChild(section);
   const rerender = () => { section.remove(); renderDiplomaticServicePanel(container, home, regions, currentTick, options); };
+  const authoriseCovertAction = (targetPolityId) => authoriseRuntimeGovernmentAction(home, 'order_intelligence_operation', {
+    polities: options.polities,
+    approvals: options.intelligenceApprovals,
+    context: { evidence: 0.25, legalBasis: 0.25, emergency: 0, foreignActorId: targetPolityId },
+    rng: options.institutionalRng,
+    currentTick,
+    registerRefusal: options.registerInstitutionalRefusal !== false,
+  });
+  section.querySelector('[data-covert-restoration]')?.addEventListener('click', () => {
+    const exileId = section.querySelector('[data-covert-exile]')?.value;
+    const exile = (options.polities || []).find((candidate) => candidate.id === exileId);
+    const target = exile ? restorationTarget(exile, options.polities || []) : null;
+    const out = section.querySelector('[data-covert-result]');
+    if (!covert.sponsor || !exile || !target) return;
+    const authorisation = authoriseCovertAction(target.id);
+    if (!authorisation.allowed) {
+      if (out) out.textContent = 'The required institution refused authority for this covert operation.';
+      options.onAction?.({ funded: false, reason: 'institutional_authorisation_refused', authorisation });
+      return;
+    }
+    const amount = Number(section.querySelector('[data-covert-exile-amount]')?.value || 0);
+    const result = fundRestorationOperation(covert.sponsor, exile, target, regions, currentTick, amount, options.operationRng || Math.random);
+    if (out) out.textContent = result.funded
+      ? `${result.amount.toFixed(1)} treasury units committed. The network's true penetration and whether the target noticed it remain uncertain.`
+      : `Operation could not be funded (${String(result.reason).replaceAll('_', ' ')}).`;
+    options.onAction?.({ ...result, detected: undefined, authorisation });
+  });
+  section.querySelector('[data-covert-destabilise]')?.addEventListener('click', () => {
+    const targetId = section.querySelector('[data-covert-target]')?.value;
+    const target = (options.polities || []).find((candidate) => candidate.id === targetId);
+    const mode = section.querySelector('[data-covert-mode]')?.value || 'revolution';
+    const out = section.querySelector('[data-covert-result]');
+    if (!covert.sponsor || !target) return;
+    const authorisation = authoriseCovertAction(target.id);
+    if (!authorisation.allowed) {
+      if (out) out.textContent = 'The required institution refused authority for this covert operation.';
+      options.onAction?.({ funded: false, reason: 'institutional_authorisation_refused', authorisation });
+      return;
+    }
+    const amount = Number(section.querySelector('[data-covert-target-amount]')?.value || 0);
+    const result = fundPoliticalDestabilisation(covert.sponsor, target, regions, currentTick, mode, amount, options.operationRng || Math.random);
+    if (out) out.textContent = result.funded
+      ? `${result.amount.toFixed(1)} treasury units committed to ${mode === 'coup' ? 'elite/coup contacts' : 'an underground revolutionary network'}. Effectiveness and detection remain intelligence uncertainties.`
+      : `Operation could not be funded (${String(result.reason).replaceAll('_', ' ')}).`;
+    options.onAction?.({ ...result, detected: undefined, authorisation });
+  });
   section.querySelectorAll('[data-dip-authority]').forEach((el)=>el.addEventListener('change',()=>{ const commitment=section.querySelector(`[data-dip-commitment="${CSS.escape(el.dataset.dipAuthority)}"]`); setDiplomatAuthority(home,el.dataset.dipAuthority,el.value,{maxMilitaryCommitmentFraction:Number(commitment?.value||20)/100}); rerender(); }));
   section.querySelectorAll('[data-dip-commitment]').forEach((el)=>el.addEventListener('change',()=>{ const d=diplomatsFor(home).find(x=>x.id===el.dataset.dipCommitment); if(d) setDiplomatAuthority(home,d.id,d.authority,{maxMilitaryCommitmentFraction:Number(el.value)/100}); rerender(); }));
   section.querySelectorAll('[data-dip-dispatch]').forEach((b)=>b.addEventListener('click',()=>{ const select=section.querySelector(`[data-dip-target="${CSS.escape(b.dataset.dipDispatch)}"]`); const target=regions.find(r=>r.id===select?.value); if(target) dispatchDiplomat(home,target,regions,b.dataset.dipDispatch,currentTick); rerender(); }));
