@@ -1,7 +1,7 @@
 name: Institutional actions
 on:
   push:
-    branches: [feature/institutional-action-constraints, feature/wire-institutional-actions, 'feature/institutional-player-ui-*', 'feature/institutional-region-controls-*', 'feature/use-of-force-spectrum-*', 'feature/regime-change-*']
+    branches: [feature/institutional-action-constraints, feature/wire-institutional-actions, 'feature/institutional-player-ui-*', 'feature/institutional-region-controls-*', 'feature/use-of-force-spectrum-*', 'feature/regime-change-*', 'feature/regime-civil-war-*']
   pull_request:
     branches: [main]
     paths:
@@ -13,9 +13,12 @@ on:
       - 'js/politics/institutionalIntegration.js'
       - 'js/politics/useOfForce.js'
       - 'js/politics/regimeChange.js'
+      - 'js/politics/regimeCivilWar.js'
       - 'js/politics/continuity.js'
       - 'js/politics/continuityCore.js'
       - 'js/military/raiding.js'
+      - 'js/military/campaigns.js'
+      - 'js/main.js'
       - 'js/diplomacy/relations.js'
       - 'js/diplomacy/couriers.js'
       - 'js/ui/diplomaticServicePanel.js'
@@ -33,6 +36,7 @@ on:
       - 'tools/test-institutional-player-war.mjs'
       - 'tools/test-use-of-force.mjs'
       - 'tools/test-regime-change.mjs'
+      - 'tools/test-regime-civil-war.mjs'
       - 'tools/test-joint-operations-command.mjs'
       - 'tools/test-diplomatic-service-ui.mjs'
       - '.github/workflows/institutional-actions.yml'
@@ -53,9 +57,12 @@ jobs:
           node --check js/politics/institutionalIntegration.js
           node --check js/politics/useOfForce.js
           node --check js/politics/regimeChange.js
+          node --check js/politics/regimeCivilWar.js
           node --check js/politics/continuity.js
           node --check js/politics/continuityCore.js
           node --check js/military/raiding.js
+          node --check js/military/campaigns.js
+          node --check js/main.js
           node --check js/diplomacy/relations.js
           node --check js/diplomacy/couriers.js
           node --check js/ui/diplomaticServicePanel.js
@@ -72,6 +79,7 @@ jobs:
           node tools/test-institutional-player-war.mjs
           node tools/test-use-of-force.mjs
           node tools/test-regime-change.mjs
+          node tools/test-regime-civil-war.mjs
           node tools/test-joint-operations-command.mjs
           node tools/test-diplomatic-service-ui.mjs
           node tools/test-institutional-powers.mjs
