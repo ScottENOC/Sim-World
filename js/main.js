@@ -413,6 +413,29 @@ async function main() {
     const languagePolicyEvents = profiler.measure('Language policy', () => tickRegionalLanguagePolicies(regions, polities, calendarWeek, time.elapsedDays, { playerPolityId: activePlayerPolityId }));
     const polityEvents = profiler.measure('Polities', () => tickPolities(polities, regions, calendarWeek, time.elapsedDays));
     const continuityEvents = profiler.measure('Political continuity', () => tickPoliticalContinuity(polities, regions, time.elapsedDays / 365.2425, calendarWeek, { playerPolityId: activePlayerPolityId }));
+    // A successful player coup/revolution keeps the displaced government as the
+    // player's political actor. Move the private player-region pointer to its
+    // exile host, or to the surviving incumbent seat when a revolution splits
+    // the country, before any later UI/AI phase reads the old capital.
+    for (const politicalEvent of continuityEvents) {
+      if (politicalEvent.polityId !== activePlayerPolityId) continue;
+      let nextPlayerRegionId = null;
+      if (politicalEvent.type === 'coup_succeeded' || politicalEvent.type === 'revolution_succeeded') {
+        nextPlayerRegionId = politicalEvent.hostRegionId || polityById(polities, activePlayerPolityId)?.continuity?.seatRegionId || null;
+      } else if (politicalEvent.type === 'revolution_civil_war_started') {
+        const currentPlayerRegion = regionsById.get(playerRegionId);
+        if (currentPlayerRegion?.governance?.sovereignPolityId !== activePlayerPolityId) {
+          nextPlayerRegionId = politicalEvent.incumbentSeatRegionId || polityById(polities, activePlayerPolityId)?.continuity?.seatRegionId || null;
+        }
+      }
+      if (nextPlayerRegionId && regionsById.has(nextPlayerRegionId)) {
+        playerRegionId = nextPlayerRegionId;
+        selectedRegion = regionsById.get(nextPlayerRegionId);
+        map.selectedId = nextPlayerRegionId;
+        fogOfWar.setPlayerRegion(nextPlayerRegionId);
+        map.refreshLayer();
+      }
+    }
     const medievalPoliticalEvents = profiler.measure('Medieval politics', () => tickMedievalInstitutions(polities, regions, calendarWeek, time.elapsedDays, { playerPolityId: activePlayerPolityId }));
     const medievalStateEvents = profiler.measure('Medieval state systems', () => tickMedievalStateSystems(polities, regions, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));
     profiler.measure('Medieval commerce', () => tickMedievalCommercialInstitutions(regions, polities, time.elapsedDays));
