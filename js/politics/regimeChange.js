@@ -269,22 +269,6 @@ export function tickRegimeChange(polities, regions, currentTick, elapsedDays = 3
       : 0;
     if (revolutionHazard <= 0 && coupHazard <= 0) continue;
 
-    // The direct resolver is symmetric and fully supports the player polity.
-    // Automatic live overthrow of the player is deferred until main.js has an
-    // explicit handoff that can move the player's private current-region pointer
-    // into exile/civil-war territory. NPCs can safely resolve immediately now.
-    if (polity.id === options.playerPolityId) {
-      if (Math.max(revolutionHazard, coupHazard) > 0) {
-        events.push({
-          type: 'player_regime_crisis',
-          polityId: polity.id,
-          assessment,
-          summary: `Political crisis is acute: revolution risk ${Math.round(assessment.revolutionRisk * 100)}%, coup risk ${Math.round(assessment.coupRisk * 100)}%. A player-facing regime-change handoff is required before automatic overthrow is enabled.`,
-          playerRelevant: true,
-        });
-      }
-      continue;
-    }
 
     const revolutionFirst = revolutionHazard >= coupHazard;
     const primaryKind = revolutionFirst ? 'revolution' : 'coup';
@@ -292,7 +276,7 @@ export function tickRegimeChange(polities, regions, currentTick, elapsedDays = 3
     if (rng() >= primaryHazard) continue;
     const event = resolveRegimeChangeAttempt(polity, primaryKind, regions, polities, currentTick, assessment, rng);
     if (!event) continue;
-    event.playerRelevant = false;
+    event.playerRelevant = polity.id === options.playerPolityId;
     events.push(event);
   }
   return events;
