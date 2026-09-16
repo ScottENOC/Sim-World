@@ -1,9 +1,10 @@
 import { toolEfficiencyMultiplier } from '../economy/tools.js?v=20260904-weather1';
 import { hasDirectContact, learnAbout } from '../core/knowledge.js?v=20260904-weather1';
+import { calendarWeekIndex } from '../core/simTime.js?v=20260905-time2';
 import { centroidDistanceKm } from '../world/distance.js?v=20260904-weather1';
 import { advancedNavyShare, navyTransportCapacity } from './army.js?v=20260905-infra1';
 import { militaryReadiness } from '../economy/stateFinance.js?v=20260904-weather1';
-import { horseLandSpeedMultiplier, horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-weather1';
+import { horseLandSpeedMultiplier, horseMilitaryMultiplier } from '../economy/horses.js?v=20260904-policy1';
 import { localPrice } from '../economy/prices.js?v=20260904-weather1';
 import { changeAttitude } from '../diplomacy/relations.js?v=20260904-save1';
 import { hillFortDefenceMultiplier, overlandInfrastructureMultiplier, settlementDefenceMultiplier } from '../economy/construction.js?v=20260905-projects1';
@@ -12,6 +13,7 @@ import { armyCohesionMultiplier, navalMissionProfile, postureProfile } from './p
 import { maritimeSkillMultiplier, MARITIME_SKILLS } from '../technology/seamanship.js?v=20260906-maritime1';
 import { formationCombatMultiplier } from './formations.js?v=20260912-medieval1';
 import { firearmCombatProfile } from './firearms.js?v=20260912-gunpowder1';
+import { authoriseUseOfForce, classifyRaidUseOfForce } from '../politics/useOfForce.js?v=20260916-force1';
 
 const LAND_SPEED_KM_PER_WEEK = 120;
 const SEA_SPEED_KM_PER_WEEK = 200;
@@ -21,6 +23,16 @@ const STEAL_BASE_FRACTION = 0.3;
 const STABILITY_LOSS_BASE = 0.15;
 const RAID_KNOWLEDGE_SUCCESS = 0.35;
 const RAID_KNOWLEDGE_REPELLED = 0.75;
+
+function actorId(region) {
+  return region?.governance?.sovereignPolityId || region?.controllingActorId || region?.id || null;
+}
+
+function runtimeCalendarWeek(fallbackTick) {
+  const state = globalThis?.window?.__worldsim || globalThis?.__worldsim || null;
+  const elapsedDays = Number(state?.clock?.elapsedDays);
+  return Number.isFinite(elapsedDays) ? calendarWeekIndex(elapsedDays) : fallbackTick;
+}
 
 export function maxSeaRaidersAvailable(region) {
   return Math.floor(navyTransportCapacity(region) * navalMissionProfile(region).war);
@@ -53,12 +65,34 @@ export function syncNextRaidId(raids = []) {
   nextRaidId = Math.max(1, ...raids.map((raid) => (Number(raid.id) || 0) + 1));
 }
 
+function matchingPreauthorisation(attacker, defender, currentTick, kind) {
+  const pending = attacker?._pendingUseOfForceAuthorisation;
+  if (!pending) return null;
+  const matches = pending.targetRegionId === defender?.id && pending.currentTick === currentTick && pending.kind === kind;
+  delete attacker._pendingUseOfForceAuthorisation;
+  return matches ? pending.result : null;
+}
+
 export function launchRaid(attacker, defender, requestedPersonnel, viaSea, currentTick, options = {}) {
   const reach = canRaid(attacker, defender, options.regions, options.polities);
   if (!reach.possible || reach.viaSea !== viaSea) return null;
+  const historicalWeek = runtimeCalendarWeek(currentTick);
+  const useOfForce = classifyRaidUseOfForce(attacker, defender, historicalWeek);
+  const preauthorised = matchingPreauthorisation(attacker, defender, historicalWeek, useOfForce);
+  const authorisation = preauthorised || authoriseUseOfForce(attacker, defender, useOfForce, {
+    polities: options.polities,
+    approvals: options.institutionalApprovals,
+    rng: options.institutionalRng || options.rng,
+    currentTick: historicalWeek,
+    context: options.institutionalContext || {},
+    registerRefusal: options.registerInstitutionalRefusal !== false,
+  });
+  attacker.lastUseOfForceAuthorisation = { kind: useOfForce, targetRegionId: defender.id, currentTick: historicalWeek, ...authorisation };
+  if (!authorisation.allowed) return null;
+
   let homePersonnel = Math.floor(Math.min(requestedPersonnel, attacker.army.personnel));
   const contingents = viaSea ? [] : (options.contingents || []).filter((contingent) => contingent.personnel > 0);
-  let contingentPersonnel = contingents.reduce((sum, contingent) => sum + contingent.personnel, 0);
+  const contingentPersonnel = contingents.reduce((sum, contingent) => sum + contingent.personnel, 0);
   if (viaSea) homePersonnel = Math.min(homePersonnel, maxSeaRaidersAvailable(attacker));
   const personnel = homePersonnel + contingentPersonnel;
   if (personnel <= 0) return null;
@@ -67,11 +101,14 @@ export function launchRaid(attacker, defender, requestedPersonnel, viaSea, curre
   attacker.army.away = (attacker.army.away || 0) + homePersonnel;
   if (attacker.raidEconomy) {
     attacker.raidEconomy.raidsLaunched += 1;
-    attacker.raidEconomy.lastRaidTick = currentTick;
+    attacker.raidEconomy.lastRaidTick = historicalWeek;
   }
   return { id: nextRaidId++, attackerId: attacker.id, defenderId: defender.id, personnel, homePersonnel,
     contingents, viaSea, stagingRegionId: reach.stagingRegionId || attacker.id,
-    departTick: currentTick, arriveTick: currentTick + travelWeeks, returnTick: null,
+    departTick: historicalWeek, arriveTick: historicalWeek + travelWeeks, returnTick: null,
+    useOfForce, constitutionalAuthorisation: authorisation.governed ? {
+      action: authorisation.action, power: authorisation.power, approvals: authorisation.approvals || [],
+    } : null,
     resolved: false, completed: false, outcome: null };
 }
 
@@ -85,9 +122,9 @@ export function tickRaids(raids, regionsById, currentTick, toolTypes, rng) {
       const won = outcome.attackerRatio > 0.5;
       if (!defender.militaryThreat) defender.militaryThreat = { lastRaidedTick: null, recentRaids: 0 };
       defender.militaryThreat.lastRaidedTick = currentTick;
+      defender.militaryThreat.lastRaiderId = attacker.id;
+      defender.militaryThreat.lastRaiderActorId = actorId(attacker);
       defender.militaryThreat.recentRaids = Math.min(10, (defender.militaryThreat.recentRaids || 0) + 1);
-      // The victim remembers even an unsuccessful raid. The attacker also
-      // becomes somewhat more contemptuous, particularly after a victory.
       changeAttitude(defender, attacker.id, won ? -0.45 : -0.32, 'raided', currentTick);
       changeAttitude(attacker, defender.id, won ? -0.1 : -0.04, 'raid', currentTick);
       if (attacker.raidEconomy) {
@@ -97,9 +134,6 @@ export function tickRaids(raids, regionsById, currentTick, toolTypes, rng) {
       }
       const knowledgeGained = won ? RAID_KNOWLEDGE_SUCCESS : RAID_KNOWLEDGE_REPELLED;
       learnAbout(defender, attacker, knowledgeGained, currentTick);
-      // Captives, deserters and observed equipment can carry techniques in
-      // either direction. As with refugees this creates exposure, not an
-      // immediate technology unlock.
       if (defender.unlockedTechIds.has('iron_smelting')) {
         attacker.ironWorkingExposure = Math.min(10,
           (attacker.ironWorkingExposure || 0) + 0.01 * Math.max(0.05, defender.ironWorkingReadiness || 0));
@@ -112,9 +146,6 @@ export function tickRaids(raids, regionsById, currentTick, toolTypes, rng) {
       outcome.defenderLearnedOrigin = true;
       raid.outcome = outcome;
       raid.resolved = true;
-      // Return travel starts at the actual arrival/combat week, not the next
-      // monthly scheduler wake-up. This lets short raids complete inside one
-      // monthly world step.
       raid.returnTick = raid.arriveTick + computeTravelWeeks(attacker, defender, raid.viaSea);
       events.push({ type: 'raid_resolved', raid, attackerName: attacker.name, defenderName: defender.name, outcome });
     }

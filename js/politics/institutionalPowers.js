@@ -4,6 +4,7 @@ export const GOVERNMENT_POWERS = Object.freeze({
   legislation: { label: 'Lawmaking', defaultHolder: 'executive' },
   taxation: { label: 'Taxation', defaultHolder: 'executive' },
   spending: { label: 'Government spending', defaultHolder: 'executive' },
+  limitedForce: { label: 'Limited military force', defaultHolder: 'executive' },
   offensiveWar: { label: 'Offensive war', defaultHolder: 'executive' },
   treaties: { label: 'Treaties', defaultHolder: 'executive' },
   appointMinisters: { label: 'Ministerial appointments', defaultHolder: 'executive' },

@@ -137,14 +137,12 @@
   <script type="module" src="js/ui/institutionalCouncilUi.js?v=20260916-institution-ui1"></script>
   <script type="module" src="js/ui/institutionalCouncilSpendingUi.js?v=20260916-institution-ui2"></script>
   <script type="module" src="js/ui/institutionalRegionControlsUi.js?v=20260916-region-controls1"></script>
+  <script type="module" src="js/ui/useOfForceUi.js?v=20260916-force1"></script>
   <script type="module" src="js/ui/currencyUi.js?v=20260912-forex1"></script>
   <script type="module" src="js/ui/nonStateOrganisationsUi.js?v=20260912-pmc1"></script>
   <script type="module" src="js/ui/medievalSystemsUi.js?v=20260912-medieval2"></script>
   <script type="module" src="js/ui/fleetUi.js?v=20260908-fleets1"></script>
   <script>
-    // The Steward's existing construction control uses builder count to set a
-    // monumental project's physical scope when it is commissioned. Keep that
-    // distinction visible without changing the active-project workforce control.
     (() => {
       const monumentalIds = new Set(['monumental_tomb', 'great_temple', 'ceremonial_complex', 'monumental_statue']);
       const defaultWorkers = { monumental_tomb: 420, great_temple: 380, ceremonial_complex: 300, monumental_statue: 240 };

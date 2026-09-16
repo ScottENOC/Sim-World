@@ -1,10 +1,10 @@
 import { polityById } from './polities.js?v=20260916-institution-integration1';
-import { ensureInstitutionalGovernment, institutionalPoliticalVoice, requireInstitutionalConsent } from './institutionalPowers.js?v=20260916-institution-integration1';
+import { ensureInstitutionalGovernment, institutionalPoliticalVoice, requireInstitutionalConsent } from './institutionalPowers.js?v=20260916-force1';
 import { ensureInstitutionalCrisisState, makeInstitutionalDemand, resolveInstitutionalDemand, tickInstitutionalCrisis } from './institutionalCrises.js?v=20260916-institution-integration1';
 import { polityPopularWellbeing } from './popularWellbeing.js?v=20260916-institution-integration1';
 
 const clamp = (value, low = 0, high = 1) => Math.max(low, Math.min(high, Number(value) || 0));
-const POWER_DEMANDS = ['taxation', 'spending', 'offensiveWar', 'legislation'];
+const POWER_DEMANDS = ['taxation', 'spending', 'offensiveWar', 'limitedForce', 'legislation'];
 
 export function institutionalContextForPolity(polity, regions = []) {
   const wellbeing = polityPopularWellbeing(polity.id, regions);

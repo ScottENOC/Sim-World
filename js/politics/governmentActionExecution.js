@@ -1,8 +1,9 @@
 import { launchCampaign } from '../military/campaigns.js?v=20260916-institution-actions1';
 import { setMilitaryPolicy } from '../military/policies.js?v=20260916-institution-actions1';
 import { polityById } from './polities.js?v=20260916-institution-actions1';
-import { chooseNpcInstitutionalApprovals, requestExecutiveAction } from './institutionalActions.js?v=20260916-institution-actions1';
+import { chooseNpcInstitutionalApprovals, requestExecutiveAction } from './institutionalActions.js?v=20260916-force1';
 import { registerInstitutionalRefusal } from './institutionalCrises.js?v=20260916-institution-integration1';
+import { classifyCampaignUseOfForce, governmentActionForUseOfForce } from './useOfForce.js?v=20260916-force1';
 
 function governingPolity(region, polities = []) {
   const id = region?.governance?.sovereignPolityId || region?.polityId;
@@ -48,8 +49,12 @@ export function executeGovernmentProsecution(region, effect, polities, options =
 
 export function executeGovernmentCampaign(attacker, defender, objective, requestedPersonnel, currentTick, options = {}) {
   const polity = governingPolity(attacker, options.polities || []);
-  const approval = authorisation(polity, 'launch_offensive_war', { ...options, currentTick });
-  if (!approval.allowed) return { campaign: null, authorisation: approval };
+  const useOfForce = classifyCampaignUseOfForce(attacker, defender, objective, currentTick);
+  const action = governmentActionForUseOfForce(useOfForce);
+  const context = { ...(options.context || {}), useOfForceKind: useOfForce, limited: useOfForce === 'limited_campaign' };
+  const approval = authorisation(polity, action, { ...options, context, currentTick });
+  if (!approval.allowed) return { campaign: null, authorisation: approval, useOfForce };
   const campaign = launchCampaign(attacker, defender, objective, requestedPersonnel, currentTick, options);
-  return { campaign, authorisation: approval };
+  if (campaign) campaign.useOfForce = useOfForce;
+  return { campaign, authorisation: approval, useOfForce };
 }

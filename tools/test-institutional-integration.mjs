@@ -6,10 +6,12 @@ import { institutionalStatusForRegion, resolvePlayerInstitutionalDemand, maybeCr
 const polity = { id: 'realm', administration: { legitimacy: 0.55, officialdom: 0.4 } };
 establishParliament(polity, { strength: 0.8, independence: 0.8, representation: 0.85, appointment: 'elected' });
 requireInstitutionalConsent(polity, 'offensiveWar', 'parliament');
+requireInstitutionalConsent(polity, 'limitedForce', 'parliament');
 const attacker = { id: 'a', polityId: 'realm', governance: { sovereignPolityId: 'realm' }, population: 10000, army: { personnel: 1000, away: 0 }, popularWellbeing: { satisfaction: 0.45, grievance: 0.55, politicalVoice: 0.7, revolutionaryPressure: 0.1 } };
 const defender = { id: 'b', polityId: 'other', governance: { sovereignPolityId: 'other' }, population: 5000, army: { personnel: 100, away: 0 }, popularWellbeing: { satisfaction: 0.5, grievance: 0.4, politicalVoice: 0.2, revolutionaryPressure: 0.1 } };
 
 const blocked = executeGovernmentCampaign(attacker, defender, 'punitive', 400, 20, { polities: [polity], regions: [attacker, defender], campaigns: [], npc: true, rng: () => 0.99, context: { publicSupport: 0.1, threat: 0, hostility: 0.1, fiscalStress: 0.8 } });
+assert.equal(blocked.useOfForce, 'limited_campaign');
 assert.equal(blocked.campaign, null);
 assert.ok(polity.institutionalCrisis.pressure > 0, 'NPC institutional refusal should create political pressure');
 
