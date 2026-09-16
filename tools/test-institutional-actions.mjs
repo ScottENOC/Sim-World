@@ -24,11 +24,12 @@ assert.deepEqual(warAuthority.consentRequiredFrom, ['parliament']);
 assert.equal(requestExecutiveAction(constitutional, 'launch_offensive_war').allowed, false);
 assert.equal(requestExecutiveAction(constitutional, 'launch_offensive_war', ['parliament']).allowed, true);
 
-for (const action of ['change_taxation', 'change_spending', 'change_economic_policy', 'change_military_policy', 'order_intelligence_operation', 'sign_treaty']) {
+for (const action of ['change_taxation', 'change_spending', 'change_economic_policy', 'change_military_policy', 'change_intelligence_policy', 'order_intelligence_operation', 'sign_treaty']) {
   const prompt = institutionalActionPrompt(constitutional, action);
   assert.equal(prompt.executiveCanActAlone, false, `${action} should expose its institutional consent requirement`);
   assert.deepEqual(prompt.requiredInstitutions, ['parliament']);
 }
+assert.equal(governmentActionAuthority(constitutional, 'change_intelligence_policy').power, 'intelligenceOperations');
 
 const hostileWar = chooseNpcInstitutionalApprovals(constitutional, 'launch_offensive_war', {
   publicSupport: 0.15, threat: 0.05, hostility: 0.1, fiscalStress: 0.8, defensive: false,
@@ -64,6 +65,14 @@ assert.equal(taxMutation, 0, 'blocked generic government actions must not run th
 const approvedTax = executeGovernmentAction(governedRegion, 'change_taxation', () => { taxMutation += 1; return true; }, [constitutional], { approvals: ['parliament'] });
 assert.equal(approvedTax.changed, true);
 assert.equal(taxMutation, 1, 'approved generic government actions should execute exactly once');
+
+let intelligencePolicyMutation = 0;
+const blockedIntelligencePolicy = executeGovernmentAction(governedRegion, 'change_intelligence_policy', () => { intelligencePolicyMutation += 1; return true; }, [constitutional]);
+assert.equal(blockedIntelligencePolicy.changed, false, 'standing intelligence policy must not bypass shared intelligence authority');
+assert.equal(intelligencePolicyMutation, 0);
+const approvedIntelligencePolicy = executeGovernmentAction(governedRegion, 'change_intelligence_policy', () => { intelligencePolicyMutation += 1; return true; }, [constitutional], { approvals: ['parliament'] });
+assert.equal(approvedIntelligencePolicy.changed, true);
+assert.equal(intelligencePolicyMutation, 1);
 
 let treatyMutation = 0;
 const blockedTreaty = executeGovernmentTreaty(governedRegion, () => { treatyMutation += 1; return true; }, [constitutional]);

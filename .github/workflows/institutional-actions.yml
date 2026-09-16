@@ -15,6 +15,7 @@ on:
       - 'js/diplomacy/couriers.js'
       - 'js/ui/diplomaticServicePanel.js'
       - 'js/ui/institutionalCouncilUi.js'
+      - 'js/ui/institutionalCouncilSpendingUi.js'
       - 'index.html'
       - 'js/ai/nationAi.js'
       - 'tools/test-institutional-actions.mjs'
@@ -44,6 +45,7 @@ jobs:
           node --check js/diplomacy/couriers.js
           node --check js/ui/diplomaticServicePanel.js
           node --check js/ui/institutionalCouncilUi.js
+          node --check js/ui/institutionalCouncilSpendingUi.js
           node --check js/ai/nationAi.js
           node tools/test-institutional-actions.mjs
           node tools/test-institutional-crises.mjs

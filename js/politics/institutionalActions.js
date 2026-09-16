@@ -8,6 +8,7 @@ export const GOVERNMENT_ACTIONS = Object.freeze({
   change_spending: { power: 'spending', label: 'Change government spending' },
   change_economic_policy: { power: 'economicRegulation', label: 'Change economic regulation' },
   change_military_policy: { power: 'legislation', label: 'Change standing military policy' },
+  change_intelligence_policy: { power: 'intelligenceOperations', label: 'Change counter-intelligence policy' },
   sign_treaty: { power: 'treaties', label: 'Conclude a treaty' },
   detain_political_actor: { power: 'detention', label: 'Detain a political actor' },
   prosecute_political_actor: { power: 'prosecution', label: 'Prosecute a political actor' },
