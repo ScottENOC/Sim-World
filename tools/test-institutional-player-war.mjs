@@ -6,8 +6,16 @@ import { executeGovernmentCampaign } from '../js/politics/governmentActionExecut
 const polity = { id: 'realm', administration: { legitimacy: 0.6 } };
 establishParliament(polity, { strength: 0.85, independence: 0.8, representation: 0.9, appointment: 'elected' });
 requireInstitutionalConsent(polity, 'offensiveWar', 'parliament');
-const attacker = { id: 'a', polityId: 'realm', governance: { sovereignPolityId: 'realm' }, population: 10000, army: { personnel: 1000, away: 0 } };
-const defender = { id: 'b', polityId: 'other', governance: { sovereignPolityId: 'other' }, population: 5000, army: { personnel: 100, away: 0 } };
+const attacker = {
+  id: 'a', polityId: 'realm', governance: { sovereignPolityId: 'realm' }, population: 10000,
+  army: { personnel: 1000, away: 0 }, navy: { personnel: 0, boats: 0 },
+  neighbors: ['b'], adjacentSeaIds: [], unlockedTechIds: new Set(), infrastructure: {},
+};
+const defender = {
+  id: 'b', polityId: 'other', governance: { sovereignPolityId: 'other' }, population: 5000,
+  army: { personnel: 100, away: 0 }, navy: { personnel: 0, boats: 0 },
+  neighbors: ['a'], adjacentSeaIds: [], unlockedTechIds: new Set(), infrastructure: {},
+};
 const options = { polities: [polity], regions: [attacker, defender], campaigns: [] };
 
 const refused = chooseNpcInstitutionalApprovals(polity, 'launch_offensive_war', { publicSupport: 0.1, threat: 0, hostility: 0, fiscalStress: 0.9 }, () => 0.99);
