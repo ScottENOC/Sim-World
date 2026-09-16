@@ -4,6 +4,7 @@ import { diplomatCommitDecision, residentDiplomatFor } from './diplomats.js?v=20
 import { assessMessageAuthenticity, forgeryAuthentication, genuineAuthentication, intelligenceCredibilityFromMessage } from './counterIntelligence.js?v=20260909-counterintel1';
 import { chooseMessageMedium, communicationCapabilities, courierProfile, interceptedContentChance, languageComprehension, recordLanguageContact } from './languageCommunication.js?v=20260909-language-networks1';
 import { courtLanguageCompetence } from './languageNetworks.js?v=20260909-language-networks1';
+import { authoriseRuntimeGovernmentAction } from '../politics/institutionalRuntimeAuthority.js?v=20260916-institution-diplomacy1';
 
 let nextMessageId = 1;
 export function syncNextDiplomaticMessageId(regions = []) {
@@ -190,7 +191,7 @@ function maybeLeakJointPlan(message, sender, target, enemy, currentTick, rng, ev
   return true;
 }
 
-function createJointOperationAgreement(message, sender, target, agreements, currentTick, partnerIntent) {
+function createJointOperationAgreement(message, sender, target, agreements, currentTick, partnerIntent, authorisation = null) {
   const agreement = {
     id: `joint-${message.id}`, type: 'joint_operation', active: true,
     proposerRegionId: sender.id, partnerRegionId: target.id,
@@ -205,12 +206,17 @@ function createJointOperationAgreement(message, sender, target, agreements, curr
     createdTick: currentTick, sourceMessageId: message.id, execution: {},
     sourceDiplomatId: message.residentDiplomatId || null, delegatedAuthority: message.delegatedAuthority || null,
     authorityExceeded: Boolean(message.authorityExceeded), authorityRatified: !message.authorityExceeded,
+    constitutionalAuthorisation: authorisation?.governed ? {
+      action: authorisation.action,
+      power: authorisation.power,
+      approvals: authorisation.approvals || [],
+    } : null,
   };
   agreements.push(agreement);
   return agreement;
 }
 
-function sendJointOperationReply(original, sender, target, accepted, agreement, regionsById, currentTick) {
+function sendJointOperationReply(original, sender, target, accepted, agreement, regionsById, currentTick, refusalReason = null) {
   const resident = Boolean(original.residentDiplomatId);
   const route = resident ? { mode: 'resident', days: 0, diplomatId: original.residentDiplomatId } : routeFor(target, sender, regionsById);
   if (!route) return null;
@@ -220,6 +226,7 @@ function sendJointOperationReply(original, sender, target, accepted, agreement, 
     targetRegionId: sender.id, targetActorId: actorId(sender),
     enemyRegionId: original.enemyRegionId, enemyActorId: original.enemyActorId,
     inReplyTo: original.id, accepted, jointOperationId: agreement?.id || null,
+    refusalReason,
     declaredCommitmentFraction: agreement?.partnerDeclaredFraction || 0,
     proposedAttackTick: original.proposedAttackTick, secrecy: original.secrecy,
     departTick: currentTick, arrivalTick: resident ? currentTick : currentTick + Math.max(1, Math.ceil(route.days / 7)), route,
@@ -294,25 +301,15 @@ export function sendWarInvitation(sender, target, enemy, regions, currentTick, o
   if (!route) return { sent: false, reason: 'no_route' };
   ensureMailbox(sender); ensureMailbox(target);
   const message = {
-    id: `dmsg-${nextMessageId++}`,
-    type: 'join_war',
-    senderRegionId: sender.id,
-    senderActorId: actorId(sender),
-    targetRegionId: target.id,
-    targetActorId: actorId(target),
-    enemyRegionId: enemy.id,
-    enemyActorId: actorId(enemy),
+    id: `dmsg-${nextMessageId++}`, type: 'join_war',
+    senderRegionId: sender.id, senderActorId: actorId(sender),
+    targetRegionId: target.id, targetActorId: actorId(target),
+    enemyRegionId: enemy.id, enemyActorId: actorId(enemy),
     requestedPersonnel: Math.max(0, Math.round(options.requestedPersonnel || 0)),
     secrecy: clamp(options.secrecy ?? 0.4),
     authentication: genuineAuthentication(sender, { coded: Boolean(options.coded) }),
-    departTick: currentTick,
-    arrivalTick: currentTick + Math.max(1, Math.ceil(route.days / 7)),
-    route,
-    status: 'in_transit',
-    intercepted: false,
-    compromised: false,
-    destroyed: false,
-    response: null,
+    departTick: currentTick, arrivalTick: currentTick + Math.max(1, Math.ceil(route.days / 7)), route,
+    status: 'in_transit', intercepted: false, compromised: false, destroyed: false, response: null,
   };
   prepareCommunication(message, sender, target, 0.68);
   sender.diplomaticMessages.push(message);
@@ -328,29 +325,47 @@ function acceptanceChance(message, sender, target, enemy) {
   return clamp(0.08 + attitude * 0.44 + enemyAttitude * 0.3 + safety * 0.12 - requestedBurden * 0.28);
 }
 
-function createWarCommitment(message, sender, target, agreements, currentTick) {
+function createWarCommitment(message, sender, target, agreements, currentTick, authorisation = null) {
   const existing = agreements.find((a) => a.active && a.type === 'war_commitment' &&
     ((a.fromId === target.id && a.toId === sender.id) || (a.fromId === sender.id && a.toId === target.id)) && a.enemyActorId === message.enemyActorId);
   if (existing) return existing;
   const available = Math.max(0, target.army?.personnel || 0);
   const personnel = Math.max(10, Math.min(available * 0.45, message.requestedPersonnel || available * 0.2));
   const agreement = {
-    id: `war-${message.id}`,
-    type: 'war_commitment',
-    fromId: target.id,
-    toId: sender.id,
-    enemyActorId: message.enemyActorId,
-    personnel: Math.round(personnel),
-    startTick: currentTick,
-    active: true,
-    endedTick: null,
+    id: `war-${message.id}`, type: 'war_commitment',
+    fromId: target.id, toId: sender.id, enemyActorId: message.enemyActorId,
+    personnel: Math.round(personnel), startTick: currentTick, active: true, endedTick: null,
     sourceMessageId: message.id,
+    constitutionalAuthorisation: authorisation?.governed ? {
+      action: authorisation.action,
+      power: authorisation.power,
+      approvals: authorisation.approvals || [],
+    } : null,
   };
   agreements.push(agreement);
   return agreement;
 }
 
-export function tickDiplomaticCouriers(regions, agreements, fleets, currentTick, elapsedDays = 7, rng = Math.random) {
+function treatyAuthorisation(target, message, currentTick, rng, options = {}) {
+  return authoriseRuntimeGovernmentAction(target, 'sign_treaty', {
+    polities: options.polities,
+    approvals: options.institutionalApprovals,
+    context: {
+      publicSupport: clamp((attitudeToward(target, message.senderRegionId) + 1) / 2),
+      threat: message.enemyRegionId ? clamp((-attitudeToward(target, message.enemyRegionId) + 1) / 2) : 0,
+      hostility: message.enemyRegionId ? clamp((-attitudeToward(target, message.enemyRegionId) + 1) / 2) : 0,
+      treatyType: message.type,
+      senderActorId: message.senderActorId,
+      enemyActorId: message.enemyActorId,
+      delegatedDiplomatId: message.residentDiplomatId || null,
+    },
+    rng: options.institutionalRng || rng,
+    currentTick,
+    registerRefusal: options.registerInstitutionalRefusal !== false,
+  });
+}
+
+export function tickDiplomaticCouriers(regions, agreements, fleets, currentTick, elapsedDays = 7, rng = Math.random, options = {}) {
   const regionsById = new Map(regions.map((r) => [r.id, r]));
   const events = [];
   for (const sender of regions) {
@@ -365,12 +380,10 @@ export function tickDiplomaticCouriers(regions, agreements, fleets, currentTick,
       const secrecyReduction = 1 - message.secrecy * 0.55;
       const tickIntercept = 1 - Math.pow(1 - risk.interceptChance * secrecyReduction, weeks);
       if (!message.intercepted && rng() < tickIntercept) {
-        message.intercepted = true;
-        message.compromised = true;
+        message.intercepted = true; message.compromised = true;
         message.contentRecovered = rng() < interceptedContentChance(message, 0.55);
         const interceptingActorId = risk.hostileActors.length ? risk.hostileActors[Math.floor(rng() * risk.hostileActors.length)] : null;
-        const destroyed = rng() < 0.38;
-        message.destroyed = destroyed;
+        const destroyed = rng() < 0.38; message.destroyed = destroyed;
         if (destroyed) message.status = 'intercepted_lost';
         const interceptorRegion = [...regionsById.values()].find((r) => actorId(r) === interceptingActorId);
         if (message.contentRecovered && interceptorRegion && ['joint_operation_proposal','joint_operation_reply','forged_joint_operation_letter','deception_joint_operation_letter'].includes(message.type)) {
@@ -385,7 +398,6 @@ export function tickDiplomaticCouriers(regions, agreements, fleets, currentTick,
       message.receivedTick = currentTick;
       resolveDeliveryLanguage(message, sender, target);
       if (message.type === 'forged_joint_operation_letter') {
-        message.receivedTick = currentTick;
         const assessment = intelligenceCredibilityFromMessage(target, message, regions, rng);
         message.authenticityAssessment = assessment;
         if (assessment.detectedForgery) {
@@ -395,16 +407,13 @@ export function tickDiplomaticCouriers(regions, agreements, fleets, currentTick,
           message.status = 'forgery_believed';
           recordApparentPlan(target, message, currentTick, assessment, 'reported_joint_operation');
           if ((assessment.intelligenceConfidence || 0) >= 0.48) {
-            target.militaryStrategy ||= {};
-            target.militaryStrategy.posture = 'guarded';
-            target.militaryStrategy.targetRegionId = message.enemyRegionId;
+            target.militaryStrategy ||= {}; target.militaryStrategy.posture = 'guarded'; target.militaryStrategy.targetRegionId = message.enemyRegionId;
           }
           events.push({ type: 'forged_letter_believed', message, assessment });
         }
         continue;
       }
       if (message.type === 'deception_joint_operation_letter') {
-        message.receivedTick = currentTick;
         const assessment = intelligenceCredibilityFromMessage(target, message, regions, rng);
         message.status = 'deception_delivered';
         recordApparentPlan(target, message, currentTick, assessment, 'reported_joint_operation');
@@ -422,47 +431,56 @@ export function tickDiplomaticCouriers(regions, agreements, fleets, currentTick,
         continue;
       }
       if (message.type === 'joint_operation_proposal') {
-        message.receivedTick = currentTick;
         const authenticity = assessMessageAuthenticity(target, message, regions, rng);
         const chance = jointOperationAcceptance(message, sender, target, enemy, authenticity);
-        const accepted = rng() < chance;
+        let accepted = rng() < chance;
+        let authorisation = null;
+        let refusalReason = null;
+        if (accepted) {
+          authorisation = treatyAuthorisation(target, message, currentTick, rng, options);
+          if (!authorisation.allowed) { accepted = false; refusalReason = 'institutional_authorisation_refused'; }
+        }
         message.status = accepted ? 'accepted_pending_reply' : 'refused_pending_reply';
         const partnerIntent = choosePrivateJointIntent(message, sender, target, enemy, rng);
         let agreement = null;
         if (accepted) {
-          agreement = createJointOperationAgreement(message, sender, target, agreements, currentTick, partnerIntent);
+          agreement = createJointOperationAgreement(message, sender, target, agreements, currentTick, partnerIntent, authorisation);
           target.militaryStrategy ||= {};
-          target.militaryStrategy.posture = 'prepare_war';
-          target.militaryStrategy.targetRegionId = enemy?.id || message.enemyRegionId;
+          target.militaryStrategy.posture = 'prepare_war'; target.militaryStrategy.targetRegionId = enemy?.id || message.enemyRegionId;
           target.militaryStrategy.targetPolityId = message.enemyActorId;
           target.militaryStrategy.desiredPreparationWeeks = Math.max(1, message.proposedAttackTick - currentTick);
           maybeLeakJointPlan(message, sender, target, enemy, currentTick, rng, events);
         }
-        const reply = sendJointOperationReply(message, sender, target, accepted, agreement, regionsById, currentTick);
-        message.response = { accepted, chance, tick: currentTick, replyMessageId: reply?.id || null };
-        events.push({ type: 'joint_operation_response_sent', message, accepted, agreement, reply });
+        const reply = sendJointOperationReply(message, sender, target, accepted, agreement, regionsById, currentTick, refusalReason);
+        message.response = { accepted, chance, tick: currentTick, replyMessageId: reply?.id || null, refusalReason, authorisation };
+        events.push({ type: 'joint_operation_response_sent', message, accepted, agreement, reply, refusalReason, authorisation });
         continue;
       }
       const chance = acceptanceChance(message, sender, target, enemy);
-      const accepted = rng() < chance;
+      let accepted = rng() < chance;
+      let authorisation = null;
+      let refusalReason = null;
+      if (accepted) {
+        authorisation = treatyAuthorisation(target, message, currentTick, rng, options);
+        if (!authorisation.allowed) { accepted = false; refusalReason = 'institutional_authorisation_refused'; }
+      }
       message.status = accepted ? 'accepted' : 'refused';
-      message.response = { accepted, chance, tick: currentTick };
+      message.response = { accepted, chance, tick: currentTick, refusalReason, authorisation };
       let agreement = null;
       if (accepted) {
-        agreement = createWarCommitment(message, sender, target, agreements, currentTick);
+        agreement = createWarCommitment(message, sender, target, agreements, currentTick, authorisation);
         if (!target.militaryStrategy || typeof target.militaryStrategy !== 'object') target.militaryStrategy = {};
-        target.militaryStrategy.posture = 'prepare_war';
-        target.militaryStrategy.targetRegionId = enemy?.id || message.enemyRegionId;
+        target.militaryStrategy.posture = 'prepare_war'; target.militaryStrategy.targetRegionId = enemy?.id || message.enemyRegionId;
         target.militaryStrategy.targetPolityId = message.enemyActorId;
         target.militaryStrategy.garrisonFloor = Math.min(0.85, Math.max(0.45, Number(target.militaryStrategy.garrisonFloor) || 0.7));
         target.militaryStrategy.spendingPriority = Math.max(0.6, Number(target.militaryStrategy.spendingPriority) || 0);
         target.militaryStrategy.desiredPreparationWeeks = Math.min(26, Math.max(8, Number(target.militaryStrategy.desiredPreparationWeeks) || 20));
         changeAttitude(sender, target.id, 0.08, 'joined_war', currentTick);
         changeAttitude(target, sender.id, 0.12, 'joined_war', currentTick);
-      } else {
+      } else if (refusalReason !== 'institutional_authorisation_refused') {
         changeAttitude(sender, target.id, -0.025, 'refused_join_war', currentTick);
       }
-      events.push({ type: 'join_war_response', message, accepted, agreement, targetName: target.name, enemyName: enemy?.name || message.enemyActorId });
+      events.push({ type: 'join_war_response', message, accepted, agreement, refusalReason, authorisation, targetName: target.name, enemyName: enemy?.name || message.enemyActorId });
     }
   }
   return events;
