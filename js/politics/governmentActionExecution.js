@@ -34,6 +34,18 @@ export function executeGovernmentMilitaryPolicy(region, key, value, polities, op
   return executeGovernmentAction(region, 'change_military_policy', () => setMilitaryPolicy(region, key, value), polities, options);
 }
 
+export function executeGovernmentTreaty(region, effect, polities, options = {}) {
+  return executeGovernmentAction(region, 'sign_treaty', effect, polities, options);
+}
+
+export function executeGovernmentDetention(region, effect, polities, options = {}) {
+  return executeGovernmentAction(region, 'detain_political_actor', effect, polities, options);
+}
+
+export function executeGovernmentProsecution(region, effect, polities, options = {}) {
+  return executeGovernmentAction(region, 'prosecute_political_actor', effect, polities, options);
+}
+
 export function executeGovernmentCampaign(attacker, defender, objective, requestedPersonnel, currentTick, options = {}) {
   const polity = governingPolity(attacker, options.polities || []);
   const approval = authorisation(polity, 'launch_offensive_war', { ...options, currentTick });
