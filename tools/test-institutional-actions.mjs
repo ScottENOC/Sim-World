@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { establishJudiciary, establishParliament, delegateGovernmentPower, requireInstitutionalConsent } from '../js/politics/institutionalPowers.js';
 import { chooseNpcInstitutionalApprovals, governmentActionAuthority, institutionalActionPrompt, requestExecutiveAction } from '../js/politics/institutionalActions.js';
+import { executeGovernmentMilitaryPolicy } from '../js/politics/governmentActionExecution.js';
 
 const absolute = { id: 'absolute' };
 assert.equal(requestExecutiveAction(absolute, 'launch_offensive_war').allowed, true);
@@ -11,6 +12,7 @@ establishParliament(constitutional, { strength: 0.8, independence: 0.85, represe
 establishJudiciary(constitutional, { strength: 0.75, independence: 0.9, appointment: 'parliament_confirmed' });
 requireInstitutionalConsent(constitutional, 'offensiveWar', 'parliament');
 requireInstitutionalConsent(constitutional, 'taxation', 'parliament');
+requireInstitutionalConsent(constitutional, 'legislation', 'parliament');
 delegateGovernmentPower(constitutional, 'adjudication', 'judiciary', { entrenched: 0.8 });
 
 const warAuthority = governmentActionAuthority(constitutional, 'launch_offensive_war');
@@ -35,5 +37,13 @@ const weakCase = chooseNpcInstitutionalApprovals(detention, 'detain_political_ac
 assert.equal(weakCase.approved, false, 'independent legal institutions should be able to reject arbitrary detention');
 const strongCase = chooseNpcInstitutionalApprovals(detention, 'detain_political_actor', { evidence: 1, legalBasis: 1 }, () => 0.4);
 assert.equal(strongCase.approved, true, 'legal constraint is not a blanket ban when evidence and legal authority are strong');
+
+const governedRegion = { id: 'capital', polityId: 'constitutional', governance: { sovereignPolityId: 'constitutional' } };
+const blockedPolicy = executeGovernmentMilitaryPolicy(governedRegion, 'navalPriority', 'war', [constitutional]);
+assert.equal(blockedPolicy.changed, false, 'player policy mutation must not bypass parliament');
+assert.equal(governedRegion.militaryPolicy, undefined, 'blocked policy should not mutate state');
+const approvedPolicy = executeGovernmentMilitaryPolicy(governedRegion, 'navalPriority', 'war', [constitutional], { approvals: ['parliament'] });
+assert.equal(approvedPolicy.changed, true);
+assert.equal(governedRegion.militaryPolicy.navalPriority, 'war');
 
 console.log('institutional action regressions passed');
