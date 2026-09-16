@@ -29,6 +29,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add js/economy/enterpriseBehaviour.js js/economy/economicOwnership.js js/economy/corporateInfrastructure.js js/economy/corporateCapital.js tools/test-enterprise-finance-externalities.mjs
+          git add js/economy/enterpriseBehaviour.js js/economy/economicOwnership.js js/economy/corporateInfrastructure.js js/economy/corporateCapital.js tools/test-enterprise-finance-externalities.mjs tools/test-public-private-economy-integration.mjs
           git commit -m "Model enterprise debt and externalised operating costs"
           git push origin HEAD:feature/enterprise-finance-externalities-v1
