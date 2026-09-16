@@ -24,12 +24,14 @@ assert.deepEqual(warAuthority.consentRequiredFrom, ['parliament']);
 assert.equal(requestExecutiveAction(constitutional, 'launch_offensive_war').allowed, false);
 assert.equal(requestExecutiveAction(constitutional, 'launch_offensive_war', ['parliament']).allowed, true);
 
-for (const action of ['change_taxation', 'change_spending', 'change_economic_policy', 'change_military_policy', 'change_intelligence_policy', 'order_intelligence_operation', 'sign_treaty']) {
+for (const action of ['change_taxation', 'change_spending', 'change_economic_policy', 'change_military_policy', 'change_governance_policy', 'change_language_policy', 'change_intelligence_policy', 'order_intelligence_operation', 'sign_treaty']) {
   const prompt = institutionalActionPrompt(constitutional, action);
   assert.equal(prompt.executiveCanActAlone, false, `${action} should expose its institutional consent requirement`);
   assert.deepEqual(prompt.requiredInstitutions, ['parliament']);
 }
 assert.equal(governmentActionAuthority(constitutional, 'change_intelligence_policy').power, 'intelligenceOperations');
+assert.equal(governmentActionAuthority(constitutional, 'change_governance_policy').power, 'legislation');
+assert.equal(governmentActionAuthority(constitutional, 'change_language_policy').power, 'legislation');
 
 const hostileWar = chooseNpcInstitutionalApprovals(constitutional, 'launch_offensive_war', {
   publicSupport: 0.15, threat: 0.05, hostility: 0.1, fiscalStress: 0.8, defensive: false,
@@ -65,6 +67,22 @@ assert.equal(taxMutation, 0, 'blocked generic government actions must not run th
 const approvedTax = executeGovernmentAction(governedRegion, 'change_taxation', () => { taxMutation += 1; return true; }, [constitutional], { approvals: ['parliament'] });
 assert.equal(approvedTax.changed, true);
 assert.equal(taxMutation, 1, 'approved generic government actions should execute exactly once');
+
+let governanceMutation = 0;
+const blockedGovernance = executeGovernmentAction(governedRegion, 'change_governance_policy', () => { governanceMutation += 1; return true; }, [constitutional]);
+assert.equal(blockedGovernance.changed, false, 'subject governance law must not bypass legislative authority');
+assert.equal(governanceMutation, 0);
+const approvedGovernance = executeGovernmentAction(governedRegion, 'change_governance_policy', () => { governanceMutation += 1; return true; }, [constitutional], { approvals: ['parliament'] });
+assert.equal(approvedGovernance.changed, true);
+assert.equal(governanceMutation, 1);
+
+let languageMutation = 0;
+const blockedLanguage = executeGovernmentAction(governedRegion, 'change_language_policy', () => { languageMutation += 1; return true; }, [constitutional]);
+assert.equal(blockedLanguage.changed, false, 'language law must not bypass legislative authority');
+assert.equal(languageMutation, 0);
+const approvedLanguage = executeGovernmentAction(governedRegion, 'change_language_policy', () => { languageMutation += 1; return true; }, [constitutional], { approvals: ['parliament'] });
+assert.equal(approvedLanguage.changed, true);
+assert.equal(languageMutation, 1);
 
 let intelligencePolicyMutation = 0;
 const blockedIntelligencePolicy = executeGovernmentAction(governedRegion, 'change_intelligence_policy', () => { intelligencePolicyMutation += 1; return true; }, [constitutional]);
