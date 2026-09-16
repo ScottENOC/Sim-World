@@ -38,11 +38,11 @@ jobs:
           node --check js/main.js
           node tools/test-foreign-political-intervention.mjs
           git diff --check
-      - name: Commit resulting source only
+      - name: Commit source and regression only
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add js/main.js js/politics/foreignPoliticalIntervention.js js/ui/diplomaticServicePanel.js tools/test-foreign-political-intervention.mjs .github/workflows/institutional-actions.yml
-          git rm -f tools/apply-foreign-political-intervention-v1.py tools/apply-foreign-political-intervention-v1.mjs .github/workflows/apply-foreign-political-intervention-v1.yml
+          git restore .github/workflows/institutional-actions.yml
+          git add js/main.js js/politics/foreignPoliticalIntervention.js js/ui/diplomaticServicePanel.js tools/test-foreign-political-intervention.mjs
           git commit -m "Wire governed foreign political intervention"
           git push origin HEAD:feature/foreign-political-intervention-v1
