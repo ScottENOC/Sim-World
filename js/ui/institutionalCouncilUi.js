@@ -1,4 +1,4 @@
-import { AdvisorCouncil } from './advisors.js?v=20260916-institution-ui1';
+import { AdvisorCouncil } from './advisors.js?v=20260905-projects1';
 import { polityById } from '../politics/polities.js?v=20260916-institution-ui1';
 import { GOVERNMENT_POWERS, describeGovernmentInstitutions } from '../politics/institutionalPowers.js?v=20260916-institution-ui1';
 import { chooseNpcInstitutionalApprovals, institutionalActionPrompt } from '../politics/institutionalActions.js?v=20260916-institution-ui1';
