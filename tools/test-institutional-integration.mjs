@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { establishParliament, requireInstitutionalConsent } from '../js/politics/institutionalPowers.js';
 import { executeGovernmentCampaign } from '../js/politics/governmentActionExecution.js';
-import { institutionalStatusForRegion, resolvePlayerInstitutionalDemand, maybeCreateInstitutionalDemand } from '../js/politics/institutionalIntegration.js';
+import { institutionalStatusForRegion, resolvePlayerInstitutionalDemand, maybeCreateInstitutionalDemand, tickInstitutionalPolitics } from '../js/politics/institutionalIntegration.js';
 
 const polity = { id: 'realm', administration: { legitimacy: 0.55, officialdom: 0.4 } };
 establishParliament(polity, { strength: 0.8, independence: 0.8, representation: 0.85, appointment: 'elected' });
@@ -22,5 +22,11 @@ assert.equal(demand.status, 'active');
 resolvePlayerInstitutionalDemand(polity, demand.id, true, 22);
 assert.equal(demand.status, 'accepted');
 assert.ok(polity.governmentPowers.taxation.consentRequiredFrom.includes('parliament'), 'accepted demand should become a real constitutional constraint');
+
+const pressured = { id: 'pressured', administration: { legitimacy: 0.35, officialdom: 0.25 }, institutionalCrisis: { pressure: 0.62, legitimacyShock: 0, obstruction: 0.3, protests: 0.2, coupRisk: 0, revolutionRisk: 0, demands: [], history: [] } };
+establishParliament(pressured, { strength: 0.8, independence: 0.8, representation: 0.9, appointment: 'elected' });
+const pressuredRegion = { id: 'p', polityId: 'pressured', governance: { sovereignPolityId: 'pressured' }, population: 10000, popularWellbeing: { satisfaction: 0.3, grievance: 0.75, politicalVoice: 0.65, revolutionaryPressure: 0.4 } };
+const events = tickInstitutionalPolitics([pressured], [pressuredRegion], 30, 30, { playerPolityId: 'pressured' });
+assert.ok(events.some((event) => event.type === 'institutional_demand'), 'sustained pressure should let an established parliament demand a share of power');
 
 console.log('institutional integration regressions passed');
