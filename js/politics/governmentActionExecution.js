@@ -22,12 +22,16 @@ function authorisation(polity, action, options = {}) {
   return result;
 }
 
-export function executeGovernmentMilitaryPolicy(region, key, value, polities, options = {}) {
+export function executeGovernmentAction(region, action, effect, polities, options = {}) {
   const polity = governingPolity(region, polities);
-  const approval = authorisation(polity, 'change_military_policy', options);
-  if (!approval.allowed) return { changed: false, authorisation: approval };
-  const changed = setMilitaryPolicy(region, key, value);
-  return { changed, authorisation: approval };
+  const approval = authorisation(polity, action, options);
+  if (!approval.allowed) return { changed: false, result: null, authorisation: approval };
+  const result = typeof effect === 'function' ? effect() : null;
+  return { changed: result !== false, result, authorisation: approval };
+}
+
+export function executeGovernmentMilitaryPolicy(region, key, value, polities, options = {}) {
+  return executeGovernmentAction(region, 'change_military_policy', () => setMilitaryPolicy(region, key, value), polities, options);
 }
 
 export function executeGovernmentCampaign(attacker, defender, objective, requestedPersonnel, currentTick, options = {}) {
