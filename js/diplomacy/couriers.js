@@ -5,6 +5,7 @@ import { assessMessageAuthenticity, forgeryAuthentication, genuineAuthentication
 import { chooseMessageMedium, communicationCapabilities, courierProfile, interceptedContentChance, languageComprehension, recordLanguageContact } from './languageCommunication.js?v=20260909-language-networks1';
 import { courtLanguageCompetence } from './languageNetworks.js?v=20260909-language-networks1';
 import { authoriseRuntimeGovernmentAction } from '../politics/institutionalRuntimeAuthority.js?v=20260916-institution-diplomacy1';
+import { telegraphDeliveryTicks, telegraphInterceptRisk, telegraphRouteBetween } from './telegraph.js?v=20260917-telegraph1';
 
 let nextMessageId = 1;
 export function syncNextDiplomaticMessageId(regions = []) {
@@ -68,7 +69,9 @@ function landRoute(origin, target, regionsById, maxHops = 14) {
   return null;
 }
 
-function routeFor(origin, target, regionsById) {
+export function routeFor(origin, target, regionsById) {
+  const telegraph = telegraphRouteBetween(origin, target, regionsById);
+  if (telegraph) return telegraph;
   const land = landRoute(origin, target, regionsById);
   const sea = maritimeRouteBetween(origin, target);
   if (!land && !sea) return null;
@@ -80,6 +83,7 @@ function routeFor(origin, target, regionsById) {
 
 function routeRisk(route, regionsById, fleets, senderActorId, targetActorId) {
   if (!route) return { interceptChance: 1, hostileActors: [] };
+  if (route.mode === 'telegraph') return { interceptChance: telegraphInterceptRisk(route, regionsById, senderActorId, targetActorId), hostileActors: [] };
   let risk = 0; const hostileActors = new Set();
   if (route.mode === 'land') {
     const mids = (route.regionIds || []).slice(1, -1);
@@ -135,7 +139,7 @@ export function sendJointOperationProposal(sender, target, enemy, regions, curre
       delayWeeks: Math.max(0, Math.round(options.delayWeeks || 0)),
     },
     secrecy: clamp(options.secrecy ?? 0.65), departTick: currentTick,
-    arrivalTick: delegated ? currentTick : currentTick + Math.max(1, Math.ceil(route.days / 7)), route,
+    arrivalTick: delegated ? currentTick : currentTick + telegraphDeliveryTicks(route), route,
     residentDiplomatId: delegated ? residentDiplomat.id : null, delegatedAuthority: delegated ? residentDiplomat.authority : null,
     authorityExceeded: Boolean(delegated && commitDecision.exceededAuthority),
     authentication: genuineAuthentication(sender, { coded: Boolean(options.coded), strategicTruth: options.strategicTruth !== false }),
@@ -229,7 +233,7 @@ function sendJointOperationReply(original, sender, target, accepted, agreement, 
     refusalReason,
     declaredCommitmentFraction: agreement?.partnerDeclaredFraction || 0,
     proposedAttackTick: original.proposedAttackTick, secrecy: original.secrecy,
-    departTick: currentTick, arrivalTick: resident ? currentTick : currentTick + Math.max(1, Math.ceil(route.days / 7)), route,
+    departTick: currentTick, arrivalTick: resident ? currentTick : currentTick + telegraphDeliveryTicks(route), route,
     residentDiplomatId: original.residentDiplomatId || null,
     authentication: genuineAuthentication(target, { coded: Boolean(original.authentication?.coded) }),
     status: 'in_transit', intercepted: false, compromised: false, destroyed: false, response: null,
@@ -254,7 +258,7 @@ export function sendForgedJointOperationLetter(forger, purportedSender, target, 
     declaredCommitmentFraction: clamp(options.commitmentFraction ?? 0.6, 0.1, 0.95),
     objective: options.objective || 'subjugation', secrecy: clamp(options.secrecy ?? 0.45),
     authentication: forgeryAuthentication(forger, purportedSender, options),
-    departTick: currentTick, arrivalTick: currentTick + Math.max(1, Math.ceil(route.days / 7)), route,
+    departTick: currentTick, arrivalTick: currentTick + telegraphDeliveryTicks(route), route,
     status: 'in_transit', intercepted: false, compromised: false, destroyed: false, response: null,
   };
   prepareCommunication(message, forger, target, 0.78);
@@ -276,7 +280,7 @@ export function sendDeceptionJointOperationLetter(sender, target, falseEnemy, re
     declaredCommitmentFraction: clamp(options.commitmentFraction ?? 0.65, 0.1, 0.95),
     objective: options.objective || 'subjugation', secrecy: clamp(options.secrecy ?? 0.12),
     authentication: genuineAuthentication(sender, { coded: Boolean(options.coded), strategicTruth: false }),
-    departTick: currentTick, arrivalTick: currentTick + Math.max(1, Math.ceil(route.days / 7)), route,
+    departTick: currentTick, arrivalTick: currentTick + telegraphDeliveryTicks(route), route,
     status: 'in_transit', intercepted: false, compromised: false, destroyed: false, response: null,
   };
   prepareCommunication(message, sender, target, 0.72);
@@ -308,7 +312,7 @@ export function sendWarInvitation(sender, target, enemy, regions, currentTick, o
     requestedPersonnel: Math.max(0, Math.round(options.requestedPersonnel || 0)),
     secrecy: clamp(options.secrecy ?? 0.4),
     authentication: genuineAuthentication(sender, { coded: Boolean(options.coded) }),
-    departTick: currentTick, arrivalTick: currentTick + Math.max(1, Math.ceil(route.days / 7)), route,
+    departTick: currentTick, arrivalTick: currentTick + telegraphDeliveryTicks(route), route,
     status: 'in_transit', intercepted: false, compromised: false, destroyed: false, response: null,
   };
   prepareCommunication(message, sender, target, 0.68);
