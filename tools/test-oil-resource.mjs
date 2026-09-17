@@ -51,7 +51,6 @@ const coldDemand=civilianOilDemand(cold,365.2425);
 const warmDemand=civilianOilDemand(warm,365.2425);
 assert(coldDemand.heatingNeed>warmDemand.heatingNeed,'cold climates should create more heating demand');
 
-// Compare delivered services against an otherwise identical unsupplied region.
 const supplied=region({id:'supplied',householdEnergy:{lightingService:1,heatingService:1,coldNeed:.9}});
 const unsupplied=region({id:'unsupplied',householdEnergy:{lightingService:0,heatingService:0,coldNeed:.9}});
 const polity={id:'p',continuity:{legitimacy:.5},institutions:{}};
@@ -63,7 +62,7 @@ assert(suppliedW.culturalAccess>unsuppliedW.culturalAccess);
 const bounded=householdEnergyWellbeing(supplied);
 assert(bounded.prosperity<.1 && bounded.safety<.1 && bounded.culturalAccess<.1,'oil services should be useful but not dominate wellbeing');
 
-const techRegion=region({id:'tech',isCoastal:true,deposits:{oil:{tiers}},unlockedTechIds:new Set(),learningByDoing:{mining:500000,smithing:400000},corporateCapital:{financialDepth:.7},protoIndustry:{industrialCapacity:.7},administration:{recordKeeping:.8,accounting:.8}});
+const techRegion=region({id:'tech',isCoastal:true,deposits:{oil:{tiers}},unlockedTechIds:new Set(),experience:{mining:500000,smithing:400000},corporateCapital:{financialDepth:.7},protoIndustry:{industrialCapacity:.7},administration:{recordKeeping:.8,accounting:.8}});
 const chances=petroleumBreakthroughChances(techRegion,new Map([['tech',techRegion]]));
 assert(chances.shallow>0,'oil-bearing regions with mining practice should be able to discover shallow drilling');
 assert.equal(chances.deep,0,'deep drilling requires shallow drilling first');
