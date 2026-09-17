@@ -54,3 +54,7 @@ export function telephoneAdministrativeMultiplier(region) {
 export function telephoneMilitaryCommandMultiplier(region) {
   return 1 + clamp01(region.localCommunications?.militaryCoordination || 0) * 0.08;
 }
+
+export function telephoneMobilisationMultiplier(region) {
+  return 1 + clamp01(region.localCommunications?.militaryCoordination || 0) * 0.30;
+}
