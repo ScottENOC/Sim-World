@@ -1,3 +1,5 @@
+import { PETROLEUM_REFINING_TECH_ID, PETROLEUM_CRACKING_TECH_ID, PETROLEUM_DESULFURISATION_TECH_ID, AVIATION_FRACTIONATION_TECH_ID } from '../technology/petroleum.js?v=20260917-oil3';
+import { effectiveInfrastructureCount } from './construction.js?v=20260917-oil3';
 const clamp01 = (v) => Math.max(0, Math.min(1, Number(v) || 0));
 
 export const PETROLEUM_PRODUCTS = Object.freeze([
@@ -43,14 +45,26 @@ export function ensureRefinery(region) {
   return region.petroleum.refinery;
 }
 
-export function refineryAvailable(region) {
+function syncRefineryCapability(region) {
   const r = ensureRefinery(region);
+  const count = effectiveInfrastructureCount(region, 'petroleum_refinery');
+  const tech = region.unlockedTechIds || new Set();
+  r.simpleDistillation = count > 0 && tech.has(PETROLEUM_REFINING_TECH_ID);
+  r.capacityPerYear = count * 2400;
+  r.cracking = r.simpleDistillation && tech.has(PETROLEUM_CRACKING_TECH_ID);
+  r.desulfurisation = r.simpleDistillation && tech.has(PETROLEUM_DESULFURISATION_TECH_ID);
+  r.aviationFractionation = r.cracking && tech.has(AVIATION_FRACTIONATION_TECH_ID);
+  return r;
+}
+
+export function refineryAvailable(region) {
+  const r = syncRefineryCapability(region);
   return Boolean(r.simpleDistillation && r.capacityPerYear > 0);
 }
 
 export function refineryProductSlate(region) {
   const q = crudeQuality(region);
-  const r = ensureRefinery(region);
+  const r = syncRefineryCapability(region);
   const light = clamp01(q.lightFraction);
   const sourPenalty = q.sulfur === 'sour' && !r.desulfurisation ? 0.12 : 0;
 
@@ -98,7 +112,7 @@ export function tickPetroleumRefining(region, elapsedDays = 7) {
   if (!refineryAvailable(region)) return { throughput: 0, products: {} };
   region.stockpile ||= {};
   region.marketDemand ||= {};
-  const refinery = ensureRefinery(region);
+  const refinery = syncRefineryCapability(region);
   const years = Math.max(0, Number(elapsedDays) || 0) / 365.2425;
   const capacity = Math.max(0, refinery.capacityPerYear || 0) * years;
   const crudeAvailable = Math.max(0, Number(region.stockpile.oil) || 0);
