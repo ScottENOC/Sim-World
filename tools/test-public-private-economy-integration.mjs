@@ -26,7 +26,9 @@ const built=buildStateEnterpriseInfrastructure({type:'power_grid',hostRegion,hos
 assert.equal(built.accepted,true);
 assert.equal(built.asset.ownerStateEnterpriseId,soe.enterprise.id);
 assert.equal(built.asset.status,'construction');
-assert.equal(soe.enterprise.governmentCapital,210);
+assert.equal(soe.enterprise.governmentCapital,400);
+assert.equal(soe.enterprise.cash,210);
+assert.equal(soe.enterprise.investedCapital,190);
 assert.equal(built.asset.publicServiceObligation,.9);
 
 const domesticPrivate={id:'f2',status:'active',sector:'infrastructure',capitalIndex:500};

@@ -1,3 +1,4 @@
+import { borrowEnterprise, ensureEnterpriseOperatingModel, serviceEnterpriseDebt } from './enterpriseBehaviour.js';
 const clamp = (value, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(value) || 0));
 
 export const ECONOMIC_SECTORS = Object.freeze([
@@ -125,14 +126,21 @@ export function createStateEnterprise(polity, {
     sectors: validSectors,
     stateOwnership: clamp(stateOwnership),
     governmentCapital: Math.max(0, Number(governmentCapital) || 0),
+    cash: Math.max(0, Number(governmentCapital) || 0),
     retainedEarnings: 0,
+    investedCapital: 0,
     debt: 0,
+    debtServiceArrears: 0,
+    interestRate: 0.06,
+    creditQuality: 0.5,
+    targetDebtShare: 0.35,
     profitTarget: Math.max(0, Number(profitTarget) || 0),
     serviceObligation: clamp(serviceObligation),
     commercialIndependence: clamp(commercialIndependence),
     status: 'active',
     assets: [],
   };
+  ensureEnterpriseOperatingModel(enterprise,{publicEnterprise:true});
   state.stateEnterprises.push(enterprise);
   return { created: true, enterprise };
 }
@@ -148,7 +156,20 @@ export function fundStateEnterprise(polity, enterpriseId, amount) {
   const value = Math.max(0, Number(amount) || 0);
   if (value <= 0) return { funded: false, reason: 'invalid_amount' };
   enterprise.governmentCapital += value;
+  enterprise.cash = Math.max(0, Number(enterprise.cash) || 0) + value;
   return { funded: true, amount: value, enterprise };
+}
+
+export function borrowStateEnterprise(polity, enterpriseId, amount, context = {}) {
+  const enterprise = stateEnterpriseById(polity, enterpriseId);
+  if (!enterprise || enterprise.status !== 'active') return { borrowed: false, reason: 'enterprise_not_found' };
+  return borrowEnterprise(enterprise, amount, context);
+}
+
+export function serviceStateEnterpriseDebt(polity, enterpriseId, years = 1) {
+  const enterprise = stateEnterpriseById(polity, enterpriseId);
+  if (!enterprise || enterprise.status !== 'active') return { serviced: false, reason: 'enterprise_not_found' };
+  return { serviced: true, ...serviceEnterpriseDebt(enterprise, years), enterprise };
 }
 
 export function economicOwnershipIndicators(polity) {

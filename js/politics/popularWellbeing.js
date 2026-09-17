@@ -1,3 +1,4 @@
+import { enterpriseRegionalConsequences } from '../economy/enterpriseBehaviour.js';
 import { institutionalPoliticalVoice } from './institutionalPowers.js?v=20260916-institutions1';
 
 const DAYS_PER_YEAR = 365.2425;
@@ -28,7 +29,8 @@ function materialProsperity(region) {
   const food = clamp(region?.foodSecurity ?? region?.foodSufficiency ?? (region?.famine ? 0.1 : 0.65));
   const housing = region?.housing ? clamp(region.housing.capacity / Math.max(1, pop)) : 0.65;
   const employment = clamp(1 - (region?.labor?.unemploymentRate ?? region?.unemploymentRate ?? 0.08));
-  return clamp(wealth * 0.28 + food * 0.32 + housing * 0.2 + employment * 0.2);
+  const enterprise = enterpriseRegionalConsequences(region);
+  return clamp(wealth * 0.28 + food * 0.32 + housing * 0.2 + employment * 0.2 - enterprise.prosperityPenalty);
 }
 
 function culturalAccess(region) {
@@ -69,7 +71,8 @@ export function ensurePopularWellbeing(region) {
 
 export function assessPopularWellbeing(region, polity) {
   const prosperity = materialProsperity(region);
-  const safety = clamp(1 - violencePressure(region));
+  const enterprise = enterpriseRegionalConsequences(region);
+  const safety = clamp(1 - violencePressure(region) - enterprise.safetyPenalty);
   const culture = culturalAccess(region);
   const voice = politicalVoice(polity);
   const legitimacy = stateLegitimacy(polity);
