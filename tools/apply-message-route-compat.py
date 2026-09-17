@@ -8,3 +8,4 @@ if old not in s:
     raise RuntimeError('message route summary anchor missing')
 p.write_text(s.replace(old,new,1))
 print('message route compatibility applied')
+# trigger
