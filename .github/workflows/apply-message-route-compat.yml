@@ -1,0 +1,25 @@
+name: Apply message route compatibility
+on:
+  push:
+    branches: [feature/telegraph-network-v1]
+    paths:
+      - 'tools/apply-message-route-compat.py'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/telegraph-network-v1
+      - run: python tools/apply-message-route-compat.py
+      - run: node --check js/diplomacy/messageRouting.js
+      - run: node tools/test-strategic-military-planning.mjs
+      - run: node tools/test-telegraph-network.mjs
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/diplomacy/messageRouting.js
+          git commit -m "Preserve land route compatibility for horse couriers"
+          git push origin HEAD:feature/telegraph-network-v1
