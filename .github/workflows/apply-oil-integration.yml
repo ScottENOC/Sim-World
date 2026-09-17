@@ -1,0 +1,28 @@
+name: Apply oil integration
+on:
+  push:
+    branches: [feature/oil-resource-civilian-use-v1]
+    paths:
+      - 'tools/apply-oil-integration.py'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/oil-resource-civilian-use-v1
+      - run: python tools/apply-oil-integration.py
+      - run: node --check js/main.js
+      - run: node --check js/technology/petroleum.js
+      - run: node --check js/economy/householdEnergy.js
+      - run: node --check js/technology/breakthroughs.js
+      - run: node --check js/economy/laborCore.js
+      - run: node --check js/politics/popularWellbeing.js
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/world/resourceTypes.json js/economy/tradeGoods.js js/economy/laborCore.js js/world/region.js js/technology/breakthroughs.js js/politics/popularWellbeing.js js/main.js
+          git commit -m "Integrate oil extraction trade and civilian use"
+          git push origin HEAD:feature/oil-resource-civilian-use-v1
