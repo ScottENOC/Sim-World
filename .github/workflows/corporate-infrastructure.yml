@@ -1,25 +1,28 @@
 name: Corporate infrastructure rollout
 on:
   push:
-    branches: [corporate-infrastructure-catalogue-v1, foreign-investment-ui-v1, foreign-investment-nationalisation-v1, foreign-investment-procurement-v1, infrastructure-ownership-map-v1, 'feature/public-private-economy-*', 'feature/enterprise-finance-externalities-*']
+    branches: [corporate-infrastructure-catalogue-v1, foreign-investment-ui-v1, foreign-investment-nationalisation-v1, foreign-investment-procurement-v1, infrastructure-ownership-map-v1, 'feature/public-private-economy-*', 'feature/enterprise-finance-externalities-*', 'feature/admin-gated-economic-regulation-*']
   pull_request:
     paths:
       - 'js/economy/corporateInfrastructure.js'
       - 'js/economy/corporateInfrastructureAi.js'
       - 'js/economy/corporateCapital.js'
       - 'js/economy/economicOwnership.js'
+      - 'js/economy/economicRegulation.js'
       - 'js/economy/enterpriseBehaviour.js'
       - 'js/economy/infrastructureInvestment.js'
       - 'js/economy/infrastructureOwnership.js'
       - 'js/economy/industrialSupply.js'
       - 'js/economy/governmentEconomicPolicy.js'
       - 'js/economy/railways.js'
+      - 'js/ui/economicRegulationUi.js'
       - 'js/ui/foreignInvestmentUi.js'
       - 'js/ui/infrastructureMapUi.js'
       - 'js/ui/infrastructureMapView.js'
       - 'js/ui/mapFirstUi.js'
       - 'tools/test-corporate-infrastructure.mjs'
       - 'tools/test-economic-ownership.mjs'
+      - 'tools/test-economic-regulation.mjs'
       - 'tools/test-enterprise-finance-externalities.mjs'
       - 'tools/test-public-private-economy-integration.mjs'
       - 'tools/test-foreign-investment-ui.mjs'
@@ -38,10 +41,13 @@ jobs:
           node-version: 22
       - run: node --check js/economy/enterpriseBehaviour.js
       - run: node --check js/economy/economicOwnership.js
+      - run: node --check js/economy/economicRegulation.js
       - run: node --check js/economy/infrastructureInvestment.js
       - run: node --check js/economy/corporateInfrastructure.js
       - run: node --check js/economy/corporateCapital.js
+      - run: node --check js/ui/economicRegulationUi.js
       - run: node tools/test-economic-ownership.mjs
+      - run: node tools/test-economic-regulation.mjs
       - run: node tools/test-enterprise-finance-externalities.mjs
       - run: node tools/test-public-private-economy-integration.mjs
       - run: node tools/test-corporate-infrastructure.mjs
