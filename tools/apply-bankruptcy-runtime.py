@@ -51,3 +51,4 @@ block="""  if (event.type === 'commercial_firm_distress') {
 """
 s=s.replace(anchor,block+anchor,1)
 p.write_text(s)
+# trigger marker: 2026-09-17
