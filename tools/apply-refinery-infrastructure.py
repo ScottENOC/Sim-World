@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from pathlib import Path
 
+# One-shot branch patcher for the refinery infrastructure integration.
 
 def replace_once(path, old, new):
     p=Path(path); s=p.read_text()
