@@ -1,0 +1,31 @@
+name: Electricity and local grids
+on:
+  push:
+    branches: ['feature/electricity-*']
+  pull_request:
+    paths:
+      - 'js/economy/electricity.js'
+      - 'js/technology/electrification.js'
+      - 'js/economy/construction.js'
+      - 'js/economy/industrialSupply.js'
+      - 'js/technology/breakthroughs.js'
+      - 'js/politics/popularWellbeing.js'
+      - 'js/main.js'
+      - 'tools/test-electricity.mjs'
+      - '.github/workflows/electricity.yml'
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check js/economy/electricity.js
+      - run: node --check js/technology/electrification.js
+      - run: node --check js/economy/construction.js
+      - run: node --check js/economy/industrialSupply.js
+      - run: node --check js/politics/popularWellbeing.js
+      - run: node --check js/main.js
+      - run: node tools/test-electricity.mjs
+      - run: node tools/test-popular-wellbeing.mjs

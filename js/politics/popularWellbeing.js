@@ -1,5 +1,6 @@
 import { enterpriseRegionalConsequences } from '../economy/enterpriseBehaviour.js';
 import { householdEnergyWellbeing } from '../economy/householdEnergy.js?v=20260917-oil1';
+import { electricityWellbeing } from '../economy/electricity.js?v=20260917-electric1';
 import { institutionalPoliticalVoice } from './institutionalPowers.js?v=20260916-institutions1';
 
 const DAYS_PER_YEAR = 365.2425;
@@ -32,7 +33,8 @@ function materialProsperity(region) {
   const employment = clamp(1 - (region?.labor?.unemploymentRate ?? region?.unemploymentRate ?? 0.08));
   const enterprise = enterpriseRegionalConsequences(region);
   const energy = householdEnergyWellbeing(region);
-  return clamp(wealth * 0.28 + food * 0.32 + housing * 0.2 + employment * 0.2 + energy.prosperity - enterprise.prosperityPenalty);
+  const electricity = electricityWellbeing(region);
+  return clamp(wealth * 0.28 + food * 0.32 + housing * 0.2 + employment * 0.2 + energy.prosperity + electricity.prosperity - enterprise.prosperityPenalty);
 }
 
 function culturalAccess(region) {
@@ -42,7 +44,8 @@ function culturalAccess(region) {
   const artistic = clamp(arts.access ?? arts.activity ?? arts.patronage ?? region?.artsAccess ?? 0);
   const gathering = clamp((urban.guilds || 0) * 0.25 + (urban.council || 0) * 0.2 + (settlements.urbanisation || region?.urbanisation || 0) * 0.25);
   const energy = householdEnergyWellbeing(region);
-  return clamp(0.18 + artistic * 0.58 + gathering + energy.culturalAccess);
+  const electricity = electricityWellbeing(region);
+  return clamp(0.18 + artistic * 0.58 + gathering + energy.culturalAccess + electricity.culturalAccess);
 }
 
 function politicalVoice(polity) {
@@ -76,7 +79,8 @@ export function assessPopularWellbeing(region, polity) {
   const prosperity = materialProsperity(region);
   const enterprise = enterpriseRegionalConsequences(region);
   const energy = householdEnergyWellbeing(region);
-  const safety = clamp(1 - violencePressure(region) - enterprise.safetyPenalty + energy.safety);
+  const electricity = electricityWellbeing(region);
+  const safety = clamp(1 - violencePressure(region) - enterprise.safetyPenalty + energy.safety + electricity.safety);
   const culture = culturalAccess(region);
   const voice = politicalVoice(polity);
   const legitimacy = stateLegitimacy(polity);

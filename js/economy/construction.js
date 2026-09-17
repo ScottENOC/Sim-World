@@ -167,6 +167,27 @@ export const CONSTRUCTION_TYPES = Object.freeze({
     materials: { stone: 350, wood: 900, bronze: 20 }, wagePerWorkerWeek: 0.002,
     maintenanceRate: 0.03,
   },
+  coal_power_station: {
+    id: 'coal_power_station', name: 'Coal-fired power station', requiredTechId: 'electrical_generation', unique: false,
+    minPopulation: 10000,
+    description: 'Steam-driven dynamos, boilers and switchgear generating local electrical power. Output depends on a continuing coal supply.',
+    workRequired: 22000, defaultWorkers: 280, minWorkers: 90, maxWorkers: 1100,
+    materials: { stone: 900, iron: 220, steel: 140 }, wagePerWorkerWeek: 0.0038, maintenanceRate: 0.07,
+  },
+  local_electric_grid: {
+    id: 'local_electric_grid', name: 'Local electric distribution grid', requiredTechId: 'local_electric_distribution', unique: false,
+    minPopulation: 8000,
+    description: 'Local wires, substations and distribution equipment carrying generated electricity to homes, workshops and factories.',
+    workRequired: 15000, defaultWorkers: 190, minWorkers: 60, maxWorkers: 800,
+    materials: { wood: 700, iron: 120, steel: 90 }, wagePerWorkerWeek: 0.0035, maintenanceRate: 0.065,
+  },
+  hydroelectric_station: {
+    id: 'hydroelectric_station', name: 'Hydroelectric station', requiredTechId: 'hydroelectric_generation', unique: false,
+    requiresInfrastructure: 'reservoir_dam', minPopulation: 7000,
+    description: 'Turbines and generators converting controlled river flow into local electrical power.',
+    workRequired: 26000, defaultWorkers: 300, minWorkers: 100, maxWorkers: 1200,
+    materials: { stone: 1200, iron: 180, steel: 180 }, wagePerWorkerWeek: 0.0038, maintenanceRate: 0.06,
+  },
   petroleum_refinery: {
     id: 'petroleum_refinery', name: 'Petroleum refinery', requiredTechId: 'petroleum_refining', unique: false,
     minPopulation: 8000,
