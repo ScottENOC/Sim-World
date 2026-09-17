@@ -64,3 +64,4 @@ if "tickPetroleumRefining(region, time.elapsedDays)" not in s:
 p.write_text(s)
 
 print('petroleum refining integration applied')
+# Triggered after workflow installation.
