@@ -1,0 +1,25 @@
+name: Apply telephone admin military effects
+on:
+  push:
+    branches: [feature/telephone-admin-military-effects-v1]
+    paths:
+      - 'tools/apply-telephone-admin-military-effects.py'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/telephone-admin-military-effects-v1
+      - run: python tools/apply-telephone-admin-military-effects.py
+      - run: node --check js/economy/localCommunications.js
+      - run: node --check js/politics/polities.js
+      - run: node --check js/military/campaigns.js
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/economy/localCommunications.js js/politics/polities.js js/military/campaigns.js
+          git commit -m "Apply local telephone administration and mobilisation effects"
+          git push origin HEAD:feature/telephone-admin-military-effects-v1
