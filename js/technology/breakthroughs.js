@@ -2,6 +2,7 @@ import { effectiveExperience } from './learningByDoing.js?v=20260906-education1'
 import { tickClassicalBreakthroughs } from './classicalTransition.js?v=20260907-classical1';
 import { tickMedievalBreakthroughs } from './medievalTransition.js?v=20260912-medieval1';
 import { tickPetroleumBreakthroughs } from './petroleum.js?v=20260917-oil1';
+import { tickElectrificationBreakthroughs } from './electrification.js?v=20260917-electric1';
 import { GUNPOWDER_TECH_ID, RIFLING_TECH_ID } from '../military/firearms.js?v=20260914-rifling1';
 import { STEELMAKING_TECH_ID, steelmakingBreakthroughChance } from './steel.js?v=20260912-steel1';
 import { boundedDiffusionChance, combineIndependentChances, observeTechnology, technologyComprehension, technologyObservation } from './technologyComprehension.js?v=20260914-rifling1';
@@ -343,5 +344,6 @@ export function tickBreakthroughs(regions, currentTick, rng = Math.random, elaps
   events.push(...tickClassicalBreakthroughs(regions, currentTick, rng, elapsedDays));
   events.push(...tickMedievalBreakthroughs(regions, currentTick, rng, elapsedDays));
   events.push(...tickPetroleumBreakthroughs(regions, currentTick, rng, elapsedDays));
+  events.push(...tickElectrificationBreakthroughs(regions, currentTick, rng, elapsedDays));
   return events;
 }

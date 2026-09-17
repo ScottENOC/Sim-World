@@ -1,3 +1,4 @@
+import { electricityIndustrialMultiplier } from './electricity.js?v=20260917-electric1';
 import { foreignMarketAccess } from './infrastructureInvestment.js';
 
 const DAYS_PER_YEAR = 365.2425;
@@ -51,7 +52,7 @@ export function tickIndustrialSupply(region, elapsedDays = 7) {
   const coalPractice = clamp((region.resourceDeposits?.coal?.remainingFraction ?? region.resourceDeposits?.coal?.depth ?? 0) + (region.stockpile?.coal || 0) / 1000);
   const targets = { steelmaking: clamp(base * 0.72 + ironPractice * 0.12 + coalPractice * 0.16), precision_machining: clamp(base * 0.78 + s.capability.steelmaking * 0.22), locomotive_engineering: clamp(base * 0.5 + s.capability.precision_machining * 0.3 + s.exposure.locomotive_engineering * 0.2), rail_vehicle_manufacture: clamp(base * 0.6 + s.capability.steelmaking * 0.25 + s.exposure.rail_vehicle_manufacture * 0.15), railway_engineering: clamp(base * 0.45 + s.capability.precision_machining * 0.2 + s.exposure.railway_engineering * 0.35) };
   for (const [key, target] of Object.entries(targets)) { const practice = s.exposure[key] > 0.02 || base > 0.12; const rate = clamp(years * (practice ? 0.075 : 0.012)); s.capability[key] += (target - s.capability[key]) * rate; s.exposure[key] = Math.max(0, s.exposure[key] - years * 0.012); }
-  s.outputCapacity.steel = Math.max(0, base * s.capability.steelmaking * 140); s.outputCapacity.machine_components = Math.max(0, base * s.capability.precision_machining * 38); s.outputCapacity.steam_locomotive = Math.max(0, base * s.capability.locomotive_engineering * 3.2); s.outputCapacity.rail_stock = Math.max(0, base * s.capability.rail_vehicle_manufacture * 22); return s;
+  const electric = electricityIndustrialMultiplier(region); s.outputCapacity.steel = Math.max(0, base * s.capability.steelmaking * 140 * electric); s.outputCapacity.machine_components = Math.max(0, base * s.capability.precision_machining * 38 * electric); s.outputCapacity.steam_locomotive = Math.max(0, base * s.capability.locomotive_engineering * 3.2 * electric); s.outputCapacity.rail_stock = Math.max(0, base * s.capability.rail_vehicle_manufacture * 22 * electric); return s;
 }
 export function supplierCapability(region, requirement) {
   const s = ensureIndustrialSupply(region); const entries = Object.entries(requirement || {}).filter(([, needed]) => Number(needed) > 0); if (!entries.length) return 1;
