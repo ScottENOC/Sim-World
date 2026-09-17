@@ -1,0 +1,25 @@
+name: Apply refinery infrastructure
+on:
+  push:
+    branches: [feature/oil-resource-civilian-use-v1]
+    paths:
+      - 'tools/apply-refinery-infrastructure.py'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/oil-resource-civilian-use-v1
+      - run: python tools/apply-refinery-infrastructure.py
+      - run: node --check js/technology/petroleum.js
+      - run: node --check js/economy/petroleumRefining.js
+      - run: node --check js/economy/construction.js
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/technology/petroleum.js js/economy/petroleumRefining.js js/economy/construction.js
+          git commit -m "Add buildable petroleum refineries and upgrade breakthroughs"
+          git push origin HEAD:feature/oil-resource-civilian-use-v1
