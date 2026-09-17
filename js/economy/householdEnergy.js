@@ -59,7 +59,7 @@ export function tickHouseholdEnergy(region, elapsedDays = 7) {
   // Merchant demand is physical unmet household demand plus a modest buffer.
   region.marketDemand.lamp_fuel = Math.max(0, unmet + demand.total * 0.2);
   region.marketDemand.oil = Math.max(0, crudeConsumed > 0 ? demand.total * 0.04 : 0);
-  return { ...state, unmetOilDemand: unmet, refinedFuelConsumed, crudeConsumed };
+  return { ...state, unmetOilDemand: unmet, refinedFuelConsumed: refinedConsumed, crudeConsumed };
 }
 
 export function householdEnergyWellbeing(region) {
