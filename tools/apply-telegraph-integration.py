@@ -1,61 +1,64 @@
 #!/usr/bin/env python3
 from pathlib import Path
 
-def replace_once(path, old, new):
-    p=Path(path); s=p.read_text()
-    if old not in s: raise RuntimeError(f'missing anchor in {path}: {old[:120]!r}')
-    p.write_text(s.replace(old,new,1))
-
-def insert_once(path, marker, anchor, insertion):
-    p=Path(path); s=p.read_text()
-    if marker in s: return
-    if anchor not in s: raise RuntimeError(f'missing anchor in {path}: {anchor[:120]!r}')
-    p.write_text(s.replace(anchor,insertion,1))
-
-# Physical regional telegraph network construction.
-p=Path('js/economy/construction.js'); s=p.read_text()
-if "id: 'telegraph_network'" not in s:
-    anchor="  coal_power_station: {\n"
-    block="""  telegraph_network: {
-    id: 'telegraph_network', name: 'Electrical telegraph network', requiredTechId: 'electrical_telegraphy', unique: true,
-    minPopulation: 5000,
-    description: 'Telegraph offices, poles, wire and trained operators linking this region to adjacent wired regions. Damage or an unwired gap breaks the rapid route.',
-    workRequired: 12500, defaultWorkers: 150, minWorkers: 45, maxWorkers: 650,
-    materials: { wood: 900, iron: 180, copper: 35 }, wagePerWorkerWeek: 0.0032, maintenanceRate: 0.055,
-  },
-"""
-    if anchor not in s: raise RuntimeError('electricity construction anchor missing')
-    p.write_text(s.replace(anchor,block+anchor,1))
-
-# Telegraphy enters the normal technology pass.
-p=Path('js/technology/breakthroughs.js'); s=p.read_text()
-if "tickTelegraphBreakthroughs" not in s:
-    import_anchor="import { tickElectrificationBreakthroughs } from './electrification.js?v=20260917-electric1';"
-    if import_anchor not in s: raise RuntimeError('electrification import anchor missing')
-    s=s.replace(import_anchor,import_anchor+"\nimport { tickTelegraphBreakthroughs } from './telegraphy.js?v=20260917-telegraph1';",1)
-    tick_anchor="  events.push(...tickElectrificationBreakthroughs(regions, currentTick, rng, elapsedDays));"
-    if tick_anchor not in s: raise RuntimeError('electrification tick anchor missing')
-    s=s.replace(tick_anchor,tick_anchor+"\n  events.push(...tickTelegraphBreakthroughs(regions, currentTick, rng, elapsedDays));",1)
-    p.write_text(s)
-
-# Live diplomatic courier routing prefers a continuous operational land telegraph.
 p=Path('js/diplomacy/couriers.js'); s=p.read_text()
-if "./telegraph.js" not in s:
-    anchor="import { authoriseRuntimeGovernmentAction } from '../politics/institutionalRuntimeAuthority.js?v=20260916-institution-diplomacy1';"
-    if anchor not in s: raise RuntimeError('courier import anchor missing')
-    s=s.replace(anchor,anchor+"\nimport { telegraphDeliveryTicks, telegraphInterceptRisk, telegraphRouteBetween } from './telegraph.js?v=20260917-telegraph1';",1)
-if "export function routeFor(" not in s:
-    old="function routeFor(origin, target, regionsById) {\n  const land = landRoute(origin, target, regionsById);"
-    new="export function routeFor(origin, target, regionsById) {\n  const telegraph = telegraphRouteBetween(origin, target, regionsById);\n  if (telegraph) return telegraph;\n  const land = landRoute(origin, target, regionsById);"
-    if old not in s: raise RuntimeError('routeFor anchor missing')
-    s=s.replace(old,new,1)
-if "route.mode === 'telegraph'" not in s:
-    old="function routeRisk(route, regionsById, fleets, senderActorId, targetActorId) {\n  if (!route) return { interceptChance: 1, hostileActors: [] };\n  let risk = 0; const hostileActors = new Set();"
-    new="function routeRisk(route, regionsById, fleets, senderActorId, targetActorId) {\n  if (!route) return { interceptChance: 1, hostileActors: [] };\n  if (route.mode === 'telegraph') return { interceptChance: telegraphInterceptRisk(route, regionsById, senderActorId, targetActorId), hostileActors: [] };\n  let risk = 0; const hostileActors = new Set();"
-    if old not in s: raise RuntimeError('routeRisk anchor missing')
-    s=s.replace(old,new,1)
-s=s.replace("currentTick + Math.max(1, Math.ceil(route.days / 7))", "currentTick + telegraphDeliveryTicks(route)")
+# Imports: remove direct routing dependencies, keep telegraph interception helper for per-leg risk.
+s=s.replace("import { maritimeRouteBetween } from '../world/chokepoints.js?v=20260907-chokepoints1';\n","")
+s=s.replace("import { telegraphDeliveryTicks, telegraphInterceptRisk, telegraphRouteBetween } from './telegraph.js?v=20260917-telegraph1';\n",
+            "import { telegraphInterceptRisk } from './telegraph.js?v=20260917-telegraph1';\nimport { messageRouteBetween, messageRouteDeliveryTicks } from './messageRouting.js?v=20260917-message-routing1';\n")
+# Remove old landRoute + whole-mode routeFor block.
+start=s.index("function landRoute(origin, target, regionsById, maxHops = 14) {")
+end=s.index("\nfunction routeRisk(route, regionsById, fleets, senderActorId, targetActorId) {", start)
+new_route="""export function routeFor(origin, target, regionsById) {
+  return messageRouteBetween(origin, target, regionsById);
+}
+"""
+s=s[:start]+new_route+s[end:]
+# Replace routeRisk with per-leg aggregation. Independent leg risks combine multiplicatively.
+start=s.index("function routeRisk(route, regionsById, fleets, senderActorId, targetActorId) {")
+end=s.index("\nexport function sendJointOperationProposal", start)
+new_risk="""function routeRisk(route, regionsById, fleets, senderActorId, targetActorId) {
+  if (!route) return { interceptChance: 1, hostileActors: [] };
+  const hostileActors = new Set();
+  let survival = 1;
+  const senderRegion = [...regionsById.values()].find((r) => actorId(r) === senderActorId);
+  const legs = route.legs?.length ? route.legs : [route];
+  for (const leg of legs) {
+    let legRisk = 0;
+    if (leg.mode === 'telegraph') {
+      legRisk = telegraphInterceptRisk(leg, regionsById, senderActorId, targetActorId);
+    } else if (leg.mode === 'horse' || leg.mode === 'rail' || leg.mode === 'land') {
+      const mids = (leg.regionIds || []).slice(1, -1);
+      const exposure = leg.mode === 'rail' ? 0.55 : 1;
+      for (const id of mids) {
+        const region = regionsById.get(id); if (!region) continue;
+        const safety = clamp(region.safetyRating ?? 1);
+        legRisk += ((1 - safety) * 0.08 + clamp(region.conflictPressure || 0) * 0.16) * exposure;
+        const controller = actorId(region);
+        if (controller && controller !== senderActorId && controller !== targetActorId && senderRegion && attitudeToward(senderRegion, region.id) < -0.45) {
+          legRisk += 0.12 * exposure; hostileActors.add(controller);
+        }
+      }
+    } else if (leg.mode === 'sea') {
+      for (const fleet of fleets || []) {
+        if (fleet.locationType !== 'sea' || !leg.seaIds?.includes(fleet.seaRegionId)) continue;
+        if (fleet.ownerActorId === senderActorId || fleet.ownerActorId === targetActorId) continue;
+        const owner = [...regionsById.values()].find((r) => actorId(r) === fleet.ownerActorId);
+        const hostile = senderRegion && owner ? attitudeToward(senderRegion, owner.id) < -0.35 : false;
+        if (!hostile) continue;
+        const missionFactor = fleet.mission === 'intercept' ? 0.18 : fleet.mission === 'patrol' ? 0.12 : fleet.mission === 'blockade' ? 0.15 : 0.05;
+        legRisk += missionFactor * Math.min(1.5, Math.log2(1 + (fleet.ships?.length || 0)) / 2);
+        hostileActors.add(fleet.ownerActorId);
+      }
+    }
+    survival *= 1 - clamp(legRisk, 0, 0.8);
+  }
+  return { interceptChance: clamp(1 - survival, 0, 0.9), hostileActors: [...hostileActors] };
+}
+"""
+s=s[:start]+new_risk+s[end:]
+# Generic itinerary delivery. Resident diplomat path remains same-tick.
+s=s.replace("currentTick + telegraphDeliveryTicks(route)","currentTick + messageRouteDeliveryTicks(route)")
 p.write_text(s)
-
-print('telegraph integration applied')
-# trigger 2026-09-17
+print('multimodal courier integration applied')
+# trigger multimodal
