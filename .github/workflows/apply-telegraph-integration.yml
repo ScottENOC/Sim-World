@@ -1,0 +1,27 @@
+name: Apply telegraph integration
+on:
+  push:
+    branches: [feature/telegraph-network-v1]
+    paths:
+      - 'tools/apply-telegraph-integration.py'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/telegraph-network-v1
+      - run: python tools/apply-telegraph-integration.py
+      - run: node --check js/diplomacy/telegraph.js
+      - run: node --check js/technology/telegraphy.js
+      - run: node --check js/diplomacy/couriers.js
+      - run: node --check js/economy/construction.js
+      - run: node --check js/technology/breakthroughs.js
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/diplomacy/couriers.js js/economy/construction.js js/technology/breakthroughs.js
+          git commit -m "Integrate physical telegraph routes into diplomacy"
+          git push origin HEAD:feature/telegraph-network-v1
