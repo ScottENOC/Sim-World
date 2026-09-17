@@ -98,10 +98,10 @@ if "tickHouseholdEnergy(region, time.elapsedDays)" not in s:
     if matches:
         m=matches[0]; s=s[:m.end()]+"\n    for (const region of regions) tickHouseholdEnergy(region, time.elapsedDays);"+s[m.end():]
     else:
-        # Fallback: insert immediately before the first tickTrade invocation.
         m=re.search(r"\n(\s*)(?:const\s+\w+\s*=\s*)?(?:profiler\.measure\([^\n]*=>\s*)?tickTrade\(",s)
         if not m: raise RuntimeError('could not locate economy/trade tick integration point')
         s=s[:m.start()]+f"\n{m.group(1)}for (const region of regions) tickHouseholdEnergy(region, time.elapsedDays);"+s[m.start():]
 p.write_text(s)
 
 print('oil resource and civilian-use integration applied')
+# trigger 2026-09-17T13:50+10
