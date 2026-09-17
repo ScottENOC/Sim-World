@@ -1,10 +1,11 @@
 import { attitudeToward, changeAttitude } from './relations.js?v=20260904-save1';
-import { maritimeRouteBetween } from '../world/chokepoints.js?v=20260907-chokepoints1';
 import { diplomatCommitDecision, residentDiplomatFor } from './diplomats.js?v=20260909-agent-trust1';
 import { assessMessageAuthenticity, forgeryAuthentication, genuineAuthentication, intelligenceCredibilityFromMessage } from './counterIntelligence.js?v=20260909-counterintel1';
 import { chooseMessageMedium, communicationCapabilities, courierProfile, interceptedContentChance, languageComprehension, recordLanguageContact } from './languageCommunication.js?v=20260909-language-networks1';
 import { courtLanguageCompetence } from './languageNetworks.js?v=20260909-language-networks1';
 import { authoriseRuntimeGovernmentAction } from '../politics/institutionalRuntimeAuthority.js?v=20260916-institution-diplomacy1';
+import { telegraphInterceptRisk } from './telegraph.js?v=20260917-telegraph1';
+import { messageRouteBetween, messageRouteDeliveryTicks } from './messageRouting.js?v=20260917-message-routing1';
 
 let nextMessageId = 1;
 export function syncNextDiplomaticMessageId(regions = []) {
@@ -50,65 +51,47 @@ function ensureMailbox(region) {
   return region.diplomaticMessages;
 }
 
-function landRoute(origin, target, regionsById, maxHops = 14) {
-  if (origin.id === target.id) return [origin.id];
-  const queue = [[origin.id]];
-  const seen = new Set([origin.id]);
-  while (queue.length) {
-    const path = queue.shift();
-    if (path.length > maxHops + 1) continue;
-    const here = regionsById.get(path[path.length - 1]);
-    for (const nextId of here?.neighbors || []) {
-      if (seen.has(nextId)) continue;
-      const nextPath = [...path, nextId];
-      if (nextId === target.id) return nextPath;
-      seen.add(nextId); queue.push(nextPath);
-    }
-  }
-  return null;
-}
-
-function routeFor(origin, target, regionsById) {
-  const land = landRoute(origin, target, regionsById);
-  const sea = maritimeRouteBetween(origin, target);
-  if (!land && !sea) return null;
-  const landDays = land ? Math.max(2, (land.length - 1) * 4) : Infinity;
-  const seaDays = sea ? Math.max(3, sea.seaIds.length * 3 + (sea.physicalFriction || 0) * 8) : Infinity;
-  if (seaDays < landDays) return { mode: 'sea', seaIds: sea.seaIds, passageIds: sea.passageIds || [], days: seaDays };
-  return { mode: 'land', regionIds: land, days: landDays };
+export function routeFor(origin, target, regionsById) {
+  return messageRouteBetween(origin, target, regionsById);
 }
 
 function routeRisk(route, regionsById, fleets, senderActorId, targetActorId) {
   if (!route) return { interceptChance: 1, hostileActors: [] };
-  let risk = 0; const hostileActors = new Set();
-  if (route.mode === 'land') {
-    const mids = (route.regionIds || []).slice(1, -1);
-    for (const id of mids) {
-      const region = regionsById.get(id); if (!region) continue;
-      const safety = clamp(region.safetyRating ?? 1);
-      risk += (1 - safety) * 0.08 + clamp(region.conflictPressure || 0) * 0.16;
-      const controller = actorId(region);
-      if (controller && controller !== senderActorId && controller !== targetActorId) {
-        const senderRegion = [...regionsById.values()].find((r) => actorId(r) === senderActorId);
-        if (senderRegion && attitudeToward(senderRegion, region.id) < -0.45) {
-          risk += 0.12; hostileActors.add(controller);
+  const hostileActors = new Set();
+  let survival = 1;
+  const senderRegion = [...regionsById.values()].find((r) => actorId(r) === senderActorId);
+  const legs = route.legs?.length ? route.legs : [route];
+  for (const leg of legs) {
+    let legRisk = 0;
+    if (leg.mode === 'telegraph') {
+      legRisk = telegraphInterceptRisk(leg, regionsById, senderActorId, targetActorId);
+    } else if (leg.mode === 'horse' || leg.mode === 'rail' || leg.mode === 'land') {
+      const mids = (leg.regionIds || []).slice(1, -1);
+      const exposure = leg.mode === 'rail' ? 0.55 : 1;
+      for (const id of mids) {
+        const region = regionsById.get(id); if (!region) continue;
+        const safety = clamp(region.safetyRating ?? 1);
+        legRisk += ((1 - safety) * 0.08 + clamp(region.conflictPressure || 0) * 0.16) * exposure;
+        const controller = actorId(region);
+        if (controller && controller !== senderActorId && controller !== targetActorId && senderRegion && attitudeToward(senderRegion, region.id) < -0.45) {
+          legRisk += 0.12 * exposure; hostileActors.add(controller);
         }
       }
+    } else if (leg.mode === 'sea') {
+      for (const fleet of fleets || []) {
+        if (fleet.locationType !== 'sea' || !leg.seaIds?.includes(fleet.seaRegionId)) continue;
+        if (fleet.ownerActorId === senderActorId || fleet.ownerActorId === targetActorId) continue;
+        const owner = [...regionsById.values()].find((r) => actorId(r) === fleet.ownerActorId);
+        const hostile = senderRegion && owner ? attitudeToward(senderRegion, owner.id) < -0.35 : false;
+        if (!hostile) continue;
+        const missionFactor = fleet.mission === 'intercept' ? 0.18 : fleet.mission === 'patrol' ? 0.12 : fleet.mission === 'blockade' ? 0.15 : 0.05;
+        legRisk += missionFactor * Math.min(1.5, Math.log2(1 + (fleet.ships?.length || 0)) / 2);
+        hostileActors.add(fleet.ownerActorId);
+      }
     }
-  } else {
-    for (const fleet of fleets || []) {
-      if (fleet.locationType !== 'sea' || !route.seaIds?.includes(fleet.seaRegionId)) continue;
-      if (fleet.ownerActorId === senderActorId || fleet.ownerActorId === targetActorId) continue;
-      const owner = [...regionsById.values()].find((r) => actorId(r) === fleet.ownerActorId);
-      const senderRegion = [...regionsById.values()].find((r) => actorId(r) === senderActorId);
-      const hostile = senderRegion && owner ? attitudeToward(senderRegion, owner.id) < -0.35 : false;
-      if (!hostile) continue;
-      const missionFactor = fleet.mission === 'intercept' ? 0.18 : fleet.mission === 'patrol' ? 0.12 : fleet.mission === 'blockade' ? 0.15 : 0.05;
-      risk += missionFactor * Math.min(1.5, Math.log2(1 + (fleet.ships?.length || 0)) / 2);
-      hostileActors.add(fleet.ownerActorId);
-    }
+    survival *= 1 - clamp(legRisk, 0, 0.8);
   }
-  return { interceptChance: clamp(risk, 0, 0.8), hostileActors: [...hostileActors] };
+  return { interceptChance: clamp(1 - survival, 0, 0.9), hostileActors: [...hostileActors] };
 }
 
 export function sendJointOperationProposal(sender, target, enemy, regions, currentTick, options = {}) {
@@ -135,7 +118,7 @@ export function sendJointOperationProposal(sender, target, enemy, regions, curre
       delayWeeks: Math.max(0, Math.round(options.delayWeeks || 0)),
     },
     secrecy: clamp(options.secrecy ?? 0.65), departTick: currentTick,
-    arrivalTick: delegated ? currentTick : currentTick + Math.max(1, Math.ceil(route.days / 7)), route,
+    arrivalTick: delegated ? currentTick : currentTick + messageRouteDeliveryTicks(route), route,
     residentDiplomatId: delegated ? residentDiplomat.id : null, delegatedAuthority: delegated ? residentDiplomat.authority : null,
     authorityExceeded: Boolean(delegated && commitDecision.exceededAuthority),
     authentication: genuineAuthentication(sender, { coded: Boolean(options.coded), strategicTruth: options.strategicTruth !== false }),
@@ -229,7 +212,7 @@ function sendJointOperationReply(original, sender, target, accepted, agreement, 
     refusalReason,
     declaredCommitmentFraction: agreement?.partnerDeclaredFraction || 0,
     proposedAttackTick: original.proposedAttackTick, secrecy: original.secrecy,
-    departTick: currentTick, arrivalTick: resident ? currentTick : currentTick + Math.max(1, Math.ceil(route.days / 7)), route,
+    departTick: currentTick, arrivalTick: resident ? currentTick : currentTick + messageRouteDeliveryTicks(route), route,
     residentDiplomatId: original.residentDiplomatId || null,
     authentication: genuineAuthentication(target, { coded: Boolean(original.authentication?.coded) }),
     status: 'in_transit', intercepted: false, compromised: false, destroyed: false, response: null,
@@ -254,7 +237,7 @@ export function sendForgedJointOperationLetter(forger, purportedSender, target, 
     declaredCommitmentFraction: clamp(options.commitmentFraction ?? 0.6, 0.1, 0.95),
     objective: options.objective || 'subjugation', secrecy: clamp(options.secrecy ?? 0.45),
     authentication: forgeryAuthentication(forger, purportedSender, options),
-    departTick: currentTick, arrivalTick: currentTick + Math.max(1, Math.ceil(route.days / 7)), route,
+    departTick: currentTick, arrivalTick: currentTick + messageRouteDeliveryTicks(route), route,
     status: 'in_transit', intercepted: false, compromised: false, destroyed: false, response: null,
   };
   prepareCommunication(message, forger, target, 0.78);
@@ -276,7 +259,7 @@ export function sendDeceptionJointOperationLetter(sender, target, falseEnemy, re
     declaredCommitmentFraction: clamp(options.commitmentFraction ?? 0.65, 0.1, 0.95),
     objective: options.objective || 'subjugation', secrecy: clamp(options.secrecy ?? 0.12),
     authentication: genuineAuthentication(sender, { coded: Boolean(options.coded), strategicTruth: false }),
-    departTick: currentTick, arrivalTick: currentTick + Math.max(1, Math.ceil(route.days / 7)), route,
+    departTick: currentTick, arrivalTick: currentTick + messageRouteDeliveryTicks(route), route,
     status: 'in_transit', intercepted: false, compromised: false, destroyed: false, response: null,
   };
   prepareCommunication(message, sender, target, 0.72);
@@ -308,7 +291,7 @@ export function sendWarInvitation(sender, target, enemy, regions, currentTick, o
     requestedPersonnel: Math.max(0, Math.round(options.requestedPersonnel || 0)),
     secrecy: clamp(options.secrecy ?? 0.4),
     authentication: genuineAuthentication(sender, { coded: Boolean(options.coded) }),
-    departTick: currentTick, arrivalTick: currentTick + Math.max(1, Math.ceil(route.days / 7)), route,
+    departTick: currentTick, arrivalTick: currentTick + messageRouteDeliveryTicks(route), route,
     status: 'in_transit', intercepted: false, compromised: false, destroyed: false, response: null,
   };
   prepareCommunication(message, sender, target, 0.68);

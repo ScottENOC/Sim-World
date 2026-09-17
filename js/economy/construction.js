@@ -167,6 +167,13 @@ export const CONSTRUCTION_TYPES = Object.freeze({
     materials: { stone: 350, wood: 900, bronze: 20 }, wagePerWorkerWeek: 0.002,
     maintenanceRate: 0.03,
   },
+  telegraph_network: {
+    id: 'telegraph_network', name: 'Electrical telegraph network', requiredTechId: 'electrical_telegraphy', unique: true,
+    minPopulation: 5000,
+    description: 'Telegraph offices, poles, wire and trained operators linking this region to adjacent wired regions. Damage or an unwired gap breaks the rapid route.',
+    workRequired: 12500, defaultWorkers: 150, minWorkers: 45, maxWorkers: 650,
+    materials: { wood: 900, iron: 180, copper: 35 }, wagePerWorkerWeek: 0.0032, maintenanceRate: 0.055,
+  },
   coal_power_station: {
     id: 'coal_power_station', name: 'Coal-fired power station', requiredTechId: 'electrical_generation', unique: false,
     minPopulation: 10000,

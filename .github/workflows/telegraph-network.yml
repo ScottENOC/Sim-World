@@ -1,0 +1,31 @@
+name: Telegraph network
+on:
+  push:
+    branches: ['feature/telegraph-network-*']
+  pull_request:
+    paths:
+      - 'js/diplomacy/telegraph.js'
+      - 'js/diplomacy/messageRouting.js'
+      - 'js/diplomacy/couriers.js'
+      - 'js/technology/telegraphy.js'
+      - 'js/technology/breakthroughs.js'
+      - 'js/economy/construction.js'
+      - 'js/economy/railways.js'
+      - 'tools/test-telegraph-network.mjs'
+      - '.github/workflows/telegraph-network.yml'
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check js/diplomacy/telegraph.js
+      - run: node --check js/diplomacy/messageRouting.js
+      - run: node --check js/technology/telegraphy.js
+      - run: node --check js/diplomacy/couriers.js
+      - run: node --check js/economy/construction.js
+      - run: node --check js/economy/railways.js
+      - run: node --check js/technology/breakthroughs.js
+      - run: node tools/test-telegraph-network.mjs
