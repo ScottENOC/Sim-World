@@ -1,0 +1,37 @@
+name: Oil resource and civilian use
+on:
+  push:
+    branches: ['feature/oil-resource-civilian-use-*']
+  pull_request:
+    paths:
+      - 'data/world/resourceTypes.json'
+      - 'js/world/region.js'
+      - 'js/economy/tradeGoods.js'
+      - 'js/economy/laborCore.js'
+      - 'js/economy/householdEnergy.js'
+      - 'js/economy/petroleumRefining.js'
+      - 'js/economy/construction.js'
+      - 'js/technology/petroleum.js'
+      - 'js/technology/breakthroughs.js'
+      - 'js/politics/popularWellbeing.js'
+      - 'js/main.js'
+      - 'tools/test-oil-resource.mjs'
+      - '.github/workflows/oil-resource.yml'
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check js/economy/householdEnergy.js
+      - run: node --check js/economy/petroleumRefining.js
+      - run: node --check js/economy/construction.js
+      - run: node --check js/technology/petroleum.js
+      - run: node --check js/technology/breakthroughs.js
+      - run: node --check js/economy/laborCore.js
+      - run: node --check js/politics/popularWellbeing.js
+      - run: node --check js/main.js
+      - run: node tools/test-oil-resource.mjs
+      - run: node tools/test-popular-wellbeing.mjs

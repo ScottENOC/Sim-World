@@ -7,6 +7,8 @@ import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260912-
 import { seedCensus, densityPerKm2 } from './society/census.js?v=20260904-weather1';
 import { tickEconomy } from './economy/labor.js?v=20260912-silkroad1';
 import { tickTrade } from './economy/trade.js?v=20260912-medieval1';
+import { tickHouseholdEnergy } from './economy/householdEnergy.js?v=20260917-oil1';
+import { tickPetroleumRefining } from './economy/petroleumRefining.js?v=20260917-oil2';
 import { tickStateFinance } from './economy/stateFinance.js?v=20260912-currency2';
 import { tickDemographics } from './society/demographics.js?v=20260912-culture-scale1';
 import { tickDisease } from './society/disease.js?v=20260912-disease1';
@@ -359,6 +361,8 @@ async function main() {
       };
     }
     profiler.measure('Transit control', () => tickTransitControl(regions, time.elapsedDays));
+    for (const region of regions) tickPetroleumRefining(region, time.elapsedDays);
+    for (const region of regions) tickHouseholdEnergy(region, time.elapsedDays);
     profiler.measure('Trade', () => tickTrade(regions, calendarWeek, time, agreements, profiler));
     await yieldForUi();
     profiler.measure('Maritime experience', () => tickMaritimeExperience(regions, activeRaids, time.elapsedDays));

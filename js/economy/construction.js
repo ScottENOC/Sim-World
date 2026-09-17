@@ -167,6 +167,13 @@ export const CONSTRUCTION_TYPES = Object.freeze({
     materials: { stone: 350, wood: 900, bronze: 20 }, wagePerWorkerWeek: 0.002,
     maintenanceRate: 0.03,
   },
+  petroleum_refinery: {
+    id: 'petroleum_refinery', name: 'Petroleum refinery', requiredTechId: 'petroleum_refining', unique: false,
+    minPopulation: 8000,
+    description: 'Distillation towers, tanks, furnaces and pipework processing crude oil into specialised fuels. It can operate on imported crude and does not require local petroleum deposits.',
+    workRequired: 18000, defaultWorkers: 220, minWorkers: 70, maxWorkers: 900,
+    materials: { stone: 900, iron: 180, steel: 90 }, wagePerWorkerWeek: 0.0035, maintenanceRate: 0.065,
+  },
   naval_base: {
     id: 'naval_base', name: 'Naval base and sheds', requiredTechId: 'naval_warfare', coastal: true, unique: true,
     requiresInfrastructure: 'harbour', minPopulation: 7000,

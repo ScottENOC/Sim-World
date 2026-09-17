@@ -134,5 +134,9 @@
   "coffee": {
     "category": "cultivated_luxury",
     "label": "Coffee"
+  },
+  "oil": {
+    "category": "extractive",
+    "label": "Crude oil"
   }
 }

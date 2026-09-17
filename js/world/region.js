@@ -130,6 +130,28 @@ export async function loadWorld() {
         ] };
       }
     }
+    if (!region.deposits.oil) {
+      let oh = 2166136261;
+      for (const c of `${region.id}:oil`) oh = Math.imul(oh ^ c.charCodeAt(0), 16777619);
+      const oilSignal = (oh >>> 0) / 4294967295;
+      const basinChance = 0.16 + (region.isCoastal ? 0.08 : 0) + Math.min(0.08, Math.max(0, 1 - Math.abs(region.centroid?.[1] || 0) / 90) * 0.05);
+      if (oilSignal < basinChance) {
+        const scale = Math.max(1, region.areaSqKm);
+        const seep = Math.max(8, Math.round(scale * (0.12 + oilSignal * 0.2)));
+        const shallow = Math.round(scale * (18 + oilSignal * 34));
+        const deep = Math.round(scale * (70 + oilSignal * 125));
+        const tight = Math.round(scale * (90 + oilSignal * 185));
+        const offshore = region.isCoastal ? Math.round(scale * (110 + oilSignal * 240)) : 0;
+        const tiers = [
+          { id: 'seep', label: 'Natural petroleum seeps', initialStock: seep, remainingStock: seep, difficulty: 0.16, requiredTechId: null, maxWorkers: Math.max(2, Math.round(scale * 0.001)) },
+          { id: 'shallow_onshore', label: 'Shallow onshore petroleum', initialStock: shallow, remainingStock: shallow, difficulty: 0.34, requiredTechId: 'petroleum_well_drilling', maxWorkers: Math.max(18, Math.round(scale * 0.025)) },
+          { id: 'deep_onshore', label: 'Deep onshore petroleum', initialStock: deep, remainingStock: deep, difficulty: 0.5, requiredTechId: 'deep_rotary_drilling', maxWorkers: Math.max(35, Math.round(scale * 0.055)) },
+          { id: 'tight', label: 'Tight oil formations', initialStock: tight, remainingStock: tight, difficulty: 0.68, requiredTechId: 'hydraulic_fracturing', maxWorkers: Math.max(45, Math.round(scale * 0.07)) },
+        ];
+        if (offshore > 0) tiers.push({ id: 'offshore', label: 'Offshore petroleum', initialStock: offshore, remainingStock: offshore, difficulty: 0.72, requiredTechId: 'offshore_drilling', maxWorkers: Math.max(55, Math.round(scale * 0.08)) });
+        region.deposits.oil = { tiers };
+      }
+    }
     if (!region.deposits.clay) {
       const clayStock = Math.max(50_000, Math.round(region.areaSqKm * 2_000));
       region.deposits.clay = { tiers: [{
