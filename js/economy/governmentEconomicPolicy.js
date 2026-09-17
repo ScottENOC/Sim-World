@@ -1,3 +1,4 @@
+import { reviewNpcEconomicRegulation } from './economicRegulation.js';
 import { chooseNpcInvestmentPolicy, ensureInvestmentPolicy } from './infrastructureInvestment.js';
 import { chooseNpcProcurementPolicy, ensureIndustrialSupply, ensureProcurementPolicy } from './industrialSupply.js';
 
@@ -50,8 +51,9 @@ export function reviewNpcGovernmentEconomicPolicies(regions,polities,playerPolit
     const previousInvestment={...ensureInvestmentPolicy(polity)},previousProcurement=ensureProcurementPolicy(polity).infrastructure;
     chooseNpcInvestmentPolicy(polity,{securityThreat:security,foreignDependence:dependence,industrialAmbition:ambition,capitalShortage:shortage,hostility:security});
     chooseNpcProcurementPolicy(polity,{securityThreat:security,industrialAmbition:ambition,domesticCapability:capability,capitalShortage:shortage,foreignDependence:dependence});
+    const regulationReview=reviewNpcEconomicRegulation(polity,territories,{securityThreat:security,industrialAmbition:ambition,capitalShortage:shortage,foreignDependence:dependence});
     const nextInvestment=ensureInvestmentPolicy(polity),nextProcurement=ensureProcurementPolicy(polity).infrastructure;
-    if(previousInvestment.general!==nextInvestment.general||previousInvestment.strategic!==nextInvestment.strategic||previousProcurement!==nextProcurement)changes.push({polityId:polity.id,investment:{...nextInvestment},procurement:nextProcurement,metrics:{securityThreat:security,foreignDependence:dependence,domesticCapability:capability,capitalShortage:shortage,industrialAmbition:ambition}});
+    if(previousInvestment.general!==nextInvestment.general||previousInvestment.strategic!==nextInvestment.strategic||previousProcurement!==nextProcurement)changes.push({polityId:polity.id,investment:{...nextInvestment},procurement:nextProcurement,regulationChanges:regulationReview.changes,metrics:{securityThreat:security,foreignDependence:dependence,domesticCapability:capability,capitalShortage:shortage,industrialAmbition:ambition}});
   }
   return changes;
 }

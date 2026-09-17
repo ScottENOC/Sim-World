@@ -80,6 +80,11 @@ export function serviceEnterpriseDebt(enterprise,years=1){
   return{due,paid,shortfall};
 }
 
+function regulationLevel(regulation,key){
+  if(Number.isFinite(regulation))return clamp(regulation);
+  if(!regulation||typeof regulation!=='object')return 0;
+  return clamp(regulation[key]??regulation.overall??regulation.enterpriseStandards??0);
+}
 
 export function evolveEnterpriseOperatingModel(enterprise, {
   publicEnterprise=false,
@@ -92,15 +97,15 @@ export function evolveEnterpriseOperatingModel(enterprise, {
 }={}) {
   const m=ensureEnterpriseOperatingModel(enterprise,{publicEnterprise});
   const commercial=clamp((publicEnterprise ? (enterprise.commercialIndependence ?? .5) : .8) * .55 + clamp(profitPressure)*.25 + clamp(debtPressure)*.2);
-  const protect=clamp(clamp(regulation)*.55 + clamp(labourPower)*.25 + clamp(servicePressure)*.2);
-  const base=publicEnterprise?.62:.5;
+  const labour=clamp(labourPower),service=clamp(servicePressure),base=publicEnterprise?.62:.5;
+  const wageReg=regulationLevel(regulation,'wageFairness'),safetyReg=regulationLevel(regulation,'workerSafety'),customerReg=regulationLevel(regulation,'customerService'),maintenanceReg=regulationLevel(regulation,'maintenanceDiscipline'),environmentReg=regulationLevel(regulation,'environmentalCare'),rehabReg=regulationLevel(regulation,'rehabilitationProvision');
   const targets={
-    wageFairness:clamp(base + protect*.38 - commercial*.3),
-    workerSafety:clamp(base+.05 + protect*.42 - commercial*.28),
-    customerService:clamp(base + clamp(servicePressure)*.42 + clamp(regulation)*.18 - commercial*.3),
-    maintenanceDiscipline:clamp(base+.08 + clamp(regulation)*.28 + clamp(servicePressure)*.18 - commercial*.26),
-    environmentalCare:clamp(base-.04 + clamp(regulation)*.5 - commercial*.27),
-    rehabilitationProvision:clamp(base-.09 + clamp(regulation)*.52 - commercial*.3),
+    wageFairness:clamp(base + wageReg*.28 + labour*.2 + service*.05 - commercial*.3),
+    workerSafety:clamp(base+.05 + safetyReg*.34 + labour*.12 + service*.05 - commercial*.28),
+    customerService:clamp(base + customerReg*.28 + service*.35 - commercial*.3),
+    maintenanceDiscipline:clamp(base+.08 + maintenanceReg*.32 + service*.14 - commercial*.26),
+    environmentalCare:clamp(base-.04 + environmentReg*.48 - commercial*.27),
+    rehabilitationProvision:clamp(base-.09 + rehabReg*.52 - commercial*.3),
   };
   const speed=clamp(Math.max(0,Number(years)||0)*.45);
   for(const [key,target] of Object.entries(targets)) m[key]=clamp(m[key]+(target-m[key])*speed);
