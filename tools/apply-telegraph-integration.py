@@ -54,8 +54,8 @@ if "route.mode === 'telegraph'" not in s:
     new="function routeRisk(route, regionsById, fleets, senderActorId, targetActorId) {\n  if (!route) return { interceptChance: 1, hostileActors: [] };\n  if (route.mode === 'telegraph') return { interceptChance: telegraphInterceptRisk(route, regionsById, senderActorId, targetActorId), hostileActors: [] };\n  let risk = 0; const hostileActors = new Set();"
     if old not in s: raise RuntimeError('routeRisk anchor missing')
     s=s.replace(old,new,1)
-# Every physical message using a route gets same-tick telegraph delivery; ordinary routes preserve >=1-week travel.
 s=s.replace("currentTick + Math.max(1, Math.ceil(route.days / 7))", "currentTick + telegraphDeliveryTicks(route)")
 p.write_text(s)
 
 print('telegraph integration applied')
+# trigger 2026-09-17
