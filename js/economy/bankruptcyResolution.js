@@ -1,6 +1,7 @@
 import { createStateEnterprise } from './economicOwnership.js';
 import { enterpriseCostExternalityProfile } from './enterpriseBehaviour.js';
 import { ensureEconomicRegulation } from './economicRegulation.js';
+import { generateForeignAcquisitionBids } from './foreignAcquisitionReview.js';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const strategicSectors=new Set(['mining','shipping','infrastructure','rail','power_generation','power_grid','water','telecommunications','finance']);
@@ -121,7 +122,10 @@ export function chooseNpcFirmResolution(region,polity,firm,territories=[],contex
   return choices[0]?.[0]||'insolvency';
 }
 
-export function createFirmDistressEvent(region,polity,firm,territories=[],currentTick=0){
+export function createFirmDistressEvent(region,polity,firm,territories=[],currentTick=0,context={}){
   const assessment=assessFirmDistress(region,polity,firm,territories);
-  return{type:'commercial_firm_distress',regionId:region.id,polityId:polity?.id||null,firmId:firm.id,sector:firm.sector,assessment,options:firmResolutionOptions(region,polity,firm,territories),createdTick:currentTick};
+  const foreignBids=context.regions&&context.polities
+    ? generateForeignAcquisitionBids({targetRegion:region,targetPolity:polity,targetFirm:firm,regions:context.regions,polities:context.polities,rng:context.rng||Math.random,currentTick,maxBids:context.maxForeignBids||3})
+    : [];
+  return{type:'commercial_firm_distress',regionId:region.id,polityId:polity?.id||null,firmId:firm.id,sector:firm.sector,assessment,options:firmResolutionOptions(region,polity,firm,territories),foreignBids,createdTick:currentTick};
 }
