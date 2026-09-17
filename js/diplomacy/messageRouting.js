@@ -97,7 +97,8 @@ function summarise(legs){
   const regionIds=[]; const seaIds=[];
   for(const leg of legs){for(const id of leg.regionIds||[])if(regionIds[regionIds.length-1]!==id)regionIds.push(id); for(const id of leg.seaIds||[])seaIds.push(id);}
   const modes=[...new Set(legs.map(l=>l.mode))];
-  return {mode:legs.length===1?legs[0].mode:'multimodal',legs,days:legs.reduce((s,l)=>s+l.days,0),regionIds,seaIds,modes};
+  const singleMode=legs.length===1?(legs[0].mode==='horse'?'land':legs[0].mode):'multimodal';
+  return {mode:singleMode,legs,days:legs.reduce((s,l)=>s+l.days,0),regionIds,seaIds,modes};
 }
 
 export function messageRouteBetween(origin,target,regionsById){
