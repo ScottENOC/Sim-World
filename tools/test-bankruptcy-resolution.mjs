@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createFirmDistressEvent, resolveFirmDistress } from '../js/economy/bankruptcyResolution.js';
 import { acquisitionReviewOptions, foreignAcquisitionReviewMode, generateForeignAcquisitionBids, resolveForeignAcquisition } from '../js/economy/foreignAcquisitionReview.js';
+import { resolvePlayerFirmDistressEvent } from '../js/economy/corporateDistressRuntime.js';
 
 const hostPolity={id:'host',capitalRegionId:'host-r',administration:{officialdom:.8,recordKeeping:.82,accounting:.78,delegation:.65},foreignInvestmentPolicy:{general:'open',strategic:'screened'},investmentReputation:.9,expropriationMemory:0};
 const buyerPolity={id:'buyer',capitalRegionId:'buyer-r',administration:{officialdom:.7,recordKeeping:.7,accounting:.7,delegation:.6}};
@@ -34,11 +36,26 @@ assert.equal(targetFirm.foreignOwner,true);
 assert(targetFirm.stateStake>=.2);
 assert.equal(targetFirm.ownerPolityId,'buyer');
 
+const playerFirm={id:'player-target',form:'joint_stock_company',sector:'mining',capitalIndex:9,debtIndex:6,equityIndex:3,solvency:.09,status:'distressed',pendingResolution:true,operatingModel:{wageFairness:.4,workerSafety:.3,customerService:.5,maintenanceDiscipline:.3,environmentalCare:.2,rehabilitationProvision:.1}};
+hostRegion.corporateCapital.firms.push(playerFirm);
+const playerEvent=createFirmDistressEvent(hostRegion,hostPolity,playerFirm,[hostRegion],104,{regions,polities,rng:()=>0});
+const bailout=resolvePlayerFirmDistressEvent(playerEvent,'bailout',{regions,polities,currentTick:105});
+assert.equal(bailout.resolved,true,'player dilemma resolver should execute the selected rescue');
+assert.equal(playerFirm.status,'active');
+assert.equal(playerFirm.pendingResolution,false);
+assert(playerFirm.stateStake>0,'public bailout should create a government claim rather than a free gift');
+
 const failFirm={id:'fail',form:'joint_stock_company',sector:'mining',capitalIndex:8,debtIndex:9,equityIndex:1,solvency:.05,status:'active',operatingModel:{wageFairness:.4,workerSafety:.3,customerService:.5,maintenanceDiscipline:.3,environmentalCare:.2,rehabilitationProvision:.1}};
 hostRegion.corporateCapital.firms.push(failFirm);
-const insolvency=resolveFirmDistress({region:hostRegion,polity:hostPolity,firm:failFirm,territories:[hostRegion],choice:'insolvency',currentTick:104});
+const insolvency=resolveFirmDistress({region:hostRegion,polity:hostPolity,firm:failFirm,territories:[hostRegion],choice:'insolvency',currentTick:106});
 assert.equal(insolvency.resolved,true);
 assert.equal(failFirm.status,'defaulted');
 assert((hostRegion.publicLiabilities?.enterpriseFailure||0)>0,'uncovered bankruptcy liabilities should not disappear');
 
-console.log('bankruptcy resolution and acquisition review regressions passed');
+const mainSource=readFileSync(new URL('../js/main.js',import.meta.url),'utf8');
+assert(mainSource.includes('tickCorporateCapitalWithDistress'),'live simulation must use the distress-aware corporate capital runtime');
+assert(mainSource.includes("event.type === 'commercial_firm_distress'"),'player event UI must render corporate distress dilemmas');
+assert(mainSource.includes('resolvePlayerFirmDistressEvent'),'player popup must resolve the chosen bankruptcy outcome');
+assert(mainSource.includes('foreign|${bid.id}|${o.id}'),'player popup must expose foreign acquisition review choices when bids exist');
+
+console.log('bankruptcy resolution, acquisition review and live dilemma regressions passed');
