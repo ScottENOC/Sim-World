@@ -6,9 +6,6 @@ def replace_once(path, old, new):
     if old not in s: raise RuntimeError(f'missing anchor in {path}: {old[:100]!r}')
     p.write_text(s.replace(old,new,1))
 
-# Expose a distinct local mobilisation response multiplier. This is deliberately
-# larger than the direct command-quality signal because it represents reducing
-# delays in calling, locating and assembling reservists, not making troops fight harder.
 p=Path('js/economy/localCommunications.js'); s=p.read_text()
 if 'telephoneMobilisationMultiplier' not in s:
     anchor="export function telephoneMilitaryCommandMultiplier(region) {\n  return 1 + clamp01(region.localCommunications?.militaryCoordination || 0) * 0.08;\n}\n"
@@ -16,9 +13,6 @@ if 'telephoneMobilisationMultiplier' not in s:
     if anchor not in s: raise RuntimeError('local communications anchor missing')
     p.write_text(s.replace(anchor,block,1))
 
-# Local telephone service reduces local administrative friction, but does not
-# erase the physical distance between province and capital. It therefore enters
-# local control/corruption terms, not inter-region report travel time.
 p=Path('js/politics/polities.js'); s=p.read_text()
 if 'telephoneAdministrativeMultiplier' not in s:
     anchor="import { ensureCurrencyInstitution, tickCurrencyInstitution } from '../economy/currency.js?v=20260912-currency3';"
@@ -34,9 +28,6 @@ if 'telephoneAdministrativeMultiplier' not in s:
     s=s.replace(old2,new2,1)
     p.write_text(s)
 
-# Emergency mobilisation: more of the intended levy can be assembled inside a
-# weekly tick when the region has working local telephone service. This does not
-# change the eventual manpower pool or combat strength of each soldier.
 p=Path('js/military/campaigns.js'); s=p.read_text()
 if 'telephoneMobilisationMultiplier' not in s:
     anchor="import { campaignExternalSupport, applyExternalCampaignLosses } from '../politics/privateMilitaryActors.js?v=20260912-pmc1';"
@@ -53,3 +44,4 @@ if 'telephoneMobilisationMultiplier' not in s:
     p.write_text(s)
 
 print('telephone administration and mobilisation integration applied')
+# trigger
