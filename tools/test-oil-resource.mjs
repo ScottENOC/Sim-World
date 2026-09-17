@@ -30,7 +30,7 @@ assert(tradeGood('oil').basePrice>0);
 
 function region(overrides={}) { return {
   id:'r', name:'Test', population:100000, centroid:[0,55], stockpile:{oil:100}, marketDemand:{},
-  wallet:800, foodSecurity:.7, stability:.6, housing:{capacity:70000}, labor:{unemploymentRate:.08},
+  wallet:800, foodSecurity:.7, stability:.6, housing:{capacity:70000}, labor:{unemploymentRate:.08}, raidPressure:.18,
   governance:{sovereignPolityId:'p'}, enterpriseExternalities:{}, deposits:{}, ...overrides,
 }; }
 const cold=region();
