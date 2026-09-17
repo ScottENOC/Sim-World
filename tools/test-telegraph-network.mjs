@@ -49,7 +49,11 @@ byId = new Map([m1,m2,m3,m4].map(r => [r.id,r]));
 const mixedWire = messageRouteBetween(m1,m4,byId);
 assert.equal(mixedWire.mode, 'multimodal');
 assert.deepEqual(mixedWire.legs.map(l => l.mode), ['horse','telegraph','horse']);
-assert.ok(mixedWire.days > 0 && mixedWire.days < 8, 'telegraph middle leg should materially shorten a four-region land journey');
+const m2Wire = m2.construction.assets; const m3Wire = m3.construction.assets;
+m2.construction.assets = []; m3.construction.assets = [];
+const allHorse = messageRouteBetween(m1,m4,byId);
+m2.construction.assets = m2Wire; m3.construction.assets = m3Wire;
+assert.ok(mixedWire.days < allHorse.days, 'telegraph middle leg should materially shorten the same physical journey');
 
 // Railway is a real routing leg when an operational endpoint connection exists.
 const r1 = region('r1', ['r2'], 'rail-state');
