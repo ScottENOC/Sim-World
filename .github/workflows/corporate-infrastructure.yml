@@ -1,7 +1,7 @@
 name: Corporate infrastructure rollout
 on:
   push:
-    branches: [corporate-infrastructure-catalogue-v1, foreign-investment-ui-v1, foreign-investment-nationalisation-v1, foreign-investment-procurement-v1, infrastructure-ownership-map-v1, 'feature/public-private-economy-*', 'feature/enterprise-finance-externalities-*', 'feature/admin-gated-economic-regulation-*']
+    branches: [corporate-infrastructure-catalogue-v1, foreign-investment-ui-v1, foreign-investment-nationalisation-v1, foreign-investment-procurement-v1, infrastructure-ownership-map-v1, 'feature/public-private-economy-*', 'feature/enterprise-finance-externalities-*', 'feature/admin-gated-economic-regulation-*', 'feature/bankruptcy-resolution-dilemmas-*']
   pull_request:
     paths:
       - 'js/economy/corporateInfrastructure.js'
@@ -15,6 +15,8 @@ on:
       - 'js/economy/industrialSupply.js'
       - 'js/economy/governmentEconomicPolicy.js'
       - 'js/economy/railways.js'
+      - 'js/economy/bankruptcyResolution.js'
+      - 'js/economy/foreignAcquisitionReview.js'
       - 'js/ui/economicRegulationUi.js'
       - 'js/ui/foreignInvestmentUi.js'
       - 'js/ui/infrastructureMapUi.js'
@@ -30,6 +32,7 @@ on:
       - 'tools/test-infrastructure-map-view.mjs'
       - 'tools/test-procurement-policy.mjs'
       - 'tools/test-industrial-railways.mjs'
+      - 'tools/test-bankruptcy-resolution.mjs'
       - '.github/workflows/corporate-infrastructure.yml'
 jobs:
   validate:
@@ -45,6 +48,8 @@ jobs:
       - run: node --check js/economy/infrastructureInvestment.js
       - run: node --check js/economy/corporateInfrastructure.js
       - run: node --check js/economy/corporateCapital.js
+      - run: node --check js/economy/bankruptcyResolution.js
+      - run: node --check js/economy/foreignAcquisitionReview.js
       - run: node --check js/ui/economicRegulationUi.js
       - run: node tools/test-economic-ownership.mjs
       - run: node tools/test-economic-regulation.mjs
@@ -57,3 +62,4 @@ jobs:
       - run: node tools/test-procurement-policy.mjs
       - run: node tools/test-infrastructure-investment-damage.mjs
       - run: node tools/test-industrial-railways.mjs
+      - run: node tools/test-bankruptcy-resolution.mjs
