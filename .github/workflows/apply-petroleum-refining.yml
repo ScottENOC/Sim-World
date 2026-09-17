@@ -1,0 +1,25 @@
+name: Apply petroleum refining
+on:
+  push:
+    branches: [feature/oil-resource-civilian-use-v1]
+    paths:
+      - 'tools/apply-petroleum-refining.py'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/oil-resource-civilian-use-v1
+      - run: python tools/apply-petroleum-refining.py
+      - run: node --check js/economy/petroleumRefining.js
+      - run: node --check js/economy/householdEnergy.js
+      - run: node --check js/main.js
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/economy/tradeGoods.js js/economy/householdEnergy.js js/main.js
+          git commit -m "Integrate petroleum refining and refined fuels"
+          git push origin HEAD:feature/oil-resource-civilian-use-v1
