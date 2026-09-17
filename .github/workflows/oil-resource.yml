@@ -9,6 +9,8 @@ on:
       - 'js/economy/tradeGoods.js'
       - 'js/economy/laborCore.js'
       - 'js/economy/householdEnergy.js'
+      - 'js/economy/petroleumRefining.js'
+      - 'js/economy/construction.js'
       - 'js/technology/petroleum.js'
       - 'js/technology/breakthroughs.js'
       - 'js/politics/popularWellbeing.js'
@@ -24,6 +26,8 @@ jobs:
         with:
           node-version: 22
       - run: node --check js/economy/householdEnergy.js
+      - run: node --check js/economy/petroleumRefining.js
+      - run: node --check js/economy/construction.js
       - run: node --check js/technology/petroleum.js
       - run: node --check js/technology/breakthroughs.js
       - run: node --check js/economy/laborCore.js
