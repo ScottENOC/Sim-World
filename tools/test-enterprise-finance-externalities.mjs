@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { borrowStateEnterprise, createStateEnterprise, fundStateEnterprise, serviceStateEnterpriseDebt } from '../js/economy/economicOwnership.js';
-import { enterpriseCostExternalityProfile, enterpriseDebtCapacity } from '../js/economy/enterpriseBehaviour.js';
+import { enterpriseCostExternalityProfile, enterpriseDebtCapacity, evolveEnterpriseOperatingModel } from '../js/economy/enterpriseBehaviour.js';
+import { assessPopularWellbeing } from '../js/politics/popularWellbeing.js';
 import { buildStateEnterpriseInfrastructure, tickCorporateInfrastructureAsset } from '../js/economy/corporateInfrastructure.js';
 
 const polity={id:'p'};
@@ -27,4 +28,24 @@ assert(region.enterpriseExternalities.environmentalHarm>0); assert(build.asset.l
 
 const before=e.cash; const service=serviceStateEnterpriseDebt(polity,e.id,1); assert.equal(service.serviced,true); assert(e.cash<=before);
 fundStateEnterprise(polity,e.id,10); assert(e.cash>=before-service.paid+10-1e-9);
+
+
+const pressured={operatingModel:{wageFairness:.7,workerSafety:.7,customerService:.7,maintenanceDiscipline:.7,environmentalCare:.7,rehabilitationProvision:.7},commercialIndependence:1};
+const beforeStandards={...pressured.operatingModel};
+evolveEnterpriseOperatingModel(pressured,{years:2,profitPressure:1,debtPressure:1,regulation:0,labourPower:0,servicePressure:0});
+assert(pressured.operatingModel.wageFairness<beforeStandards.wageFairness);
+assert(pressured.operatingModel.maintenanceDiscipline<beforeStandards.maintenanceDiscipline);
+const protectedFirm={operatingModel:{wageFairness:.3,workerSafety:.3,customerService:.3,maintenanceDiscipline:.3,environmentalCare:.3,rehabilitationProvision:.3}};
+evolveEnterpriseOperatingModel(protectedFirm,{years:2,profitPressure:.2,debtPressure:.1,regulation:1,labourPower:1,servicePressure:.8});
+assert(protectedFirm.operatingModel.workerSafety>.3);
+assert(protectedFirm.operatingModel.environmentalCare>.3);
+
+const cleanRegion={population:1000,wallet:20,foodSecurity:.8,housing:{capacity:1000},labor:{unemploymentRate:.05},stability:.7};
+const harmedRegion={...cleanRegion,enterpriseExternalities:{labourHarm:.9,customerHarm:.8,maintenanceRisk:.7,environmentalHarm:.8,futureLiability:.9}};
+const polity2={continuity:{legitimacy:.7}};
+const cleanWellbeing=assessPopularWellbeing(cleanRegion,polity2),harmedWellbeing=assessPopularWellbeing(harmedRegion,polity2);
+assert(harmedWellbeing.prosperity<cleanWellbeing.prosperity);
+assert(harmedWellbeing.safety<cleanWellbeing.safety);
+assert(harmedWellbeing.grievance>cleanWellbeing.grievance);
+
 console.log('enterprise finance and externality regressions passed');

@@ -1,4 +1,4 @@
-import { applyEnterpriseExternalities, ensureEnterpriseOperatingModel, enterpriseCostExternalityProfile } from './enterpriseBehaviour.js';
+import { applyEnterpriseExternalities, ensureEnterpriseOperatingModel, enterpriseCostExternalityProfile, evolveEnterpriseOperatingModel } from './enterpriseBehaviour.js';
 import { maybeInvestInCorporateInfrastructure, tickExistingCorporateInfrastructure } from './corporateInfrastructureAi.js';
 const DAYS_PER_YEAR = 365.2425;
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
@@ -185,10 +185,9 @@ function updateFirms(region, polity, currentTick, years, rng, events) {
       events.push({ type: 'commercial_firm_reorganised', regionId: region.id, polityId: polity?.id || null, firmId: firm.id, form: firm.form, sector: firm.sector });
     }
     const sectorFit = firm.sector === 'shipping' ? (region.isCoastal ? 0.08 : -0.12) : firm.sector === 'long_distance_trade' ? 0.05 : 0;
-    const externalityProfile=enterpriseCostExternalityProfile(firm,{publicEnterprise:false});const targetProfit = -0.08 + reliability * 0.18 + confidence * 0.12 + s.corporateLaw * 0.08 + sectorFit - crisis * 0.28 + externalityProfile.apparentCostSaving*.22;applyEnterpriseExternalities(region,firm,{scale:Math.min(1,(firm.capitalIndex||0)/8),publicEnterprise:false});
+    const leverage = firm.debtIndex / Math.max(0.01, firm.capitalIndex);const regulation=clamp(region.economicRegulation?.enterpriseStandards ?? region.economicRegulation?.labourStandards ?? s.corporateLaw*.35);const labourPower=clamp(region.medievalSociety?.urban?.guilds || 0);evolveEnterpriseOperatingModel(firm,{publicEnterprise:false,years,profitPressure:clamp(Math.max(0,.06-(firm.profitability||0))+crisis*.35),debtPressure:clamp(leverage),regulation,labourPower,servicePressure:0});const externalityProfile=enterpriseCostExternalityProfile(firm,{publicEnterprise:false});const targetProfit = -0.08 + reliability * 0.18 + confidence * 0.12 + s.corporateLaw * 0.08 + sectorFit - crisis * 0.28 + externalityProfile.apparentCostSaving*.22;applyEnterpriseExternalities(region,firm,{scale:Math.min(1,(firm.capitalIndex||0)/8),publicEnterprise:false});
     firm.profitability += (targetProfit - (firm.profitability || 0)) * clamp(years * 0.8);
     firm.capitalIndex = Math.max(0, firm.capitalIndex * (1 + firm.profitability * years * 0.12));
-    const leverage = firm.debtIndex / Math.max(0.01, firm.capitalIndex);
     const solvencyTarget = clamp(0.72 + firm.profitability * 0.8 + s.creditorTrust * 0.18 - leverage * 0.22 - crisis * 0.3);
     firm.solvency += (solvencyTarget - firm.solvency) * clamp(years * 0.7);
     if (firm.solvency < 0.14 && (rng?.() ?? Math.random()) < clamp(years * (0.5 - firm.solvency))) {

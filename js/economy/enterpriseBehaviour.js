@@ -79,3 +79,40 @@ export function serviceEnterpriseDebt(enterprise,years=1){
   if(shortfall>0)enterprise.creditQuality=clamp((enterprise.creditQuality??.5)-Math.min(.18,shortfall/Math.max(1,debt)*.5));
   return{due,paid,shortfall};
 }
+
+
+export function evolveEnterpriseOperatingModel(enterprise, {
+  publicEnterprise=false,
+  years=1,
+  profitPressure=0,
+  debtPressure=0,
+  regulation=0,
+  labourPower=0,
+  servicePressure=0,
+}={}) {
+  const m=ensureEnterpriseOperatingModel(enterprise,{publicEnterprise});
+  const commercial=clamp((publicEnterprise ? (enterprise.commercialIndependence ?? .5) : .8) * .55 + clamp(profitPressure)*.25 + clamp(debtPressure)*.2);
+  const protect=clamp(clamp(regulation)*.55 + clamp(labourPower)*.25 + clamp(servicePressure)*.2);
+  const base=publicEnterprise?.62:.5;
+  const targets={
+    wageFairness:clamp(base + protect*.38 - commercial*.3),
+    workerSafety:clamp(base+.05 + protect*.42 - commercial*.28),
+    customerService:clamp(base + clamp(servicePressure)*.42 + clamp(regulation)*.18 - commercial*.3),
+    maintenanceDiscipline:clamp(base+.08 + clamp(regulation)*.28 + clamp(servicePressure)*.18 - commercial*.26),
+    environmentalCare:clamp(base-.04 + clamp(regulation)*.5 - commercial*.27),
+    rehabilitationProvision:clamp(base-.09 + clamp(regulation)*.52 - commercial*.3),
+  };
+  const speed=clamp(Math.max(0,Number(years)||0)*.45);
+  for(const [key,target] of Object.entries(targets)) m[key]=clamp(m[key]+(target-m[key])*speed);
+  return m;
+}
+
+export function enterpriseRegionalConsequences(region) {
+  const x=region?.enterpriseExternalities || {};
+  return {
+    prosperityPenalty:clamp((x.labourHarm||0)*.13+(x.customerHarm||0)*.06+(x.futureLiability||0)*.025),
+    safetyPenalty:clamp((x.labourHarm||0)*.07+(x.environmentalHarm||0)*.08+(x.maintenanceRisk||0)*.05),
+    infrastructurePenalty:clamp((x.maintenanceRisk||0)*.16),
+    publicLiability:Math.max(0,(x.futureLiability||0))*Math.max(0,Number(region?.population)||0)*.00002,
+  };
+}
