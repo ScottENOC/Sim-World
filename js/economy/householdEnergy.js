@@ -29,12 +29,18 @@ export function tickHouseholdEnergy(region, elapsedDays = 7) {
   region.marketDemand ||= {};
   region.householdEnergy ||= { lightingService: 0, heatingService: 0, oilConsumed: 0, oilDemand: 0 };
   const demand = civilianOilDemand(region, elapsedDays);
-  const available = Math.max(0, Number(region.stockpile.oil) || 0);
-  const consumed = Math.min(available, demand.total);
+  const refinedAvailable = Math.max(0, Number(region.stockpile.lamp_fuel) || 0);
+  const crudeAvailable = Math.max(0, Number(region.stockpile.oil) || 0);
+  const refinedConsumed = Math.min(refinedAvailable, demand.total);
+  const remainingAfterRefined = Math.max(0, demand.total - refinedConsumed);
+  const primitiveCrudeCapacity = demand.total * 0.18;
+  const crudeConsumed = Math.min(crudeAvailable, remainingAfterRefined, primitiveCrudeCapacity);
+  const consumed = refinedConsumed + crudeConsumed;
   const ratio = demand.total > 0 ? consumed / demand.total : 0;
   const lightingConsumed = demand.lightingNeed * ratio;
   const heatingConsumed = demand.heatingNeed * ratio;
-  region.stockpile.oil = Math.max(0, available - consumed);
+  region.stockpile.lamp_fuel = Math.max(0, refinedAvailable - refinedConsumed);
+  region.stockpile.oil = Math.max(0, crudeAvailable - crudeConsumed);
 
   // Services are satisfaction ratios, not bonuses per barrel. Large stockpiles
   // cannot stack infinite wellbeing; only meeting household demand matters.
@@ -44,14 +50,16 @@ export function tickHouseholdEnergy(region, elapsedDays = 7) {
   const state = region.householdEnergy;
   state.lightingService += (lightingService - (state.lightingService || 0)) * smoothing;
   state.heatingService += (heatingService - (state.heatingService || 0)) * smoothing;
-  state.oilConsumed = consumed;
+  state.oilConsumed = crudeConsumed;
+  state.refinedFuelConsumed = refinedConsumed;
   state.oilDemand = demand.total;
   state.coldNeed = demand.coldNeed;
 
   const unmet = Math.max(0, demand.total - consumed);
   // Merchant demand is physical unmet household demand plus a modest buffer.
-  region.marketDemand.oil = Math.max(0, unmet + demand.total * 0.2);
-  return { ...state, unmetOilDemand: unmet };
+  region.marketDemand.lamp_fuel = Math.max(0, unmet + demand.total * 0.2);
+  region.marketDemand.oil = Math.max(0, crudeConsumed > 0 ? demand.total * 0.04 : 0);
+  return { ...state, unmetOilDemand: unmet, refinedFuelConsumed, crudeConsumed };
 }
 
 export function householdEnergyWellbeing(region) {
