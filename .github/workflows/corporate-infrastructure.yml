@@ -7,6 +7,7 @@ on:
       - 'js/economy/corporateInfrastructure.js'
       - 'js/economy/corporateInfrastructureAi.js'
       - 'js/economy/corporateCapital.js'
+      - 'js/economy/corporateDistressRuntime.js'
       - 'js/economy/economicOwnership.js'
       - 'js/economy/economicRegulation.js'
       - 'js/economy/enterpriseBehaviour.js'
@@ -17,6 +18,7 @@ on:
       - 'js/economy/railways.js'
       - 'js/economy/bankruptcyResolution.js'
       - 'js/economy/foreignAcquisitionReview.js'
+      - 'js/main.js'
       - 'js/ui/economicRegulationUi.js'
       - 'js/ui/foreignInvestmentUi.js'
       - 'js/ui/infrastructureMapUi.js'
@@ -50,6 +52,8 @@ jobs:
       - run: node --check js/economy/corporateCapital.js
       - run: node --check js/economy/bankruptcyResolution.js
       - run: node --check js/economy/foreignAcquisitionReview.js
+      - run: node --check js/economy/corporateDistressRuntime.js
+      - run: node --check js/main.js
       - run: node --check js/ui/economicRegulationUi.js
       - run: node tools/test-economic-ownership.mjs
       - run: node tools/test-economic-regulation.mjs
