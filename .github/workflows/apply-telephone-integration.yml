@@ -1,0 +1,28 @@
+name: Apply telephone integration
+on:
+  push:
+    branches: [feature/telephone-local-comms-v1]
+    paths:
+      - 'tools/apply-telephone-integration.py'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/telephone-local-comms-v1
+      - run: python tools/apply-telephone-integration.py
+      - run: node --check js/economy/localCommunications.js
+      - run: node --check js/technology/telephone.js
+      - run: node --check js/economy/construction.js
+      - run: node --check js/technology/breakthroughs.js
+      - run: node --check js/economy/industrialSupply.js
+      - run: node --check js/main.js
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/economy/construction.js js/technology/breakthroughs.js js/economy/industrialSupply.js js/main.js
+          git commit -m "Integrate local telephone communications"
+          git push origin HEAD:feature/telephone-local-comms-v1
