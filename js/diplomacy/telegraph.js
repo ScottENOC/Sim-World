@@ -1,4 +1,4 @@
-import { operationalInfrastructure } from '../economy/construction.js?v=20260905-projects1';
+import { effectiveInfrastructureCount } from '../economy/construction.js?v=20260905-projects1';
 
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
 
@@ -6,7 +6,7 @@ export const TELEGRAPH_TECH_ID = 'electrical_telegraphy';
 
 export function hasOperationalTelegraph(region) {
   if (!region?.unlockedTechIds?.has?.(TELEGRAPH_TECH_ID)) return false;
-  return operationalInfrastructure(region, 'telegraph_network').length > 0;
+  return effectiveInfrastructureCount(region, 'telegraph_network') >= 0.5;
 }
 
 export function telegraphPath(origin, target, regionsById, maxHops = 80) {
@@ -38,9 +38,7 @@ export function telegraphRouteBetween(origin, target, regionsById) {
   const intermediateStations = Math.max(0, path.length - 2);
   const lineCondition = path.reduce((sum, id) => {
     const region = regionsById.get(id);
-    const assets = operationalInfrastructure(region, 'telegraph_network');
-    const best = assets.reduce((m, a) => Math.max(m, clamp(a.condition ?? 1)), 0);
-    return sum + best;
+    return sum + clamp(effectiveInfrastructureCount(region, 'telegraph_network'));
   }, 0) / Math.max(1, path.length);
   return {
     mode: 'telegraph',
