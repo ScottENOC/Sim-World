@@ -16,6 +16,7 @@ export const TRADE_GOODS = {
   wood:       { label: 'Wood', basePrice: 0.5, referenceStock: 5000, category: 'bulk', cargoKgPerUnit: 4 },
   stone:      { label: 'Stone', basePrice: 0.3, referenceStock: 20000, category: 'bulk', cargoKgPerUnit: 8 },
   coal:       { label: 'Coal', basePrice: 0.9, referenceStock: 12000, category: 'bulk_fuel', cargoKgPerUnit: 2.5 },
+  oil:        { label: 'Crude oil', basePrice: 1.5, referenceStock: 9000, category: 'bulk_fuel', cargoKgPerUnit: 1.6 },
   copperOre:  { label: 'Copper ore', basePrice: 0.7, referenceStock: 12000, category: 'raw_material', cargoKgPerUnit: 1 },
   tinOre:     { label: 'Tin ore', basePrice: 1.8, referenceStock: 8000, category: 'raw_material', cargoKgPerUnit: 1 },
   copper:     { label: 'Copper metal', basePrice: 8, referenceStock: 2000, category: 'material', cargoKgPerUnit: 1 },
