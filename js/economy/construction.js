@@ -167,6 +167,13 @@ export const CONSTRUCTION_TYPES = Object.freeze({
     materials: { stone: 350, wood: 900, bronze: 20 }, wagePerWorkerWeek: 0.002,
     maintenanceRate: 0.03,
   },
+  telephone_exchange: {
+    id: 'telephone_exchange', name: 'Telephone exchange and local lines', requiredTechId: 'telephone_networks', unique: false,
+    requiresInfrastructure: 'telegraph_network', minPopulation: 10000,
+    description: 'A staffed switchboard, local copper loops and business/government subscribers. Early networks improve dense local coordination rather than replacing long-distance telegraphy.',
+    workRequired: 11500, defaultWorkers: 135, minWorkers: 40, maxWorkers: 550,
+    materials: { wood: 420, iron: 110, copper: 55 }, wagePerWorkerWeek: 0.0035, maintenanceRate: 0.065,
+  },
   telegraph_network: {
     id: 'telegraph_network', name: 'Electrical telegraph network', requiredTechId: 'electrical_telegraphy', unique: true,
     minPopulation: 5000,

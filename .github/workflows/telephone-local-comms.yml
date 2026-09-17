@@ -1,0 +1,38 @@
+name: Telephone and local communications
+on:
+  push:
+    branches: [feature/telephone-local-comms-v1]
+    paths:
+      - 'js/economy/localCommunications.js'
+      - 'js/technology/telephone.js'
+      - 'js/economy/construction.js'
+      - 'js/technology/breakthroughs.js'
+      - 'js/economy/industrialSupply.js'
+      - 'js/main.js'
+      - 'tools/test-telephone-local-comms.mjs'
+      - '.github/workflows/telephone-local-comms.yml'
+  pull_request:
+    paths:
+      - 'js/economy/localCommunications.js'
+      - 'js/technology/telephone.js'
+      - 'js/economy/construction.js'
+      - 'js/technology/breakthroughs.js'
+      - 'js/economy/industrialSupply.js'
+      - 'js/main.js'
+      - 'tools/test-telephone-local-comms.mjs'
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check js/economy/localCommunications.js
+      - run: node --check js/technology/telephone.js
+      - run: node --check js/economy/construction.js
+      - run: node --check js/technology/breakthroughs.js
+      - run: node --check js/economy/industrialSupply.js
+      - run: node --check js/main.js
+      - run: node tools/test-telephone-local-comms.mjs
