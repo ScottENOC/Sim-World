@@ -4,6 +4,7 @@ on:
     branches: [fix/industrial-war-runtime-hardening]
     paths:
       - 'tools/apply-industrial-war-runtime-hardening.py'
+      - '.github/workflows/apply-industrial-war-runtime-hardening.yml'
 jobs:
   patch:
     runs-on: ubuntu-latest
