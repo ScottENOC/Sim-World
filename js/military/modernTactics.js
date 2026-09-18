@@ -115,12 +115,13 @@ export function modernTacticalProfile(region, opponent, { role = 'attacker', wee
 }
 
 export function recordModernCombatLessons(region, opponent, {
-  role = 'attacker', casualtyShare = 0, intensity = 0, weeksEngaged = 0, currentTick = 0,
+  role = 'attacker', casualtyShare = 0, opponentCasualtyShare = 0, intensity = 0, weeksEngaged = 0, currentTick = 0,
 } = {}) {
   const state = ensureModernTactics(region);
   const opponentMg = has(opponent, MACHINE_GUN_TECH_ID);
   const ownMg = has(region, MACHINE_GUN_TECH_ID);
   const losses = clamp(casualtyShare);
+  const enemyLosses = clamp(opponentCasualtyShare);
   const battleIntensity = clamp(intensity / 0.06);
   const institution = institutionLearningCapacity(region);
 
@@ -143,9 +144,15 @@ export function recordModernCombatLessons(region, opponent, {
   }
 
   if (role === 'defender' && ownMg) {
-    const learning = (0.008 + battleIntensity * 0.011 + losses * 0.025) * (0.72 + institution * 0.45);
+    const learning = (0.008 + battleIntensity * 0.011 + losses * 0.025 + enemyLosses * 0.018) * (0.72 + institution * 0.45);
     state.defensiveFireDiscipline = clamp(state.defensiveFireDiscipline + learning * (1 - state.defensiveFireDiscipline));
     state.suppression = clamp(state.suppression + learning * 0.32 * (1 - state.suppression));
+    // Observing an enemy assault fail is itself evidence. Armies can learn what not
+    // to do before paying the same price themselves, especially with strong institutions.
+    const observedFailure = enemyLosses * (0.45 + battleIntensity * 0.35) * institution;
+    state.lessonsCaptured = clamp(state.lessonsCaptured + observedFailure * 0.10);
+    state.dispersion = clamp(state.dispersion + observedFailure * 0.045 * (1 - state.dispersion));
+    state.fireAndMovement = clamp(state.fireAndMovement + observedFailure * 0.032 * (1 - state.fireAndMovement));
   }
 
   const adaptation = modernAdaptation(state);
@@ -154,7 +161,7 @@ export function recordModernCombatLessons(region, opponent, {
   // strips authority from them. This is deliberately much slower than learning
   // a single battlefield trick.
   if (opponentMg && role === 'attacker') state.legacyAssaultInertia = clamp(state.legacyAssaultInertia - (0.002 + losses * 0.025) * (0.45 + institution));
-  state.lessonsCaptured = clamp(state.lessonsCaptured + battleIntensity * institution * 0.012 + losses * institution * 0.025);
+  state.lessonsCaptured = clamp(state.lessonsCaptured + battleIntensity * institution * 0.012 + losses * institution * 0.025 + enemyLosses * institution * 0.012);
   state.lastCombatTick = currentTick;
   return state;
 }
