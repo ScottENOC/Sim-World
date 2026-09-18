@@ -47,6 +47,7 @@ export const TRADE_GOODS = {
   pitch:      { label: 'Pitch', basePrice: 2.5, referenceStock: 300, category: 'manufactured', cargoKgPerUnit: 1 },
   textiles:   { label: 'Textiles', basePrice: 4, referenceStock: 300, category: 'manufactured', cargoKgPerUnit: 0.5 },
   clothes:    { label: 'Clothing', basePrice: 7, referenceStock: 600, category: 'consumer_good', cargoKgPerUnit: 0.6 },
+  motor_vehicle: { label: 'Motor vehicles', basePrice: 80, referenceStock: 90, category: 'civilian_equipment', cargoKgPerUnit: 900 },
   horses:     { label: 'Horses', basePrice: 18, referenceStock: 100, category: 'livestock', cargoKgPerUnit: 60 },
 
   // New civilian tools. Issued/used tools live under region.equipment instead
