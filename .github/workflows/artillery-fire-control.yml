@@ -4,8 +4,11 @@ on:
     branches: [main]
     paths:
       - 'js/military/artilleryFireControl.js'
+      - 'js/military/equipmentGenerations.js'
+      - 'js/military/earlyModernWarfare.js'
       - 'js/military/modernTactics.js'
       - 'js/military/campaigns.js'
+      - 'js/ui/advisors.js'
       - 'js/main.js'
       - 'tools/test-artillery-fire-control.mjs'
       - '.github/workflows/artillery-fire-control.yml'
@@ -19,10 +22,13 @@ jobs:
       - name: Syntax checks
         run: |
           node --check js/military/artilleryFireControl.js
+          node --check js/military/equipmentGenerations.js
+          node --check js/military/earlyModernWarfare.js
           node --check js/military/modernTactics.js
           node --check js/military/campaigns.js
+          node --check js/ui/advisors.js
           node --check js/main.js
-      - name: Artillery and observational learning regression
+      - name: Artillery, equipment-generation and observational-learning regression
         run: node tools/test-artillery-fire-control.mjs
       - name: Existing machine gun regression
         run: node tools/test-machine-gun-tactical-revolution.mjs
