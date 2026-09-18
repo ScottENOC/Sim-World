@@ -78,10 +78,22 @@ function ensureComponentOrdersAndLines(region,productId,demand){
   }
 }
 
+function availableInvestmentCapital(region){
+  const firms=region.corporateCapital?.firms?.filter(f=>f.status==='active'&&f.sector==='manufacture')||[];
+  const firmCapital=firms.reduce((s,f)=>s+Math.max(0,f.capitalIndex||0),0);
+  return firmCapital+Math.max(0,region.corporateCapital?.investibleWealth||0)*.08;
+}
+function financeTooling(region,cost){
+  if(cost<=0)return true;const available=availableInvestmentCapital(region);if(available<cost)return false;
+  const firms=region.corporateCapital?.firms?.filter(f=>f.status==='active'&&f.sector==='manufacture')||[];let left=cost;
+  for(const f of firms){const take=Math.min(left,Math.max(0,f.capitalIndex||0)*.12);f.capitalIndex=Math.max(0,(f.capitalIndex||0)-take);left-=take;if(left<=0)break;}
+  if(left>0&&region.corporateCapital)region.corporateCapital.investibleWealth=Math.max(0,(region.corporateCapital.investibleWealth||0)-left/.08);
+  return true;
+}
 function manageProductLine(region,productId,demand,margin){
   const plant=ensureIndustrialPlantState(region);let line=lineFor(plant,productId);
   if(demand>.08&&margin>.26){
-    if(!line){const candidate=idleCandidate(plant,productId);line=candidate?retoolProductionLine(region,candidate.id,productId):addProductionLine(region,{productId,capacityShare:productId==='motor_vehicle'?.48:.35});}
+    if(!line){const candidate=idleCandidate(plant,productId);const toolingCost=candidate?.productId?(.14+(1-(candidate.toolingFit||.3))*.18):.32;if(!financeTooling(region,toolingCost))return;line=candidate?retoolProductionLine(region,candidate.id,productId):addProductionLine(region,{productId,capacityShare:productId==='motor_vehicle'?.48:.35});line.investmentCost=(line.investmentCost||0)+toolingCost;}
     ensureComponentOrdersAndLines(region,productId,demand);
     region.industrialOrders ||= {};region.industrialOrders[productId]=Math.max(region.industrialOrders[productId]||0,demand);
   } else if(line&&margin<.14){line.idleWeeks=Math.max(line.idleWeeks||0,104);line.status='mothballed';}
