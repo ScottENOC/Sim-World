@@ -1,6 +1,7 @@
 import { PETROLEUM_REFINING_TECH_ID } from './petroleum.js?v=20260917-oil1';
 import { industrialFactoryCapacity } from '../economy/industrialPlant.js?v=20260919-components1';
 import { tickIndustrialInvestment } from '../economy/industrialInvestment.js?v=20260919-investment1';
+import '../ui/industrialInvestmentUi.js?v=20260919-investment1';
 
 export const AUTOMOBILE_TECH_ID = 'automobile';
 export const ASSEMBLY_LINE_TECH_ID = 'assembly_line_production';
