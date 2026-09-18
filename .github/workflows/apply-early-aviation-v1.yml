@@ -4,6 +4,7 @@ on:
     branches: [feature/early-aviation-v1]
     paths:
       - 'tools/apply-early-aviation-v1.py'
+      - 'tools/fix-aviation-route-format.py'
       - 'tools/test-early-aviation.mjs'
 jobs:
   patch:
@@ -19,6 +20,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - run: python tools/apply-early-aviation-v1.py
+      - run: python tools/fix-aviation-route-format.py
       - run: |
           node --check js/military/aviation.js
           node --check js/economy/construction.js
