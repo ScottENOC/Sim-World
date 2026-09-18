@@ -3,8 +3,10 @@ import { artistPopulation } from '../society/arts.js?v=20260907-art1';
 import { finalizeStructuralTransformation, prepareStructuralTransformation } from './structuralTransformation.js?v=20260915-structural1';
 import { tickIndustrialSupply } from './industrialSupply.js?v=20260915-industrial1';
 import { enforceHousingEmployment, housingSummary, prepareHousingConstruction } from './housing.js?v=20260916-housing1';
+import { tickEmploymentAndHardship } from './employmentAndHardship.js?v=20260918-employment1';
 export * from './laborCore.js?v=20260905-merchant1';
 export * from './housing.js?v=20260916-housing1';
+export * from './employmentAndHardship.js?v=20260918-employment1';
 
 function committedMerchantCount(region) {
   const workingAge = Math.max(0, Number(region.demographics?.workingAge) || 0);
@@ -20,7 +22,7 @@ function committedArtistCount(region, availableAfterMerchants) {
 }
 
 function normaliseReportMetadata(region) {
-  for (const key of ['conflict', 'structuralTransformation', 'industrialSupply', 'housing']) {
+  for (const key of ['conflict', 'structuralTransformation', 'industrialSupply', 'housing', 'employment']) {
     if (region.report?.[key] && !Number.isFinite(region.report[key].workers)) region.report[key].workers = 0;
   }
 }
@@ -76,4 +78,5 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
       normaliseReportMetadata(region);
     }
   }
+  return tickEmploymentAndHardship(regions, currentTick ?? 0, elapsedDays, { playerPolityId: globalThis.__worldsim?.activePlayerPolityId || null });
 }
