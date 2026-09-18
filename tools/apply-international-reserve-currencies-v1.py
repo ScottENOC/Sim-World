@@ -141,3 +141,4 @@ if '...internationalMonetaryEvents.filter' not in t:
     t=t.replace("      ...polityEvents.filter((event) => event.regionId === playerRegionId),", "      ...polityEvents.filter((event) => event.regionId === playerRegionId),\n      ...internationalMonetaryEvents.filter((event) => event.polityId === activePlayerPolityId || event.anchorPolityId === activePlayerPolityId || event.members?.includes?.(activePlayerPolityId)),")
 p.write_text(t)
 print('international reserve currency integration applied')
+# trigger workflow
