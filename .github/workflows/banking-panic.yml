@@ -1,0 +1,25 @@
+name: Banking panic and financial crisis
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/economy/bankingPanic.js'
+      - 'js/economy/sovereignBonds.js'
+      - 'js/ui/religiousPoliticsEventUi.js'
+      - 'tools/test-banking-panic.mjs'
+      - '.github/workflows/banking-panic.yml'
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: |
+          node --check js/economy/bankingPanic.js
+          node --check js/economy/sovereignBonds.js
+          node --check js/ui/religiousPoliticsEventUi.js
+          node tools/test-banking-panic.mjs
+          node tools/test-monetary-modernisation.mjs
+          node tools/test-international-reserve-currencies.mjs

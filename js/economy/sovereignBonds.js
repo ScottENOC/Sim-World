@@ -1,4 +1,5 @@
 import { attitudeToward } from '../diplomacy/relations.js?v=20260904-save1';
+import { tickBankingPanics } from './bankingPanic.js?v=20260918-bankpanic1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const YEAR_WEEKS=52;
@@ -118,6 +119,7 @@ export function tickSovereignBondMarkets(polities,regions,currentTick=0){
       }
     }
   }
+  events.push(...tickBankingPanics(polities,regions,currentTick));
   if(currentTick%YEAR_WEEKS===0){
     for(const p of polities){
       const capital=capitalFor(p,byId);if(!capital)continue;
