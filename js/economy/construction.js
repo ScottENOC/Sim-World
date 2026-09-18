@@ -217,6 +217,13 @@ export const CONSTRUCTION_TYPES = Object.freeze({
     workRequired: 18000, defaultWorkers: 220, minWorkers: 70, maxWorkers: 900,
     materials: { stone: 900, iron: 180, steel: 90 }, wagePerWorkerWeek: 0.0035, maintenanceRate: 0.065,
   },
+  factory: {
+    id: 'factory', name: 'Industrial factory', requiredTechId: 'steelmaking', unique: false,
+    minPopulation: 8000,
+    description: 'A powered industrial plant with machine halls, tooling and production-floor capacity. Vehicles and other complex mass-produced goods require real factory capacity rather than appearing directly from raw materials.',
+    workRequired: 16500, defaultWorkers: 210, minWorkers: 65, maxWorkers: 900,
+    materials: { stone: 700, iron: 160, steel: 120, wood: 350 }, wagePerWorkerWeek: 0.0038, maintenanceRate: 0.06,
+  },
   naval_base: {
     id: 'naval_base', name: 'Naval base and sheds', requiredTechId: 'naval_warfare', coastal: true, unique: true,
     requiresInfrastructure: 'harbour', minPopulation: 7000,

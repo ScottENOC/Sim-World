@@ -1,4 +1,5 @@
 import { PETROLEUM_REFINING_TECH_ID } from './petroleum.js?v=20260917-oil1';
+import { industrialFactoryCapacity, tickIndustrialPlants } from '../economy/industrialPlant.js?v=20260919-components1';
 
 export const AUTOMOBILE_TECH_ID = 'automobile';
 export const ASSEMBLY_LINE_TECH_ID = 'assembly_line_production';
@@ -25,6 +26,8 @@ function industrialReadiness(region){
 
 export function industrialProductionBreakthroughChances(region,byId){
   const tech=region.unlockedTechIds||new Set();
+  const factoryCapacity=industrialFactoryCapacity(region);
+  if(factoryCapacity<=0)return {automobile:0,assembly:0,advanced:0};
   const industry=industrialReadiness(region);
   const machining=clamp(region.industrialSupply?.capability?.precision_machining||0);
   const locomotive=clamp(region.industrialSupply?.capability?.locomotive_engineering||0);
@@ -75,6 +78,7 @@ export function tickIndustrialProduction(regions,elapsedDays=7){
     if(industry>.12)s.standardisationExperience=clamp(s.standardisationExperience+years*(.018+industry*.045)*(1-s.standardisationExperience));
     if(tech.has(ADVANCED_FACTORY_TECH_ID))s.factorySophistication=clamp(s.factorySophistication+years*(.025+industry*.075)*(1-s.factorySophistication));
     if(tech.has(AUTOMOBILE_TECH_ID))s.motorisationReadiness=clamp(s.motorisationReadiness+years*(.018+industry*.06)*(1-s.motorisationReadiness));
+    tickIndustrialPlants(region,elapsedDays);
   }
 }
 

@@ -2,14 +2,20 @@ import assert from 'node:assert/strict';
 import { AUTOMOBILE_TECH_ID, ASSEMBLY_LINE_TECH_ID, ADVANCED_FACTORY_TECH_ID, industrialProductionBreakthroughChances, industrialProductionMultipliers, tickIndustrialProduction } from '../js/technology/industrialProduction.js';
 import { PETROLEUM_REFINING_TECH_ID } from '../js/technology/petroleum.js';
 
-function region(id,techs=[]){return {id,name:id,neighbors:[],tradePartnerIds:new Set(),unlockedTechIds:new Set(techs),industrialSupply:{capability:{precision_machining:.8,locomotive_engineering:.7},exposure:{precision_machining:.6}},structuralTransformation:{capability:{manufacture:.8},scaleMultipliers:{manufacture:1.5}},electricity:{industrialCoverage:.7},corporateCapital:{financialDepth:.6},governance:{administrativeControl:.7}};}
+function region(id,techs=[]){return {id,name:id,neighbors:[],tradePartnerIds:new Set(),unlockedTechIds:new Set(techs),industrialSupply:{capability:{precision_machining:.8,locomotive_engineering:.7},exposure:{precision_machining:.6},inventory:{machine_components:100}},structuralTransformation:{capability:{manufacture:.8},scaleMultipliers:{manufacture:1.5}},electricity:{industrialCoverage:.7},corporateCapital:{financialDepth:.6},governance:{administrativeControl:.7},construction:{assets:[{id:`${id}-factory`,typeId:'factory',condition:1,scale:1}]},stockpile:{steel:100}};}
 const independent=region('independent',[PETROLEUM_REFINING_TECH_ID]);
 const byId=new Map([[independent.id,independent]]);
 const c=industrialProductionBreakthroughChances(independent,byId);
-assert(c.automobile>0,'automobile should be possible with refining and machinery without assembly line');
-assert(c.assembly>0,'assembly line should be possible independently of automobiles');
+assert(c.automobile>0,'automobile should be possible with refining, machinery and factory capacity without assembly line');
+assert(c.assembly>0,'assembly line should be possible independently of automobiles once a factory exists');
 assert(!independent.unlockedTechIds.has(ASSEMBLY_LINE_TECH_ID));
 assert(!independent.unlockedTechIds.has(AUTOMOBILE_TECH_ID));
+
+const noFactory=region('noFactory',[PETROLEUM_REFINING_TECH_ID]);
+noFactory.construction.assets=[];
+const blocked=industrialProductionBreakthroughChances(noFactory,new Map([[noFactory.id,noFactory]]));
+assert.equal(blocked.automobile,0,'automobile production breakthrough should require an operational factory');
+assert.equal(blocked.assembly,0,'assembly-line breakthrough should require an operational factory');
 
 const assemblyOnly=region('assembly',[ASSEMBLY_LINE_TECH_ID]);
 const m1=industrialProductionMultipliers(assemblyOnly);
