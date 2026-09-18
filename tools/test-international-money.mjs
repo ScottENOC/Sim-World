@@ -46,7 +46,7 @@ assert.ok((a.foreignCurrencyReserves.cz||0)>0);
 assert.ok((b.foreignCurrencyReserves.cz||0)>0);
 
 // A high-inflation currency can peg to a stable, credible reserve currency.
-const am=ensureMonetaryInstitution(aP),zm=ensureMonetaryInstitution(zP);
+const am=ensureMonetaryInstitution(aP),bm=ensureMonetaryInstitution(bP),zm=ensureMonetaryInstitution(zP);
 am.inflation=0.18;zm.inflation=0.015;zP.currency.trust=0.95;
 a.foreignCurrencyReserves.cz=250;
 const peg=adoptCurrencyPeg(aP,zP,regions,{currentTick:100});
@@ -54,7 +54,9 @@ assert.equal(peg.changed,true);
 assert.equal(am.peg.anchorCurrencyId,'cz');
 assert.ok(am.peg.credibility>0.35);
 
-// Deeply aligned, financially mature trading allies can create a shared currency.
+// Deeply aligned, financially mature trading allies can create a shared currency,
+// but only after their macro conditions have converged enough to make that credible.
+am.inflation=0.03;bm.inflation=0.04;
 a.relations.set('b',{attitude:0.9});b.relations.set('a',{attitude:0.91});
 a.recentTradePartners.set('b',100);b.recentTradePartners.set('a',100);
 const agreement={active:true,type:'military_support',fromId:'a',toId:'b'};
