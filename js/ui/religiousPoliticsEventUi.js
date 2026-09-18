@@ -3,6 +3,7 @@ export function handleReligiousPoliticsEvent(event, clock, eventQueue, showNextE
     'religious_ruler_recognition_offer','religious_ruler_sanction','religious_appointment_conflict',
     'religious_council','religious_authority_rivalry','religious_peace_call','religious_war_call',
     'religious_seat_occupied','religious_authority_relocated','religious_seat_restored',
+    'banking_panic_warning','banking_panic_decision','banking_panic_resolved',
   ]);
   if (!supported.has(event?.type)) return false;
   const title = document.getElementById('event-title');
@@ -17,6 +18,39 @@ export function handleReligiousPoliticsEvent(event, clock, eventQueue, showNextE
       if (eventQueue.length) showNextEvent(clock,eventQueue); else clock.releaseAutoPause();
     });
   };
+  if (event.type === 'banking_panic_warning') {
+    const a=event.assessment||{};
+    title.textContent='Banks under growing pressure';
+    body.innerHTML=`<strong>Warning — a bank run has not begun yet.</strong><br><br>`+
+      `Estimated run pressure: ${Math.round((a.runPressure||0)*100)}%. Confidence and liquidity are deteriorating because ${a.triggers?.length?a.triggers.join('; '):'depositors are becoming unusually cautious'}.<br><br>`+
+      `You still have time to improve reserves, reduce arrears and bad debts, strengthen bank liquidity, or prepare a credible response before withdrawals become self-reinforcing.`;
+    continueOnly();return true;
+  }
+  if (event.type === 'banking_panic_decision') {
+    const a=event.assessment||{};
+    title.textContent='Bank run: depositors are demanding cash';
+    body.innerHTML=`Queues are forming and banks are being forced to turn assets into cash. This is not a random event: the immediate causes are ${a.triggers?.length?a.triggers.join('; '):'weak liquidity and falling depositor confidence'}.<br><br>`+
+      `<strong>Run pressure ${Math.round((a.runPressure||0)*100)}%</strong> · banking maturity ${Math.round((a.maturity||0)*100)}% · system safety ${Math.round((a.safety||0)*100)}%.<br><br>`+
+      `Choose a response. Every option has a cost; doing nothing is also a choice.`;
+    options.innerHTML=(event.choices||[]).map(choice=>`<div class="raid-status"><button data-choice="${choice.id}">${choice.label}</button><br><small>${choice.tradeoff||''}</small></div>`).join('');
+    modal.classList.remove('hidden');
+    options.querySelectorAll('[data-choice]').forEach(button=>button.addEventListener('click',()=>{
+      const result=event.resolveDecision?.(button.dataset.choice);
+      if(!result?.resolved){body.textContent=`That response is not currently available (${String(result?.reason||'unknown').replaceAll('_',' ')}).`;return;}
+      body.textContent=result.summary||'The government has responded to the banking panic.';
+      options.innerHTML='<button id="btn-event-continue">Continue</button>';
+      document.getElementById('btn-event-continue').addEventListener('click',()=>{
+        modal.classList.add('hidden');
+        if(eventQueue.length)showNextEvent(clock,eventQueue);else clock.releaseAutoPause();
+      });
+    }));
+    return true;
+  }
+  if (event.type === 'banking_panic_resolved') {
+    title.textContent='Banking panic response';
+    body.textContent=event.summary||event.result?.summary||'The government has taken emergency measures in response to banking stress.';
+    continueOnly();return true;
+  }
   if (event.type === 'religious_ruler_recognition_offer') {
     title.textContent = 'Religious authority offers recognition';
     body.textContent = 'A transnational religious authority is prepared to recognise your ruler during a disputed succession. Recognition can strengthen legitimacy among its followers, but also increases the authority’s standing in your political order.';
