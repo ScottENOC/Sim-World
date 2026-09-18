@@ -75,3 +75,4 @@ t=t.replace("tickPolities(polities, regions, calendarWeek, time.elapsedDays)", "
 p.write_text(t)
 
 print('international monetary integration applied')
+# trigger
