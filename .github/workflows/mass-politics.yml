@@ -1,0 +1,32 @@
+name: Mass politics validation
+on:
+  pull_request:
+    paths:
+      - 'js/politics/massPolitics.js'
+      - 'js/ui/massPoliticsUi.js'
+      - 'js/main.js'
+      - 'tools/test-mass-politics.mjs'
+      - '.github/workflows/mass-politics.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'js/politics/massPolitics.js'
+      - 'js/ui/massPoliticsUi.js'
+      - 'js/main.js'
+      - 'tools/test-mass-politics.mjs'
+      - '.github/workflows/mass-politics.yml'
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks
+        run: |
+          node --check js/politics/massPolitics.js
+          node --check js/ui/massPoliticsUi.js
+          node --check js/main.js
+      - name: Mass politics regression
+        run: node tools/test-mass-politics.mjs
