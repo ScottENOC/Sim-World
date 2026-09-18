@@ -1,16 +1,11 @@
 from pathlib import Path
 
 p=Path('js/military/aviation.js'); t=p.read_text()
-# Add polity ownership helper and REBASE mission.
-if "const actorId=" not in t:
-    t=t.replace("const has=(r,id)=>Boolean(r?.unlockedTechIds?.has?.(id));", "const has=(r,id)=>Boolean(r?.unlockedTechIds?.has?.(id));\nconst actorId=(r)=>r?.governance?.sovereignPolityId||r?.controllingActorId||r?.polityId||r?.id||null;")
+if "const actorId=" not in t:t=t.replace("const has=(r,id)=>Boolean(r?.unlockedTechIds?.has?.(id));", "const has=(r,id)=>Boolean(r?.unlockedTechIds?.has?.(id));\nconst actorId=(r)=>r?.governance?.sovereignPolityId||r?.controllingActorId||r?.polityId||r?.id||null;")
 t=t.replace("TRANSPORT:'transport'});", "TRANSPORT:'transport',REBASE:'rebase'});")
-# Aircraft remember owner/home separately from current base.
 old="const aircraft={id:`air-${nextAircraftId++}`,ownerType,role,baseType:'airfield',baseRegionId:region.id,carrierId:null,condition:1,fuel:1,status:'serviceable',mission:AIR_MISSIONS.IDLE,targetRegionId:null,pilotExperience:0,totalFlights:0,repairNeed:0};"
 new="const aircraft={id:`air-${nextAircraftId++}`,ownerType,ownerActorId:actorId(region),role,baseType:'airfield',homeBaseRegionId:region.id,baseRegionId:region.id,carrierId:null,condition:1,fuel:1,status:'serviceable',mission:AIR_MISSIONS.IDLE,targetRegionId:null,pilotExperience:0,totalFlights:0,repairNeed:0};"
-if old in t: t=t.replace(old,new)
-
-# Insert basing helpers before air defence.
+if old in t:t=t.replace(old,new)
 marker="export function airDefenceRisk(region){"
 helpers="""
 export function aviationBasingRelationship(aircraft,hostRegion,agreements=[],regionsById=new Map()){
@@ -38,31 +33,21 @@ export function rebaseAircraft(origin,target,aircraftId,agreements=[],regionsByI
 
 """
 if 'export function aviationBasingRelationship' not in t:
-    if marker not in t: raise RuntimeError('air defence marker missing')
+    if marker not in t:raise RuntimeError('air defence marker missing')
     t=t.replace(marker,helpers+marker,1)
-
-# Repair only at own base or explicit allied maintenance support; refuel at any legal base.
 t=t.replace("function repairAtBase(region,a,elapsedDays){\n  if(a.status==='destroyed'||a.condition>=.999||a.baseRegionId!==region.id||!operationalInfrastructure(region,'airfield'))return;", "function repairAtBase(region,a,elapsedDays,agreements=[],regionsById=new Map()) {\n  const rights=aviationBasingRelationship(a,region,agreements,regionsById);\n  if(a.status==='destroyed'||a.condition>=.999||a.baseRegionId!==region.id||!rights.allowed||!rights.repair)return;")
 t=t.replace("export function tickAviation(regions,currentTick,elapsedDays=7,rng=Math.random){\n  const byId=new Map(regions.map(r=>[r.id,r])),events=[];", "export function tickAviation(regions,currentTick,elapsedDays=7,rng=Math.random,options={}){\n  const byId=new Map(regions.map(r=>[r.id,r])),agreements=options.agreements||[],events=[];")
 t=t.replace("repairAtBase(region,a,elapsedDays);", "repairAtBase(region,a,elapsedDays,agreements,byId);")
-old_refuel="if(a.status!=='destroyed'&&a.baseRegionId===region.id&&operationalInfrastructure(region,'airfield')&&(a.fuel??0)<1){"
-new_refuel="if(a.status!=='destroyed'&&a.baseRegionId===region.id&&aviationBasingRelationship(a,region,agreements,byId).allowed&&(a.fuel??0)<1){"
-t=t.replace(old_refuel,new_refuel)
-
-# Courier arrival is a temporary rebase; owner/home remain unchanged.
-# Existing completeAircraftCourier already moves the aircraft and sets current base only.
+t=t.replace("if(a.status!=='destroyed'&&a.baseRegionId===region.id&&operationalInfrastructure(region,'airfield')&&(a.fuel??0)<1){", "if(a.status!=='destroyed'&&a.baseRegionId===region.id&&aviationBasingRelationship(a,region,agreements,byId).allowed&&(a.fuel??0)<1){")
 p.write_text(t)
 
-# Main: pass agreements and expose management API.
 p=Path('js/main.js'); t=p.read_text()
 t=t.replace("import { tickAviation, syncNextAircraftId } from './military/aviation.js?v=20260918-aviation1';", "import { tickAviation, syncNextAircraftId, buildAircraft, assignAircraftMission, rebaseAircraft, aviationSummary } from './military/aviation.js?v=20260918-aviation1';")
 t=t.replace("tickAviation(regions, calendarWeek, time.elapsedDays, Math.random)", "tickAviation(regions, calendarWeek, time.elapsedDays, Math.random, { agreements })")
 old="    fleetApi: { deployFleet, dockFleet, orderFleetHome, orderFleetToSea, setFleetFlag, setFleetMission, syncRegionalNavyLedger },"
-new="    fleetApi: { deployFleet, dockFleet, orderFleetHome, orderFleetToSea, setFleetFlag, setFleetMission, syncRegionalNavyLedger },\n    aviationApi: { buildAircraft, assignAircraftMission, rebaseAircraft, aviationSummary },"
-if old in t and 'aviationApi:' not in t:t=t.replace(old,new,1)
+if old in t and 'aviationApi:' not in t:t=t.replace(old,old+"\n    aviationApi: { buildAircraft, assignAircraftMission, rebaseAircraft, aviationSummary },",1)
 p.write_text(t)
 
-# Extend regression with allied refuel/no-repair semantics.
 p=Path('tools/test-early-aviation.mjs'); t=p.read_text()
 t=t.replace("buildAircraft, assignAircraftMission, tickAviation, airDefenceRisk, reserveAircraftCourier, completeAircraftCourier, aviationSummary", "buildAircraft, assignAircraftMission, tickAviation, airDefenceRisk, reserveAircraftCourier, completeAircraftCourier, aviationSummary, rebaseAircraft")
 if 'allied basing should permit physical rebasing' not in t:
@@ -86,3 +71,4 @@ assert.equal(basingPlane.condition,damagedBefore,'ordinary allied basing should 
     t=t.replace("console.log('early aviation regression passed');",insert+"console.log('early aviation regression passed');")
 p.write_text(t)
 print('allied aviation basing applied')
+# validation rerun marker
