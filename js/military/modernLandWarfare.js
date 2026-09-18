@@ -63,13 +63,13 @@ function consumeShotMetal(region,amount){let left=Math.max(0,amount);for(const k
 export function modernInfantryProfile(region,personnel,firearmProfile,{role='attacker',elapsedDays=7,logisticsSupply=1,consumeSupplies=true}={}){
  const armed=clamp(firearmProfile?.suppliedShare||0); if(personnel<=0||armed<=0)return{multiplier:1,defenceMultiplier:1,intensityMultiplier:1,ammoSupply:1,powderUsed:0,shotUsed:0};
  const breech=has(region,BREECH_RIFLE_TECH_ID),magazine=has(region,MAGAZINE_RIFLE_TECH_ID),smokeless=has(region,SMOKELESS_POWDER_TECH_ID),mg=has(region,MACHINE_GUN_TECH_ID);
- const weeks=Math.max(.1,elapsedDays/7); const rate=(breech?.35:0)+(magazine?.75:0)+(mg?1.15:0);
- const powderNeed=personnel*armed*.006*rate*weeks*(smokeless?.82:1); const shotNeed=personnel*armed*.0018*rate*weeks;
+ const weeks=Math.max(.1,elapsedDays/7); const rate=(breech ? .35 : 0)+(magazine ? .75 : 0)+(mg?1.15:0);
+ const powderNeed=personnel*armed*.006*rate*weeks*(smokeless ? .82 : 1); const shotNeed=personnel*armed*.0018*rate*weeks;
  const supply=Math.min(clamp(logisticsSupply),powderNeed>0?clamp((region.stockpile?.gunpowder||0)/powderNeed):1,shotNeed>0?clamp(availableShotMetal(region)/shotNeed):1);
  let powderUsed=0,shotUsed=0;if(consumeSupplies&&supply>0){powderUsed=powderNeed*supply;shotUsed=shotNeed*supply;region.stockpile.gunpowder=Math.max(0,(region.stockpile.gunpowder||0)-powderUsed);consumeShotMetal(region,shotUsed);}
- const firepower=armed*supply*((breech?.08:0)+(magazine?.11:0)+(smokeless?.07:0)+(mg?.12:0));
- const defence=armed*supply*((breech?.05:0)+(magazine?.08:0)+(smokeless?.05:0)+(mg?.34:0));
- return{multiplier:1+firepower,defenceMultiplier:role==='defender'?1+defence:1,intensityMultiplier:1+armed*supply*((magazine?.12:0)+(mg?.22:0)),ammoSupply:supply,powderUsed,shotUsed,breech,magazine,smokeless,machineGuns:mg};
+ const firepower=armed*supply*((breech ? .08 : 0)+(magazine ? .11 : 0)+(smokeless ? .07 : 0)+(mg?.12:0));
+ const defence=armed*supply*((breech ? .05 : 0)+(magazine ? .08 : 0)+(smokeless ? .05 : 0)+(mg?.34:0));
+ return{multiplier:1+firepower,defenceMultiplier:role==='defender'?1+defence:1,intensityMultiplier:1+armed*supply*((magazine ? .12 : 0)+(mg ? .22 : 0)),ammoSupply:supply,powderUsed,shotUsed,breech,magazine,smokeless,machineGuns:mg};
 }
 
 export function entrenchmentDefenceMultiplier(region,weeksEngaged=0){
@@ -78,14 +78,22 @@ export function entrenchmentDefenceMultiplier(region,weeksEngaged=0){
  return 1+maturity*.34;
 }
 
-export function modernArtilleryProfile(region,baseProfile={}){
- const supplied=clamp(baseProfile.suppliedFraction||0),guns=Math.max(0,baseProfile.guns||0);
- if(!guns||!supplied)return{combatMultiplier:1,bombardment:0,precision:0,ammoMultiplier:1};
+export function modernArtilleryProfile(region,baseProfile={}, {elapsedDays=7,logisticsSupply=1,consumeSupplies=true}={}){
+ const baseSupplied=clamp(baseProfile.suppliedFraction||0),guns=Math.max(0,baseProfile.guns||0);
+ if(!guns||!baseSupplied)return{combatMultiplier:1,bombardment:0,precision:0,ammoMultiplier:1,ammoSupply:1,powderUsed:0,shotUsed:0};
  const breech=has(region,BREECH_ARTILLERY_TECH_ID),quick=has(region,QUICK_FIRE_ARTILLERY_TECH_ID),heavy=has(region,HEAVY_HOWITZER_TECH_ID),smokeless=has(region,SMOKELESS_POWDER_TECH_ID);
- const combat=1+supplied*((breech?.05:0)+(quick?.10:0)+(heavy?.05:0));
- const bombardment=clamp(supplied*(breech?.35:0)*(1+(heavy?.45:0)+(quick?.3:0)),0,1);
- const precision=clamp((breech?.25:0)+(smokeless?.12:0)+(quick?.12:0));
- return{combatMultiplier:combat,bombardment,precision,ammoMultiplier:1+(breech?.3:0)+(quick?.8:0)+(heavy?.35:0),breech,quick,heavy};
+ const ammoMultiplier=1+(breech ? .3 : 0)+(quick ? .8 : 0)+(heavy ? .35 : 0);
+ const weeks=Math.max(.1,elapsedDays/7);
+ const extraFactor=Math.max(0,ammoMultiplier-1);
+ const powderNeed=guns*.06*extraFactor*weeks*(smokeless ? .86 : 1);
+ const shotNeed=guns*.022*extraFactor*weeks;
+ const ammoSupply=Math.min(clamp(logisticsSupply),powderNeed>0?clamp((region.stockpile?.gunpowder||0)/powderNeed):1,shotNeed>0?clamp(availableShotMetal(region)/shotNeed):1);
+ let powderUsed=0,shotUsed=0;if(consumeSupplies&&ammoSupply>0){powderUsed=powderNeed*ammoSupply;shotUsed=shotNeed*ammoSupply;region.stockpile.gunpowder=Math.max(0,(region.stockpile.gunpowder||0)-powderUsed);consumeShotMetal(region,shotUsed);}
+ const supplied=baseSupplied*ammoSupply;
+ const combat=1+supplied*((breech ? .05 : 0)+(quick ? .10 : 0)+(heavy ? .05 : 0));
+ const bombardment=clamp(supplied*(breech ? .35 : 0)*(1+(heavy ? .45 : 0)+(quick ? .3 : 0)),0,1);
+ const precision=clamp((breech ? .25 : 0)+(smokeless ? .12 : 0)+(quick ? .12 : 0));
+ return{combatMultiplier:combat,bombardment,precision,ammoMultiplier,ammoSupply,powderUsed,shotUsed,breech,quick,heavy};
 }
 
 const CONSTRUCTION_TARGETS=['telegraph_network','local_electric_grid','coal_power_station','hydro_power_station','road_network','harbour','shipyard','royal_arsenal','steelworks','factory','refinery','canal','administrative_centre','public_granary'];
@@ -94,7 +102,7 @@ function damageConstructionAsset(asset,strength,rng){const vulnerability=CONSTRU
 
 export function bombardRegionalInfrastructure(attacker,defender,polities,artilleryProfile,{objective='subjugation',rng=Math.random,currentTick=null}={}){
  const modern=modernArtilleryProfile(attacker,artilleryProfile); if(modern.bombardment<=0)return{totalDamage:0,targets:[]};
- const deliberate=objective==='devastation'||objective==='punitive'; const baseStrength=modern.bombardment*(deliberate?.13:.055); const targets=[];let totalDamage=0;
+ const deliberate=objective==='devastation'||objective==='punitive'; const baseStrength=modern.bombardment*(deliberate ? .13 : .055); const targets=[];let totalDamage=0;
  const railLines=(polities||[]).flatMap(p=>p.railways?.lines||[]).filter(line=>line.status!=='destroyed'&&(line.fromRegionId===defender.id||line.toRegionId===defender.id));
  if(railLines.length){const line=[...railLines].sort((a,b)=>(b.effectiveCapacity||b.capacity||0)-(a.effectiveCapacity||a.capacity||0))[0];const damage=damageInfrastructure(line,{combatIntensity:baseStrength,deliberate,artillery:modern.bombardment,precision:modern.precision,rng});if(damage>0){totalDamage+=damage;targets.push({type:'railway',id:line.id,damage});}}
  const assets=ensureConstruction(defender).assets.filter(a=>(a.condition??1)>.05&&CONSTRUCTION_TARGETS.includes(a.typeId));

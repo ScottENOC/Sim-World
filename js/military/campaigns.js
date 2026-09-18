@@ -26,6 +26,7 @@ import { artilleryCampaignProfile, returnGunpowderSiegeTrain, takeGunpowderSiege
 import { medievalMilitaryCombatMultiplier } from './medievalDoctrine.js?v=20260912-medieval2';
 import { campaignExternalSupport, applyExternalCampaignLosses } from '../politics/privateMilitaryActors.js?v=20260912-pmc1';
 import { telephoneMobilisationMultiplier } from '../economy/localCommunications.js?v=20260918-telephone2';
+import { bombardRegionalInfrastructure, entrenchmentDefenceMultiplier, modernArtilleryProfile, modernInfantryProfile } from './modernLandWarfare.js?v=20260918-modern-war1';
 
 export const CAMPAIGN_OBJECTIVES = Object.freeze({
   devastation: { label: 'Destroy the region', pressureRate: 0.8, damageRate: 1.8 },
@@ -247,13 +248,17 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   const artillery = artilleryCampaignProfile(attacker, campaign.gunpowderArtillery || [], {
     elapsedDays: 7, logisticsSupply: campaign.supply, consumeSupplies: true,
   });
+  const attackerModern = modernInfantryProfile(attacker, campaign.personnel, attackerFirearms, { role: 'attacker', elapsedDays: 7, logisticsSupply: campaign.supply, consumeSupplies: true });
+  const defenderModern = modernInfantryProfile(defender, defender.army.personnel, defenderFirearms, { role: 'defender', elapsedDays: 7, logisticsSupply: 1, consumeSupplies: true });
+  const modernArtillery = modernArtilleryProfile(attacker, artillery, { elapsedDays: 7, logisticsSupply: campaign.supply, consumeSupplies: true });
+  const trenchDefence = entrenchmentDefenceMultiplier(defender, campaign.weeksEngaged);
   const externalSupport = campaignExternalSupport(campaign, options.nonStateWorld);
   const effectiveExternal = externalSupport.personnel * externalSupport.quality;
   let attackerPower = combatPower(attacker, campaign.personnel + effectiveExternal, toolTypes, 'attacker', campaign.supply,
-    campaign.attackerMorale, null, terrain) * (expedition?.combatMultiplier ?? 1) * attackerFirearms.multiplier * artillery.combatMultiplier;
+    campaign.attackerMorale, null, terrain) * (expedition?.combatMultiplier ?? 1) * attackerFirearms.multiplier * artillery.combatMultiplier * attackerModern.multiplier * modernArtillery.combatMultiplier;
   attackerPower *= medievalMilitaryCombatMultiplier(attacker, defender, terrain, 'attacker');
   const defenderArmyPower = combatPower(defender, defender.army.personnel, toolTypes, 'defender', 1,
-    campaign.defenderMorale, campaign.siegeEquipment, terrain) * defenderFirearms.multiplier * artillery.fortDefenceMultiplier *
+    campaign.defenderMorale, campaign.siegeEquipment, terrain) * defenderFirearms.multiplier * defenderModern.multiplier * defenderModern.defenceMultiplier * trenchDefence * artillery.fortDefenceMultiplier *
     medievalMilitaryCombatMultiplier(defender, attacker, terrain, 'defender');
   if (campaign.pressure >= 0.45) attackerPower *= 1 + formationSiegeBonus(attacker);
   const militiaPower = campaign.militia * 0.24 * postureProfile(defender).raidDefence;
@@ -269,7 +274,7 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
     : campaign.pressure < 0.55 ? 'encirclement' : campaign.pressure < 0.85 ? 'siege' : 'collapse';
 
   const baseIntensity = campaign.stage === 'skirmishing' ? 0.008 : campaign.stage === 'encirclement' ? 0.013 : 0.02;
-  const intensity = baseIntensity * counterLogistics.intensityMultiplier;
+  const intensity = baseIntensity * counterLogistics.intensityMultiplier * Math.max(attackerModern.intensityMultiplier, defenderModern.intensityMultiplier);
   const variance = () => 0.75 + rng() * 0.5;
   const combatAttackerLosses = Math.min(campaign.personnel,
     Math.round(campaign.personnel * intensity * (1 - attackerShare) * 1.55 * desperation.casualtyMultiplier * variance()));
@@ -315,6 +320,7 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   campaign.defenderMorale = clamp(campaign.defenderMorale - Math.max(0, pressureDelta) * 0.5 * moraleShockMultiplier(defender, currentTick) -
     (defenderLosses + militiaLosses) / Math.max(1, defender.population) * 4 * moraleShockMultiplier(defender, currentTick));
   const civilianDeaths = applyCivilianDamage(campaign, defender, Math.max(0, pressureDelta), attackerShare);
+  const bombardment = bombardRegionalInfrastructure(attacker, defender, polities, artillery, { objective: campaign.objective, rng, currentTick });
   defender.conflictPressure = campaign.pressure;
   campaign.occupationSummary = advanceCampaignControl(defender, campaign.occupationActorId || attacker.governance?.sovereignPolityId || attacker.controllingActorId || attacker.id, pressureDelta, campaign.pressure, currentTick, { capturePlaces: false });
   if (movement.arrived) {
@@ -329,7 +335,7 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
     attackerLosses, externalLosses, externalPersonnel: externalSupport.personnel, logisticsLosses, defenderLosses, militiaLosses, civilianDeaths, attackerMorale: campaign.attackerMorale,
     defenderMorale: campaign.defenderMorale, supply: campaign.supply, strengthRatio, navalControl: control,
     logisticsStatus: campaign.logisticsState?.status || null, routeReliability: campaign.logisticsState?.routeReliability ?? null,
-    attackerFirearms, defenderFirearms };
+    attackerFirearms, defenderFirearms, attackerModern, defenderModern, modernArtillery, trenchDefence, bombardment };
   campaign.lastWeek = week;
   campaign.history.push(week);
   if (campaign.history.length > 26) campaign.history.shift();
