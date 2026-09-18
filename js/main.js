@@ -36,6 +36,7 @@ import { createLocalRegionView } from './ui/localRegionView.js?v=20260913-settle
 import { ensureSubregionalControl } from './military/subregionalControl.js?v=20260908-subregion1';
 import { FogOfWar } from './core/fogOfWar.js?v=20260904-weather1';
 import { buildFishingContactPairs, initialiseKnowledge, pruneKnowledge, tickFishingKnowledge, KNOWLEDGE_THRESHOLDS, knowledgeLevel, knowledgeStage, compassDirection } from './core/knowledge.js?v=20260906-scouting1';
+import { tickPublishedGeography } from './core/publishedGeography.js?v=20260918-atlas1';
 import { startScoutingMission, tickScouting } from './core/scouting.js?v=20260906-scouting1';
 import { attitudeLabel, attitudeToward, canDiplomaticallyReach, endAgreement, proposeAgreement, syncNextAgreementId, tickDiplomacy } from './diplomacy/relations.js?v=20260912-migration-diplomacy1';
 import { availableVassalLevies, changeGovernanceForm, demandVassalage, governanceFormAvailability, governanceLabel, initialisePolities, musterVassalLevies, polityById, setDelegatedPower, setGovernancePolicy, sovereignPolity, tickPolities } from './politics/polities.js?v=20260912-currency2';
@@ -482,6 +483,7 @@ async function main() {
     const protoIndustryEvents = profiler.measure('Proto-industrial private investment', () => tickProtoIndustry(regions, calendarWeek, time.elapsedDays, Math.random));
     const medievalCompletionEvents = profiler.measure('Medieval completion', () => tickMedievalCompletion(regions, polities, religiousWorld, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));
     const renaissanceEvents = profiler.measure('Renaissance networks', () => tickRenaissanceNetworks(regions, polities, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));
+    profiler.measure('Published geography', () => tickPublishedGeography(regions, calendarWeek, time.elapsedDays));
     const earlyModernReformEvents = profiler.measure('Early-modern religious reform', () => tickEarlyModernReform(regions, religiousWorld, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));
     const oceanicExplorationEvents = profiler.measure('Oceanic exploration', () => tickOceanicExploration(regions, seaRegions, fleets, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));
     profiler.measure('Medieval doctrine', () => tickMedievalDoctrine(regions, time.elapsedDays));
