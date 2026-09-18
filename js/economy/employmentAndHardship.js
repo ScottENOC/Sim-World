@@ -3,6 +3,8 @@ import { elapsedWeeks } from '../core/simTime.js?v=20260905-time1';
 import { availableResidentHousing } from './housing.js?v=20260916-housing1';
 import { tickSocialProtection } from '../society/socialProtection.js?v=20260918-social1';
 import { tickLabourRelations } from '../society/labourRelations.js?v=20260918-labour-relations1';
+import '../ui/socialProtectionUi.js?v=20260918-social1';
+import '../ui/labourRelationsUi.js?v=20260918-labour-relations1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const WARNING_RATE=0.10;
