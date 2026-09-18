@@ -7,7 +7,6 @@ t=t.replace("const mg=has(region,'machine_guns')?.10:0;", "const mg=has(region,'
 t=t.replace("const modernGuns=has(region,'quick_firing_artillery')?.07:has(region,'breech_loading_artillery')?.035:0;", "const modernGuns=has(region,'quick_firing_artillery') ? .07 : has(region,'breech_loading_artillery') ? .035 : 0;")
 if 'export function syncNextAircraftId' not in t:
     t=t.replace("export function ensureAviation(region){", "export function syncNextAircraftId(regions=[]){\n  let max=0; for(const region of regions) for(const a of region.aviation?.aircraft||[]) max=Math.max(max,Number(String(a.id||'').replace(/\\D/g,''))||0);\n  nextAircraftId=max+1;\n}\n\nexport function ensureAviation(region){",1)
-# Refill internal tank from regional aviation fuel while at an operational airfield.
 old="""    for(const a of av.aircraft){
       repairAtBase(region,a,elapsedDays); if(a.status==='destroyed'||a.mission===AIR_MISSIONS.IDLE||a.mission===AIR_MISSIONS.COURIER)continue;
 """
@@ -20,7 +19,6 @@ new="""    for(const a of av.aircraft){
       if(a.status==='destroyed'||a.mission===AIR_MISSIONS.IDLE||a.mission===AIR_MISSIONS.COURIER)continue;
 """
 if old in t: t=t.replace(old,new,1)
-# Rare military acquisition once aviation is organised; conflict pressure raises demand but does not create aircraft for free.
 anchor="""    const civil=av.aircraft.filter(a=>a.ownerType==='civilian'&&a.status!=='destroyed').length;
     if(canBuild(region)&&civil<Math.max(1,Math.floor(Math.log10(Math.max(10,region.population||0))-3))){
       const wealth=clamp(Math.log1p(Math.max(0,region.wallet||0))/12),industry=industrialReadiness(region); if(rng()<elapsedDays/DAYS_PER_YEAR*.08*wealth*industry)buildAircraft(region,{ownerType:'civilian',role:'mail'});
@@ -38,7 +36,6 @@ if 'const militaryCap=' not in t:
     t=t.replace(anchor,replacement,1)
 p.write_text(t)
 
-# Construction: airfield is real infrastructure and later carrier basing can reuse baseType/carrierId on aircraft.
 p=Path('js/economy/construction.js'); t=p.read_text()
 anchor="""  shipyard: {
     id: 'shipyard', name: 'Advanced shipyard', requiredTechId: 'advanced_boatbuilding', coastal: true, unique: true,
@@ -63,7 +60,6 @@ if "id: 'airfield'" not in t:
     t=t.replace(anchor,insert,1)
 p.write_text(t)
 
-# Technology pipeline.
 p=Path('js/technology/breakthroughs.js'); t=p.read_text()
 imp="import { tickAviationBreakthroughs } from '../military/aviation.js?v=20260918-aviation1';\n"
 anchor="import { tickModernLandBreakthroughs } from '../military/modernLandWarfare.js?v=20260918-modern-war1';\n"
@@ -77,7 +73,6 @@ if call not in t:
     t=t.replace(anchor2,anchor2+call,1)
 p.write_text(t)
 
-# Main simulation integration and save-id syncing.
 p=Path('js/main.js'); t=p.read_text()
 imp="import { tickAviation, syncNextAircraftId } from './military/aviation.js?v=20260918-aviation1';\n"
 anchor="import { tickIndustrialWarEconomy } from './economy/industrialWarEconomy.js?v=20260918-industrial-war1';\n"
@@ -95,12 +90,10 @@ if call not in t:
     t=t.replace(anchor3,call+anchor3,1)
 p.write_text(t)
 
-# Route helper regards aircraft as physical transport.
 p=Path('js/diplomacy/messageRouting.js'); t=p.read_text()
 t=t.replace("['horse','rail','sea'].includes(l.mode)", "['horse','rail','sea','air'].includes(l.mode)")
 p.write_text(t)
 
-# Diplomatic courier can reserve a real aircraft if it beats the normal route.
 p=Path('js/diplomacy/couriers.js'); t=p.read_text()
 imp="import { airDefenceRisk, availableAircraftCourier, reserveAircraftCourier, completeAircraftCourier } from '../military/aviation.js?v=20260918-aviation1';\n"
 anchor="import { messageRouteBetween, messageRouteDeliveryTicks } from './messageRouting.js?v=20260917-message-routing1';\n"
@@ -122,7 +115,6 @@ new="""export function routeFor(origin, target, regionsById) {
 if 'reservedAircraftId:leg.aircraftId' not in t:
     if old not in t: raise RuntimeError('routeFor anchor missing')
     t=t.replace(old,new,1)
-# Add interception/loss risk for aircraft courier, driven mainly by destination air defence.
 sea_anchor="""    } else if (leg.mode === 'sea') {
 """
 if "leg.mode === 'air'" not in t:
@@ -133,7 +125,6 @@ if "leg.mode === 'air'" not in t:
 """
     if sea_anchor not in t: raise RuntimeError('route risk sea anchor missing')
     t=t.replace(sea_anchor,air_block,1)
-# On aircraft-courier loss, apply the loss to the actual reserved aircraft.
 old_destroy="""        if (destroyed) message.status = 'intercepted_lost';
 """
 new_destroy="""        if (destroyed) {
@@ -145,7 +136,6 @@ new_destroy="""        if (destroyed) {
 if 'const airLeg=(message.route?.legs||[]).find' not in t:
     if old_destroy not in t: raise RuntimeError('destroyed courier anchor missing')
     t=t.replace(old_destroy,new_destroy,1)
-# Successful arrival relocates and releases the aircraft.
 arrival="""      message.receivedTick = currentTick;
       resolveDeliveryLanguage(message, sender, target);
 """
@@ -160,3 +150,4 @@ if 'deliveredAirLeg' not in t:
 p.write_text(t)
 
 print('early aviation integration applied')
+# trigger workflow
