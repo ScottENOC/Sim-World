@@ -21,5 +21,5 @@ jobs:
           node --check js/economy/employmentAndHardship.js
           node --check js/ui/urbanHousingUi.js
           node tools/test-urban-housing.mjs
-          node tools/test-employment-hardship.mjs
+          node tools/test-employment-household-hardship.mjs
           node tools/test-labour-relations.mjs
