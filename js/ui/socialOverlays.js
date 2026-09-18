@@ -133,5 +133,15 @@ export function buildSocialOverlayLayers({ regions, religiousWorld, agreements, 
       type: 'categorical', label: 'Our diplomatic influence',
       valueFn: (region) => influenceBand(playerInfluenceScore(playerRegion(), region, { agreements, religiousWorld }), knowsSociety(region)),
     },
+    unemployment: {
+      label: 'Unemployment',
+      valueFn: (region) => knowsSociety(region) ? clamp(region.employment?.unemploymentRate || 0) : 0,
+      format: (v) => `${Math.round(v * 100)}%`,
+    },
+    hardship: {
+      label: 'Household hardship',
+      valueFn: (region) => knowsSociety(region) ? clamp(region.employment?.hardship || 0) : 0,
+      format: (v) => `${Math.round(v * 100)}%`,
+    },
   };
 }
