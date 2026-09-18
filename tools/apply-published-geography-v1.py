@@ -14,3 +14,5 @@ if new2 not in text:
     text=text.replace(old2,new2,1)
 p.write_text(text)
 print('published geography integration applied')
+
+# trigger
