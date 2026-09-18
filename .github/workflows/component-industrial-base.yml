@@ -1,0 +1,34 @@
+name: Component industrial base validation
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/economy/industrialPlant.js'
+      - 'js/economy/industrialSupply.js'
+      - 'js/economy/construction.js'
+      - 'js/technology/industrialProduction.js'
+      - 'js/military/equipmentGenerations.js'
+      - 'tools/test-component-industrial-base.mjs'
+      - 'tools/test-industrial-production.mjs'
+      - '.github/workflows/component-industrial-base.yml'
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Syntax checks
+        run: |
+          node --check js/economy/industrialPlant.js
+          node --check js/economy/industrialSupply.js
+          node --check js/technology/industrialProduction.js
+          node --check js/military/equipmentGenerations.js
+      - name: Component industrial regression
+        run: node tools/test-component-industrial-base.mjs
+      - name: Industrial production regression
+        run: node tools/test-industrial-production.mjs
+      - name: Railway compatibility regression
+        run: node tools/test-industrial-railways.mjs
+      - name: Equipment generations regression
+        run: node tools/test-equipment-generations.mjs
