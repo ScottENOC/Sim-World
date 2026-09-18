@@ -1,6 +1,7 @@
 import { localPrice } from './prices.js?v=20260904-weather1';
 import { elapsedWeeks } from '../core/simTime.js?v=20260905-time1';
 import { availableResidentHousing } from './housing.js?v=20260916-housing1';
+import { tickSocialProtection } from '../society/socialProtection.js?v=20260918-social1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const WARNING_RATE=0.10;
@@ -86,9 +87,10 @@ export function employmentSummary(region){
   return {employed:e.employed,unemployed:e.unemployed,underemployed:e.underemployed,labourForce:e.labourForce,unemploymentRate:e.unemploymentRate,hardship:e.hardship,povertyPressure:e.povertyPressure,migrationPressure:e.migrationPressure,causes:{...e.causes}};
 }
 
-export function tickEmploymentAndHardship(regions,currentTick=0,elapsedDays=7,{playerPolityId=null}={}){
+export function tickEmploymentAndHardship(regions,currentTick=0,elapsedDays=7,{playerPolityId=null,religiousWorld=null}={}){
   const events=[];
   const weeks=Math.max(0.01,elapsedWeeks(elapsedDays));
+  const world=religiousWorld||globalThis.__worldsim?.religiousWorld||null;
   for(const region of regions){
     const previous=ensureEmploymentState(region);
     const beforeRate=previous.unemploymentRate;
@@ -106,6 +108,9 @@ export function tickEmploymentAndHardship(regions,currentTick=0,elapsedDays=7,{p
     previous.migrationPressure=clamp(previous.unemploymentRate*0.48+previous.hardship*0.52);
     previous.causes={housing:a.housingBlocked,credit:a.bankContraction,firmFailures:a.firmFailure,tradeDisruption:a.tradeDisruption,foodPrices:h.foodStress,lowWealth:h.lowWealth};
 
+    const polityId=region.governance?.sovereignPolityId||region.polityId||null;
+    const protection=tickSocialProtection(region,currentTick,elapsedDays,{religiousWorld:world,isPlayer:polityId===playerPolityId});
+
     // Hardship primarily works through household spending and political stability,
     // rather than duplicating famine mortality already handled by demographics.
     const wealthDrain=Math.min(Math.max(0,region.wallet||0),Math.max(0,region.population||0)*0.0015*previous.consumptionPressure*weeks);
@@ -115,8 +120,8 @@ export function tickEmploymentAndHardship(regions,currentTick=0,elapsedDays=7,{p
     region.migrationPressure=clamp(Math.max(region.migrationPressure||0,previous.migrationPressure));
     region.report ||= {};
     region.report.employment=employmentSummary(region);
+    region.report.socialProtection=protection;
 
-    const polityId=region.governance?.sovereignPolityId||region.polityId||null;
     const rising=a.unemploymentRate-beforeRate>=0.035;
     const severe=a.unemploymentRate>=SEVERE_RATE;
     const warning=a.unemploymentRate>=WARNING_RATE&&rising;
@@ -128,7 +133,7 @@ export function tickEmploymentAndHardship(regions,currentTick=0,elapsedDays=7,{p
       if(a.tradeDisruption>.12)causes.push('trade disruption is cutting demand');
       if(a.housingBlocked>5)causes.push('housing shortages are blocking workers from taking jobs');
       if(!causes.length)causes.push('the modern wage economy is not creating enough paid work');
-      events.push({type:'unemployment_warning',regionId:region.id,polityId,regionName:region.name,unemploymentRate:a.unemploymentRate,hardship:previous.hardship,employed:a.employed,unemployed:a.unemployed,causes,severe});
+      events.push({type:'unemployment_warning',regionId:region.id,polityId,regionName:region.name,unemploymentRate:a.unemploymentRate,hardship:previous.hardship,employed:a.employed,unemployed:a.unemployed,causes,severe,reliefCoverage:protection.coverage});
     }
   }
   return events;
