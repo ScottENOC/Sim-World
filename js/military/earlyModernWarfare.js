@@ -1,5 +1,6 @@
 import { operationalInfrastructure } from '../economy/construction.js?v=20260913-early-modern1';
 import { navalGunTechnologyMultiplier, NAVAL_GUN_TYPES } from '../technology/industrialMarine.js?v=20260916-steam1';
+import { backfillArtilleryDesign, ensureCurrentArtilleryDesign, materialDesignAdjustment, stampEquipment } from './equipmentGenerations.js?v=20260919-equipment1';
 
 const DAYS_PER_YEAR = 365.2425;
 const clamp = (value, low = 0, high = 1) => Math.max(low, Math.min(high, Number(value) || 0));
@@ -63,6 +64,7 @@ export function ensureEarlyModernMilitary(region) {
   state.artillery.inventory ||= [];
   state.artillery.away ||= [];
   state.artillery.readiness = clamp(state.artillery.readiness);
+  for (const gun of [...state.artillery.inventory, ...state.artillery.away]) backfillArtilleryDesign(region, gun);
   state.naval ||= { readiness: 0, guns: [], lastBuilt: null };
   state.naval.guns ||= [];
   for (const gun of state.naval.guns) gun.technology ||= NAVAL_GUN_TYPES.SMOOTHBORE;
@@ -86,7 +88,11 @@ function buildArtillery(region, kind) {
   if (!metal) return false;
   region.stockpile.wood -= spec.wood;
   region.stockpile.gunpowder -= spec.proofPowder;
-  ensureEarlyModernMilitary(region).artillery.inventory.push({ kind, metal: dominantMaterial(metal), condition: 1 });
+  const material = dominantMaterial(metal);
+  const design = ensureCurrentArtilleryDesign(region, kind);
+  const gun = stampEquipment({ kind, metal: material, condition: 1 }, design);
+  gun.designStats = materialDesignAdjustment(gun.designStats, material);
+  ensureEarlyModernMilitary(region).artillery.inventory.push(gun);
   return true;
 }
 
@@ -111,6 +117,8 @@ export function tickEarlyModernIndustry(regions, elapsedDays = 7) {
     const state = ensureEarlyModernMilitary(region);
     if (!hasTech(region, 'gunpowder')) continue;
     const firearmsReadiness = clamp(region.firearms?.readiness || 0.05);
+    ensureCurrentArtilleryDesign(region, 'field_cannon');
+    if (hasTech(region, 'heavy_howitzers')) ensureCurrentArtilleryDesign(region, 'bombard');
     state.artillery.readiness = clamp(state.artillery.readiness + (0.08 + firearmsReadiness * 0.16) * years);
     const hasDockyard = operationalInfrastructure(region, 'shipyard') || operationalInfrastructure(region, 'naval_base');
     if (region.isCoastal && operationalInfrastructure(region, 'harbour')) {
@@ -176,7 +184,9 @@ export function artilleryCampaignProfile(region, train = [], { elapsedDays = 7, 
   let weight = 0;
   for (const gun of train) {
     const spec = ARTILLERY_SPECS[gun.kind] || ARTILLERY_SPECS.field_cannon;
-    weight += spec.siege * materialQuality(gun.metal) * clamp(gun.condition ?? 1, 0.2, 1);
+    const design = gun.designStats || {};
+    const designEffect = 0.72 + clamp(design.firepower ?? 0.35) * 0.34 + clamp(design.reliability ?? 0.55) * 0.16 + clamp(design.rateOfFire ?? 0.2) * 0.20;
+    weight += spec.siege * materialQuality(gun.metal) * designEffect * clamp(gun.condition ?? 1, 0.2, 1);
   }
   const powderNeed = weight * 0.34 * weeks;
   const shotNeed = weight * 0.11 * weeks;
@@ -197,6 +207,7 @@ export function artilleryCampaignProfile(region, train = [], { elapsedDays = 7, 
     fortDefenceMultiplier: Math.max(0.22, 1 / (1 + effective * 0.34)),
     combatMultiplier: 1 + Math.min(0.24, effective * 0.025),
     suppliedFraction, powderUsed, shotUsed, guns: train.length,
+    models: Object.entries(train.reduce((m,g)=>(m[g.modelName||'Uncatalogued gun']=(m[g.modelName||'Uncatalogued gun']||0)+1,m),{})).map(([name,count])=>({name,count})),
   };
 }
 

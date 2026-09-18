@@ -28,15 +28,21 @@ export function artilleryObservationProfile(attacker,defender,currentTick=null){
   return { aerial, ground, combined:clamp(1-(1-aerial)*(1-ground)) };
 }
 
-export function artilleryFireControlProfile(region,defender,{currentTick=null,weeksEngaged=0}={}){
+export function artilleryFireControlProfile(region,defender,{currentTick=null,weeksEngaged=0,train=[]}={}){
   const s=ensureArtilleryFireControl(region), obs=artilleryObservationProfile(region,defender,currentTick);
   const breech=has(region,BREECH_ARTILLERY_TECH_ID), quick=has(region,QUICK_FIRE_ARTILLERY_TECH_ID), heavy=has(region,HEAVY_HOWITZER_TECH_ID);
   if(!breech) return {effectiveRangeKm:3.5,rangeMultiplier:1,precision:0,combatMultiplier:1,observation:obs,counterBatteryEffect:0,commandStrikeChance:0,commandDisruption:0,logisticsInterdiction:0};
-  const baseRangeKm=heavy?12:quick?8:6;
+  const designed=(train||[]).filter(g=>g?.designStats);
+  const avg=(key,fallback)=>designed.length?designed.reduce((sum,g)=>sum+(Number(g.designStats?.[key])||fallback),0)/designed.length:fallback;
+  // Physical gun design sets the range/accuracy ceiling. Better doctrine cannot turn
+  // a 1914 tube into a later-generation weapon; it only exploits what the hardware can do.
+  const baseRangeKm=avg('rangeKm',heavy?5.5:quick?4.8:4.0);
+  const intrinsicAccuracy=avg('intrinsicAccuracy',.28);
+  const fireControlPotential=avg('fireControlPotential',.30);
   const technique=clamp(s.rangeFinding*.22+s.survey*.20+s.fireDirection*.22+s.predictedFire*.18+s.targetIntelligence*.18);
-  const rangeMultiplier=1+technique*.42+(heavy?s.predictedFire*.16:0);
+  const rangeMultiplier=1+technique*(.18+.24*fireControlPotential)+(heavy?s.predictedFire*.08*fireControlPotential:0);
   const effectiveRangeKm=baseRangeKm*rangeMultiplier;
-  const precision=clamp(.10+s.rangeFinding*.18+s.survey*.17+s.fireDirection*.20+s.predictedFire*.20+obs.ground*.12+obs.aerial*(.12+s.aerialObservationIntegration*.10));
+  const precision=clamp(intrinsicAccuracy*.46+s.rangeFinding*.13+s.survey*.13+s.fireDirection*.15+s.predictedFire*.14*fireControlPotential+obs.ground*.10+obs.aerial*(.12+s.aerialObservationIntegration*.10));
   const combatMultiplier=1+Math.min(.16,precision*.08+technique*.07);
   const counterBatteryEffect=clamp((s.counterBattery*.42+s.fireDirection*.20+obs.ground*.16+obs.aerial*.28)*(quick?.85:.62));
   // Aircraft do something ground maps cannot: repeatedly reveal batteries, headquarters,

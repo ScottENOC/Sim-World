@@ -255,7 +255,7 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   const attackerModern = modernInfantryProfile(attacker, campaign.personnel, attackerFirearms, { role: 'attacker', elapsedDays: 7, logisticsSupply: campaign.supply, consumeSupplies: true });
   const defenderModern = modernInfantryProfile(defender, defender.army.personnel, defenderFirearms, { role: 'defender', elapsedDays: 7, logisticsSupply: 1, consumeSupplies: true });
   const modernArtillery = modernArtilleryProfile(attacker, artillery, { elapsedDays: 7, logisticsSupply: campaign.supply, consumeSupplies: true });
-  const artilleryFireControl = artilleryFireControlProfile(attacker, defender, { currentTick, weeksEngaged: campaign.weeksEngaged });
+  const artilleryFireControl = artilleryFireControlProfile(attacker, defender, { currentTick, weeksEngaged: campaign.weeksEngaged, train: campaign.gunpowderArtillery || [] });
   const artilleryTargeting = resolveArtilleryTargeting(attacker, defender, artilleryFireControl, { bombardment: modernArtillery.bombardment, rng, currentTick });
   const trenchDefence = entrenchmentDefenceMultiplier(defender, campaign.weeksEngaged);
   const attackerTactics = modernTacticalProfile(attacker, defender, { role: 'attacker', weeksEngaged: campaign.weeksEngaged, terrain });

@@ -16,6 +16,7 @@ import { ensureCounterIntelligence, setCounterIntelligencePolicy } from '../dipl
 import { sendDeceptionJointOperationLetter, sendForgedJointOperationLetter } from '../diplomacy/couriers.js?v=20260909-counterintel1';
 import { upcomingPlayerJointOperations } from '../military/playerJointOperationAdvisor.js?v=20260909-joint-player1';
 import { educationAdvisorReport, setMandatoryEducationYears } from '../society/massEducation.js?v=20260914-mass-education1';
+import { designCapabilityLabel, equipmentModernitySummary } from '../military/equipmentGenerations.js?v=20260919-equipment1';
 
 const ADVISORS = [
   { id: 'marshal', icon: '\u2694', name: 'Marshal', brief: 'Forces & raids' },
@@ -131,6 +132,8 @@ export class AdvisorCouncil {
     const campaignTargets = this.campaignTargets(player);
     const siege = ensureSiegeEquipment(player);
     const jointPlans = upcomingPlayerJointOperations(player, this.getAgreements(), Math.floor((this.clock.elapsedDays || 0) / 7));
+    const artilleryUnits = [...(player.earlyModernMilitary?.artillery?.inventory || []), ...(player.earlyModernMilitary?.artillery?.away || [])];
+    const artilleryModernity = equipmentModernitySummary(player, artilleryUnits);
     return `
       <p class="advisor-voice">“I will keep the fighting strength of the realm before you, and speak plainly about what we can afford.”</p>
       ${section('Military report',
@@ -141,6 +144,10 @@ export class AdvisorCouncil {
         row('Readiness', percent(finance.readiness ?? 1), (finance.readiness ?? 1) < .7 ? 'warning' : '') +
         row('Sustainable force', Number.isFinite(finance.fundedPersonnelCap) ? number(finance.fundedPersonnelCap) : 'Unknown') +
         row('Active expeditions', number(away.length + campaigns.filter((campaign) => campaign.attackerId === player.id).length)))}
+      ${artilleryModernity.total ? section('Equipment generations',
+        row('Artillery on current designs', percent(artilleryModernity.currentShare), artilleryModernity.currentShare < .55 ? 'warning' : '') +
+        artilleryModernity.models.map(({design,count}) => row(design.name, `${number(count)} · ${designCapabilityLabel(design)} · ${Number(design.stats?.rangeKm||0).toFixed(1)} km design range`)).join('') +
+        '<p class="advisor-note">New designs affect new production only. Older guns remain in service until replaced or explicitly refitted; tactical doctrine cannot upgrade their physical range, reliability or accuracy ceiling.</p>') : ''}
       ${section('Active conflicts', campaigns.length
         ? campaigns.map((campaign) => this.renderCampaignCard(campaign, player)).join('')
         : '<p class="advisor-note">The realm is not fighting a sustained campaign.</p>')}
