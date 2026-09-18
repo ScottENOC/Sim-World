@@ -1,0 +1,30 @@
+name: Industrial investment migration
+on:
+  push:
+    branches: [feature/industrial-investment-procurement-v1]
+permissions:
+  contents: write
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: python tools/apply-industrial-investment-v1.py
+      - run: |
+          node --check js/economy/industrialInvestment.js
+          node --check js/ui/industrialInvestmentUi.js
+          node --check js/technology/industrialProduction.js
+      - run: node tools/test-industrial-investment.mjs
+      - run: node tools/test-component-industrial-base.mjs
+      - run: node tools/test-industrial-production.mjs
+      - name: Commit integration
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/economy/tradeGoods.js js/economy/industrialInvestment.js
+          if git diff --cached --quiet; then echo current; else git commit -m 'Integrate industrial investment and protection'; git pull --rebase; git push; fi
