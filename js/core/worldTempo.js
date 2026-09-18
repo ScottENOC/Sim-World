@@ -81,11 +81,24 @@ function leadingEdge(regions, valueFn) {
   return values.slice(0, count).reduce((sum, value) => sum + value, 0) / count;
 }
 
+function deployedPopulationShare(regions, valueFn, threshold = 0.15) {
+  let deployed = 0;
+  let total = 0;
+  for (const region of regions) {
+    const weight = Math.max(1, Number(region.population) || 1);
+    total += weight;
+    if (clamp(valueFn(region)) >= threshold) deployed += weight;
+  }
+  return total > 0 ? deployed / total : 0;
+}
+
 function adoption(regions, valueFn) {
-  // The global clock should not jump because one city built a prototype, but it
-  // also should not wait for every remote region to industrialise. Blend broad
-  // population coverage with the established leading edge of the world system.
-  return clamp(weightedAverage(regions, valueFn) * 0.72 + leadingEdge(regions, valueFn) * 0.28);
+  // A prototype is not a faster world. Leading regions start pulling the global
+  // tempo only after the capability is materially deployed across population.
+  const broadCoverage = weightedAverage(regions, valueFn);
+  const deploymentShare = deployedPopulationShare(regions, valueFn);
+  const leadingWeight = 0.28 * clamp(deploymentShare / 0.15);
+  return clamp(broadCoverage * (1 - leadingWeight) + leadingEdge(regions, valueFn) * leadingWeight);
 }
 
 export function assessWorldTempo(regions = []) {
