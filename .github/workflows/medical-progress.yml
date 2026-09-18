@@ -1,0 +1,36 @@
+name: Medical progression and military medicine
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/technology/medicalProgress.js'
+      - 'js/technology/breakthroughs.js'
+      - 'js/society/publicHealth.js'
+      - 'js/society/disease.js'
+      - 'js/military/campaigns.js'
+      - 'js/ui/urbanHousingUi.js'
+      - 'tools/test-medical-progress.mjs'
+      - '.github/workflows/medical-progress.yml'
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks
+        run: |
+          node --check js/technology/medicalProgress.js
+          node --check js/technology/breakthroughs.js
+          node --check js/society/publicHealth.js
+          node --check js/society/disease.js
+          node --check js/military/campaigns.js
+          node --check js/ui/urbanHousingUi.js
+      - name: Medical progression regression
+        run: node tools/test-medical-progress.mjs
+      - name: Existing health regressions
+        run: |
+          node tools/test-public-health-hospitals.mjs
+          node tools/test-disease.mjs
