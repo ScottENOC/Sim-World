@@ -177,5 +177,5 @@ export class Clock {
     this._nextTickAt = null;
   }
 
-  formatDate(startYear) { return formatHistoricalDate(startYear, this.elapsedDays); }
+  formatDate(startYear) { return formatHistoricalDate(startYear, this.elapsedDays, this.daysPerTick); }
 }
