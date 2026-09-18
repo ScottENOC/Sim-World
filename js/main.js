@@ -81,6 +81,8 @@ import { tickGenerationalLanguageChange } from './diplomacy/languageChange.js?v=
 import { LANGUAGE_POLICIES, ensureRegionalLanguagePolicy, regionalLanguagePolicyAssessment, setRegionalLanguagePolicy, tickRegionalLanguagePolicies } from './politics/languagePolicy.js?v=20260909-language-policy1';
 import { massPoliticsSummary, setMassPoliticsPolicy, tickMassPolitics } from './politics/massPolitics.js?v=20260918-mass-politics1';
 import { renderMassPoliticsControls } from './ui/massPoliticsUi.js?v=20260918-mass-politics1';
+import { postWarSocietySummary, setVeteranSupportPolicy, tickPostWarSociety } from './society/postWarSociety.js?v=20260918-postwar1';
+import { renderPostWarSocietyControls } from './ui/postWarSocietyUi.js?v=20260918-postwar1';
 import { resolvePlayerJointOperationAdvice, tickPlayerJointOperationAdvisor } from './military/playerJointOperationAdvisor.js?v=20260909-joint-player1';
 import { CAMPAIGN_ORDERS, issueCampaignOrder, marshalCampaignAssessment, tickCampaignCommandAdvisor } from './military/campaignCommand.js?v=20260909-command1';
 import { WAR_STANCES, participantInWar, setEnemyPriority, setWarStance, syncNextWarId, syncWarTheatres } from './military/warTheatres.js?v=20260908-war1';
@@ -436,6 +438,7 @@ async function main() {
     if (playerCapitalForPlan) profiler.measure('Military strategy review', () => reviewMilitaryStrategy(playerCapitalForPlan, { regions, polities, agreements, activeCampaigns, currentTick: calendarWeek }));
     const languagePolicyEvents = profiler.measure('Language policy', () => tickRegionalLanguagePolicies(regions, polities, calendarWeek, time.elapsedDays, { playerPolityId: activePlayerPolityId }));
     const polityEvents = profiler.measure('Polities', () => tickPolities(polities, regions, calendarWeek, time.elapsedDays, { agreements }));
+    const postWarSocietyEvents = profiler.measure('Post-war society', () => tickPostWarSociety(polities, regions, calendarWeek, time.elapsedDays, { playerPolityId: activePlayerPolityId }));
     const massPoliticsEvents = profiler.measure('Mass politics', () => tickMassPolitics(polities, regions, calendarWeek, time.elapsedDays, { playerPolityId: activePlayerPolityId }));
     const internationalMonetaryEvents = profiler.measure('International money', () => tickInternationalMonetarySystem(polities, regions, agreements, time.elapsedDays, calendarWeek));
     const sovereignBondEvents = profiler.measure('Sovereign bond markets', () => tickSovereignBondMarkets(polities, regions, calendarWeek));
@@ -610,6 +613,7 @@ async function main() {
       ...earlyModernReformEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),
       ...oceanicExplorationEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),
       ...polityEvents.filter((event) => event.regionId === playerRegionId),
+      ...postWarSocietyEvents.filter((event) => event.playerRelevant),
       ...massPoliticsEvents.filter((event) => event.playerRelevant),
       ...internationalMonetaryEvents.filter((event) => event.polityId === activePlayerPolityId || event.anchorPolityId === activePlayerPolityId || event.members?.includes?.(activePlayerPolityId)),
       ...sovereignBondEvents.filter((event) => event.polityId === activePlayerPolityId || event.issuerPolityId === activePlayerPolityId || event.holderPolityId === activePlayerPolityId),
@@ -699,6 +703,7 @@ async function main() {
     aviationApi: { buildAircraft, assignAircraftMission, rebaseAircraft, aviationSummary },
     financialDiplomacyApi: { setBondPolicy, dumpSovereignBonds, setSettlementCurrencyPolicy },
     massPoliticsApi: { setMassPoliticsPolicy, massPoliticsSummary },
+    postWarSocietyApi: { setVeteranSupportPolicy, postWarSocietySummary },
     diplomatApi: { dispatchDiplomat, recallDiplomat, setDiplomatAuthority, setCounterIntelligencePolicy, sendForgedJointOperationLetter, sendDeceptionJointOperationLetter, attemptBribeDiplomat, expelDiplomat, releaseDiplomat, diplomatPublicProfile, foreignGovernmentTrust },
     campaignCommandApi: { issueCampaignOrder, marshalCampaignAssessment },
     agreements,
@@ -1431,7 +1436,10 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
       renderRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
     });
   });
-  if (region.id === playerRegionId && playerPolity) renderMassPoliticsControls(document.getElementById('region-controls'), playerPolity, regions, () => council?.refresh());
+  if (region.id === playerRegionId && playerPolity) {
+    renderMassPoliticsControls(document.getElementById('region-controls'), playerPolity, regions, () => council?.refresh());
+    renderPostWarSocietyControls(document.getElementById('region-controls'), playerPolity, () => council?.refresh());
+  }
   if (region.id === playerRegionId) renderDiplomaticServicePanel(document.getElementById('region-controls'), region, regions, calendarWeekIndex(clock.elapsedDays || 0), {
     polities,
     visiblePolityIds: [...new Set(regions.filter((candidate) => fogOfWar.isVisible(candidate)).map((candidate) => candidate.governance?.sovereignPolityId).filter(Boolean))],
