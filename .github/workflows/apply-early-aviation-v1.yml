@@ -1,0 +1,35 @@
+name: Apply early aviation integration
+on:
+  push:
+    branches: [feature/early-aviation-v1]
+    paths:
+      - 'tools/apply-early-aviation-v1.py'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/early-aviation-v1
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: python tools/apply-early-aviation-v1.py
+      - run: |
+          node --check js/military/aviation.js
+          node --check js/economy/construction.js
+          node --check js/technology/breakthroughs.js
+          node --check js/diplomacy/couriers.js
+          node --check js/diplomacy/messageRouting.js
+          node --check js/main.js
+          node tools/test-early-aviation.mjs
+          node tools/test-telegraph-network.mjs
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/military/aviation.js js/economy/construction.js js/technology/breakthroughs.js js/diplomacy/couriers.js js/diplomacy/messageRouting.js js/main.js
+          git commit -m 'Integrate persistent early aviation'
+          git push origin HEAD:feature/early-aviation-v1
