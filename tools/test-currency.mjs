@@ -10,6 +10,7 @@ import {
   reformCurrency,
   tickCurrencyInstitution,
 } from '../js/economy/currency.js?v=test';
+import { mintSpecieCurrency } from '../js/economy/monetaryModernisation.js?v=test';
 
 function makeRegion(id, polityId) {
   return {
@@ -18,6 +19,7 @@ function makeRegion(id, polityId) {
     governance: { sovereignPolityId: polityId },
     treasury: 1000,
     wallet: 500,
+    stockpile: { silver: 100, gold: 10 },
     militaryFinance: { revenueEma: 10, arrearsWeeks: 0 },
     tradeEconomy: { weeklyExports: 100 },
     unlockedTechIds: new Set(['coinage']),
@@ -43,6 +45,10 @@ assert.equal(founded.changed, true);
 assert.equal(capital.currencyUse.id, province.currencyUse.id);
 assert.ok(currencyFiscalModifiers(capital).collection > 1);
 assert.ok(currencyTradeFriction(capital, province) < 1);
+
+const minted = mintSpecieCurrency(polity, capital, regions, 120, { metal: 'silver' });
+assert.equal(minted.minted, 120);
+assert.ok(polity.currency.monetaryBase > 0);
 
 const trustBefore = polity.currency.trust;
 const treasuryBefore = capital.treasury;

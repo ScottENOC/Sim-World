@@ -1,0 +1,28 @@
+name: Monetary modernisation
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/economy/monetaryModernisation.js'
+      - 'js/economy/currency.js'
+      - 'js/economy/stateFinance.js'
+      - 'js/economy/corporateCapital.js'
+      - 'js/economy/tradeGoods.js'
+      - 'js/politics/polities.js'
+      - 'tools/test-monetary-modernisation.mjs'
+      - '.github/workflows/monetary-modernisation.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: |
+          node --check js/economy/monetaryModernisation.js
+          node --check js/economy/currency.js
+          node --check js/economy/stateFinance.js
+          node --check js/economy/corporateCapital.js
+          node --check js/politics/polities.js
+          node tools/test-monetary-modernisation.mjs

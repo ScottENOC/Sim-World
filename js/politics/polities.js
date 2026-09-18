@@ -5,6 +5,7 @@ import { learnAbout } from '../core/knowledge.js?v=20260904-kingdom1';
 import { monumentalPrestige } from '../economy/construction.js?v=20260906-prestige1';
 import { languagePolicyAdministrativeEffects } from './languagePolicy.js?v=20260909-language-policy1';
 import { ensureCurrencyInstitution, tickCurrencyInstitution } from '../economy/currency.js?v=20260912-currency3';
+import { ensureMonetaryInstitution, tickMonetaryModernisation } from '../economy/monetaryModernisation.js?v=20260918-money1';
 import { telephoneAdministrativeMultiplier } from '../economy/localCommunications.js?v=20260918-telephone2';
 
 const EXPERIENCE_SCALE = {
@@ -52,6 +53,7 @@ export function initialisePolities(regions) {
       report: { tributeReceived: 0, subjectCount: 0, administrativeLoad: 0, administrativeCapacity: 0 },
     };
     ensureCurrencyInstitution(polity);
+    ensureMonetaryInstitution(polity);
     polities.push(polity);
     region.polityId = polity.id;
     region.governance = {
@@ -341,6 +343,7 @@ export function tickPolities(polities, regions, currentTick, elapsedDays = 7) {
     polity.report = { tributeReceived: 0, subjectCount: subjects.length, administrativeLoad: 0, administrativeCapacity: 0 };
     updateCapabilities(polity, capital, subjects);
     events.push(...tickCurrencyInstitution(polity, capital, regions, elapsedDays, currentTick));
+    tickMonetaryModernisation(polity, capital, regions, elapsedDays);
     const admin = polity.administration;
 
     for (const subject of subjects) {
