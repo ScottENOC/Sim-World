@@ -1,10 +1,12 @@
 import { localPrice } from './prices.js?v=20260904-weather1';
 import { elapsedWeeks } from '../core/simTime.js?v=20260905-time1';
 import { availableResidentHousing } from './housing.js?v=20260916-housing1';
+import { tickUrbanHousing } from '../society/urbanHousing.js?v=20260918-urban-housing1';
 import { tickSocialProtection } from '../society/socialProtection.js?v=20260918-social1';
 import { tickLabourRelations } from '../society/labourRelations.js?v=20260918-labour-relations1';
 import '../ui/socialProtectionUi.js?v=20260918-social1';
 import '../ui/labourRelationsUi.js?v=20260918-labour-relations1';
+import '../ui/urbanHousingUi.js?v=20260918-urban-housing1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const WARNING_RATE=0.10;
@@ -101,6 +103,11 @@ export function tickEmploymentAndHardship(regions,currentTick=0,elapsedDays=7,{p
     const beforeRate=previous.unemploymentRate;
     const a=employmentAssessment(region);
     const h=hardshipAssessment(region,a);
+    const polityId=region.governance?.sovereignPolityId||region.polityId||null;
+    const isPlayer=polityId===playerPolityId;
+    const urban=tickUrbanHousing(region,currentTick,elapsedDays,{isPlayer});
+    h.hardship=clamp(h.hardship+(urban.hardshipPenalty||0));
+    h.povertyPressure=clamp(h.povertyPressure+(urban.hardshipPenalty||0)*0.8);
     previous.employed=a.employed;
     previous.unemployed=a.unemployed;
     previous.underemployed=a.underemployed;
@@ -110,11 +117,9 @@ export function tickEmploymentAndHardship(regions,currentTick=0,elapsedDays=7,{p
     previous.hardship+=(h.hardship-previous.hardship)*clamp(weeks/6);
     previous.povertyPressure+=(h.povertyPressure-previous.povertyPressure)*clamp(weeks/8);
     previous.consumptionPressure=clamp(previous.hardship*0.72+previous.unemploymentRate*0.28);
-    previous.migrationPressure=clamp(previous.unemploymentRate*0.48+previous.hardship*0.52);
-    previous.causes={housing:a.housingBlocked,credit:a.bankContraction,firmFailures:a.firmFailure,tradeDisruption:a.tradeDisruption,foodPrices:h.foodStress,lowWealth:h.lowWealth,minimumWageHiring:a.hiringPenalty,protectionCost:h.protectionCost};
+    previous.migrationPressure=clamp(Math.max(previous.unemploymentRate*0.48+previous.hardship*0.52,urban.migrationPenalty||0));
+    previous.causes={housing:a.housingBlocked,urbanHousing:urban.slumPressure||0,rentPressure:urban.rentPressure||0,credit:a.bankContraction,firmFailures:a.firmFailure,tradeDisruption:a.tradeDisruption,foodPrices:h.foodStress,lowWealth:h.lowWealth,minimumWageHiring:a.hiringPenalty,protectionCost:h.protectionCost};
 
-    const polityId=region.governance?.sovereignPolityId||region.polityId||null;
-    const isPlayer=polityId===playerPolityId;
     const protection=tickSocialProtection(region,currentTick,elapsedDays,{religiousWorld:world,isPlayer});
     const labourEvents=tickLabourRelations(region,currentTick,elapsedDays,{isPlayer});
     if(labourEvents.length)events.push(...labourEvents.filter(e=>!isPlayer||e.polityId===playerPolityId));
@@ -127,6 +132,7 @@ export function tickEmploymentAndHardship(regions,currentTick=0,elapsedDays=7,{p
     region.report ||= {};
     region.report.employment=employmentSummary(region);
     region.report.socialProtection=protection;
+    region.report.urbanHousing=urban;
 
     const rising=a.unemploymentRate-beforeRate>=0.035;
     const severe=a.unemploymentRate>=SEVERE_RATE;
