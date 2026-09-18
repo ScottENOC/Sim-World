@@ -27,6 +27,7 @@ import { medievalMilitaryCombatMultiplier } from './medievalDoctrine.js?v=202609
 import { campaignExternalSupport, applyExternalCampaignLosses } from '../politics/privateMilitaryActors.js?v=20260912-pmc1';
 import { telephoneMobilisationMultiplier } from '../economy/localCommunications.js?v=20260918-telephone2';
 import { bombardRegionalInfrastructure, entrenchmentDefenceMultiplier, modernArtilleryProfile, modernInfantryProfile } from './modernLandWarfare.js?v=20260918-modern-war1';
+import { resolveMilitaryCasualties } from '../technology/medicalProgress.js?v=20260918-medical1';
 
 export const CAMPAIGN_OBJECTIVES = Object.freeze({
   devastation: { label: 'Destroy the region', pressureRate: 0.8, damageRate: 1.8 },
@@ -112,6 +113,7 @@ export function launchCampaign(attacker, defender, objective, requestedPersonnel
     regimeConflict: options.regimeConflict ? { ...options.regimeConflict } : null,
     pressure: 0, damage: 0, attackerMorale: 1, defenderMorale: 1, supply: 1,
     attackerCasualties: 0, defenderCasualties: 0, civilianDeaths: 0,
+    attackerDeaths: 0, defenderDeaths: 0, attackerWoundedSurvivors: 0, defenderWoundedSurvivors: 0,
     weeksEngaged: 0, stage: 'marching', lastWeek: null, history: [], outcome: null,
     battlefield: null,
     occupationActorId: attacker.governance?.sovereignPolityId || attacker.controllingActorId || attacker.id,
@@ -280,7 +282,9 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
     Math.round(campaign.personnel * intensity * (1 - attackerShare) * 1.55 * desperation.casualtyMultiplier * variance()));
   const supplyAttrition = (expedition?.attritionRate ?? 0) + counterLogistics.extraAttackerAttritionRate;
   const logisticsLosses = Math.min(Math.max(0, campaign.personnel - combatAttackerLosses), Math.round(campaign.personnel * supplyAttrition));
+  const attackerMedical = resolveMilitaryCasualties(attacker, combatAttackerLosses, { deployedPersonnel: campaign.personnel, homeCare: false, logistics: campaign.supply });
   const attackerLosses = combatAttackerLosses + logisticsLosses;
+  const attackerDeaths = attackerMedical.deaths + logisticsLosses;
   const externalLossRate = (combatAttackerLosses + logisticsLosses) / Math.max(1, campaign.personnel + externalSupport.personnel);
   const externalLosses = applyExternalCampaignLosses(campaign, options.nonStateWorld, externalLossRate);
   const defenderLossPool = Math.round((defender.army.personnel + campaign.militia) *
@@ -290,6 +294,9 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   const militiaLosses = Math.min(campaign.militia, Math.round(defenderLossPool * militiaWeight /
     Math.max(1, militiaWeight + armyWeight)));
   const defenderLosses = Math.min(defender.army.personnel, defenderLossPool - militiaLosses);
+  const defenderMedical = resolveMilitaryCasualties(defender, defenderLosses, { deployedPersonnel: defender.army.personnel, homeCare: true, logistics: 1 });
+  const militiaMedical = resolveMilitaryCasualties(defender, militiaLosses, { deployedPersonnel: Math.max(1,campaign.militia), homeCare: true, logistics: 0.75 });
+  const defenderDeaths = defenderMedical.deaths + militiaMedical.deaths;
 
   campaign.personnel -= attackerLosses;
   attacker.army.away = Math.max(0, (attacker.army.away || 0) - attackerLosses);
@@ -297,11 +304,16 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   campaign.militia -= militiaLosses;
   defender.emergencyMilitiaPersonnel = campaign.militia;
   if (militiaLosses > 0) {
-    defender.demographics.workingAge = Math.max(0, defender.demographics.workingAge - militiaLosses);
+    defender.demographics.workingAge = Math.max(0, defender.demographics.workingAge - militiaMedical.deaths);
     syncPopulation(defender);
   }
   campaign.attackerCasualties += attackerLosses;
   campaign.defenderCasualties += defenderLosses + militiaLosses;
+  campaign.attackerDeaths += attackerDeaths;
+  campaign.defenderDeaths += defenderDeaths;
+  campaign.attackerWoundedSurvivors += attackerMedical.survivingWounded;
+  campaign.defenderWoundedSurvivors += defenderMedical.survivingWounded;
+  campaign.militiaWoundedSurvivors = (campaign.militiaWoundedSurvivors || 0) + militiaMedical.survivingWounded;
 
   recordCombatExperience(attacker, currentTick, {
     intensity,
@@ -332,7 +344,9 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
     }
   }
   const week = { tick: currentTick, stage: campaign.stage, terrain, pressureDelta, pressure: campaign.pressure,
-    attackerLosses, externalLosses, externalPersonnel: externalSupport.personnel, logisticsLosses, defenderLosses, militiaLosses, civilianDeaths, attackerMorale: campaign.attackerMorale,
+    attackerLosses, attackerDeaths, attackerWoundedSurvivors: attackerMedical.survivingWounded, attackerMedicalCapacity: attackerMedical.capacityRatio,
+    externalLosses, externalPersonnel: externalSupport.personnel, logisticsLosses, defenderLosses, militiaLosses, defenderDeaths,
+    defenderWoundedSurvivors: defenderMedical.survivingWounded + militiaMedical.survivingWounded, defenderMedicalCapacity: defenderMedical.capacityRatio, civilianDeaths, attackerMorale: campaign.attackerMorale,
     defenderMorale: campaign.defenderMorale, supply: campaign.supply, strengthRatio, navalControl: control,
     logisticsStatus: campaign.logisticsState?.status || null, routeReliability: campaign.logisticsState?.routeReliability ?? null,
     attackerFirearms, defenderFirearms, attackerModern, defenderModern, modernArtillery, trenchDefence, bombardment };
@@ -519,7 +533,8 @@ export function tickCampaigns(campaigns, regionsById, polities, currentTick, too
       }
     }
     if (campaign.phase === 'returning' && currentTick >= campaign.returnTick) {
-      attacker.army.personnel += campaign.personnel;
+      attacker.army.personnel += campaign.personnel + Math.max(0, campaign.attackerWoundedSurvivors || 0);
+      defender.army.personnel += Math.max(0, campaign.defenderWoundedSurvivors || 0);
       attacker.army.away = Math.max(0, (attacker.army.away || 0) - campaign.personnel);
       returnSiegeTrain(attacker, campaign.siegeEquipment);
       returnGunpowderSiegeTrain(attacker, campaign.gunpowderArtillery || []);
