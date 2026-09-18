@@ -68,11 +68,13 @@ export function modernTacticalProfile(region, opponent, { role = 'attacker', wee
   const opponentMg = has(opponent, MACHINE_GUN_TECH_ID);
   const ownMg = has(region, MACHINE_GUN_TECH_ID);
   const opponentEntrenched = has(opponent, FIELD_ENTRENCHMENT_TECH_ID);
-  const prepared = opponentEntrenched ? 1 - Math.exp(-Math.max(0, weeksEngaged) / 2.2) : 0;
+  const ownEntrenched = has(region, FIELD_ENTRENCHMENT_TECH_ID);
+  const opponentPrepared = opponentEntrenched ? 1 - Math.exp(-Math.max(0, weeksEngaged) / 2.2) : 0;
+  const ownPrepared = ownEntrenched ? 1 - Math.exp(-Math.max(0, weeksEngaged) / 2.2) : 0;
   const openExposure = terrain === 'plains' ? 1 : terrain === 'hills' ? 0.82 : terrain === 'wetland' ? 0.78 : terrain === 'forest' ? 0.58 : 0.62;
   const adaptation = modernAdaptation(state);
-  const opponentAdaptation = modernAdaptation(opponentState);
   const legacy = Math.max(state.legacyAssaultInertia, legacyDoctrineCommitment(region));
+  state.legacyAssaultInertia = Math.max(state.legacyAssaultInertia, legacy);
 
   let combatMultiplier = 1;
   let casualtyMultiplier = 1;
@@ -80,7 +82,7 @@ export function modernTacticalProfile(region, opponent, { role = 'attacker', wee
   let obsoleteExperiencePenalty = 0;
 
   if (role === 'attacker' && opponentMg) {
-    const defensiveFireWall = clamp(0.42 + prepared * 0.38 + opponentState.defensiveFireDiscipline * 0.20);
+    const defensiveFireWall = clamp(0.42 + opponentPrepared * 0.38 + opponentState.defensiveFireDiscipline * 0.20);
     // Negative transfer: experienced organisations committed to old assault
     // methods can initially do worse than greener, less doctrinally rigid ones.
     obsoleteExperiencePenalty = clamp(legacy * (1 - adaptation) * defensiveFireWall * openExposure * 0.46, 0, 0.38);
@@ -90,8 +92,8 @@ export function modernTacticalProfile(region, opponent, { role = 'attacker', wee
   }
 
   if (role === 'defender' && ownMg) {
-    const preparation = clamp(0.55 + prepared * 0.28 + state.defensiveFireDiscipline * 0.17);
-    defensiveMultiplier = 1 + preparation * (0.34 + state.defensiveFireDiscipline * 0.18);
+    const preparation = clamp(0.55 + ownPrepared * 0.28 + state.defensiveFireDiscipline * 0.17);
+    defensiveMultiplier = 1 + preparation * (0.40 + state.defensiveFireDiscipline * 0.18);
     // Defenders benefit quickly from learning range cards, interlocking fields
     // of fire and ammunition discipline; attackers require harder doctrinal change.
     combatMultiplier *= 1 + state.defensiveFireDiscipline * 0.12;
@@ -106,7 +108,9 @@ export function modernTacticalProfile(region, opponent, { role = 'attacker', wee
     legacyAssaultInertia: legacy,
     machineGunExposure: state.machineGunExposure,
     doctrinalShock: state.doctrinalShock,
-    preparedDefence: prepared,
+    preparedDefence: role === 'defender' ? ownPrepared : opponentPrepared,
+    ownPreparedDefence: ownPrepared,
+    opponentPreparedDefence: opponentPrepared,
   };
 }
 
