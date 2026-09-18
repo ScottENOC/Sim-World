@@ -24,6 +24,7 @@ import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDo
 import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID, CATAPULT_TECH_ID } from './technology/breakthroughs.js?v=20260912-medieval1';
 import { tickGunpowderIndustry } from './military/firearms.js?v=20260912-gunpowder1';
 import { tickIndustrialWarEconomy } from './economy/industrialWarEconomy.js?v=20260918-industrial-war1';
+import { tickAviation, syncNextAircraftId, buildAircraft, assignAircraftMission, rebaseAircraft, aviationSummary } from './military/aviation.js?v=20260918-aviation1';
 import { tickEarlyModernIndustry, tickIrregularTechnology } from './military/earlyModernWarfare.js?v=20260913-early-modern1';
 import { MapRenderer } from './ui/mapRenderer.js?v=20260904-war1';
 import { AdvisorCouncil } from './ui/advisors.js?v=20260905-projects1';
@@ -263,6 +264,7 @@ async function main() {
     syncNextFleetIds(fleets);
     syncRegionalNavyLedger(regions, fleets);
     syncNextDiplomaticMessageId(regions);
+    syncNextAircraftId(regions);
     syncNextDiplomatId(regions);
     for (const region of regions) {
       ensureCommunicationState(region); ensureDiplomaticService(region); ensureCounterIntelligence(region);
@@ -356,6 +358,7 @@ async function main() {
     profiler.measure('Knowledge pruning', () => pruneKnowledge(regions, calendarWeek));
     profiler.measure('Knowledge diffusion', () => tickFishingKnowledge(fishingContactPairs, calendarWeek));
     profiler.measure('Scouting', () => tickScouting(regions, calendarWeek, Math.random));
+    const aviationEvents = profiler.measure('Aviation', () => tickAviation(regions, calendarWeek, time.elapsedDays, Math.random, { agreements }));
     const fleetResult = profiler.measure('Fleets', () => tickFleets(fleets, regions, seaRegions, agreements, calendarWeek, time.elapsedDays, Math.random, { playerActorId: activePlayerPolityId }));
     for (const fleetEvent of fleetResult.events) {
       if (fleetEvent.type !== 'fleet_contact' || !fleetEventInvolvesActor(fleetEvent, activePlayerPolityId, fleets)) continue;
@@ -676,6 +679,7 @@ async function main() {
     get fleets() { return fleets; },
     get activePlayerPolityId() { return activePlayerPolityId; },
     fleetApi: { deployFleet, dockFleet, orderFleetHome, orderFleetToSea, setFleetFlag, setFleetMission, syncRegionalNavyLedger },
+    aviationApi: { buildAircraft, assignAircraftMission, rebaseAircraft, aviationSummary },
     diplomatApi: { dispatchDiplomat, recallDiplomat, setDiplomatAuthority, setCounterIntelligencePolicy, sendForgedJointOperationLetter, sendDeceptionJointOperationLetter, attemptBribeDiplomat, expelDiplomat, releaseDiplomat, diplomatPublicProfile, foreignGovernmentTrust },
     campaignCommandApi: { issueCampaignOrder, marshalCampaignAssessment },
     agreements,

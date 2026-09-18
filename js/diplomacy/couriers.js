@@ -6,6 +6,7 @@ import { courtLanguageCompetence } from './languageNetworks.js?v=20260909-langua
 import { authoriseRuntimeGovernmentAction } from '../politics/institutionalRuntimeAuthority.js?v=20260916-institution-diplomacy1';
 import { telegraphInterceptRisk } from './telegraph.js?v=20260917-telegraph1';
 import { messageRouteBetween, messageRouteDeliveryTicks } from './messageRouting.js?v=20260917-message-routing1';
+import { airDefenceRisk, availableAircraftCourier, reserveAircraftCourier, completeAircraftCourier } from '../military/aviation.js?v=20260918-aviation1';
 
 let nextMessageId = 1;
 export function syncNextDiplomaticMessageId(regions = []) {
@@ -52,7 +53,11 @@ function ensureMailbox(region) {
 }
 
 export function routeFor(origin, target, regionsById) {
-  return messageRouteBetween(origin, target, regionsById);
+  const ordinary=messageRouteBetween(origin, target, regionsById);
+  const aircraft=availableAircraftCourier(origin,target);
+  if(!aircraft||ordinary?.days<=.65)return ordinary;
+  const leg=reserveAircraftCourier(origin,target); if(!leg)return ordinary;
+  return {mode:'air',legs:[leg],days:leg.days,regionIds:[origin.id,target.id],seaIds:[],modes:['air'],reservedAircraftId:leg.aircraftId};
 }
 
 function routeRisk(route, regionsById, fleets, senderActorId, targetActorId) {
@@ -77,6 +82,9 @@ function routeRisk(route, regionsById, fleets, senderActorId, targetActorId) {
           legRisk += 0.12 * exposure; hostileActors.add(controller);
         }
       }
+    } else if (leg.mode === 'air') {
+      const destination=regionsById.get(leg.toRegionId);
+      legRisk=destination ? airDefenceRisk(destination)*0.55 + clamp(destination.conflictPressure||0)*0.08 : 0.03;
     } else if (leg.mode === 'sea') {
       for (const fleet of fleets || []) {
         if (fleet.locationType !== 'sea' || !leg.seaIds?.includes(fleet.seaRegionId)) continue;
@@ -367,7 +375,11 @@ export function tickDiplomaticCouriers(regions, agreements, fleets, currentTick,
         message.contentRecovered = rng() < interceptedContentChance(message, 0.55);
         const interceptingActorId = risk.hostileActors.length ? risk.hostileActors[Math.floor(rng() * risk.hostileActors.length)] : null;
         const destroyed = rng() < 0.38; message.destroyed = destroyed;
-        if (destroyed) message.status = 'intercepted_lost';
+        if (destroyed) {
+          message.status = 'intercepted_lost';
+          const airLeg=(message.route?.legs||[]).find((leg)=>leg.mode==='air');
+          if(airLeg) completeAircraftCourier(airLeg,regionsById,{lost:true,rng});
+        }
         const interceptorRegion = [...regionsById.values()].find((r) => actorId(r) === interceptingActorId);
         if (message.contentRecovered && interceptorRegion && ['joint_operation_proposal','joint_operation_reply','forged_joint_operation_letter','deception_joint_operation_letter'].includes(message.type)) {
           const credibility = intelligenceCredibilityFromMessage(interceptorRegion, message, regions, rng);
@@ -379,6 +391,8 @@ export function tickDiplomaticCouriers(regions, agreements, fleets, currentTick,
       }
       if (currentTick < message.arrivalTick) continue;
       message.receivedTick = currentTick;
+      const deliveredAirLeg=(message.route?.legs||[]).find((leg)=>leg.mode==='air');
+      if(deliveredAirLeg) completeAircraftCourier(deliveredAirLeg,regionsById,{lost:false,rng});
       resolveDeliveryLanguage(message, sender, target);
       if (message.type === 'forged_joint_operation_letter') {
         const assessment = intelligenceCredibilityFromMessage(target, message, regions, rng);
