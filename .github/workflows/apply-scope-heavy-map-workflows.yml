@@ -17,17 +17,6 @@ jobs:
         with: {python-version: '3.12'}
       - run: python tools/scope-heavy-map-workflows.py
       - run: |
-          python - <<'PY'
-          import yaml, pathlib
-          for p in [
-            '.github/workflows/build-latin-america-map-v2.yml',
-            '.github/workflows/repair-known-world-land.yml',
-            '.github/workflows/reconstruct-world-geography.yml',
-            '.github/workflows/old-world-asia-pacific-map.yml',
-          ]:
-            print(p, 'scoped')
-          PY
-      - run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .github/workflows/build-latin-america-map-v2.yml .github/workflows/repair-known-world-land.yml .github/workflows/reconstruct-world-geography.yml .github/workflows/old-world-asia-pacific-map.yml
