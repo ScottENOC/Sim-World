@@ -5,6 +5,7 @@ on:
     paths:
       - 'tools/apply-early-aviation-v1.py'
       - 'tools/fix-aviation-route-format.py'
+      - 'tools/add-allied-aviation-basing.py'
       - 'tools/test-early-aviation.mjs'
 jobs:
   patch:
@@ -21,6 +22,7 @@ jobs:
         with: {node-version: '22'}
       - run: python tools/apply-early-aviation-v1.py
       - run: python tools/fix-aviation-route-format.py
+      - run: python tools/add-allied-aviation-basing.py
       - run: |
           node --check js/military/aviation.js
           node --check js/economy/construction.js
@@ -33,6 +35,6 @@ jobs:
       - run: |
           git config user.name "github-actions[bot]"
           git config user.email "418982982+github-actions[bot]@users.noreply.github.com"
-          git add js/military/aviation.js js/economy/construction.js js/technology/breakthroughs.js js/diplomacy/couriers.js js/diplomacy/messageRouting.js js/main.js
-          git commit -m 'Integrate persistent early aviation'
+          git add js/military/aviation.js js/economy/construction.js js/technology/breakthroughs.js js/diplomacy/couriers.js js/diplomacy/messageRouting.js js/main.js tools/test-early-aviation.mjs
+          git commit -m 'Integrate allied aviation basing'
           git push origin HEAD:feature/early-aviation-v1
