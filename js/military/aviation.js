@@ -3,6 +3,7 @@ import { operationalInfrastructure } from '../economy/construction.js?v=20260918
 const DAYS_PER_YEAR=365.2425;
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const has=(r,id)=>Boolean(r?.unlockedTechIds?.has?.(id));
+const actorId=(r)=>r?.governance?.sovereignPolityId||r?.controllingActorId||r?.polityId||r?.id||null;
 let nextAircraftId=1;
 
 export const POWERED_FLIGHT_TECH_ID='powered_flight';
@@ -11,7 +12,7 @@ export const AIRCRAFT_ARMAMENT_TECH_ID='aircraft_armament';
 export const AERIAL_BOMBING_TECH_ID='aerial_bombing';
 export const TRANSPORT_AIRCRAFT_TECH_ID='transport_aircraft';
 
-export const AIR_MISSIONS=Object.freeze({IDLE:'idle',SCOUT:'scout',INTERCEPT:'intercept',ATTACK:'attack',COURIER:'courier',TRANSPORT:'transport'});
+export const AIR_MISSIONS=Object.freeze({IDLE:'idle',SCOUT:'scout',INTERCEPT:'intercept',ATTACK:'attack',COURIER:'courier',TRANSPORT:'transport',REBASE:'rebase'});
 
 export function syncNextAircraftId(regions=[]){
   let max=0; for(const region of regions) for(const a of region.aviation?.aircraft||[]) max=Math.max(max,Number(String(a.id||'').replace(/\D/g,''))||0);
@@ -68,8 +69,32 @@ export function buildAircraft(region,{ownerType='civilian',role='recon'}={}){
   if(role==='transport'&&!has(region,TRANSPORT_AIRCRAFT_TECH_ID))return null;
   const cost=role==='transport'?{wood:40,textiles:24,steel:18,machine:10,cash:22}:{wood:26,textiles:18,steel:10,machine:7,cash:14};
   if(!spendBuildInputs(region,cost))return null;
-  const aircraft={id:`air-${nextAircraftId++}`,ownerType,role,baseType:'airfield',baseRegionId:region.id,carrierId:null,condition:1,fuel:1,status:'serviceable',mission:AIR_MISSIONS.IDLE,targetRegionId:null,pilotExperience:0,totalFlights:0,repairNeed:0};
+  const aircraft={id:`air-${nextAircraftId++}`,ownerType,ownerActorId:actorId(region),role,baseType:'airfield',homeBaseRegionId:region.id,baseRegionId:region.id,carrierId:null,condition:1,fuel:1,status:'serviceable',mission:AIR_MISSIONS.IDLE,targetRegionId:null,pilotExperience:0,totalFlights:0,repairNeed:0};
   ensureAviation(region).aircraft.push(aircraft); return aircraft;
+}
+
+
+export function aviationBasingRelationship(aircraft,hostRegion,agreements=[],regionsById=new Map()){
+  if(!aircraft||!hostRegion||!operationalInfrastructure(hostRegion,'airfield'))return{allowed:false,repair:false,reason:'no_airfield'};
+  const hostActor=actorId(hostRegion),owner=aircraft.ownerActorId||actorId(regionsById.get(aircraft.homeBaseRegionId));
+  if(!owner||hostActor===owner)return{allowed:true,repair:true,relationship:'own_base'};
+  const ownerRegions=[...regionsById.values()].filter(r=>actorId(r)===owner).map(r=>r.id);
+  const hostRegions=[...regionsById.values()].filter(r=>actorId(r)===hostActor).map(r=>r.id);
+  const related=(agreements||[]).find(a=>a?.active&&['military_support','joint_operation','war_commitment','air_basing'].includes(a.type)&&
+    ((ownerRegions.includes(a.fromId)&&hostRegions.includes(a.toId))||(ownerRegions.includes(a.toId)&&hostRegions.includes(a.fromId))||
+     (a.proposerActorId===owner&&a.partnerActorId===hostActor)||(a.proposerActorId===hostActor&&a.partnerActorId===owner)||
+     (a.fromActorId===owner&&a.toActorId===hostActor)||(a.fromActorId===hostActor&&a.toActorId===owner)));
+  if(!related)return{allowed:false,repair:false,reason:'no_basing_rights'};
+  return{allowed:true,repair:Boolean(related.aviationMaintenanceSupport||related.maintenanceSupport),relationship:'allied_base',agreementId:related.id};
+}
+
+export function rebaseAircraft(origin,target,aircraftId,agreements=[],regionsById=new Map([[origin?.id,origin],[target?.id,target]])){
+  const a=ensureAviation(origin).aircraft.find(x=>x.id===aircraftId);if(!a||a.status==='destroyed'||a.condition<.42)return{rebased:false,reason:'unserviceable'};
+  const rights=aviationBasingRelationship(a,target,agreements,regionsById);if(!rights.allowed)return{rebased:false,reason:rights.reason};
+  const fuelNeed=.14;if((origin.stockpile?.aviation_fuel||0)<fuelNeed)return{rebased:false,reason:'insufficient_fuel'};
+  origin.stockpile.aviation_fuel-=fuelNeed;a.fuel=clamp((a.fuel??1)-fuelNeed*.2);a.totalFlights++;a.mission=AIR_MISSIONS.IDLE;a.status='serviceable';a.targetRegionId=null;
+  origin.aviation.aircraft=origin.aviation.aircraft.filter(x=>x!==a);a.baseRegionId=target.id;ensureAviation(target).aircraft.push(a);
+  return{rebased:true,aircraft:a,rights};
 }
 
 export function airDefenceRisk(region){
@@ -90,20 +115,21 @@ export function assignAircraftMission(region,aircraftId,mission,targetRegionId=n
   a.mission=mission;a.targetRegionId=targetRegionId;a.status='assigned';return{assigned:true,aircraft:a};
 }
 
-function repairAtBase(region,a,elapsedDays){
-  if(a.status==='destroyed'||a.condition>=.999||a.baseRegionId!==region.id||!operationalInfrastructure(region,'airfield'))return;
+function repairAtBase(region,a,elapsedDays,agreements=[],regionsById=new Map()) {
+  const rights=aviationBasingRelationship(a,region,agreements,regionsById);
+  if(a.status==='destroyed'||a.condition>=.999||a.baseRegionId!==region.id||!rights.allowed||!rights.repair)return;
   const need=1-a.condition,scale=Math.min(need,elapsedDays/DAYS_PER_YEAR*.8),cash=scale*20,wood=scale*16,textiles=scale*12,steel=scale*5;
   if((region.treasury||0)<cash||(region.stockpile?.wood||0)<wood||(region.stockpile?.textiles||0)<textiles||(region.stockpile?.steel||0)<steel)return;
   region.treasury-=cash;region.wallet=(region.wallet||0)+cash;region.stockpile.wood-=wood;region.stockpile.textiles-=textiles;region.stockpile.steel-=steel;a.condition=clamp(a.condition+scale);a.repairNeed=1-a.condition;if(a.condition>=.42&&a.status==='damaged')a.status='serviceable';
 }
 
-export function tickAviation(regions,currentTick,elapsedDays=7,rng=Math.random){
-  const byId=new Map(regions.map(r=>[r.id,r])),events=[];
+export function tickAviation(regions,currentTick,elapsedDays=7,rng=Math.random,options={}){
+  const byId=new Map(regions.map(r=>[r.id,r])),agreements=options.agreements||[],events=[];
   for(const region of regions){
     const av=ensureAviation(region);
     for(const a of av.aircraft){
-      repairAtBase(region,a,elapsedDays);
-      if(a.status!=='destroyed'&&a.baseRegionId===region.id&&operationalInfrastructure(region,'airfield')&&(a.fuel??0)<1){
+      repairAtBase(region,a,elapsedDays,agreements,byId);
+      if(a.status!=='destroyed'&&a.baseRegionId===region.id&&aviationBasingRelationship(a,region,agreements,byId).allowed&&(a.fuel??0)<1){
         const need=Math.max(0,1-(a.fuel||0)); const available=Math.max(0,region.stockpile?.aviation_fuel||0); const take=Math.min(need,available);
         if(take>0){region.stockpile.aviation_fuel-=take;a.fuel=clamp((a.fuel||0)+take);if(a.status==='grounded'&&a.fuel>.12)a.status='serviceable';}
       }

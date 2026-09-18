@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { AIR_MISSIONS, POWERED_FLIGHT_TECH_ID, MILITARY_AVIATION_TECH_ID, buildAircraft, assignAircraftMission, tickAviation, airDefenceRisk, reserveAircraftCourier, completeAircraftCourier, aviationSummary } from '../js/military/aviation.js';
+import { AIR_MISSIONS, POWERED_FLIGHT_TECH_ID, MILITARY_AVIATION_TECH_ID, buildAircraft, assignAircraftMission, tickAviation, airDefenceRisk, reserveAircraftCourier, completeAircraftCourier, aviationSummary, rebaseAircraft } from '../js/military/aviation.js';
 
 function region(id='a'){
   return {id,name:id,population:200000,treasury:500,wallet:5000,neighbors:[],tradePartnerIds:[],recentTradePartners:new Map(),unlockedTechIds:new Set([POWERED_FLIGHT_TECH_ID,MILITARY_AVIATION_TECH_ID,'steelmaking']),
@@ -40,6 +40,22 @@ assert.equal(reserved.mission,AIR_MISSIONS.COURIER,'reserved courier aircraft mu
 completeAircraftCourier(airLeg,new Map([[home.id,home],[target.id,target]]));
 assert.ok(target.aviation.aircraft.some(a=>a.id===airLeg.aircraftId),'aircraft courier should physically arrive at the destination airfield');
 assert.equal(reserved.mission,AIR_MISSIONS.IDLE,'aircraft becomes available again only after delivery');
+
+
+// Allied basing grants reach and refuelling, but not automatically major repair capability.
+const ally=region('ally'); ally.governance={sovereignPolityId:'ally-polity'}; home.governance={sovereignPolityId:'home-polity'};
+const basingPlane=buildAircraft(home,{ownerType:'military',role:'recon'}); basingPlane.condition=.6; basingPlane.fuel=.2;
+const agreements=[{id:'support-1',type:'military_support',active:true,fromId:home.id,toId:ally.id}];
+const byId=new Map([[home.id,home],[ally.id,ally]]);
+const rebased=rebaseAircraft(home,ally,basingPlane.id,agreements,byId);
+assert.equal(rebased.rebased,true,'allied basing should permit physical rebasing');
+assert.equal(basingPlane.baseRegionId,ally.id,'rebased aircraft should now operate from allied airfield');
+assert.equal(basingPlane.homeBaseRegionId,home.id,'rebasing must not change the aircraft home maintenance base');
+const damagedBefore=basingPlane.condition; const allyFuelBefore=ally.stockpile.aviation_fuel;
+tickAviation([home,ally],20,30,()=>.99,{agreements});
+assert.ok(basingPlane.fuel>.05,'allied base should be able to refuel a visiting aircraft');
+assert.ok(ally.stockpile.aviation_fuel<allyFuelBefore,'allied refuelling should consume host aviation fuel');
+assert.equal(basingPlane.condition,damagedBefore,'ordinary allied basing should not provide major structural repairs');
 
 console.log('early aviation regression passed');
 // integration rerun marker
