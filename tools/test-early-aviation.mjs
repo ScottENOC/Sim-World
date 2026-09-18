@@ -28,15 +28,17 @@ const shot=tickAviation([home,defended],11,7,()=>0);
 assert.ok(shot.some(e=>['aircraft_damaged','aircraft_shot_down'].includes(e.type)),'strong air defence should be able to damage or destroy aircraft');
 assert.ok(plane.condition<1,'aircraft damage should persist');
 
-// Civil aircraft can be consumed as a real courier asset and relocate to the destination airfield.
+// Civil aircraft share the same persistent registry, while courier routing reserves one actual serviceable machine.
 const mail=buildAircraft(home,{ownerType:'civilian',role:'mail'});
 assert.ok(mail,'civilian aircraft should share the persistent registry');
 mail.mission=AIR_MISSIONS.IDLE; mail.status='serviceable';
 const airLeg=reserveAircraftCourier(home,target);
 assert.ok(airLeg?.aircraftId,'air courier must reserve a specific aircraft');
-assert.equal(mail.mission,AIR_MISSIONS.COURIER,'reserved courier aircraft must be unavailable for another mission');
+const reserved=home.aviation.aircraft.find(a=>a.id===airLeg.aircraftId);
+assert.ok(reserved,'reserved courier must refer to a real aircraft');
+assert.equal(reserved.mission,AIR_MISSIONS.COURIER,'reserved courier aircraft must be unavailable for another mission');
 completeAircraftCourier(airLeg,new Map([[home.id,home],[target.id,target]]));
-assert.ok(target.aviation.aircraft.some(a=>a.id===mail.id),'aircraft courier should physically arrive at the destination airfield');
-assert.equal(mail.mission,AIR_MISSIONS.IDLE,'aircraft becomes available again only after delivery');
+assert.ok(target.aviation.aircraft.some(a=>a.id===airLeg.aircraftId),'aircraft courier should physically arrive at the destination airfield');
+assert.equal(reserved.mission,AIR_MISSIONS.IDLE,'aircraft becomes available again only after delivery');
 
 console.log('early aviation regression passed');
