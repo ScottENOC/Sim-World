@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { activeTariffs, borderTariffQuote, setTradeRestriction, tradePolicyDecision } from '../js/economy/tradePolicy.js?v=test';
+import { activeTariffs, activeTradeRestrictions, borderTariffQuote, setTradeRestriction, tradePolicyDecision } from '../js/economy/tradePolicy.js?v=test';
 import { ensureLabourRelations, tickLabourRelations } from '../js/society/labourRelations.js?v=test';
 
 function region(overrides={}){
@@ -26,10 +26,11 @@ const importer=region({id:'importer'}), exporter=region({id:'exporter',governanc
 setTradeRestriction(importer,{direction:'import',goods:['steel'],allowed:true,tariffRate:.25},[exporter],1);
 assert.equal(tradePolicyDecision(importer,'import','steel',exporter).tariffRate,.25);
 assert.equal(tradePolicyDecision(importer,'import','food',exporter).tariffRate,0);
+assert.equal(activeTariffs(importer).length,1);
+assert.equal(activeTradeRestrictions(importer).length,0,'a tariff is not an embargo and must not be represented as one');
 let quote=borderTariffQuote(exporter,importer,'steel',100);
 assert.equal(quote.importTariff,25);
 assert.equal(quote.exportTariff,0);
-assert.equal(activeTariffs(importer).length,1);
 setTradeRestriction(exporter,{direction:'export',goods:['steel'],allowed:true,tariffRate:.1},[importer],2);
 quote=borderTariffQuote(exporter,importer,'steel',100);
 assert.equal(quote.importTariff,25);
@@ -37,6 +38,7 @@ assert.equal(quote.exportTariff,10);
 assert.equal(quote.totalTariff,35);
 setTradeRestriction(importer,{direction:'import',goods:['steel'],allowed:false},[exporter],3);
 assert.equal(borderTariffQuote(exporter,importer,'steel',100).allowed,false,'an embargo must still override tariff settlement');
+assert.equal(activeTradeRestrictions(importer).length,1);
 
 const lowTariff=region({id:'low-tariff'}), highTariff=region({id:'high-tariff',tradeEconomy:{weeklyImports:700,weeklyExports:300,weeklyImportTariffPaid:180,weeklyTariffRevenue:180,importTariffBurdenEma:.2}});
 for(const r of [lowTariff,highTariff]) ensureLabourRelations(r);
