@@ -35,6 +35,21 @@ export function reserveCurrencyStrength(polity,capital,foreignHoldings=0){
   return clamp((currency.trust||0)*0.24+priceStability*0.2+financialDepth*0.2+tradeScale*0.16+network*0.14+convertibility*0.06);
 }
 
+
+export function setSettlementCurrencyPolicy(polity,currencyId,stance='neutral'){
+  const allowed=new Set(['favour','neutral','avoid','boycott']);
+  if(!allowed.has(stance))return {changed:false,reason:'unknown_stance'};
+  const m=ensureInternationalMonetaryState(polity);m.settlementCurrencyPolicy ||= {};
+  m.settlementCurrencyPolicy[currencyId]=stance;
+  return {changed:true,stance};
+}
+
+function diplomaticCurrencyPreference(region,currency){
+  const explicit=region?.currencyDiplomacyPreferences?.[currency?.id];
+  if(Number.isFinite(explicit))return clamp(explicit,-1,1);
+  return 0;
+}
+
 function candidateCurrencies(regionA,regionB){
   const map=new Map();
   const add=c=>{if(c?.active&&c.id)map.set(c.id,c);};
@@ -51,7 +66,8 @@ function currencySettlementScore(currency,regionA,regionB){
   const useA=clamp(Math.log1p(regionA?.settlementCurrencyUse?.[currency.id]||0)/8);
   const useB=clamp(Math.log1p(regionB?.settlementCurrencyUse?.[currency.id]||0)/8);
   const familiar=(knownCurrencyHere(regionA,currency.id)?0.04:0)+(knownCurrencyHere(regionB,currency.id)?0.04:0);
-  return trust*0.34+(1-inflation*2)*0.18+reserveScore*0.34+(useA+useB)*0.05+familiar;
+  const diplomacy=(diplomaticCurrencyPreference(regionA,currency)+diplomaticCurrencyPreference(regionB,currency))/2;
+  return trust*0.30+(1-inflation*2)*0.16+reserveScore*0.30+(useA+useB)*0.05+familiar+diplomacy*0.28;
 }
 
 export function settlementCurrencyBetween(regionA,regionB){
@@ -175,6 +191,56 @@ function syncCurrencyUnions(polities,regions){
   }
 }
 
+
+export function preferredForeignBorrowingCurrency(region){
+  const ownId=region?.currencyUse?.id;
+  let best=null,bestScore=-Infinity;
+  for(const [id,holdingRaw] of Object.entries(region?.foreignCurrencyReserves||{})){
+    if(id===ownId)continue;
+    const holding=Math.max(0,Number(holdingRaw)||0);if(holding<=0.01)continue;
+    const c=region?.currencyContacts?.[id];if(!c?.active)continue;
+    const score=clamp(c.reserveCurrencyScore||0)*0.48+clamp(c.trust||0)*0.3+
+      clamp(Math.log1p(region?.settlementCurrencyUse?.[id]||0)/8)*0.17-
+      clamp(Math.abs(c.inflation||0),0,0.5)*0.35+Math.min(0.05,Math.log1p(holding)*0.01);
+    if(score>bestScore){best={currency:c,holding,score};bestScore=score;}
+  }
+  return best;
+}
+
+export function foreignDebtLocalValue(region){
+  const f=region?.militaryFinance;if(!f?.foreignDebtCurrencyId||!(f.foreignCurrencyDebtPrincipal>0))return 0;
+  const foreign=region?.currencyContacts?.[f.foreignDebtCurrencyId];const own=region?.currencyUse;
+  if(!foreign?.active||!own?.active)return Math.max(0,f.foreignDebtLastLocalValue||0);
+  const fx=currencyCommodityValue(foreign)/Math.max(0.001,currencyCommodityValue(own));
+  return Math.max(0,f.foreignCurrencyDebtPrincipal*fx);
+}
+
+export function revalueForeignCurrencyDebt(region){
+  const f=region?.militaryFinance;if(!f)return {delta:0,localValue:0};
+  const previous=Math.max(0,f.foreignDebtLastLocalValue||0);
+  const localValue=foreignDebtLocalValue(region);
+  const delta=localValue-previous;
+  if(Math.abs(delta)>1e-9)f.publicDebt=Math.max(0,(f.publicDebt||0)+delta);
+  f.foreignDebtLastLocalValue=localValue;
+  return {delta,localValue};
+}
+
+export function borrowInForeignCurrency(region,localAmount,stateCredit=0){
+  const f=region?.militaryFinance;if(!f||!(localAmount>0))return {localAmount:0,reason:'invalid'};
+  const candidate=preferredForeignBorrowingCurrency(region);if(!candidate||candidate.score<0.45)return {localAmount:0,reason:'no_liquid_reserve_currency'};
+  const conditions=region.monetaryConditions||{};
+  const stress=clamp(Math.max(0,(conditions.inflation||0)-0.04)*3.5+Math.max(0,0.58-(conditions.currencyCredibility||0.5))*1.6);
+  const share=clamp(stress*0.7,0,0.7);if(share<0.05)return {localAmount:0,reason:'domestic_currency_adequate'};
+  const foreign=candidate.currency,own=region.currencyUse;
+  const fx=currencyCommodityValue(foreign)/Math.max(0.001,currencyCommodityValue(own));
+  const local=Math.max(0,localAmount*share);const principal=local/Math.max(0.001,fx);
+  if(f.foreignDebtCurrencyId&&f.foreignDebtCurrencyId!==foreign.id)return {localAmount:0,reason:'existing_foreign_debt_currency'};
+  f.foreignDebtCurrencyId=foreign.id;f.foreignCurrencyDebtPrincipal=Math.max(0,f.foreignCurrencyDebtPrincipal||0)+principal;
+  f.foreignDebtLastLocalValue=Math.max(0,f.foreignDebtLastLocalValue||0)+local;
+  f.foreignDebtInterestRate=clamp((foreign.policyRate||0.03)+0.012+(1-clamp(stateCredit))*0.065,0.01,0.45);
+  return {localAmount:local,principal,currencyId:foreign.id,fx,interestRate:f.foreignDebtInterestRate};
+}
+
 export function tickInternationalMonetarySystem(polities,regions,agreements=[],elapsedDays=30,currentTick=0){
   if(!polities?.length)return [];
   const due=polities.some(p=>currentTick-(ensureInternationalMonetaryState(p).lastInternationalReviewTick||-Infinity)>=REVIEW_WEEKS);
@@ -189,6 +255,23 @@ export function tickInternationalMonetarySystem(polities,regions,agreements=[],e
     m.reserveCurrencyScore=reserveCurrencyStrength(p,capital,holdings.get(p.currency?.id)||0);
     if(p.currency?.active){p.currency.reserveCurrencyScore=m.reserveCurrencyScore;byCurrency.set(p.currency.id,p);}
     m.lastInternationalReviewTick=currentTick;
+  }
+
+  // Currency use is also a diplomatic choice. Explicit policy overrides a relations-derived default.
+  for(const p of polities){
+    const m=ensureInternationalMonetaryState(p),capital=capitalFor(p,byRegion);if(!capital)continue;
+    const policy=m.settlementCurrencyPolicy||{};
+    for(const r of territories(p,regions)){
+      r.currencyDiplomacyPreferences ||= {};
+      for(const [id,issuer] of byCurrency){
+        if(id===p.currency?.id){r.currencyDiplomacyPreferences[id]=0.15;continue;}
+        const issuerCapital=capitalFor(issuer,byRegion);if(!issuerCapital)continue;
+        const stance=policy[id]||'neutral';
+        const explicit=stance==='favour'?0.75:stance==='avoid'?-0.55:stance==='boycott'?-1:null;
+        const relational=clamp(attitudeToward(capital,issuerCapital.id),-1,1)*0.5;
+        r.currencyDiplomacyPreferences[id]=explicit==null?relational:explicit;
+      }
+    }
   }
 
   const events=[];

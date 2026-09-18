@@ -11,12 +11,25 @@ function activeCurrency(value) {
 export function currencyCommodityValue(currency) {
   const c = activeCurrency(currency);
   if (!c) return 1;
-  // Medieval exchange is still anchored strongly to the amount/quality of
-  // precious metal in the coin, but reputation affects what a changer will
-  // actually risk paying before assay and reminting.
   const fineness = clamp(c.fineness ?? 1, 0.15, 1);
   const trust = clamp(c.trust ?? 0);
-  const ownValue = fineness * (0.72 + trust * 0.28);
+  const regime = c.regime || 'silver_standard';
+  const metallic = ['silver_standard', 'gold_standard', 'bimetallic_standard'].includes(regime);
+  let ownValue;
+  if (metallic) {
+    ownValue = fineness * (0.72 + trust * 0.28);
+  } else {
+    const inflation = clamp(Math.abs(c.inflation || 0), 0, 0.6);
+    const policyRate = clamp(c.policyRate || 0, 0, 0.5);
+    const reserveUse = clamp(c.reserveCurrencyScore || 0);
+    const reserveCoverage = clamp(c.reserveCoverage || 0, 0, 2) / 2;
+    const convertibility = regime === 'convertible_notes' ? reserveCoverage * 0.16 : 0;
+    ownValue = Math.max(0.05,
+      (0.42 + trust * 0.34 + reserveUse * 0.18 + convertibility) *
+      (1 - inflation * 0.72) *
+      (1 + Math.min(0.12, policyRate * 0.32))
+    );
+  }
   if (c.peg?.anchorCurrencyId && Number.isFinite(c.peg.anchorCommodityValue) && Number.isFinite(c.peg.targetRate)) {
     const credibility = clamp(c.peg.credibility ?? 0);
     const peggedValue = Math.max(0.001, c.peg.anchorCommodityValue * c.peg.targetRate);

@@ -116,7 +116,7 @@ export function sovereignRiskPremium(polity, capital) {
   const debtBurden = Math.max(0, finance.publicDebt || 0) / annualRevenue;
   const arrears = clamp((finance.arrearsWeeks || 0) / 26);
   const credibility = clamp((polity?.currency?.trust || 0.5) * 0.55 + m.currencyCredibility * 0.45);
-  return clamp(0.008 + (1 - credit) * 0.07 + Math.min(0.12, debtBurden * 0.018) + arrears * 0.08 + (1 - credibility) * 0.035, 0.005, 0.35);
+  return clamp(0.008 + (1 - credit) * 0.07 + Math.min(0.12, debtBurden * 0.018) + arrears * 0.08 + (1 - credibility) * 0.035 + Math.max(0, capital?.militaryFinance?.bondYieldSpread || 0), 0.005, 0.5);
 }
 
 export function commercialRiskPremium(region, firm = null) {

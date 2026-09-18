@@ -1,0 +1,28 @@
+name: International reserve currencies
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/economy/forex.js'
+      - 'js/economy/internationalMoney.js'
+      - 'js/economy/stateFinance.js'
+      - 'js/economy/trade.js'
+      - 'js/main.js'
+      - 'tools/test-international-reserve-currencies.mjs'
+      - '.github/workflows/international-reserve-currencies.yml'
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: |
+          node --check js/economy/forex.js
+          node --check js/economy/internationalMoney.js
+          node --check js/economy/stateFinance.js
+          node --check js/main.js
+          node tools/test-international-reserve-currencies.mjs
+          node tools/test-monetary-modernisation.mjs
+          node tools/test-forex.mjs

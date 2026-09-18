@@ -12,6 +12,8 @@ import { tickPetroleumRefining } from './economy/petroleumRefining.js?v=20260917
 import { tickElectricity } from './economy/electricity.js?v=20260917-electric1';
 import { tickLocalCommunications } from './economy/localCommunications.js?v=20260918-telephone1';
 import { tickStateFinance } from './economy/stateFinance.js?v=20260912-currency2';
+import { tickInternationalMonetarySystem, setSettlementCurrencyPolicy } from './economy/internationalMoney.js?v=20260918-intmoney2';
+import { tickSovereignBondMarkets, setBondPolicy, dumpSovereignBonds } from './economy/sovereignBonds.js?v=20260918-bonds1';
 import { tickDemographics } from './society/demographics.js?v=20260912-culture-scale1';
 import { tickDisease } from './society/disease.js?v=20260912-disease1';
 import { tickSettlements } from './society/settlements.js?v=20260913-settlements2';
@@ -429,6 +431,8 @@ async function main() {
     if (playerCapitalForPlan) profiler.measure('Military strategy review', () => reviewMilitaryStrategy(playerCapitalForPlan, { regions, polities, agreements, activeCampaigns, currentTick: calendarWeek }));
     const languagePolicyEvents = profiler.measure('Language policy', () => tickRegionalLanguagePolicies(regions, polities, calendarWeek, time.elapsedDays, { playerPolityId: activePlayerPolityId }));
     const polityEvents = profiler.measure('Polities', () => tickPolities(polities, regions, calendarWeek, time.elapsedDays, { agreements }));
+    const internationalMonetaryEvents = profiler.measure('International money', () => tickInternationalMonetarySystem(polities, regions, agreements, time.elapsedDays, calendarWeek));
+    const sovereignBondEvents = profiler.measure('Sovereign bond markets', () => tickSovereignBondMarkets(polities, regions, calendarWeek));
     const continuityEvents = profiler.measure('Political continuity', () => tickPoliticalContinuity(polities, regions, time.elapsedDays / 365.2425, calendarWeek, { playerPolityId: activePlayerPolityId }));
     // A successful player coup/revolution keeps the displaced government as the
     // player's political actor. Move the private player-region pointer to its
@@ -600,6 +604,8 @@ async function main() {
       ...earlyModernReformEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),
       ...oceanicExplorationEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),
       ...polityEvents.filter((event) => event.regionId === playerRegionId),
+      ...internationalMonetaryEvents.filter((event) => event.polityId === activePlayerPolityId || event.anchorPolityId === activePlayerPolityId || event.members?.includes?.(activePlayerPolityId)),
+      ...sovereignBondEvents.filter((event) => event.polityId === activePlayerPolityId || event.issuerPolityId === activePlayerPolityId || event.holderPolityId === activePlayerPolityId),
       ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),
       ...foreignInterventionEvents.filter((event) => event.playerRelevant),
       ...regimeCivilWarEvents.filter((event) => event.playerRelevant),
@@ -680,6 +686,7 @@ async function main() {
     get activePlayerPolityId() { return activePlayerPolityId; },
     fleetApi: { deployFleet, dockFleet, orderFleetHome, orderFleetToSea, setFleetFlag, setFleetMission, syncRegionalNavyLedger },
     aviationApi: { buildAircraft, assignAircraftMission, rebaseAircraft, aviationSummary },
+    financialDiplomacyApi: { setBondPolicy, dumpSovereignBonds, setSettlementCurrencyPolicy },
     diplomatApi: { dispatchDiplomat, recallDiplomat, setDiplomatAuthority, setCounterIntelligencePolicy, sendForgedJointOperationLetter, sendDeceptionJointOperationLetter, attemptBribeDiplomat, expelDiplomat, releaseDiplomat, diplomatPublicProfile, foreignGovernmentTrust },
     campaignCommandApi: { issueCampaignOrder, marshalCampaignAssessment },
     agreements,

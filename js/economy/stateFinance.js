@@ -1,5 +1,6 @@
 import { effectiveInfrastructureCount, operationalInfrastructure } from './construction.js?v=20260907-classical1';
 import { currencyFiscalModifiers } from './currency.js?v=20260912-currency3';
+import { borrowInForeignCurrency, revalueForeignCurrencyDebt } from './internationalMoney.js?v=20260918-intmoney2';
 
 // State finance connects the commercial collapse to military failure. Taxes
 // are transfers from populace wealth, not newly-created money; wages and
@@ -33,6 +34,7 @@ function ensureMilitaryFinance(region) {
     weeklyProcurementSpent: 0, fundedPersonnelCap: Infinity, deserters: 0,
     administrationDue: 0, administrationPaid: 0, administrationInKind: 0,
     stateCapacity: 1, publicDebt: 0, weeklyInterestDue: 0, weeklyInterestPaid: 0, borrowedThisWeek: 0, sovereignCreditLimit: 0,
+    foreignCurrencyDebtPrincipal: 0, foreignDebtLastLocalValue: 0, foreignDebtInterestRate: 0, borrowedForeignThisWeek: 0,
   };
   for (const [key, value] of Object.entries(defaults)) {
     if (!Number.isFinite(region.militaryFinance[key])) region.militaryFinance[key] = value;
@@ -120,17 +122,22 @@ export function tickStateFinance(regions, elapsedDays = 7) {
       classical.payrollEfficiency + logisticsDue;
 
     const stateCredit = Math.max(0, Math.min(1, region.medievalCommerce?.finance?.stateCredit || 0));
+    const fxDebt = revalueForeignCurrencyDebt(region);
     const annualRevenue = Math.max(0, finance.revenueEma) * 52;
     const debtBurden = finance.publicDebt / Math.max(1, annualRevenue);
     const annualInterestRate = Math.max(0.001, region.monetaryConditions?.sovereignRate ?? (0.025 + (1 - stateCredit) * 0.09 + Math.min(0.18, debtBurden * 0.025)));
-    const interestDue = finance.publicDebt * annualInterestRate / 52 * weekScale;
+    const domesticDebt = Math.max(0, finance.publicDebt - fxDebt.localValue);
+    const foreignRate = Math.max(0, finance.foreignDebtInterestRate || 0);
+    const interestDue = (domesticDebt * annualInterestRate + fxDebt.localValue * foreignRate) / 52 * weekScale;
     finance.sovereignCreditLimit = annualRevenue * (0.25 + stateCredit * 4.75);
     finance.borrowedThisWeek = 0;
     const wartime = (region.warEconomy?.activeCampaigns || 0) > 0 || deployedPersonnel > 0;
     const cashNeed = Math.max(0, payrollDue + interestDue - Math.max(0, region.treasury || 0));
     if (wartime && stateCredit > 0.12 && cashNeed > 0) {
       const borrowing = Math.min(cashNeed, Math.max(0, finance.sovereignCreditLimit - finance.publicDebt));
+      const foreignBorrowing = borrowInForeignCurrency(region, borrowing, stateCredit);
       finance.publicDebt += borrowing; finance.borrowedThisWeek = borrowing; region.treasury += borrowing;
+      finance.borrowedForeignThisWeek = foreignBorrowing.localAmount || 0;
     }
     const interestPaid = Math.min(Math.max(0, region.treasury || 0), interestDue);
     region.treasury -= interestPaid; region.wallet += interestPaid;
@@ -194,6 +201,7 @@ export function tickStateFinance(regions, elapsedDays = 7) {
       administrationInKind, classicalFiscalProfile: classical, deployedPersonnel, militiaPersonnel, logisticsDue,
       publicDebt: finance.publicDebt, borrowedThisWeek: finance.borrowedThisWeek, sovereignCreditLimit: finance.sovereignCreditLimit,
       interestDue: finance.weeklyInterestDue, interestPaid: finance.weeklyInterestPaid,
+      foreignDebtCurrencyId: finance.foreignDebtCurrencyId || null, foreignDebtPrincipal: finance.foreignCurrencyDebtPrincipal || 0, foreignDebtLocalValue: fxDebt.localValue, borrowedForeignThisWeek: finance.borrowedForeignThisWeek || 0,
     };
   }
 }
