@@ -1,0 +1,37 @@
+name: Machine gun tactical revolution
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/military/modernTactics.js'
+      - 'js/military/modernLandWarfare.js'
+      - 'js/military/campaigns.js'
+      - 'js/main.js'
+      - 'tools/test-machine-gun-tactical-revolution.mjs'
+      - '.github/workflows/machine-gun-tactical-revolution.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'js/military/modernTactics.js'
+      - 'js/military/modernLandWarfare.js'
+      - 'js/military/campaigns.js'
+      - 'js/main.js'
+      - 'tools/test-machine-gun-tactical-revolution.mjs'
+      - '.github/workflows/machine-gun-tactical-revolution.yml'
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks
+        run: |
+          node --check js/military/modernTactics.js
+          node --check js/military/campaigns.js
+          node --check js/main.js
+      - name: Machine gun tactical revolution regression
+        run: node tools/test-machine-gun-tactical-revolution.mjs
+      - name: Existing modern land warfare regression
+        run: node tools/test-modern-land-warfare.mjs

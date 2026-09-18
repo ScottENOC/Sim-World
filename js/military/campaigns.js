@@ -27,6 +27,7 @@ import { medievalMilitaryCombatMultiplier } from './medievalDoctrine.js?v=202609
 import { campaignExternalSupport, applyExternalCampaignLosses } from '../politics/privateMilitaryActors.js?v=20260912-pmc1';
 import { telephoneMobilisationMultiplier } from '../economy/localCommunications.js?v=20260918-telephone2';
 import { bombardRegionalInfrastructure, entrenchmentDefenceMultiplier, modernArtilleryProfile, modernInfantryProfile } from './modernLandWarfare.js?v=20260918-modern-war1';
+import { modernTacticalProfile, recordModernCombatLessons } from './modernTactics.js?v=20260919-mg-tactics1';
 import { resolveMilitaryCasualties } from '../technology/medicalProgress.js?v=20260918-medical1';
 
 export const CAMPAIGN_OBJECTIVES = Object.freeze({
@@ -254,14 +255,16 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   const defenderModern = modernInfantryProfile(defender, defender.army.personnel, defenderFirearms, { role: 'defender', elapsedDays: 7, logisticsSupply: 1, consumeSupplies: true });
   const modernArtillery = modernArtilleryProfile(attacker, artillery, { elapsedDays: 7, logisticsSupply: campaign.supply, consumeSupplies: true });
   const trenchDefence = entrenchmentDefenceMultiplier(defender, campaign.weeksEngaged);
+  const attackerTactics = modernTacticalProfile(attacker, defender, { role: 'attacker', weeksEngaged: campaign.weeksEngaged, terrain });
+  const defenderTactics = modernTacticalProfile(defender, attacker, { role: 'defender', weeksEngaged: campaign.weeksEngaged, terrain });
   const externalSupport = campaignExternalSupport(campaign, options.nonStateWorld);
   const effectiveExternal = externalSupport.personnel * externalSupport.quality;
   let attackerPower = combatPower(attacker, campaign.personnel + effectiveExternal, toolTypes, 'attacker', campaign.supply,
-    campaign.attackerMorale, null, terrain) * (expedition?.combatMultiplier ?? 1) * attackerFirearms.multiplier * artillery.combatMultiplier * attackerModern.multiplier * modernArtillery.combatMultiplier;
+    campaign.attackerMorale, null, terrain) * (expedition?.combatMultiplier ?? 1) * attackerFirearms.multiplier * artillery.combatMultiplier * attackerModern.multiplier * modernArtillery.combatMultiplier * attackerTactics.combatMultiplier;
   attackerPower *= medievalMilitaryCombatMultiplier(attacker, defender, terrain, 'attacker');
   const defenderArmyPower = combatPower(defender, defender.army.personnel, toolTypes, 'defender', 1,
     campaign.defenderMorale, campaign.siegeEquipment, terrain) * defenderFirearms.multiplier * defenderModern.multiplier * defenderModern.defenceMultiplier * trenchDefence * artillery.fortDefenceMultiplier *
-    medievalMilitaryCombatMultiplier(defender, attacker, terrain, 'defender');
+    defenderTactics.combatMultiplier * defenderTactics.defensiveMultiplier * medievalMilitaryCombatMultiplier(defender, attacker, terrain, 'defender');
   if (campaign.pressure >= 0.45) attackerPower *= 1 + formationSiegeBonus(attacker);
   const militiaPower = campaign.militia * 0.24 * postureProfile(defender).raidDefence;
   const defenderPower = defenderArmyPower + militiaPower;
@@ -279,7 +282,7 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   const intensity = baseIntensity * counterLogistics.intensityMultiplier * Math.max(attackerModern.intensityMultiplier, defenderModern.intensityMultiplier);
   const variance = () => 0.75 + rng() * 0.5;
   const combatAttackerLosses = Math.min(campaign.personnel,
-    Math.round(campaign.personnel * intensity * (1 - attackerShare) * 1.55 * desperation.casualtyMultiplier * variance()));
+    Math.round(campaign.personnel * intensity * (1 - attackerShare) * 1.55 * desperation.casualtyMultiplier * attackerTactics.casualtyMultiplier * variance()));
   const supplyAttrition = (expedition?.attritionRate ?? 0) + counterLogistics.extraAttackerAttritionRate;
   const logisticsLosses = Math.min(Math.max(0, campaign.personnel - combatAttackerLosses), Math.round(campaign.personnel * supplyAttrition));
   const attackerMedical = resolveMilitaryCasualties(attacker, combatAttackerLosses, { deployedPersonnel: campaign.personnel, homeCare: false, logistics: campaign.supply });
@@ -325,6 +328,8 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
     casualtyShare: (defenderLosses + militiaLosses) / Math.max(1, defender.army.personnel + defenderLosses + campaign.militia + militiaLosses),
     defender: true,
   });
+  recordModernCombatLessons(attacker, defender, { role: 'attacker', casualtyShare: attackerLosses / Math.max(1, campaign.initialPersonnel), intensity, weeksEngaged: campaign.weeksEngaged, currentTick });
+  recordModernCombatLessons(defender, attacker, { role: 'defender', casualtyShare: (defenderLosses + militiaLosses) / Math.max(1, defender.army.personnel + defenderLosses + campaign.militia + militiaLosses), intensity, weeksEngaged: campaign.weeksEngaged, currentTick });
 
   const lossShock = attackerLosses / Math.max(1, campaign.initialPersonnel);
   campaign.attackerMorale = clamp(campaign.attackerMorale - lossShock * 2.2 * moraleShockMultiplier(attacker, currentTick) -
@@ -349,7 +354,7 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
     defenderWoundedSurvivors: defenderMedical.survivingWounded + militiaMedical.survivingWounded, defenderMedicalCapacity: defenderMedical.capacityRatio, civilianDeaths, attackerMorale: campaign.attackerMorale,
     defenderMorale: campaign.defenderMorale, supply: campaign.supply, strengthRatio, navalControl: control,
     logisticsStatus: campaign.logisticsState?.status || null, routeReliability: campaign.logisticsState?.routeReliability ?? null,
-    attackerFirearms, defenderFirearms, attackerModern, defenderModern, modernArtillery, trenchDefence, bombardment };
+    attackerFirearms, defenderFirearms, attackerModern, defenderModern, attackerTactics, defenderTactics, modernArtillery, trenchDefence, bombardment };
   campaign.lastWeek = week;
   campaign.history.push(week);
   if (campaign.history.length > 26) campaign.history.shift();
