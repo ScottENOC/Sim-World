@@ -3,9 +3,12 @@ import { borderTariffQuote, setTradeRestriction, tickTradePolicyCommunications }
 
 function r(id, polity, neighbour){ return { id, name:id, population:1000, wallet:100, treasury:10,
   controllingActorId:polity, governance:{sovereignPolityId:polity}, neighbors:neighbour?[neighbour]:[], adjacentSeaIds:[],
-  stockpile:{steel:100}, marketDemand:{steel:20}, safetyRating:1, construction:{assets:[]}, horseEconomy:{transport:0},
-  occupations:{}, relations:new Map() }; }
+  stockpile:{food:100}, marketDemand:{food:20}, safetyRating:1, construction:{assets:[]}, horseEconomy:{transport:0},
+  occupations:{}, relations:new Map(), recentTradePartners:new Map() }; }
+function establishTrade(a,b,tick=1){ a.recentTradePartners.set(b.id,tick); b.recentTradePartners.set(a.id,tick); }
+
 const importer=r('a','A','b'), exporter=r('b','B','a'), regions=[importer,exporter];
+establishTrade(importer,exporter,9);
 const rule=setTradeRestriction(importer,{direction:'import',goods:['food'],allowed:false,enforcement:'communicated'},regions,10);
 const notice=rule.notificationTickByActor.B;
 assert.ok(notice>=11,'physical neighbour notice should take at least one simulation tick');
@@ -14,10 +17,12 @@ assert.equal(borderTariffQuote(exporter,importer,'food',0,{currentTick:notice,de
 assert.equal(borderTariffQuote(exporter,importer,'food',0,{currentTick:notice+5,departureTick:10}).allowed,true,'pre-notice cargo must be grandfathered');
 
 const urgentImporter=r('c','C','d'), urgentExporter=r('d','D','c');
+establishTrade(urgentImporter,urgentExporter,19);
 setTradeRestriction(urgentImporter,{direction:'import',goods:['food'],allowed:false,enforcement:'immediate'},[urgentImporter,urgentExporter],20);
 assert.equal(borderTariffQuote(urgentExporter,urgentImporter,'food',0,{currentTick:20,departureTick:15}).allowed,false,'immediate enforcement reaches cargo already underway');
 
 const tariffImporter=r('e','E','f'), tariffExporter=r('f','F','e');
+establishTrade(tariffImporter,tariffExporter,29);
 const tariffRule=setTradeRestriction(tariffImporter,{direction:'import',goods:['food'],allowed:true,tariffRate:.25},[tariffImporter,tariffExporter],30);
 const tariffNotice=tariffRule.notificationTickByActor.F;
 assert.equal(borderTariffQuote(tariffExporter,tariffImporter,'food',100,{currentTick:30,departureTick:30}).importTariff,0);
