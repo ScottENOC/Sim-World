@@ -106,3 +106,4 @@ t = t.replace("assert.ok(r.stockpile.artillery_shells>0,'industrial state should
 t = t.replace("assert.ok(r.warEconomy.reconstructionNeed>0,'damaged infrastructure should create reconstruction need');", "assert.ok(r.warEconomy.reconstructionNeed>0,'damaged infrastructure should create reconstruction need');\nr.construction.assets[0].condition=1; r.warDamage.infrastructureDamage=999;\ntickIndustrialWarEconomy([r],[],7);\nassert.equal(r.warEconomy.reconstructionNeed,0,'historical bombardment totals should not make reconstruction need permanent after repairs');\ntickIndustrialWarEconomy([r],[campaign],7);")
 p.write_text(t)
 print('industrial war economics finalisation applied')
+# trigger finalisation workflow
