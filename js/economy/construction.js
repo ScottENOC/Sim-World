@@ -167,6 +167,14 @@ export const CONSTRUCTION_TYPES = Object.freeze({
     materials: { stone: 350, wood: 900, bronze: 20 }, wagePerWorkerWeek: 0.002,
     maintenanceRate: 0.03,
   },
+  airfield: {
+    id: 'airfield', name: 'Airfield and aircraft workshops', requiredTechId: 'powered_flight', unique: false,
+    minPopulation: 8000,
+    description: 'Prepared flying ground, hangars, fuel stores and workshops supporting persistent aircraft. Damaged aircraft require materials, money and time here to return to service.',
+    workRequired: 18000, defaultWorkers: 180, minWorkers: 55, maxWorkers: 750,
+    materials: { wood: 1000, stone: 450, steel: 160, textiles: 100 }, wagePerWorkerWeek: 0.0042,
+    maintenanceRate: 0.07,
+  },
   telephone_exchange: {
     id: 'telephone_exchange', name: 'Telephone exchange and local lines', requiredTechId: 'telephone_networks', unique: false,
     requiresInfrastructure: 'telegraph_network', minPopulation: 10000,

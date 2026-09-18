@@ -131,4 +131,4 @@ export function messageRouteDeliveryTicks(route){
   return Math.max(1,Math.ceil(Math.max(0,route.days||0)/7));
 }
 
-export function routeUsesPhysicalCourier(route){return (route?.legs||[]).some(l=>['horse','rail','sea'].includes(l.mode));}
+export function routeUsesPhysicalCourier(route){return (route?.legs||[]).some(l=>['horse','rail','sea','air'].includes(l.mode));}

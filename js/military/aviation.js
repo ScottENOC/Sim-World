@@ -1,4 +1,4 @@
-import { effectiveInfrastructureCount, operationalInfrastructure } from '../economy/construction.js?v=20260918-aviation1';
+import { operationalInfrastructure } from '../economy/construction.js?v=20260918-aviation1';
 
 const DAYS_PER_YEAR=365.2425;
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
@@ -12,6 +12,11 @@ export const AERIAL_BOMBING_TECH_ID='aerial_bombing';
 export const TRANSPORT_AIRCRAFT_TECH_ID='transport_aircraft';
 
 export const AIR_MISSIONS=Object.freeze({IDLE:'idle',SCOUT:'scout',INTERCEPT:'intercept',ATTACK:'attack',COURIER:'courier',TRANSPORT:'transport'});
+
+export function syncNextAircraftId(regions=[]){
+  let max=0; for(const region of regions) for(const a of region.aviation?.aircraft||[]) max=Math.max(max,Number(String(a.id||'').replace(/\D/g,''))||0);
+  nextAircraftId=max+1;
+}
 
 export function ensureAviation(region){
   region.aviation ||= {aircraft:[],flightExperience:0,lastBreakthroughs:[],civilianDemand:0};
@@ -68,8 +73,8 @@ export function buildAircraft(region,{ownerType='civilian',role='recon'}={}){
 }
 
 export function airDefenceRisk(region){
-  const mg=has(region,'machine_guns')?.10:0;
-  const modernGuns=has(region,'quick_firing_artillery')?.07:has(region,'breech_loading_artillery')?.035:0;
+  const mg=has(region,'machine_guns') ? .10 : 0;
+  const modernGuns=has(region,'quick_firing_artillery') ? .07 : has(region,'breech_loading_artillery') ? .035 : 0;
   const density=clamp(((region.earlyModernMilitary?.artillery?.inventory?.length||0)+(region.army?.personnel||0)/5000)/8);
   const coordination=clamp(region.telephone?.militaryCoordination||region.telephone?.service||0);
   return clamp(.01+mg+modernGuns+density*.07+coordination*.06,0,.42);
@@ -97,7 +102,12 @@ export function tickAviation(regions,currentTick,elapsedDays=7,rng=Math.random){
   for(const region of regions){
     const av=ensureAviation(region);
     for(const a of av.aircraft){
-      repairAtBase(region,a,elapsedDays); if(a.status==='destroyed'||a.mission===AIR_MISSIONS.IDLE||a.mission===AIR_MISSIONS.COURIER)continue;
+      repairAtBase(region,a,elapsedDays);
+      if(a.status!=='destroyed'&&a.baseRegionId===region.id&&operationalInfrastructure(region,'airfield')&&(a.fuel??0)<1){
+        const need=Math.max(0,1-(a.fuel||0)); const available=Math.max(0,region.stockpile?.aviation_fuel||0); const take=Math.min(need,available);
+        if(take>0){region.stockpile.aviation_fuel-=take;a.fuel=clamp((a.fuel||0)+take);if(a.status==='grounded'&&a.fuel>.12)a.status='serviceable';}
+      }
+      if(a.status==='destroyed'||a.mission===AIR_MISSIONS.IDLE||a.mission===AIR_MISSIONS.COURIER)continue;
       const target=byId.get(a.targetRegionId)||region,need=missionFuel(a.mission); if((a.fuel||0)<need){a.status='grounded';events.push({type:'aircraft_grounded_no_fuel',aircraftId:a.id,regionId:region.id});continue;}
       const fuelStock=region.stockpile?.aviation_fuel||0;if(fuelStock<need){a.status='grounded';events.push({type:'aircraft_grounded_no_fuel',aircraftId:a.id,regionId:region.id});continue;}
       region.stockpile.aviation_fuel-=need;a.fuel=clamp((a.fuel||1)-need*.15);a.totalFlights++;a.pilotExperience=clamp((a.pilotExperience||0)+.004,0,1);av.flightExperience+=1;
@@ -110,6 +120,12 @@ export function tickAviation(regions,currentTick,elapsedDays=7,rng=Math.random){
     const civil=av.aircraft.filter(a=>a.ownerType==='civilian'&&a.status!=='destroyed').length;
     if(canBuild(region)&&civil<Math.max(1,Math.floor(Math.log10(Math.max(10,region.population||0))-3))){
       const wealth=clamp(Math.log1p(Math.max(0,region.wallet||0))/12),industry=industrialReadiness(region); if(rng()<elapsedDays/DAYS_PER_YEAR*.08*wealth*industry)buildAircraft(region,{ownerType:'civilian',role:'mail'});
+    }
+    const military=av.aircraft.filter(a=>a.ownerType==='military'&&a.status!=='destroyed').length;
+    const militaryCap=Math.max(1,Math.floor(Math.max(0,region.population||0)/250000));
+    if(canBuild(region)&&has(region,MILITARY_AVIATION_TECH_ID)&&military<militaryCap){
+      const urgency=clamp(.2+(region.conflictPressure||0)*1.5+(region.militaryStrategy?.spendingPriority||0)*.35),industry=industrialReadiness(region);
+      if(rng()<elapsedDays/DAYS_PER_YEAR*.12*urgency*industry)buildAircraft(region,{ownerType:'military',role:'recon'});
     }
   }
   return events;
