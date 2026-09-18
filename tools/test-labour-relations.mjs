@@ -59,19 +59,24 @@ const ds=ensureLabourRelations(desperate);ds.unionDensity=.7;ds.grievance=.8;ds.
 tickLabourRelations(desperate,90,7,{isPlayer:true});
 assert.ok(desperate.labourRelations.strikeIntensity>0,'desperate wartime workers must still be able to strike');
 
-// Wage floors and protectionism are trade-offs, not magic grievance-removal buttons.
+// Wage floors remain a labour-policy trade-off. Trade protection must not be duplicated here.
 const policy=region({id:'policy'});
-setLabourPolicy(policy,{minimumWageRatio:1.2,importProtection:.5},{playerChoice:true});
+policy.labourRelations={policy:{importProtection:.5}}; // legacy v1 save/state should self-clean.
+setLabourPolicy(policy,{minimumWageRatio:1.2,importProtection:.6},{playerChoice:true});
 tickLabourRelations(policy,1,7,{isPlayer:true});
 assert.ok(policy.labourRelations.hiringPenalty>0,'an unaffordable wage floor should create hiring drag');
-assert.ok(policy.labourRelations.protectionJobs>0,'protection can shelter import-competing employment');
-assert.ok(policy.labourRelations.protectionCost>0,'protection should also raise cost pressure');
+assert.equal(policy.labourRelations.policy.importProtection,undefined,'duplicate labour protectionism slider must be removed');
+assert.equal(policy.labourRelations.protectionJobs,undefined);
+assert.equal(policy.labourRelations.protectionCost,undefined);
 
 const ui=fs.readFileSync(new URL('../js/ui/labourRelationsUi.js',import.meta.url),'utf8');
 const employment=fs.readFileSync(new URL('../js/economy/employmentAndHardship.js',import.meta.url),'utf8');
 const industry=fs.readFileSync(new URL('../js/economy/industrialSupply.js',import.meta.url),'utf8');
 const war=fs.readFileSync(new URL('../js/economy/industrialWarEconomy.js',import.meta.url),'utf8');
-assert.ok(ui.includes('Minimum wage floor')&&ui.includes('Police response')&&ui.includes('Import protection'));
+const tradePolicy=fs.readFileSync(new URL('../js/economy/tradePolicy.js',import.meta.url),'utf8');
+assert.ok(ui.includes('Minimum wage floor')&&ui.includes('Police response'));
+assert.ok(!ui.includes('labour-protection'),'labour UI must not expose a second protectionism control');
+assert.ok(tradePolicy.includes('setTradeRestriction')&&tradePolicy.includes('tariffRate'),'existing per-good trade policy remains the protectionism mechanism');
 assert.ok(employment.includes('tickLabourRelations'));
 assert.ok(industry.includes('labourRelations?.outputMultiplier'));
 assert.ok(war.includes('labourRelations?.munitionsMultiplier'));
