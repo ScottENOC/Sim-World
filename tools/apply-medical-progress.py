@@ -23,7 +23,7 @@ patch('js/society/publicHealth.js', [
 
 patch('js/society/disease.js', [
 ("import { tickActiveHydrology } from '../world/hydrology.js?v=20260914-water1';", "import { tickActiveHydrology } from '../world/hydrology.js?v=20260914-water1';\nimport { vaccinationProtection } from '../technology/medicalProgress.js?v=20260918-medical1';"),
-("      const susceptible = Math.max(0, 1 - resistance - oldPrevalence);", "      const vaccineProtection = vaccinationProtection(region, id);\n      const susceptible = Math.max(0, 1 - resistance - oldPrevalence) * (1 - vaccineProtection);"),
+("      const pathogen=PATHOGENS[id],p=state.pathogens[id],oldPrevalence=clamp01(snapshot.get(region.id)?.[id]),resistance=clamp01(p.resistance),susceptible=Math.max(0,1-resistance-oldPrevalence);", "      const pathogen=PATHOGENS[id],p=state.pathogens[id],oldPrevalence=clamp01(snapshot.get(region.id)?.[id]),resistance=clamp01(p.resistance);\n      const vaccineProtection=vaccinationProtection(region,id),susceptible=Math.max(0,1-resistance-oldPrevalence)*(1-vaccineProtection);"),
 ])
 
 patch('js/military/campaigns.js', [
