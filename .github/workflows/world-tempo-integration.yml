@@ -1,0 +1,44 @@
+name: World tempo integration
+on:
+  push:
+    branches: [feature/world-tempo-v1]
+permissions:
+  contents: write
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply integration
+        run: python tools/apply-world-tempo.py
+      - name: Syntax checks
+        run: |
+          node --check js/core/worldTempo.js
+          node --check js/core/clock.js
+          node --check js/main.js
+      - name: World tempo regression
+        run: node tools/test-world-tempo.mjs
+      - name: Existing clock regression
+        run: |
+          if [ -f tools/test-clock.mjs ]; then node tools/test-clock.mjs; fi
+          if [ -f tools/test-sim-time.mjs ]; then node tools/test-sim-time.mjs; fi
+      - name: Commit integration
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/main.js
+          if git diff --cached --quiet; then
+            echo 'Integration already current'
+          else
+            git commit -m 'Integrate adaptive world tempo with simulation clock'
+            git pull --rebase
+            git push
+          fi
