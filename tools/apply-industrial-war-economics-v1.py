@@ -77,3 +77,4 @@ if call not in t:
     t=t.replace(anchor2,anchor2+call,1)
 p.write_text(t)
 print('industrial war economics integration applied')
+# retrigger after ammunition regression fixture update
