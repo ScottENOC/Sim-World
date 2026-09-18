@@ -55,4 +55,12 @@ for old, new in replacements:
         raise SystemExit(f'missing main integration pattern: {old[:140]!r}')
     text = text.replace(old, new, 1)
 main.write_text(text)
+
+modern = Path('js/military/modernTactics.js')
+text = modern.read_text()
+old = "defensiveMultiplier = 1 + preparation * (0.34 + state.defensiveFireDiscipline * 0.18);"
+new = "defensiveMultiplier = 1 + preparation * (0.40 + state.defensiveFireDiscipline * 0.18);"
+if old not in text:
+    raise SystemExit('missing prepared-defence calibration pattern')
+modern.write_text(text.replace(old, new, 1))
 print('machine-gun tactical revolution integration applied')
