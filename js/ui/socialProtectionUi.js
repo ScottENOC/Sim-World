@@ -12,7 +12,7 @@ function pct(value){return `${Math.round((Number(value)||0)*100)}%`;}
 function money(value){return Number(value||0).toFixed(1);}
 
 export function renderSocialProtectionControls(){
-  const host=document.getElementById('region-controls');if(!host||host.querySelector('#social-protection-panel'))return;
+  const host=typeof document!=='undefined'?document.getElementById('region-controls'):null;if(!host||host.querySelector('#social-protection-panel'))return;
   const region=selectedRegion();if(!playerCanRule(region))return;
   const s=ensureSocialProtection(region),elig=socialProtectionEligibility(region),summary=socialProtectionSummary(region);
   const panel=document.createElement('div');panel.id='social-protection-panel';panel.className='raid-section social-protection-section';
@@ -55,4 +55,4 @@ function install(){
   observer.observe(host,{childList:true});
   renderSocialProtectionControls();
 }
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+if(typeof document!=='undefined'){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();}

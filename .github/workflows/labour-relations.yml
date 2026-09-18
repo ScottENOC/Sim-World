@@ -1,0 +1,29 @@
+name: Labour relations and strikes
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/society/labourRelations.js'
+      - 'js/ui/labourRelationsUi.js'
+      - 'js/ui/socialProtectionUi.js'
+      - 'js/economy/employmentAndHardship.js'
+      - 'js/economy/industrialSupply.js'
+      - 'js/economy/industrialWarEconomy.js'
+      - 'tools/test-labour-relations.mjs'
+      - '.github/workflows/labour-relations.yml'
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: |
+          node --check js/society/labourRelations.js
+          node --check js/ui/labourRelationsUi.js
+          node --check js/ui/socialProtectionUi.js
+          node --check js/economy/employmentAndHardship.js
+          node --check js/economy/industrialSupply.js
+          node --check js/economy/industrialWarEconomy.js
+          node tools/test-labour-relations.mjs

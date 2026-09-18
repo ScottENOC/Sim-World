@@ -10,7 +10,7 @@ const modernArtillery=(r)=>has(r,'breech_loading_artillery')||has(r,'heavy_howit
 export function ensureIndustrialWarEconomy(region){
  region.warEconomy ||= {};
  const s=region.warEconomy;
- for(const [k,v] of Object.entries({activeCampaigns:0,tradeDisruption:0,reconstructionNeed:0,warExhaustion:0,weeklyLogisticsCost:0,munitionsOutputValue:0,casualtiesThisTick:0})) if(!Number.isFinite(s[k]))s[k]=v;
+ for(const [k,v] of Object.entries({activeCampaigns:0,defendingCampaigns:0,tradeDisruption:0,reconstructionNeed:0,warExhaustion:0,weeklyLogisticsCost:0,munitionsOutputValue:0,casualtiesThisTick:0})) if(!Number.isFinite(s[k]))s[k]=v;
  return s;
 }
 
@@ -34,7 +34,8 @@ function produceMunitions(region,elapsedDays){
  const precision=clamp(industrial.capability?.precision_machining||0);
  const steel=clamp(industrial.capability?.steelmaking||0);
  const firearmPractice=clamp(region.firearms?.readiness||0);
- const base=clamp(precision*.42+steel*.28+firearmPractice*.30);
+ const labourMultiplier=clamp(region.labourRelations?.munitionsMultiplier??1,.35,1);
+ const base=clamp(precision*.42+steel*.28+firearmPractice*.30)*labourMultiplier;
  let smallArms=0,shells=0,spending=0;
  const personnel=Math.max(0,(region.army?.personnel||0)+(region.army?.away||0)+(region.emergencyMilitiaPersonnel||0));
  if(modernInfantry(region)){
@@ -78,7 +79,7 @@ export function tickIndustrialWarEconomy(regions,campaigns=[],elapsedDays=7,poli
  const weekScale=Math.max(.01,elapsedDays/7),years=Math.max(.0001,elapsedDays/DAYS_PER_YEAR);
  for(const region of regions){
   const s=ensureIndustrialWarEconomy(region);const exposure=campaignExposure(region,campaigns);
-  s.activeCampaigns=exposure.count;s.casualtiesThisTick=exposure.casualties;
+  s.activeCampaigns=exposure.count;s.defendingCampaigns=exposure.defending;s.casualtiesThisTick=exposure.casualties;
   const away=Math.max(0,region.army?.away||0),militia=Math.max(0,region.emergencyMilitiaPersonnel||0);
   const modernLoad=(modernInfantry(region)?1.35:1)*(modernArtillery(region)?1.25:1);
   s.weeklyLogisticsCost=(away*.0012+militia*.00075)*modernLoad;
