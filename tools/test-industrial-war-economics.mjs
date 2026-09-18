@@ -9,7 +9,7 @@ function region(id='r1') {
     id, name:id, population:100_000, stability:0.9, safetyRating:0.9,
     unlockedTechIds:new Set(['gunpowder','rifling','steelmaking','military_drill','breech_loading_rifles','magazine_rifles','machine_guns','breech_loading_artillery','quick_firing_artillery','smokeless_powder']),
     stockpile:{ gunpowder:500, steel:500, iron:500, small_arms_ammunition:0, artillery_shells:0, food:10000 },
-    marketDemand:{}, treasury:0, wallet:10000,
+    marketDemand:{}, treasury:20, wallet:10000,
     army:{personnel:1000,away:1000}, navy:{personnel:0}, emergencyMilitiaPersonnel:500,
     horseEconomy:{war:0}, report:{farming:{food:1000},gathering:{food:0},shoreFishing:{food:0},boatFishing:{food:0}},
     tradeEconomy:{weeklyExports:100,weeklyImports:50},
@@ -29,13 +29,22 @@ assert.ok(TRADE_GOODS.small_arms_ammunition?.strategic, 'small-arms ammunition s
 assert.ok(TRADE_GOODS.artillery_shells?.strategic, 'artillery shells should be a strategic trade good');
 
 const r=region();
+const treasuryBeforeMunitions=r.treasury;
+const walletBeforeMunitions=r.wallet;
 const campaign={attackerId:r.id,defenderId:'enemy',completed:false,lastWeek:{attackerLosses:120}};
 tickIndustrialWarEconomy([r],[campaign],7);
 assert.ok(r.stockpile.small_arms_ammunition>0,'industrial state should manufacture small-arms ammunition');
 assert.ok(r.stockpile.artillery_shells>0,'industrial state should manufacture artillery shells');
+assert.ok(r.treasury<treasuryBeforeMunitions,'munitions production should consume public procurement cash');
+assert.ok(r.wallet>walletBeforeMunitions,'domestic munitions spending should return cash to the domestic economy');
+assert.ok(r.report.warEconomy.munitionsSpending>0,'war economy report should expose munitions spending');
 assert.ok(r.warEconomy.weeklyLogisticsCost>0,'deployed force should create logistics cost');
 assert.ok(r.warEconomy.warExhaustion>0,'active war should accumulate exhaustion');
 assert.ok(r.warEconomy.reconstructionNeed>0,'damaged infrastructure should create reconstruction need');
+r.construction.assets[0].condition=1; r.warDamage.infrastructureDamage=999;
+tickIndustrialWarEconomy([r],[],7);
+assert.equal(r.warEconomy.reconstructionNeed,0,'historical bombardment totals should not make reconstruction need permanent after repairs');
+tickIndustrialWarEconomy([r],[campaign],7);
 assert.ok(warTradeDisruptionMultiplier(r)<1,'war disruption should reduce trade reliability');
 
 const ammoBefore=r.stockpile.small_arms_ammunition;
