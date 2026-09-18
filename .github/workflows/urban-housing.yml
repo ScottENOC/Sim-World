@@ -1,0 +1,25 @@
+name: Urban housing and living conditions
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/society/urbanHousing.js'
+      - 'js/economy/employmentAndHardship.js'
+      - 'js/ui/urbanHousingUi.js'
+      - 'tools/test-urban-housing.mjs'
+      - '.github/workflows/urban-housing.yml'
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: |
+          node --check js/society/urbanHousing.js
+          node --check js/economy/employmentAndHardship.js
+          node --check js/ui/urbanHousingUi.js
+          node tools/test-urban-housing.mjs
+          node tools/test-employment-hardship.mjs
+          node tools/test-labour-relations.mjs
