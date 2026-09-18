@@ -1,0 +1,38 @@
+name: Late industrial navy validation
+on:
+  pull_request:
+    paths:
+      - 'js/military/fleets.js'
+      - 'js/military/lateIndustrialNavy.js'
+      - 'js/technology/breakthroughs.js'
+      - 'js/economy/industrialWarEconomy.js'
+      - 'js/economy/tradeGoods.js'
+      - 'js/ui/fleetUi.js'
+      - 'tools/test-late-industrial-navy.mjs'
+      - '.github/workflows/late-industrial-navy.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'js/military/fleets.js'
+      - 'js/military/lateIndustrialNavy.js'
+      - 'js/technology/breakthroughs.js'
+      - 'js/economy/industrialWarEconomy.js'
+      - 'js/economy/tradeGoods.js'
+      - 'js/ui/fleetUi.js'
+      - 'tools/test-late-industrial-navy.mjs'
+      - '.github/workflows/late-industrial-navy.yml'
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: |
+          node --check js/military/lateIndustrialNavy.js
+          node --check js/military/fleets.js
+          node --check js/technology/breakthroughs.js
+          node --check js/economy/industrialWarEconomy.js
+          node --check js/ui/fleetUi.js
+          node tools/test-late-industrial-navy.mjs
+          node tools/test-industrial-war-economics.mjs
