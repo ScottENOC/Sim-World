@@ -1,0 +1,30 @@
+name: Apply urban housing v1
+on:
+  push:
+    branches: [feature/urban-housing-living-conditions-v1]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: feature/urban-housing-living-conditions-v1}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.x'}
+      - run: python tools/apply-urban-housing-v1.py
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: |
+          node --check js/society/urbanHousing.js
+          node --check js/ui/urbanHousingUi.js
+          node --check js/economy/employmentAndHardship.js
+          node tools/test-urban-housing.mjs
+      - run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/economy/employmentAndHardship.js
+          git diff --cached --quiet && exit 0
+          git commit -m 'Integrate urban housing with hardship'
+          git push
