@@ -79,3 +79,5 @@ for filename, paths in configs.items():
     text = text[:start] + block + text[dispatch:]
     p.write_text(text)
     print('SCOPED', filename)
+
+# trigger
