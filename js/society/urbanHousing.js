@@ -121,8 +121,8 @@ function assess(region,s,weeks){
   const growth=Math.max(0,urbanPop-s.lastUrbanPopulation)/Math.max(1,urbanPop);
   const rapidGrowth=clamp(growth*18/Math.max(0.25,weeks));
   const overcrowding=clamp(shortage*0.7+blocked*0.15+rapidGrowth*0.15);
-  const rentPressure=clamp(shortage*0.55+blocked*0.15+urbanShare*0.22+rapidGrowth*0.18-Math.max(0,vacancy)/population*4);
   const standards=s.buildingStandards;
+  const rentPressure=clamp(shortage*0.55+blocked*0.15+urbanShare*0.22+rapidGrowth*0.18+standards*urbanShare*0.10-Math.max(0,vacancy)/population*4);
   const slumPressure=clamp(overcrowding*0.52+rentPressure*0.24+urbanShare*0.18+rapidGrowth*0.16-standards*0.20);
   const theoreticalHealthRisk=clamp(slumPressure*0.7+urbanShare*0.16);
   return {population,urbanPop,urbanShare,vacancy,shortage,blocked,rapidGrowth,overcrowding,rentPressure,slumPressure,theoreticalHealthRisk};
