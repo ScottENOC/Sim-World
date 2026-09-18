@@ -1,0 +1,35 @@
+name: Finalise industrial war economics
+on:
+  push:
+    branches: [feature/industrial-war-economics-v1]
+    paths:
+      - 'tools/finalise-industrial-war-economics-v1.py'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/industrial-war-economics-v1
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: python tools/finalise-industrial-war-economics-v1.py
+      - run: |
+          node --check js/economy/industrialWarEconomy.js
+          node --check js/economy/stateFinance.js
+          node --check js/economy/trade.js
+          node --check js/military/modernLandWarfare.js
+          node --check js/main.js
+          node tools/test-industrial-war-economics.mjs
+          node tools/test-modern-land-warfare.mjs
+          node tools/test-early-modern-military-transition.mjs
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/economy/industrialWarEconomy.js js/main.js js/military/modernLandWarfare.js tools/test-industrial-war-economics.mjs
+          git commit -m 'Finalise industrial war economics integration'
+          git push origin HEAD:feature/industrial-war-economics-v1
