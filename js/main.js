@@ -23,6 +23,7 @@ import { tickNationAi } from './ai/nationAi.js?v=20260913-civil-war2';
 import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDoing.js?v=20260904-weather1';
 import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID, CATAPULT_TECH_ID } from './technology/breakthroughs.js?v=20260912-medieval1';
 import { tickGunpowderIndustry } from './military/firearms.js?v=20260912-gunpowder1';
+import { tickIndustrialWarEconomy } from './economy/industrialWarEconomy.js?v=20260918-industrial-war1';
 import { tickEarlyModernIndustry, tickIrregularTechnology } from './military/earlyModernWarfare.js?v=20260913-early-modern1';
 import { MapRenderer } from './ui/mapRenderer.js?v=20260904-war1';
 import { AdvisorCouncil } from './ui/advisors.js?v=20260905-projects1';
@@ -351,6 +352,7 @@ async function main() {
     await yieldForUi();
     profiler.measure('Gunpowder industry', () => tickGunpowderIndustry(regions, time.elapsedDays));
     profiler.measure('Early-modern military industry', () => tickEarlyModernIndustry(regions, time.elapsedDays));
+    profiler.measure('Industrial war economy', () => tickIndustrialWarEconomy(regions, activeCampaigns, time.elapsedDays));
     profiler.measure('Knowledge pruning', () => pruneKnowledge(regions, calendarWeek));
     profiler.measure('Knowledge diffusion', () => tickFishingKnowledge(fishingContactPairs, calendarWeek));
     profiler.measure('Scouting', () => tickScouting(regions, calendarWeek, Math.random));

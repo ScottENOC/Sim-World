@@ -32,7 +32,7 @@ function ensureMilitaryFinance(region) {
     arrearsWeeks: 0, procurementBudget: 0, procurementSpent: 0,
     weeklyProcurementSpent: 0, fundedPersonnelCap: Infinity, deserters: 0,
     administrationDue: 0, administrationPaid: 0, administrationInKind: 0,
-    stateCapacity: 1,
+    stateCapacity: 1, publicDebt: 0, weeklyInterestDue: 0, weeklyInterestPaid: 0, borrowedThisWeek: 0, sovereignCreditLimit: 0,
   };
   for (const [key, value] of Object.entries(defaults)) {
     if (!Number.isFinite(region.militaryFinance[key])) region.militaryFinance[key] = value;
@@ -110,10 +110,33 @@ export function tickStateFinance(regions, elapsedDays = 7) {
     const capacityAdjustment = administrationRatio < finance.stateCapacity ? 0.05 : 0.01;
     finance.stateCapacity += (administrationRatio - finance.stateCapacity) * capacityAdjustment;
 
-    const payrollDue = (Math.max(0, region.army.personnel || 0) * SOLDIER_UPKEEP_PER_WEEK +
+    const deployedPersonnel = Math.max(0, region.army.away || 0);
+    const militiaPersonnel = Math.max(0, region.emergencyMilitiaPersonnel || 0);
+    const logisticsDue = Math.max(0, region.warEconomy?.weeklyLogisticsCost || 0) * weekScale;
+    const payrollDue = ((Math.max(0, region.army.personnel || 0) + deployedPersonnel) * SOLDIER_UPKEEP_PER_WEEK +
+      militiaPersonnel * SOLDIER_UPKEEP_PER_WEEK * 0.72 +
       Math.max(0, region.navy.personnel || 0) * SAILOR_UPKEEP_PER_WEEK +
       Math.max(0, region.horseEconomy?.war || 0) * WAR_HORSE_UPKEEP_PER_WEEK) * weekScale /
-      classical.payrollEfficiency;
+      classical.payrollEfficiency + logisticsDue;
+
+    const stateCredit = Math.max(0, Math.min(1, region.medievalCommerce?.finance?.stateCredit || 0));
+    const annualRevenue = Math.max(0, finance.revenueEma) * 52;
+    const debtBurden = finance.publicDebt / Math.max(1, annualRevenue);
+    const annualInterestRate = 0.025 + (1 - stateCredit) * 0.09 + Math.min(0.18, debtBurden * 0.025);
+    const interestDue = finance.publicDebt * annualInterestRate / 52 * weekScale;
+    finance.sovereignCreditLimit = annualRevenue * (0.25 + stateCredit * 4.75);
+    finance.borrowedThisWeek = 0;
+    const wartime = (region.warEconomy?.activeCampaigns || 0) > 0 || deployedPersonnel > 0;
+    const cashNeed = Math.max(0, payrollDue + interestDue - Math.max(0, region.treasury || 0));
+    if (wartime && stateCredit > 0.12 && cashNeed > 0) {
+      const borrowing = Math.min(cashNeed, Math.max(0, finance.sovereignCreditLimit - finance.publicDebt));
+      finance.publicDebt += borrowing; finance.borrowedThisWeek = borrowing; region.treasury += borrowing;
+    }
+    const interestPaid = Math.min(Math.max(0, region.treasury || 0), interestDue);
+    region.treasury -= interestPaid; region.wallet += interestPaid;
+    finance.weeklyInterestDue = interestDue; finance.weeklyInterestPaid = interestPaid;
+    if (interestPaid < interestDue) { finance.publicDebt += interestDue - interestPaid; region.stability = Math.max(0, region.stability - 0.0005 * weekScale); }
+
     const payrollPaid = Math.min(Math.max(0, region.treasury || 0), payrollDue);
     region.treasury -= payrollPaid;
     region.wallet += payrollPaid;
@@ -149,10 +172,11 @@ export function tickStateFinance(regions, elapsedDays = 7) {
       (operatingRevenue + Math.max(0, region.treasury) / 52) / blendedUpkeep
     );
 
-    const nextPayroll = (Math.max(0, region.army.personnel) * SOLDIER_UPKEEP_PER_WEEK +
+    const nextPayroll = ((Math.max(0, region.army.personnel) + Math.max(0, region.army.away || 0)) * SOLDIER_UPKEEP_PER_WEEK +
+      Math.max(0, region.emergencyMilitiaPersonnel || 0) * SOLDIER_UPKEEP_PER_WEEK * 0.72 +
       Math.max(0, region.navy.personnel) * SAILOR_UPKEEP_PER_WEEK +
       Math.max(0, region.horseEconomy?.war || 0) * WAR_HORSE_UPKEEP_PER_WEEK) /
-      classical.payrollEfficiency;
+      classical.payrollEfficiency + Math.max(0, region.warEconomy?.weeklyLogisticsCost || 0);
     const unreservedTreasury = Math.max(0, region.treasury - nextPayroll * PAYROLL_RESERVE_WEEKS);
     finance.procurementBudget = Math.min(
       unreservedTreasury,
@@ -167,7 +191,9 @@ export function tickStateFinance(regions, elapsedDays = 7) {
       procurementBudget: finance.procurementBudget,
       procurementSpent: finance.weeklyProcurementSpent,
       administrationRatio, stateCapacity: finance.stateCapacity,
-      administrationInKind, classicalFiscalProfile: classical,
+      administrationInKind, classicalFiscalProfile: classical, deployedPersonnel, militiaPersonnel, logisticsDue,
+      publicDebt: finance.publicDebt, borrowedThisWeek: finance.borrowedThisWeek, sovereignCreditLimit: finance.sovereignCreditLimit,
+      interestDue: finance.weeklyInterestDue, interestPaid: finance.weeklyInterestPaid,
     };
   }
 }

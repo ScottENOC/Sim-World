@@ -68,6 +68,8 @@ export const TRADE_GOODS = {
   iron_weapons:   { label: 'New iron weapons & armour', basePrice: 60, referenceStock: 100, category: 'military_equipment', strategic: true, cargoKgPerUnit: 5 },
   gunpowder:      { label: 'Gunpowder', basePrice: 28, referenceStock: 180, category: 'military_supply', strategic: true, cargoKgPerUnit: 1 },
   firearms:       { label: 'Firearms', basePrice: 95, referenceStock: 120, category: 'military_equipment', strategic: true, cargoKgPerUnit: 4 },
+  small_arms_ammunition: { label: 'Small-arms ammunition', basePrice: 12, referenceStock: 500, category: 'military_supply', strategic: true, cargoKgPerUnit: 0.35 },
+  artillery_shells: { label: 'Artillery shells', basePrice: 38, referenceStock: 180, category: 'military_supply', strategic: true, cargoKgPerUnit: 4.5 },
   siege_equipment:{ label: 'New siege equipment', basePrice: 500, referenceStock: 10, category: 'military_equipment', strategic: true, cargoKgPerUnit: 500 },
   warship:        { label: 'New warship', basePrice: 900, referenceStock: 8, category: 'military_equipment', strategic: true, cargoKgPerUnit: 1200 },
 };

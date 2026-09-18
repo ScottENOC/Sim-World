@@ -64,12 +64,12 @@ export function modernInfantryProfile(region,personnel,firearmProfile,{role='att
  const armed=clamp(firearmProfile?.suppliedShare||0); if(personnel<=0||armed<=0)return{multiplier:1,defenceMultiplier:1,intensityMultiplier:1,ammoSupply:1,powderUsed:0,shotUsed:0};
  const breech=has(region,BREECH_RIFLE_TECH_ID),magazine=has(region,MAGAZINE_RIFLE_TECH_ID),smokeless=has(region,SMOKELESS_POWDER_TECH_ID),mg=has(region,MACHINE_GUN_TECH_ID);
  const weeks=Math.max(.1,elapsedDays/7); const rate=(breech ? .35 : 0)+(magazine ? .75 : 0)+(mg?1.15:0);
- const powderNeed=personnel*armed*.006*rate*weeks*(smokeless ? .82 : 1); const shotNeed=personnel*armed*.0018*rate*weeks;
- const supply=Math.min(clamp(logisticsSupply),powderNeed>0?clamp((region.stockpile?.gunpowder||0)/powderNeed):1,shotNeed>0?clamp(availableShotMetal(region)/shotNeed):1);
- let powderUsed=0,shotUsed=0;if(consumeSupplies&&supply>0){powderUsed=powderNeed*supply;shotUsed=shotNeed*supply;region.stockpile.gunpowder=Math.max(0,(region.stockpile.gunpowder||0)-powderUsed);consumeShotMetal(region,shotUsed);}
+ const ammunitionNeeded=personnel*armed*.018*rate*weeks*(smokeless ? .9 : 1);
+ const supply=Math.min(clamp(logisticsSupply),ammunitionNeeded>0?clamp((region.stockpile?.small_arms_ammunition||0)/ammunitionNeeded):1);
+ let ammunitionUsed=0;if(consumeSupplies&&supply>0){ammunitionUsed=ammunitionNeeded*supply;region.stockpile.small_arms_ammunition=Math.max(0,(region.stockpile.small_arms_ammunition||0)-ammunitionUsed);}
  const firepower=armed*supply*((breech ? .08 : 0)+(magazine ? .11 : 0)+(smokeless ? .07 : 0)+(mg?.12:0));
  const defence=armed*supply*((breech ? .05 : 0)+(magazine ? .08 : 0)+(smokeless ? .05 : 0)+(mg?.34:0));
- return{multiplier:1+firepower,defenceMultiplier:role==='defender'?1+defence:1,intensityMultiplier:1+armed*supply*((magazine ? .12 : 0)+(mg ? .22 : 0)),ammoSupply:supply,powderUsed,shotUsed,breech,magazine,smokeless,machineGuns:mg};
+ return{multiplier:1+firepower,defenceMultiplier:role==='defender'?1+defence:1,intensityMultiplier:1+armed*supply*((magazine ? .12 : 0)+(mg ? .22 : 0)),ammoSupply:supply,ammunitionUsed,powderUsed:0,shotUsed:0,breech,magazine,smokeless,machineGuns:mg};
 }
 
 export function entrenchmentDefenceMultiplier(region,weeksEngaged=0){
@@ -85,15 +85,14 @@ export function modernArtilleryProfile(region,baseProfile={}, {elapsedDays=7,log
  const ammoMultiplier=1+(breech ? .3 : 0)+(quick ? .8 : 0)+(heavy ? .35 : 0);
  const weeks=Math.max(.1,elapsedDays/7);
  const extraFactor=Math.max(0,ammoMultiplier-1);
- const powderNeed=guns*.06*extraFactor*weeks*(smokeless ? .86 : 1);
- const shotNeed=guns*.022*extraFactor*weeks;
- const ammoSupply=Math.min(clamp(logisticsSupply),powderNeed>0?clamp((region.stockpile?.gunpowder||0)/powderNeed):1,shotNeed>0?clamp(availableShotMetal(region)/shotNeed):1);
- let powderUsed=0,shotUsed=0;if(consumeSupplies&&ammoSupply>0){powderUsed=powderNeed*ammoSupply;shotUsed=shotNeed*ammoSupply;region.stockpile.gunpowder=Math.max(0,(region.stockpile.gunpowder||0)-powderUsed);consumeShotMetal(region,shotUsed);}
+ const shellsNeeded=guns*.16*extraFactor*weeks;
+ const ammoSupply=Math.min(clamp(logisticsSupply),shellsNeeded>0?clamp((region.stockpile?.artillery_shells||0)/shellsNeeded):1);
+ let shellsUsed=0;if(consumeSupplies&&ammoSupply>0){shellsUsed=shellsNeeded*ammoSupply;region.stockpile.artillery_shells=Math.max(0,(region.stockpile.artillery_shells||0)-shellsUsed);}
  const supplied=baseSupplied*ammoSupply;
  const combat=1+supplied*((breech ? .05 : 0)+(quick ? .10 : 0)+(heavy ? .05 : 0));
  const bombardment=clamp(supplied*(breech ? .35 : 0)*(1+(heavy ? .45 : 0)+(quick ? .3 : 0)),0,1);
  const precision=clamp((breech ? .25 : 0)+(smokeless ? .12 : 0)+(quick ? .12 : 0));
- return{combatMultiplier:combat,bombardment,precision,ammoMultiplier,ammoSupply,powderUsed,shotUsed,breech,quick,heavy};
+ return{combatMultiplier:combat,bombardment,precision,ammoMultiplier,ammoSupply,shellsUsed,powderUsed:0,shotUsed:0,breech,quick,heavy};
 }
 
 const CONSTRUCTION_TARGETS=['telegraph_network','local_electric_grid','coal_power_station','hydro_power_station','road_network','harbour','shipyard','royal_arsenal','steelworks','factory','refinery','canal','administrative_centre','public_granary'];

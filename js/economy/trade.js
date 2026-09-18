@@ -17,6 +17,7 @@ import { quarantineTradeFriction } from '../society/disease.js?v=20260912-diseas
 import { medievalTradeFrictionMultiplier } from './medievalCommercialInstitutions.js?v=20260912-medieval2';
 import { recordCommodityTrade } from './foodLuxuries.js?v=20260913-food-luxuries1';
 import { corporateVentureCapacityMultiplier } from './corporateCapital.js?v=20260913-capital2';
+import { warTradeDisruptionMultiplier } from './industrialWarEconomy.js?v=20260918-industrial-war1';
 
 const LAND_ADJACENT_COST = 0.02;
 const SEA_COST_PER_KM = 0.0002;
@@ -208,7 +209,8 @@ function routeReliability(regionA, regionB) {
   const securityB = Number.isFinite(regionB._tradeSecurityThisTick)
     ? regionB._tradeSecurityThisTick : routeSecurity(regionB);
   const security = Math.min(securityA, securityB);
-  return clamp01(Math.pow(clamp01((security - 0.2) / 0.8), 2) * tradeRelationMultiplier(regionA, regionB));
+  return clamp01(Math.pow(clamp01((security - 0.2) / 0.8), 2) * tradeRelationMultiplier(regionA, regionB) *
+    warTradeDisruptionMultiplier(regionA) * warTradeDisruptionMultiplier(regionB));
 }
 
 function ensureTradeEconomy(region) {

@@ -1,0 +1,41 @@
+name: Industrial war economics
+on:
+  pull_request:
+    paths:
+      - 'js/economy/industrialWarEconomy.js'
+      - 'js/economy/stateFinance.js'
+      - 'js/economy/trade.js'
+      - 'js/economy/tradeGoods.js'
+      - 'js/military/modernLandWarfare.js'
+      - 'js/main.js'
+      - 'tools/test-industrial-war-economics.mjs'
+      - 'tools/test-modern-land-warfare.mjs'
+      - '.github/workflows/industrial-war-economics.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'js/economy/industrialWarEconomy.js'
+      - 'js/economy/stateFinance.js'
+      - 'js/economy/trade.js'
+      - 'js/economy/tradeGoods.js'
+      - 'js/military/modernLandWarfare.js'
+      - 'js/main.js'
+      - 'tools/test-industrial-war-economics.mjs'
+      - 'tools/test-modern-land-warfare.mjs'
+      - '.github/workflows/industrial-war-economics.yml'
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: |
+          node --check js/economy/industrialWarEconomy.js
+          node --check js/economy/stateFinance.js
+          node --check js/economy/trade.js
+          node --check js/military/modernLandWarfare.js
+          node --check js/main.js
+          node tools/test-industrial-war-economics.mjs
+          node tools/test-modern-land-warfare.mjs
+          node tools/test-early-modern-military-transition.mjs
