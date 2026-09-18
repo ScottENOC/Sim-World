@@ -45,6 +45,31 @@ export function artilleryFireControlProfile(region,defender,{currentTick=null,we
   return {effectiveRangeKm,rangeMultiplier,precision,combatMultiplier,observation:obs,counterBatteryEffect,commandStrikeChance,commandDisruption,logisticsInterdiction,technique,weeksEngaged};
 }
 
+export function resolveArtilleryTargeting(attacker,defender,profile,{bombardment=0,rng=Math.random,currentTick=0}={}){
+  const active=clamp(bombardment);
+  if(active<=0||profile.precision<=0) return {commandHit:false,commandMultiplier:1,logisticsMultiplier:1,counterBatteryMultiplier:1};
+  const commandChance=clamp(profile.commandStrikeChance*active);
+  const commandHit=rng()<commandChance;
+  const commandSeverity=commandHit?clamp(.10+profile.commandDisruption*.55):0;
+  const logisticsSeverity=clamp(profile.logisticsInterdiction*active*.24);
+  const counterBatterySeverity=clamp(profile.counterBatteryEffect*active*.32);
+  if(commandHit){
+    defender.warDamage ||= {infrastructureDamage:0,bombardmentWeeks:0};
+    defender.warDamage.commandPostHits=(defender.warDamage.commandPostHits||0)+1;
+    defender.warDamage.lastCommandPostHitTick=currentTick;
+  }
+  return {
+    commandHit,
+    commandStrikeChance:commandChance,
+    commandSeverity,
+    commandMultiplier:1-commandSeverity,
+    logisticsSeverity,
+    logisticsMultiplier:1-logisticsSeverity,
+    counterBatterySeverity,
+    counterBatteryMultiplier:1-counterBatterySeverity,
+  };
+}
+
 export function recordArtilleryFireControlLessons(region,defender,{currentTick=0,intensity=0,bombardment=0,enemyArtillery=0}={}){
   const s=ensureArtilleryFireControl(region);
   if(!has(region,BREECH_ARTILLERY_TECH_ID)) return s;
