@@ -1,4 +1,5 @@
 import { elapsedWeeks } from '../core/simTime.js?v=20260905-time1';
+import { medicalKnowledgeIndex, preventionKnowledgeEffect, treatmentKnowledgeEffect } from '../technology/medicalProgress.js?v=20260918-medical1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const PUBLIC_BED_BUILD_COST=0.7;
@@ -92,7 +93,8 @@ function operateHospitals(region,s,weeks){
   const totalBeds=Math.max(0,s.charitableBeds+s.publicBeds);
   const literacySignal=literacy(region);
   const admin=stateCapacity(region);
-  s.staffingRatio=clamp(0.18+literacySignal*0.78+admin*0.18);
+  const medicalKnowledge=medicalKnowledgeIndex(region);
+  s.staffingRatio=clamp(0.12+literacySignal*0.35+admin*0.15+medicalKnowledge*0.55);
   const desiredCost=totalBeds*BED_ANNUAL_OPERATING_COST*weeks/52*(0.45+0.55*s.staffingRatio);
   const treasury=Math.max(0,Number(region.treasury)||0);
   const publicShare=totalBeds>0?s.publicBeds/totalBeds:0;
@@ -126,6 +128,7 @@ export function tickPublicHealth(region,elapsedDays=7,{isPlayer=false}={}){
     publicBeds:s.publicBeds,charitableBeds:s.charitableBeds,operationalBeds:s.operationalBeds,
     staffingRatio:s.staffingRatio,fundingRatio:s.fundingRatio,occupancyPressure:s.occupancyPressure,
     hospitalSpend:s.hospitalSpend,hospitalBuildSpend:s.hospitalBuildSpend,publicBedsBuilt:s.publicBedsBuilt,
+    medicalKnowledge:medicalKnowledgeIndex(region),
   };
   return region.publicHealthReport;
 }
@@ -140,14 +143,15 @@ export function hospitalTreatmentEffect(region,pathogenId,prevalence){
   const weeklyBedNeed=activeCases*0.18;
   const bedCoverage=weeklyBedNeed>0?clamp(beds/weeklyBedNeed):0;
   s.occupancyPressure=bedCoverage>0?clamp(1/Math.max(0.01,bedCoverage),0,4):4;
-  const medicalKnowledge=clamp(0.10+literacy(region)*0.55+stateCapacity(region)*0.10);
+  const medicalKnowledge=treatmentKnowledgeEffect(region,pathogenId);
   const treatability=PATHOGEN_TREATABILITY[pathogenId]??0.25;
-  return clamp(bedCoverage*s.staffingRatio*s.fundingRatio*medicalKnowledge*treatability,0,0.65);
+  return clamp(bedCoverage*s.staffingRatio*s.fundingRatio*medicalKnowledge*treatability,0,0.75);
 }
 
 export function publicHealthPreventionEffect(region){
   const s=ensurePublicHealth(region);
   const admin=clamp(s.publicHealthAdministration*stateCapacity(region));
   const sanitation=clamp(region.urbanHousing?.sanitationLevel||0);
-  return clamp(admin*0.16+sanitation*admin*0.12,0,0.28);
+  const knowledge=preventionKnowledgeEffect(region);
+  return clamp(admin*0.16+sanitation*admin*0.12+knowledge*admin,0,0.48);
 }

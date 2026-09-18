@@ -1,5 +1,6 @@
 import { DAYS_PER_YEAR } from '../core/simTime.js?v=20260905-time1';
 import { tickActiveHydrology } from '../world/hydrology.js?v=20260914-water1';
+import { vaccinationProtection } from '../technology/medicalProgress.js?v=20260918-medical1';
 import { tickPublicHealth, hospitalTreatmentEffect, publicHealthPreventionEffect } from './publicHealth.js?v=20260918-public-health1';
 
 export const PATHOGENS = Object.freeze({
@@ -64,7 +65,8 @@ export function tickDisease(regions,elapsedDays=30,rng=Math.random){
     const outbreakKnown=recognisedBurden>0.003||knownNearbyOutbreak(region,regionsById,snapshot);const desiredQuarantine=outbreakKnown?state.quarantinePolicy:0;state.effectiveQuarantine+=(desiredQuarantine-state.effectiveQuarantine)*Math.min(1,days/30);
     const prevention=publicHealthPreventionEffect(region);const urbanRisk=clamp01(region.urbanHealthRisk);
     for(const id of PATHOGEN_IDS){
-      const pathogen=PATHOGENS[id],p=state.pathogens[id],oldPrevalence=clamp01(snapshot.get(region.id)?.[id]),resistance=clamp01(p.resistance),susceptible=Math.max(0,1-resistance-oldPrevalence);
+      const pathogen=PATHOGENS[id],p=state.pathogens[id],oldPrevalence=clamp01(snapshot.get(region.id)?.[id]),resistance=clamp01(p.resistance);
+      const vaccineProtection=vaccinationProtection(region,id),susceptible=Math.max(0,1-resistance-oldPrevalence)*(1-vaccineProtection);
       const importPressure=contactPressure(region,id,regionsById,snapshot)*(1-state.effectiveQuarantine*QUARANTINE_IMPORT_REDUCTION);
       const waterPressure=id==='enteric'?clamp01(region?.hydrology?.waterborneDiseasePressure):0;
       const crowdingAmplifier=1+urbanRisk*(id==='respiratory'?0.75:id==='enteric'?0.38:0.24);
