@@ -67,8 +67,8 @@ export function modernInfantryProfile(region,personnel,firearmProfile,{role='att
  const ammunitionNeeded=personnel*armed*.018*rate*weeks*(smokeless ? .9 : 1);
  const supply=Math.min(clamp(logisticsSupply),ammunitionNeeded>0?clamp((region.stockpile?.small_arms_ammunition||0)/ammunitionNeeded):1);
  let ammunitionUsed=0;if(consumeSupplies&&supply>0){ammunitionUsed=ammunitionNeeded*supply;region.stockpile.small_arms_ammunition=Math.max(0,(region.stockpile.small_arms_ammunition||0)-ammunitionUsed);}
- const firepower=armed*supply*((breech ? .08 : 0)+(magazine ? .11 : 0)+(smokeless ? .07 : 0)+(mg?.12:0));
- const defence=armed*supply*((breech ? .05 : 0)+(magazine ? .08 : 0)+(smokeless ? .05 : 0)+(mg?.34:0));
+ const firepower=armed*supply*((breech ? .08 : 0)+(magazine ? .11 : 0)+(smokeless ? .07 : 0)+(mg ? .12 : 0));
+ const defence=armed*supply*((breech ? .05 : 0)+(magazine ? .08 : 0)+(smokeless ? .05 : 0)+(mg ? .34 : 0));
  return{multiplier:1+firepower,defenceMultiplier:role==='defender'?1+defence:1,intensityMultiplier:1+armed*supply*((magazine ? .12 : 0)+(mg ? .22 : 0)),ammoSupply:supply,ammunitionUsed,powderUsed:0,shotUsed:0,breech,magazine,smokeless,machineGuns:mg};
 }
 
