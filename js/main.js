@@ -370,6 +370,7 @@ async function main() {
     for (const region of regions) tickElectricity(region, time.elapsedDays);
     for (const region of regions) tickLocalCommunications(region, time.elapsedDays);
     for (const region of regions) tickHouseholdEnergy(region, time.elapsedDays);
+    profiler.measure('Industrial war economy', () => tickIndustrialWarEconomy(regions, activeCampaigns, time.elapsedDays, polities));
     profiler.measure('Trade', () => tickTrade(regions, calendarWeek, time, agreements, profiler));
     await yieldForUi();
     profiler.measure('Maritime experience', () => tickMaritimeExperience(regions, activeRaids, time.elapsedDays));
