@@ -1,0 +1,25 @@
+name: Public health and hospitals
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/society/publicHealth.js'
+      - 'js/society/disease.js'
+      - 'js/ui/urbanHousingUi.js'
+      - 'tools/test-public-health-hospitals.mjs'
+      - '.github/workflows/public-health-hospitals.yml'
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: |
+          node --check js/society/publicHealth.js
+          node --check js/society/disease.js
+          node --check js/ui/urbanHousingUi.js
+          node tools/test-public-health-hospitals.mjs
+          node tools/test-disease.mjs
+          node tools/test-urban-housing.mjs
