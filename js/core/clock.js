@@ -1,10 +1,9 @@
 import { TIME_RESOLUTIONS, formatHistoricalDate, resolutionForWorld } from './simTime.js?v=20260905-time1';
 
-// 1x is deliberately slow. The design budget is the eventual full world on a
-// representative phone, not a tiny present-day calibration map. Bronze Age
-// starts monthly; later capabilities can tighten the historical tick cadence
-// while keeping the same wall-clock pacing philosophy.
-export const MS_PER_TICK_AT_1X = 2200;
+// 1x aims for roughly two real seconds per turn. Historical time covered by a
+// turn is independent of wall-clock speed and can contract as the simulated
+// world develops faster communications, transport and administration.
+export const MS_PER_TICK_AT_1X = 2000;
 const RUNNING_SPEEDS = [0.5, 1, 2, 4];
 const PERFORMANCE_HEADROOM = 1.08;
 
@@ -17,6 +16,7 @@ export class Clock {
     this.tickIndex = 0;
     this.elapsedDays = 0;
     this.resolution = TIME_RESOLUTIONS.month;
+    this.worldTempo = { index: 0, daysPerTick: 30, label: 'monthly', signals: {} };
     this.speed = 1;
     this._resumeSpeed = 1;
     this._nextTickAt = null;
@@ -75,6 +75,18 @@ export class Clock {
 
   setWorldCapabilities(capabilities) {
     this.resolution = resolutionForWorld(capabilities);
+  }
+
+  setWorldTempo(tempo) {
+    const daysPerTick = Math.max(1, Math.min(30, Number(tempo?.daysPerTick) || 30));
+    this.worldTempo = {
+      index: Math.max(0, Math.min(1, Number(tempo?.index) || 0)),
+      daysPerTick,
+      label: tempo?.label || 'adaptive',
+      signals: { ...(tempo?.signals || {}) },
+    };
+    this.resolution = { id: 'adaptive', label: this.worldTempo.label, daysPerTick };
+    return this.worldTempo;
   }
 
   setResolution(resolution) {
@@ -138,6 +150,7 @@ export class Clock {
             endDay: this.elapsedDays,
             elapsedDays,
             resolution: this.resolution.id,
+            worldTempo: this.worldTempo,
           };
           for (const fn of this._tickListeners) {
             const result = fn(timeContext);
