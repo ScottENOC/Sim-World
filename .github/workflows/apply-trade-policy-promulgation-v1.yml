@@ -23,6 +23,8 @@ jobs:
         with:
           python-version: '3.12'
       - run: python tools/apply-trade-policy-promulgation-v1.py
+      - name: Use civilian commodity in timing regression
+        run: sed -i "s/'steel'/'food'/g" tools/test-trade-policy-promulgation.mjs
       - uses: actions/setup-node@v4
         with:
           node-version: 20
