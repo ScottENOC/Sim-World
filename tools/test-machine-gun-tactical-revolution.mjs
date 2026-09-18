@@ -33,7 +33,7 @@ assert(veteranInitial.casualtyMultiplier>1.25,
 const defenderProfile=modernTacticalProfile(mgDefender,oldVeterans,{role:'defender',weeksEngaged:6,terrain:'plains'});
 assert(defenderProfile.defensiveMultiplier>1.3,'machine-gun tactical employment should strongly amplify prepared defence');
 
-const before=ensureModernTactics(oldVeterans);
+const before={...ensureModernTactics(oldVeterans)};
 for(let week=0;week<30;week++) {
   recordModernCombatLessons(oldVeterans,mgDefender,{role:'attacker',casualtyShare:.035,intensity:.05,weeksEngaged:week+1,currentTick:week});
 }
