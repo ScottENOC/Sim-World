@@ -1,0 +1,35 @@
+name: Apply international reserve currency integration
+on:
+  push:
+    branches: [feature/international-reserve-currencies-v1]
+    paths:
+      - 'tools/apply-international-reserve-currencies-v1.py'
+      - 'tools/test-international-reserve-currencies.mjs'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/international-reserve-currencies-v1
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: python tools/apply-international-reserve-currencies-v1.py
+      - run: |
+          node --check js/economy/forex.js
+          node --check js/economy/internationalMoney.js
+          node --check js/economy/stateFinance.js
+          node --check js/main.js
+          node tools/test-international-reserve-currencies.mjs
+          node tools/test-monetary-modernisation.mjs
+          node tools/test-forex.mjs
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/economy/forex.js js/economy/internationalMoney.js js/economy/stateFinance.js js/main.js
+          git commit -m 'Integrate international reserve currencies'
+          git push origin HEAD:feature/international-reserve-currencies-v1
