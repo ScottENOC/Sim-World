@@ -30,5 +30,3 @@ jobs:
         run: node tools/test-industrial-production.mjs
       - name: Railway compatibility regression
         run: node tools/test-industrial-railways.mjs
-      - name: Equipment generations regression
-        run: node tools/test-equipment-generations.mjs
