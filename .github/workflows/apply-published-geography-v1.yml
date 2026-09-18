@@ -1,0 +1,27 @@
+name: Apply published geography integration
+on:
+  push:
+    branches: [feature/published-geography-v1]
+    paths:
+      - 'tools/apply-published-geography-v1.py'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/published-geography-v1
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: python tools/apply-published-geography-v1.py
+      - run: node --check js/main.js && node tools/test-published-geography.mjs
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/main.js
+          git commit -m 'Integrate published geography into simulation'
+          git push origin HEAD:feature/published-geography-v1
