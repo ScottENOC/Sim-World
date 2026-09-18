@@ -1,0 +1,23 @@
+name: Employment and household hardship
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/economy/employmentAndHardship.js'
+      - 'js/economy/labor.js'
+      - 'js/ui/socialOverlays.js'
+      - 'tools/test-employment-household-hardship.mjs'
+      - '.github/workflows/employment-household-hardship.yml'
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: |
+          node --check js/economy/employmentAndHardship.js
+          node --check js/economy/labor.js
+          node --check js/ui/socialOverlays.js
+          node tools/test-employment-household-hardship.mjs
