@@ -56,6 +56,7 @@ import { tickEarlyModernReform } from './society/earlyModernReform.js?v=20260914
 import { tickOceanicExploration } from './economy/oceanicExploration.js?v=20260914-exploration1';
 import { tickMedievalDoctrine } from './military/medievalDoctrine.js?v=20260912-medieval2';
 import { tickModernTactics } from './military/modernTactics.js?v=20260919-mg-tactics1';
+import { tickArtilleryFireControl } from './military/artilleryFireControl.js?v=20260919-artillery1';
 import { tickNonStateOrganisations } from './politics/nonStateOrganisations.js?v=20260912-organisations1';
 import { tickPrivateMilitaryActors } from './politics/privateMilitaryActors.js?v=20260912-pmc1';
 import { tickOrganisationInteractions } from './politics/nonStateInteractions.js?v=20260912-organisations2';
@@ -508,6 +509,7 @@ async function main() {
     const oceanicExplorationEvents = profiler.measure('Oceanic exploration', () => tickOceanicExploration(regions, seaRegions, fleets, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));
     profiler.measure('Medieval doctrine', () => tickMedievalDoctrine(regions, time.elapsedDays));
     profiler.measure('Modern tactical adaptation', () => tickModernTactics(regions, time.elapsedDays));
+    profiler.measure('Artillery fire control', () => tickArtilleryFireControl(regions, time.elapsedDays));
     const medievalReligiousEvents = profiler.measure('Religious politics', () => tickMedievalReligiousPolitics(regions, religiousWorld, polities, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId, activeWars }));
     const organisationEvents = profiler.measure('Non-state organisations', () => tickNonStateOrganisations(regions, polities, religiousWorld, calendarWeek, time.elapsedDays, Math.random, { agreements, activeRaids }));
     const privateMilitaryEvents = profiler.measure('Private military actors', () => tickPrivateMilitaryActors(regions, polities, religiousWorld, activeCampaigns, calendarWeek, time.elapsedDays, Math.random));
