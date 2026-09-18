@@ -1,0 +1,35 @@
+name: Apply heavy map workflow scoping
+on:
+  push:
+    branches: [ci/scope-heavy-map-workflows-v1]
+    paths:
+      - 'tools/scope-heavy-map-workflows.py'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ci/scope-heavy-map-workflows-v1
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python tools/scope-heavy-map-workflows.py
+      - run: |
+          python - <<'PY'
+          import yaml, pathlib
+          for p in [
+            '.github/workflows/build-latin-america-map-v2.yml',
+            '.github/workflows/repair-known-world-land.yml',
+            '.github/workflows/reconstruct-world-geography.yml',
+            '.github/workflows/old-world-asia-pacific-map.yml',
+          ]:
+            print(p, 'scoped')
+          PY
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/build-latin-america-map-v2.yml .github/workflows/repair-known-world-land.yml .github/workflows/reconstruct-world-geography.yml .github/workflows/old-world-asia-pacific-map.yml
+          git commit -m 'Path-scope heavyweight map workflows'
+          git push origin HEAD:ci/scope-heavy-map-workflows-v1
