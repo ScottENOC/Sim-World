@@ -1,0 +1,49 @@
+name: Mass politics validation
+on:
+  push:
+    branches: [feature/1919-mass-politics-v1]
+  pull_request:
+    paths:
+      - 'js/politics/massPolitics.js'
+      - 'js/ui/massPoliticsUi.js'
+      - 'js/main.js'
+      - 'tools/test-mass-politics.mjs'
+      - '.github/workflows/mass-politics.yml'
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply integration on feature branch
+        if: github.event_name == 'push'
+        run: python tools/apply-mass-politics-integration.py
+      - name: Syntax checks
+        run: |
+          node --check js/politics/massPolitics.js
+          node --check js/ui/massPoliticsUi.js
+          node --check js/main.js
+      - name: Mass politics regression
+        run: node tools/test-mass-politics.mjs
+      - name: Commit integration on feature branch
+        if: github.event_name == 'push'
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/main.js
+          if git diff --cached --quiet; then
+            echo 'Integration already current'
+          else
+            git commit -m 'Integrate mass politics with simulation runtime'
+            git pull --rebase
+            git push
+          fi
