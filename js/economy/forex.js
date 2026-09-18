@@ -16,7 +16,13 @@ export function currencyCommodityValue(currency) {
   // actually risk paying before assay and reminting.
   const fineness = clamp(c.fineness ?? 1, 0.15, 1);
   const trust = clamp(c.trust ?? 0);
-  return fineness * (0.72 + trust * 0.28);
+  const ownValue = fineness * (0.72 + trust * 0.28);
+  if (c.peg?.anchorCurrencyId && Number.isFinite(c.peg.anchorCommodityValue) && Number.isFinite(c.peg.targetRate)) {
+    const credibility = clamp(c.peg.credibility ?? 0);
+    const peggedValue = Math.max(0.001, c.peg.anchorCommodityValue * c.peg.targetRate);
+    return ownValue * (1 - credibility) + peggedValue * credibility;
+  }
+  return ownValue;
 }
 
 export function moneyChangerCapability(region) {

@@ -32,6 +32,9 @@ function currencySnapshot(currency) {
     reserveCoverage: Number(currency.reserveCoverage) || 0,
     inflation: Number(currency.inflation) || 0,
     policyRate: Number(currency.policyRate) || 0,
+    reserveCurrencyScore: Number(currency.reserveCurrencyScore) || 0,
+    peg: currency.peg ? { ...currency.peg } : null,
+    unionId: currency.unionId || null,
     generation: currency.generation || 1,
     active: true,
   };
@@ -79,6 +82,8 @@ export function ensureCurrencyInstitution(polity) {
   if (!Number.isFinite(currency.seigniorageRaised)) currency.seigniorageRaised = 0;
   if (!Number.isFinite(currency.monetaryBase)) currency.monetaryBase = 0;
   if (!Number.isFinite(currency.reserveValue)) currency.reserveValue = 0;
+  if (!Number.isFinite(currency.reserveCurrencyScore)) currency.reserveCurrencyScore = 0;
+  if (currency.peg === undefined) currency.peg = null;
   return currency;
 }
 
