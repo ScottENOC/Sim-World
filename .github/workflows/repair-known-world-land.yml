@@ -4,6 +4,21 @@ on:
     branches: [repair-current-world-land-v1]
   pull_request:
     branches: [main]
+    paths:
+      - '.github/workflows/repair-known-world-land.yml'
+      - 'tools/repair-known-world-land-corruption.py'
+      - 'tools/clean-sermersooq-foreign-components.py'
+      - 'tools/clean-central-europe-detached-components.py'
+      - 'tools/rebuild-land-adjacency.py'
+      - 'tools/build-sea-expansion-v2.py'
+      - 'tools/build-region-navigation.py'
+      - 'tools/build-terrain.py'
+      - 'tools/generate-world-spatial-base.mjs'
+      - 'data/world/regions.geo.json'
+      - 'data/world/regions.meta.json'
+      - 'data/world/resources.initial.json'
+      - 'data/world/seaRegions.geo.json'
+      - 'data/world/seaRegions.meta.json'
   workflow_dispatch:
 permissions:
   contents: write

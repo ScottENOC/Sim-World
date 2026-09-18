@@ -14,6 +14,23 @@ on:
       - 'tools/test-country-picker.mjs'
   pull_request:
     branches: [main]
+    paths:
+      - '.github/workflows/build-latin-america-map-v2.yml'
+      - 'tools/prepare-latin-america-regeneration.py'
+      - 'tools/build-latin-america-expansion.py'
+      - 'tools/latin-america-region-plan-v1.json'
+      - 'tools/build-latin-america-seas.py'
+      - 'tools/latin-america-sea-plan-v1.json'
+      - 'tools/repair-latin-america-adjacency.py'
+      - 'tools/normalize-land-geojson.py'
+      - 'tools/build-region-navigation.py'
+      - 'tools/build-terrain.py'
+      - 'tools/generate-world-spatial-base.mjs'
+      - 'data/world/regions.geo.json'
+      - 'data/world/regions.meta.json'
+      - 'data/world/resources.initial.json'
+      - 'data/world/seaRegions.geo.json'
+      - 'data/world/seaRegions.meta.json'
   workflow_dispatch:
 
 permissions:
