@@ -1,5 +1,6 @@
 import { PETROLEUM_REFINING_TECH_ID } from './petroleum.js?v=20260917-oil1';
-import { industrialFactoryCapacity, tickIndustrialPlants } from '../economy/industrialPlant.js?v=20260919-components1';
+import { industrialFactoryCapacity } from '../economy/industrialPlant.js?v=20260919-components1';
+import { tickIndustrialInvestment } from '../economy/industrialInvestment.js?v=20260919-investment1';
 
 export const AUTOMOBILE_TECH_ID = 'automobile';
 export const ASSEMBLY_LINE_TECH_ID = 'assembly_line_production';
@@ -78,7 +79,7 @@ export function tickIndustrialProduction(regions,elapsedDays=7){
     if(industry>.12)s.standardisationExperience=clamp(s.standardisationExperience+years*(.018+industry*.045)*(1-s.standardisationExperience));
     if(tech.has(ADVANCED_FACTORY_TECH_ID))s.factorySophistication=clamp(s.factorySophistication+years*(.025+industry*.075)*(1-s.factorySophistication));
     if(tech.has(AUTOMOBILE_TECH_ID))s.motorisationReadiness=clamp(s.motorisationReadiness+years*(.018+industry*.06)*(1-s.motorisationReadiness));
-    tickIndustrialPlants(region,elapsedDays);
+    tickIndustrialInvestment(region,elapsedDays);
   }
 }
 
