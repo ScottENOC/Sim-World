@@ -1,7 +1,5 @@
 name: Post-war society validation
 on:
-  push:
-    branches: [feature/postwar-demobilisation-v1]
   pull_request:
     paths:
       - 'js/society/postWarSociety.js'
@@ -9,24 +7,22 @@ on:
       - 'js/main.js'
       - 'tools/test-postwar-society.mjs'
       - '.github/workflows/postwar-society.yml'
-permissions:
-  contents: write
+  push:
+    branches: [main]
+    paths:
+      - 'js/society/postWarSociety.js'
+      - 'js/ui/postWarSocietyUi.js'
+      - 'js/main.js'
+      - 'tools/test-postwar-society.mjs'
+      - '.github/workflows/postwar-society.yml'
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Apply integration on feature branch
-        if: github.event_name == 'push'
-        run: python tools/apply-postwar-integration.py
       - name: Syntax checks
         run: |
           node --check js/society/postWarSociety.js
@@ -34,16 +30,3 @@ jobs:
           node --check js/main.js
       - name: Post-war society regression
         run: node tools/test-postwar-society.mjs
-      - name: Commit integration on feature branch
-        if: github.event_name == 'push'
-        run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add js/main.js
-          if git diff --cached --quiet; then
-            echo 'Integration already current'
-          else
-            git commit -m 'Integrate demobilisation and veteran reintegration'
-            git pull --rebase
-            git push
-          fi
