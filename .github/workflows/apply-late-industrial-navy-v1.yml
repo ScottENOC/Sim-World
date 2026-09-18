@@ -1,0 +1,34 @@
+name: Apply late industrial navy integration
+on:
+  push:
+    branches: [feature/late-industrial-navy-v1]
+    paths:
+      - 'tools/apply-late-industrial-navy-v1.py'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/late-industrial-navy-v1
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: python tools/apply-late-industrial-navy-v1.py
+      - run: |
+          node --check js/military/lateIndustrialNavy.js
+          node --check js/military/fleets.js
+          node --check js/technology/breakthroughs.js
+          node --check js/economy/industrialWarEconomy.js
+          node --check js/ui/fleetUi.js
+          node tools/test-late-industrial-navy.mjs
+          node tools/test-industrial-war-economics.mjs
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/military/fleets.js js/technology/breakthroughs.js js/ui/fleetUi.js js/economy/tradeGoods.js js/economy/industrialWarEconomy.js
+          git commit -m 'Integrate dreadnoughts mines and submarines'
+          git push origin HEAD:feature/late-industrial-navy-v1
