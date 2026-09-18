@@ -1,0 +1,53 @@
+name: Machine gun tactical revolution
+on:
+  push:
+    branches: [feature/machine-gun-tactical-revolution-v1]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/military/modernTactics.js'
+      - 'js/military/modernLandWarfare.js'
+      - 'js/military/campaigns.js'
+      - 'js/main.js'
+      - 'tools/test-machine-gun-tactical-revolution.mjs'
+      - '.github/workflows/machine-gun-tactical-revolution.yml'
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply integration on feature branch
+        if: github.event_name == 'push'
+        run: python tools/apply-machine-gun-tactics-integration.py
+      - name: Syntax checks
+        run: |
+          node --check js/military/modernTactics.js
+          node --check js/military/campaigns.js
+          node --check js/main.js
+      - name: Machine gun tactical revolution regression
+        run: node tools/test-machine-gun-tactical-revolution.mjs
+      - name: Existing modern land warfare regression
+        run: node tools/test-modern-land-warfare.mjs
+      - name: Commit integration on feature branch
+        if: github.event_name == 'push'
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/military/campaigns.js js/main.js
+          if git diff --cached --quiet; then
+            echo 'Integration already current'
+          else
+            git commit -m 'Integrate machine gun tactical adaptation into campaigns'
+            git pull --rebase
+            git push
+          fi
