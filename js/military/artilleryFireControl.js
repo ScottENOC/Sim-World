@@ -36,12 +36,14 @@ export function artilleryFireControlProfile(region,defender,{currentTick=null,we
   const technique=clamp(s.rangeFinding*.22+s.survey*.20+s.fireDirection*.22+s.predictedFire*.18+s.targetIntelligence*.18);
   const rangeMultiplier=1+technique*.42+(heavy?s.predictedFire*.16:0);
   const effectiveRangeKm=baseRangeKm*rangeMultiplier;
-  const precision=clamp(.10+s.rangeFinding*.18+s.survey*.17+s.fireDirection*.20+s.predictedFire*.20+obs.combined*.22);
+  const precision=clamp(.10+s.rangeFinding*.18+s.survey*.17+s.fireDirection*.20+s.predictedFire*.20+obs.ground*.12+obs.aerial*(.12+s.aerialObservationIntegration*.10));
   const combatMultiplier=1+Math.min(.16,precision*.08+technique*.07);
-  const counterBatteryEffect=clamp((s.counterBattery*.46+s.fireDirection*.22+obs.combined*.32)*(quick?.85:.62));
-  const commandStrikeChance=clamp((precision-.32)*.38+obs.combined*.28+s.targetIntelligence*.16,0,.48);
-  const commandDisruption=clamp(commandStrikeChance*(.28+s.predictedFire*.24+s.fireDirection*.22));
-  const logisticsInterdiction=clamp((precision*.34+obs.combined*.32+s.predictedFire*.20)*(.45+(heavy?.25:0)+(quick?.15:0)));
+  const counterBatteryEffect=clamp((s.counterBattery*.42+s.fireDirection*.20+obs.ground*.16+obs.aerial*.28)*(quick?.85:.62));
+  // Aircraft do something ground maps cannot: repeatedly reveal batteries, headquarters,
+  // road columns and other targets hidden behind the front. Keep this distinct from accuracy.
+  const commandStrikeChance=clamp((precision-.32)*.34+obs.ground*.12+obs.aerial*(.28+s.aerialObservationIntegration*.12)+s.targetIntelligence*.10,0,.56);
+  const commandDisruption=clamp(commandStrikeChance*(.30+s.predictedFire*.24+s.fireDirection*.22));
+  const logisticsInterdiction=clamp((precision*.28+obs.ground*.16+obs.aerial*.30+s.predictedFire*.20)*(.45+(heavy?.25:0)+(quick?.15:0)));
   return {effectiveRangeKm,rangeMultiplier,precision,combatMultiplier,observation:obs,counterBatteryEffect,commandStrikeChance,commandDisruption,logisticsInterdiction,technique,weeksEngaged};
 }
 
