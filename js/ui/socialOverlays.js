@@ -2,6 +2,7 @@ import { culturalIdentity, cultureAffinity } from '../society/culture.js?v=20260
 import { dominantLanguageId, ensureLanguageNetwork, nativeShare } from '../diplomacy/languageNetworks.js?v=20260909-language-networks1';
 import { dominantReligion, religionShare } from '../society/religion.js?v=20260905-religion1';
 import { attitudeToward } from '../diplomacy/relations.js?v=20260904-save1';
+import './socialProtectionUi.js?v=20260918-social1';
 
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
 const actorId = (region) => region?.governance?.sovereignPolityId || region?.controllingActorId || region?.id;
@@ -141,6 +142,11 @@ export function buildSocialOverlayLayers({ regions, religiousWorld, agreements, 
     hardship: {
       label: 'Household hardship',
       valueFn: (region) => knowsSociety(region) ? clamp(region.employment?.hardship || 0) : 0,
+      format: (v) => `${Math.round(v * 100)}%`,
+    },
+    socialProtection: {
+      label: 'Social protection coverage',
+      valueFn: (region) => knowsSociety(region) ? clamp(region.socialProtection?.coverage || 0) : 0,
       format: (v) => `${Math.round(v * 100)}%`,
     },
   };
