@@ -101,11 +101,14 @@ function collectContributions(region,s,weeks){
   const employed=Math.max(0,region.employment?.employed||0);
   if(s.contributionRate<=0||employed<=0){s.lastContributions=0;return 0;}
   const gross=employed*BASE_WEEKLY_CONTRIBUTION_WAGE*s.contributionRate*weeks;
-  const fromHouseholds=Math.min(Math.max(0,region.wallet||0),gross*0.65);
+  const householdTarget=gross*0.65;
+  const employerTarget=gross-householdTarget;
+  const fromHouseholds=Math.min(Math.max(0,region.wallet||0),householdTarget);
   region.wallet=Math.max(0,(region.wallet||0)-fromHouseholds);
-  const employerShare=gross-fromHouseholds;
-  if(region.corporateCapital)region.corporateCapital.retainedEarnings=Math.max(0,(region.corporateCapital.retainedEarnings||0)-employerShare);
-  const collected=fromHouseholds+employerShare;
+  const employerAvailable=Math.max(0,region.corporateCapital?.retainedEarnings||0);
+  const fromEmployers=Math.min(employerAvailable,employerTarget);
+  if(region.corporateCapital)region.corporateCapital.retainedEarnings=employerAvailable-fromEmployers;
+  const collected=fromHouseholds+fromEmployers;
   s.insuranceFund+=collected;s.lastContributions=collected;
   return collected;
 }
