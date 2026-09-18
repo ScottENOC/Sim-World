@@ -107,7 +107,7 @@ function renderFleetList() {
           <button data-dock>Request docking</button>`}
         <label class="control-row">Mission
           <select data-mission>
-            ${['patrol','intercept','blockade','port_assault','raid_shipping','escort','hide','return_refit'].map((m) => `<option value="${m}" ${fleet.mission === m ? 'selected' : ''}>${m.replaceAll('_',' ')}</option>`).join('')}
+            ${['patrol','intercept','blockade','port_assault','raid_shipping','escort','lay_mines','sweep_mines','submarine_patrol','submarine_raid_shipping','hide','return_refit'].map((m) => `<option value="${m}" ${fleet.mission === m ? 'selected' : ''}>${m.replaceAll('_',' ')}</option>`).join('')}
           </select>
         </label>
         ${fleet.locationType === 'sea' ? `<label class="control-row">Mission target (for blockade/port assault)

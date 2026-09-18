@@ -56,7 +56,20 @@ function produceMunitions(region,elapsedDays){
   if(shells>0){const cash=shells*cashNeedPer;region.stockpile.gunpowder-=shells*powderNeedPer;consumeMetal(region,shells*metalNeedPer);region.treasury=Math.max(0,region.treasury-cash);region.wallet=(region.wallet||0)+cash;spending+=cash;region.stockpile.artillery_shells=(region.stockpile.artillery_shells||0)+shells;}
   region.marketDemand.artillery_shells=Math.max(region.marketDemand.artillery_shells||0,gap/Math.max(1,elapsedDays/7));
  }
- return{smallArms,shells,spending,value:smallArms*12+shells*38};
+ let torpedoes=0,navalMines=0;
+ if(has(region,'self_propelled_torpedo')){
+  const gap=Math.max(0,12-(region.stockpile.torpedoes||0)),cashPer=.08,steelPer=.12,powderPer=.08;
+  torpedoes=Math.min(gap,base*18*years,(region.stockpile.steel||0)/steelPer,(region.stockpile.gunpowder||0)/powderPer,Math.max(0,region.treasury||0)/cashPer);
+  if(torpedoes>0){const cash=torpedoes*cashPer;region.stockpile.steel-=torpedoes*steelPer;region.stockpile.gunpowder-=torpedoes*powderPer;region.treasury-=cash;region.wallet=(region.wallet||0)+cash;spending+=cash;region.stockpile.torpedoes=(region.stockpile.torpedoes||0)+torpedoes;}
+  region.marketDemand.torpedoes=Math.max(region.marketDemand.torpedoes||0,gap/Math.max(1,elapsedDays/7));
+ }
+ if(has(region,'naval_mines')){
+  const gap=Math.max(0,24-(region.stockpile.naval_mines||0)),cashPer=.035,steelPer=.07,powderPer=.06;
+  navalMines=Math.min(gap,base*36*years,(region.stockpile.steel||0)/steelPer,(region.stockpile.gunpowder||0)/powderPer,Math.max(0,region.treasury||0)/cashPer);
+  if(navalMines>0){const cash=navalMines*cashPer;region.stockpile.steel-=navalMines*steelPer;region.stockpile.gunpowder-=navalMines*powderPer;region.treasury-=cash;region.wallet=(region.wallet||0)+cash;spending+=cash;region.stockpile.naval_mines=(region.stockpile.naval_mines||0)+navalMines;}
+  region.marketDemand.naval_mines=Math.max(region.marketDemand.naval_mines||0,gap/Math.max(1,elapsedDays/7));
+ }
+ return{smallArms,shells,torpedoes,navalMines,spending,value:smallArms*12+shells*38+torpedoes*85+navalMines*44};
 }
 
 export function warTradeDisruptionMultiplier(region){return Math.max(.35,1-clamp(region?.warEconomy?.tradeDisruption||0)*.65);}
@@ -78,6 +91,6 @@ export function tickIndustrialWarEconomy(regions,campaigns=[],elapsedDays=7,poli
   else s.warExhaustion=Math.max(0,s.warExhaustion-years*.045);
   if(s.warExhaustion>.15)region.stability=Math.max(0,(region.stability??1)-weekScale*(s.warExhaustion-.15)*.00025);
   const output=produceMunitions(region,elapsedDays);s.munitionsOutputValue=output.value;
-  region.report ||= {};region.report.warEconomy={...s,smallArmsAmmunitionMade:output.smallArms,artilleryShellsMade:output.shells,munitionsSpending:output.spending};
+  region.report ||= {};region.report.warEconomy={...s,smallArmsAmmunitionMade:output.smallArms,artilleryShellsMade:output.shells,torpedoesMade:output.torpedoes,navalMinesMade:output.navalMines,munitionsSpending:output.spending};
  }
 }

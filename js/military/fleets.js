@@ -6,6 +6,7 @@ import { maritimeRouteBetween } from '../world/chokepoints.js?v=20260907-chokepo
 import { navalGunCombatProfile } from './earlyModernWarfare.js?v=20260913-early-modern1';
 import { ensureFleetProvisioning, provisioningCombatMultiplier, serviceProvisioningInPort, shouldReturnForProvisioning, tickProvisioningAtSea } from './oceanicProvisioning.js?v=20260913-provisioning1';
 import { MARINE_STEAM_TECH_ID, SCREW_PROPULSION_TECH_ID, IRON_HULL_TECH_ID, STEEL_HULL_TECH_ID } from '../technology/industrialMarine.js?v=20260916-steam1';
+import { DREADNOUGHT_TECH_ID, SUBMARINE_TECH_ID, tickLateIndustrialNavalWarfare } from './lateIndustrialNavy.js?v=20260918-navy1';
 
 export const FLEET_MISSIONS = Object.freeze({
   PORT: 'port',
@@ -13,6 +14,10 @@ export const FLEET_MISSIONS = Object.freeze({
   BLOCKADE: 'blockade',
   PORT_ASSAULT: 'port_assault',
   RAID_SHIPPING: 'raid_shipping',
+  LAY_MINES: 'lay_mines',
+  SWEEP_MINES: 'sweep_mines',
+  SUBMARINE_PATROL: 'submarine_patrol',
+  SUBMARINE_RAID_SHIPPING: 'submarine_raid_shipping',
   ESCORT: 'escort',
   INTERCEPT: 'intercept',
   HIDE: 'hide',
@@ -75,6 +80,21 @@ export const SHIP_DESIGNS = Object.freeze({
     fallbackSpeed: 0.38, combat: 4.10, durability: 3.05, pursuit: 1.30, captureResistance: 1.24, gunCapacity: 16, armour: 1.25,
     coalCapacity: 36, coalPerWeek: 2.5, refitCost: { wood: 40, steel: 55, coal: 16, machine: 10 },
   },
+  destroyer: {
+    id: 'destroyer', label: 'destroyer', tier: 9, advanced: true, propulsion: 'steam', crew: 30, speed: 2.25,
+    fallbackSpeed: 0.42, combat: 3.55, durability: 2.20, pursuit: 2.10, captureResistance: 1.12, gunCapacity: 9, armour: 0.55,
+    coalCapacity: 28, coalPerWeek: 2.6, refitCost: { steel: 38, coal: 12, machine: 11, gunpowder: 1 },
+  },
+  submarine: {
+    id: 'submarine', label: 'submarine', tier: 9, advanced: true, propulsion: 'submersible', crew: 18, speed: 1.08,
+    combat: 0.62, durability: 0.78, pursuit: 0.72, captureResistance: 1.30, gunCapacity: 0, armour: 0.18, submersible: true,
+    refitCost: { steel: 24, machine: 12, petrol: 8 },
+  },
+  dreadnought: {
+    id: 'dreadnought', label: 'dreadnought', tier: 10, advanced: true, propulsion: 'steam', crew: 80, speed: 1.68,
+    fallbackSpeed: 0.30, combat: 7.20, durability: 5.20, pursuit: 1.18, captureResistance: 1.55, gunCapacity: 30, armour: 2.45,
+    coalCapacity: 70, coalPerWeek: 4.8, refitCost: { steel: 125, coal: 30, machine: 28, gunpowder: 4 },
+  },
   // Save compatibility only. New construction no longer creates the old catch-all.
   advanced_warship: {
     id: 'advanced_warship', label: 'legacy advanced warship', tier: 1, advanced: true, propulsion: 'oar_sail', crew: 12, speed: 1.28,
@@ -93,12 +113,15 @@ let nextShipId = 1;
 let nextEncounterId = 1;
 
 function designOf(ship) { return SHIP_DESIGNS[ship?.designId] || SHIP_DESIGNS.basic_war_boat; }
+function isSubmarineFleet(fleet) { return (fleet?.ships?.length || 0) > 0 && fleet.ships.every((ship) => ship.designId === 'submarine'); }
+function fleetDestroyerCount(fleet) { return (fleet?.ships || []).filter((ship) => ship.designId === 'destroyer').length; }
 function shipLabel(ship) { return ship?.classLabel || designOf(ship).label; }
 function isAdvancedShip(ship) { return Boolean(designOf(ship).advanced); }
 function shipTier(ship) { return designOf(ship).tier || 0; }
 
 export function preferredWarshipDesign(region, serial = 0) {
   const tech = region?.unlockedTechIds;
+  if (tech?.has(DREADNOUGHT_TECH_ID)) return 'dreadnought';
   if (tech?.has(STEEL_HULL_TECH_ID)) return 'steel_warship';
   if (tech?.has(IRON_HULL_TECH_ID)) return 'ironclad';
   if (tech?.has(SCREW_PROPULSION_TECH_ID)) return 'steam_frigate';
@@ -118,8 +141,16 @@ export function preferredWarshipDesign(region, serial = 0) {
 export function desiredWarshipComposition(region, total = region?.targetNavySize || 0) {
   const count = Math.max(0, Math.round(total || 0));
   const targets = {};
+  const late = region?.unlockedTechIds?.has(DREADNOUGHT_TECH_ID);
+  const submarines = region?.unlockedTechIds?.has(SUBMARINE_TECH_ID);
   for (let i = 0; i < count; i++) {
-    const id = preferredWarshipDesign(region, i);
+    let id;
+    if (late) {
+      if (submarines && i % 5 === 4) id = 'submarine';
+      else if (i % 3 === 2) id = 'destroyer';
+      else if (i % 4 === 0) id = 'dreadnought';
+      else id = 'steel_warship';
+    } else id = preferredWarshipDesign(region, i);
     targets[id] = (targets[id] || 0) + 1;
   }
   return targets;
@@ -580,8 +611,9 @@ function fleetCombatPower(fleet, regionsById, { inPort = false } = {}) {
 function targetConcealment(fleet) {
   const sizePenalty = Math.min(0.45, Math.log2(1 + fleet.ships.length) * 0.08);
   const hideBonus = fleet.mission === FLEET_MISSIONS.HIDE ? 0.5 : 0;
+  const submarineBonus = isSubmarineFleet(fleet) ? 0.40 : 0;
   const activePenalty = fleet.mission === FLEET_MISSIONS.BLOCKADE ? 0.25 : fleet.mission === FLEET_MISSIONS.PATROL ? 0.14 : 0;
-  return clamp(0.42 + hideBonus - sizePenalty - activePenalty, 0.05, 0.92);
+  return clamp(0.42 + hideBonus + submarineBonus - sizePenalty - activePenalty, 0.05, 0.97);
 }
 
 function visibleFlagActor(fleet) {
@@ -652,7 +684,8 @@ function detectionChance(observer, target, regionsById, weeks) {
     : observer.mission === FLEET_MISSIONS.PATROL ? 0.16
       : observer.mission === FLEET_MISSIONS.BLOCKADE ? 0.13 : 0.08;
   const searchSize = Math.min(0.22, Math.log2(1 + observer.ships.length) * 0.045);
-  const perWeek = clamp(0.03 + searchMission + scouting * 0.2 + searchSize - targetConcealment(target) * 0.22, 0.01, 0.65);
+  const antiSubmarineSearch = isSubmarineFleet(target) ? fleetDestroyerCount(observer) * 0.075 : 0;
+  const perWeek = clamp(0.03 + searchMission + scouting * 0.2 + searchSize + antiSubmarineSearch - targetConcealment(target) * 0.22, 0.01, 0.65);
   return 1 - Math.pow(1 - perWeek, Math.max(0.1, weeks));
 }
 
@@ -1078,6 +1111,7 @@ export function tickFleets(fleets, regions, seaRegions, agreements, currentTick,
   const weeks = Math.max(0.01, elapsedDays / 7);
   const events = [];
   reconcileFleetLedger(regions, fleets, events, weeks);
+  events.push(...tickLateIndustrialNavalWarfare(fleets, regions, seaRegions, currentTick, elapsedDays, rng));
 
   for (const fleet of fleets) {
     ensureFleetState(fleet);
