@@ -13,7 +13,6 @@ if "regime: currency.regime" not in t:
 if "monetaryBase: 0" not in t:
     t=t.replace("      seigniorageRaised: 0,\n      history: [],", "      seigniorageRaised: 0,\n      monetaryBase: 0,\n      backingMetal: 'silver',\n      reserveValue: 0,\n      regime: 'silver_standard',\n      reserveCoverage: 0,\n      inflation: 0,\n      policyRate: 0,\n      history: [],")
     t=t.replace("  if (!Number.isFinite(currency.seigniorageRaised)) currency.seigniorageRaised = 0;", "  if (!Number.isFinite(currency.seigniorageRaised)) currency.seigniorageRaised = 0;\n  if (!Number.isFinite(currency.monetaryBase)) currency.monetaryBase = 0;\n  if (!Number.isFinite(currency.reserveValue)) currency.reserveValue = 0;")
-# Debasement windfall is now limited by actually minted monetary base, not a revenue proxy.
 old="""  const annualRevenueProxy = Math.max(0, capital.militaryFinance?.revenueEma || 0) * 52;
   const monetaryBaseProxy = Math.max(10, annualRevenueProxy * 1.5 + Math.max(0, capital.treasury || 0) * 0.25);
   const windfall = monetaryBaseProxy * actualDebasement * 0.9;
@@ -44,7 +43,7 @@ p.write_text(t)
 
 # Firms face benchmark interest plus firm risk instead of leverage only affecting solvency.
 p=Path('js/economy/corporateCapital.js'); t=p.read_text()
-if "commercialRiskPremium" not in t.splitlines()[0:5]:
+if "commercialRiskPremium" not in '\n'.join(t.splitlines()[:5]):
     t="import { commercialRiskPremium } from './monetaryModernisation.js?v=20260918-money1';\n"+t
 needle="const targetProfit = -0.08 + reliability * 0.18 + confidence * 0.12 + s.corporateLaw * 0.08 + sectorFit - crisis * 0.28 + externalityProfile.apparentCostSaving*.22;"
 replacement="const borrowingRate=Math.max(0,region.monetaryConditions?.commercialBaseRate||0.04)+commercialRiskPremium(region,firm);firm.borrowingRate=borrowingRate;const interestDrag=Math.min(.22,borrowingRate*leverage*.8);const targetProfit = -0.08 + reliability * 0.18 + confidence * 0.12 + s.corporateLaw * 0.08 + sectorFit - crisis * 0.28 + externalityProfile.apparentCostSaving*.22-interestDrag;"
@@ -52,3 +51,4 @@ if needle in t:t=t.replace(needle,replacement)
 p.write_text(t)
 
 print('monetary modernisation integration applied')
+# trigger integration workflow
