@@ -1,6 +1,7 @@
 import { electricityIndustrialMultiplier } from './electricity.js?v=20260917-electric1';
 import { telephoneIndustrialMultiplier } from './localCommunications.js?v=20260918-telephone1';
 import { foreignMarketAccess } from './infrastructureInvestment.js';
+import { AUTOMOBILE_TECH_ID, industrialProductionMultipliers } from '../technology/industrialProduction.js?v=20260919-industrial-production1';
 
 const DAYS_PER_YEAR = 365.2425;
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
@@ -11,8 +12,9 @@ export const INDUSTRIAL_GOODS = Object.freeze({
   machine_components: { inputs: { steel: 0.8 }, capability: 'precision_machining' },
   steam_locomotive: { inputs: { steel: 7, machine_components: 2.2 }, capability: 'locomotive_engineering' },
   rail_stock: { inputs: { steel: 2.2, wood: 1.1 }, capability: 'rail_vehicle_manufacture' },
+  motor_vehicle: { inputs: { steel: 2.8, machine_components: 1.4 }, capability: 'automotive_engineering' },
 });
-const CAPABILITY_KEYS = ['steelmaking', 'precision_machining', 'locomotive_engineering', 'rail_vehicle_manufacture', 'railway_engineering'];
+const CAPABILITY_KEYS = ['steelmaking', 'precision_machining', 'locomotive_engineering', 'rail_vehicle_manufacture', 'railway_engineering', 'automotive_engineering'];
 
 export function ensureIndustrialSupply(region) {
   region.industrialSupply ||= {};
@@ -51,10 +53,10 @@ export function tickIndustrialSupply(region, elapsedDays = 7) {
   const s = ensureIndustrialSupply(region); const years = Math.max(0, elapsedDays) / DAYS_PER_YEAR; const base = manufacturingBase(region);
   const ironPractice = clamp((region.resourceDeposits?.iron?.remainingFraction ?? region.resourceDeposits?.iron?.depth ?? 0) + (region.stockpile?.iron || 0) / 1000);
   const coalPractice = clamp((region.resourceDeposits?.coal?.remainingFraction ?? region.resourceDeposits?.coal?.depth ?? 0) + (region.stockpile?.coal || 0) / 1000);
-  const targets = { steelmaking: clamp(base * 0.72 + ironPractice * 0.12 + coalPractice * 0.16), precision_machining: clamp(base * 0.78 + s.capability.steelmaking * 0.22), locomotive_engineering: clamp(base * 0.5 + s.capability.precision_machining * 0.3 + s.exposure.locomotive_engineering * 0.2), rail_vehicle_manufacture: clamp(base * 0.6 + s.capability.steelmaking * 0.25 + s.exposure.rail_vehicle_manufacture * 0.15), railway_engineering: clamp(base * 0.45 + s.capability.precision_machining * 0.2 + s.exposure.railway_engineering * 0.35) };
+  const targets = { steelmaking: clamp(base * 0.72 + ironPractice * 0.12 + coalPractice * 0.16), precision_machining: clamp(base * 0.78 + s.capability.steelmaking * 0.22), locomotive_engineering: clamp(base * 0.5 + s.capability.precision_machining * 0.3 + s.exposure.locomotive_engineering * 0.2), rail_vehicle_manufacture: clamp(base * 0.6 + s.capability.steelmaking * 0.25 + s.exposure.rail_vehicle_manufacture * 0.15), railway_engineering: clamp(base * 0.45 + s.capability.precision_machining * 0.2 + s.exposure.railway_engineering * 0.35), automotive_engineering: region.unlockedTechIds?.has(AUTOMOBILE_TECH_ID) ? clamp(base * 0.50 + s.capability.precision_machining * 0.35 + s.exposure.automotive_engineering * 0.15) : 0 };
   for (const [key, target] of Object.entries(targets)) { const practice = s.exposure[key] > 0.02 || base > 0.12; const rate = clamp(years * (practice ? 0.075 : 0.012)); s.capability[key] += (target - s.capability[key]) * rate; s.exposure[key] = Math.max(0, s.exposure[key] - years * 0.012); }
-  const electric = electricityIndustrialMultiplier(region); const communications = telephoneIndustrialMultiplier(region); const labour = clamp(region.labourRelations?.outputMultiplier ?? 1, .45, 1);
-  s.outputCapacity.steel = Math.max(0, base * s.capability.steelmaking * 140 * electric * communications * labour); s.outputCapacity.machine_components = Math.max(0, base * s.capability.precision_machining * 38 * electric * communications * labour); s.outputCapacity.steam_locomotive = Math.max(0, base * s.capability.locomotive_engineering * 3.2 * electric * communications * labour); s.outputCapacity.rail_stock = Math.max(0, base * s.capability.rail_vehicle_manufacture * 22 * electric * communications * labour); return s;
+  const electric = electricityIndustrialMultiplier(region); const communications = telephoneIndustrialMultiplier(region); const labour = clamp(region.labourRelations?.outputMultiplier ?? 1, .45, 1); const production = industrialProductionMultipliers(region);
+  s.outputCapacity.steel = Math.max(0, base * s.capability.steelmaking * 140 * electric * communications * labour * production.standardisedGoods); s.outputCapacity.machine_components = Math.max(0, base * s.capability.precision_machining * 38 * electric * communications * labour * production.machinery); s.outputCapacity.steam_locomotive = Math.max(0, base * s.capability.locomotive_engineering * 3.2 * electric * communications * labour * production.standardisedGoods); s.outputCapacity.rail_stock = Math.max(0, base * s.capability.rail_vehicle_manufacture * 22 * electric * communications * labour * production.standardisedGoods); s.outputCapacity.motor_vehicle = region.unlockedTechIds?.has(AUTOMOBILE_TECH_ID) ? Math.max(0, base * s.capability.automotive_engineering * 12 * electric * communications * labour * production.standardisedGoods) : 0; return s;
 }
 export function supplierCapability(region, requirement) {
   const s = ensureIndustrialSupply(region); const entries = Object.entries(requirement || {}).filter(([, needed]) => Number(needed) > 0); if (!entries.length) return 1;
