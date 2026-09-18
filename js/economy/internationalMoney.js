@@ -175,6 +175,56 @@ function syncCurrencyUnions(polities,regions){
   }
 }
 
+
+export function preferredForeignBorrowingCurrency(region){
+  const ownId=region?.currencyUse?.id;
+  let best=null,bestScore=-Infinity;
+  for(const [id,holdingRaw] of Object.entries(region?.foreignCurrencyReserves||{})){
+    if(id===ownId)continue;
+    const holding=Math.max(0,Number(holdingRaw)||0);if(holding<=0.01)continue;
+    const c=region?.currencyContacts?.[id];if(!c?.active)continue;
+    const score=clamp(c.reserveCurrencyScore||0)*0.48+clamp(c.trust||0)*0.3+
+      clamp(Math.log1p(region?.settlementCurrencyUse?.[id]||0)/8)*0.17-
+      clamp(Math.abs(c.inflation||0),0,0.5)*0.35+Math.min(0.05,Math.log1p(holding)*0.01);
+    if(score>bestScore){best={currency:c,holding,score};bestScore=score;}
+  }
+  return best;
+}
+
+export function foreignDebtLocalValue(region){
+  const f=region?.militaryFinance;if(!f?.foreignDebtCurrencyId||!(f.foreignCurrencyDebtPrincipal>0))return 0;
+  const foreign=region?.currencyContacts?.[f.foreignDebtCurrencyId];const own=region?.currencyUse;
+  if(!foreign?.active||!own?.active)return Math.max(0,f.foreignDebtLastLocalValue||0);
+  const fx=currencyCommodityValue(foreign)/Math.max(0.001,currencyCommodityValue(own));
+  return Math.max(0,f.foreignCurrencyDebtPrincipal*fx);
+}
+
+export function revalueForeignCurrencyDebt(region){
+  const f=region?.militaryFinance;if(!f)return {delta:0,localValue:0};
+  const previous=Math.max(0,f.foreignDebtLastLocalValue||0);
+  const localValue=foreignDebtLocalValue(region);
+  const delta=localValue-previous;
+  if(Math.abs(delta)>1e-9)f.publicDebt=Math.max(0,(f.publicDebt||0)+delta);
+  f.foreignDebtLastLocalValue=localValue;
+  return {delta,localValue};
+}
+
+export function borrowInForeignCurrency(region,localAmount,stateCredit=0){
+  const f=region?.militaryFinance;if(!f||!(localAmount>0))return {localAmount:0,reason:'invalid'};
+  const candidate=preferredForeignBorrowingCurrency(region);if(!candidate||candidate.score<0.45)return {localAmount:0,reason:'no_liquid_reserve_currency'};
+  const conditions=region.monetaryConditions||{};
+  const stress=clamp(Math.max(0,(conditions.inflation||0)-0.04)*3.5+Math.max(0,0.58-(conditions.currencyCredibility||0.5))*1.6);
+  const share=clamp(stress*0.7,0,0.7);if(share<0.05)return {localAmount:0,reason:'domestic_currency_adequate'};
+  const foreign=candidate.currency,own=region.currencyUse;
+  const fx=currencyCommodityValue(foreign)/Math.max(0.001,currencyCommodityValue(own));
+  const local=Math.max(0,localAmount*share);const principal=local/Math.max(0.001,fx);
+  if(f.foreignDebtCurrencyId&&f.foreignDebtCurrencyId!==foreign.id)return {localAmount:0,reason:'existing_foreign_debt_currency'};
+  f.foreignDebtCurrencyId=foreign.id;f.foreignCurrencyDebtPrincipal=Math.max(0,f.foreignCurrencyDebtPrincipal||0)+principal;
+  f.foreignDebtLastLocalValue=Math.max(0,f.foreignDebtLastLocalValue||0)+local;
+  f.foreignDebtInterestRate=clamp((foreign.policyRate||0.03)+0.012+(1-clamp(stateCredit))*0.065,0.01,0.45);
+  return {localAmount:local,principal,currencyId:foreign.id,fx,interestRate:f.foreignDebtInterestRate};
+}
+
 export function tickInternationalMonetarySystem(polities,regions,agreements=[],elapsedDays=30,currentTick=0){
   if(!polities?.length)return [];
   const due=polities.some(p=>currentTick-(ensureInternationalMonetaryState(p).lastInternationalReviewTick||-Infinity)>=REVIEW_WEEKS);

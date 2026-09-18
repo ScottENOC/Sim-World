@@ -12,6 +12,7 @@ import { tickPetroleumRefining } from './economy/petroleumRefining.js?v=20260917
 import { tickElectricity } from './economy/electricity.js?v=20260917-electric1';
 import { tickLocalCommunications } from './economy/localCommunications.js?v=20260918-telephone1';
 import { tickStateFinance } from './economy/stateFinance.js?v=20260912-currency2';
+import { tickInternationalMonetarySystem } from './economy/internationalMoney.js?v=20260918-intmoney2';
 import { tickDemographics } from './society/demographics.js?v=20260912-culture-scale1';
 import { tickDisease } from './society/disease.js?v=20260912-disease1';
 import { tickSettlements } from './society/settlements.js?v=20260913-settlements2';
@@ -429,6 +430,7 @@ async function main() {
     if (playerCapitalForPlan) profiler.measure('Military strategy review', () => reviewMilitaryStrategy(playerCapitalForPlan, { regions, polities, agreements, activeCampaigns, currentTick: calendarWeek }));
     const languagePolicyEvents = profiler.measure('Language policy', () => tickRegionalLanguagePolicies(regions, polities, calendarWeek, time.elapsedDays, { playerPolityId: activePlayerPolityId }));
     const polityEvents = profiler.measure('Polities', () => tickPolities(polities, regions, calendarWeek, time.elapsedDays, { agreements }));
+    const internationalMonetaryEvents = profiler.measure('International money', () => tickInternationalMonetarySystem(polities, regions, agreements, time.elapsedDays, calendarWeek));
     const continuityEvents = profiler.measure('Political continuity', () => tickPoliticalContinuity(polities, regions, time.elapsedDays / 365.2425, calendarWeek, { playerPolityId: activePlayerPolityId }));
     // A successful player coup/revolution keeps the displaced government as the
     // player's political actor. Move the private player-region pointer to its
@@ -600,6 +602,7 @@ async function main() {
       ...earlyModernReformEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),
       ...oceanicExplorationEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),
       ...polityEvents.filter((event) => event.regionId === playerRegionId),
+      ...internationalMonetaryEvents.filter((event) => event.polityId === activePlayerPolityId || event.anchorPolityId === activePlayerPolityId || event.members?.includes?.(activePlayerPolityId)),
       ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),
       ...foreignInterventionEvents.filter((event) => event.playerRelevant),
       ...regimeCivilWarEvents.filter((event) => event.playerRelevant),
