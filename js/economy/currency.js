@@ -28,6 +28,10 @@ function currencySnapshot(currency) {
     issuerPolityId: currency.issuerPolityId,
     trust: clamp(currency.trust),
     fineness: clamp(currency.fineness),
+    regime: currency.regime || 'silver_standard',
+    reserveCoverage: Number(currency.reserveCoverage) || 0,
+    inflation: Number(currency.inflation) || 0,
+    policyRate: Number(currency.policyRate) || 0,
     generation: currency.generation || 1,
     active: true,
   };
@@ -56,6 +60,13 @@ export function ensureCurrencyInstitution(polity) {
       lastDiscoveryTick: null,
       lastReformTick: null,
       seigniorageRaised: 0,
+      monetaryBase: 0,
+      backingMetal: 'silver',
+      reserveValue: 0,
+      regime: 'silver_standard',
+      reserveCoverage: 0,
+      inflation: 0,
+      policyRate: 0,
       history: [],
     };
   }
@@ -66,6 +77,8 @@ export function ensureCurrencyInstitution(polity) {
   if (!Number.isFinite(currency.trust)) currency.trust = 0;
   if (!Number.isFinite(currency.fineness)) currency.fineness = 1;
   if (!Number.isFinite(currency.seigniorageRaised)) currency.seigniorageRaised = 0;
+  if (!Number.isFinite(currency.monetaryBase)) currency.monetaryBase = 0;
+  if (!Number.isFinite(currency.reserveValue)) currency.reserveValue = 0;
   return currency;
 }
 
@@ -177,8 +190,7 @@ export function debaseCurrency(polity, capital, regions, fraction = 0.1, current
   currency.debasementCount += 1;
   currency.lastDebasementTick = currentTick;
 
-  const annualRevenueProxy = Math.max(0, capital.militaryFinance?.revenueEma || 0) * 52;
-  const monetaryBaseProxy = Math.max(10, annualRevenueProxy * 1.5 + Math.max(0, capital.treasury || 0) * 0.25);
+  const monetaryBaseProxy = Math.max(0, currency.monetaryBase || 0);
   const windfall = monetaryBaseProxy * actualDebasement * 0.9;
   capital.treasury = Math.max(0, capital.treasury || 0) + windfall;
   currency.seigniorageRaised += windfall;
