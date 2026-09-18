@@ -5,6 +5,7 @@ import { learnAbout } from '../core/knowledge.js?v=20260904-kingdom1';
 import { monumentalPrestige } from '../economy/construction.js?v=20260906-prestige1';
 import { languagePolicyAdministrativeEffects } from './languagePolicy.js?v=20260909-language-policy1';
 import { ensureCurrencyInstitution, tickCurrencyInstitution } from '../economy/currency.js?v=20260912-currency3';
+import { telephoneAdministrativeMultiplier } from '../economy/localCommunications.js?v=20260918-telephone2';
 
 const EXPERIENCE_SCALE = {
   recordKeeping: 1200,
@@ -301,8 +302,9 @@ function desiredAdministrativeControl(region, capital, admin, subjectCount) {
   const delegationBonus = 1 + delegatedCount * admin.delegation * 0.04;
   const languageEffects = languagePolicyAdministrativeEffects(region);
   const elitePoliticsMultiplier = clamp(region.governance?.elitePoliticsControlMultiplier ?? 1, 0.6, 1.1);
+  const localTelephone = telephoneAdministrativeMultiplier(region);
   return clamp(institutional * autonomyLimit * governorFactor * delegationBonus *
-    (languageEffects.controlMultiplier || 1) * elitePoliticsMultiplier / (distanceBurden * scaleBurden * resistance), 0.05, 0.95);
+    (languageEffects.controlMultiplier || 1) * elitePoliticsMultiplier * localTelephone / (distanceBurden * scaleBurden * resistance), 0.05, 0.95);
 }
 
 function transferTribute(subject, capital, amount) {
@@ -362,8 +364,9 @@ export function tickPolities(polities, regions, currentTick, elapsedDays = 7) {
         };
         governance.nextReportTick = currentTick + governance.reportDelayWeeks;
       }
+      const telephoneFrictionReduction = Math.max(0, telephoneAdministrativeMultiplier(subject) - 1) * 0.6;
       governance.corruption = clamp(0.78 - admin.accounting * 0.28 - admin.recordKeeping * 0.25 -
-        governance.administrativeControl * 0.2 - (governance.governor?.competence || 0) * 0.08 +
+        governance.administrativeControl * 0.2 - (governance.governor?.competence || 0) * 0.08 - telephoneFrictionReduction +
         (1 - (governance.governor?.loyalty || 0.5)) * 0.08 + (languageEffects.corruptionDelta || 0) +
         (governance.elitePoliticsCorruptionDelta || 0), 0.08, 0.85);
       const nominal = subject.population * BASE_TRIBUTE_PER_PERSON * governance.tributeRate * 10;

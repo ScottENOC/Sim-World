@@ -6,6 +6,15 @@ def replace_once(path, old, new):
     text = p.read_text()
     if new in text:
         return False
+    # Later systems may legitimately extend the already-integrated elite-politics
+    # expressions (for example local telephone administration effects). Treat the
+    # stable elite-politics markers as proof that these two integrations are already
+    # present instead of requiring the exact historical text shape forever.
+    if path == 'js/politics/polities.js':
+        if 'elitePoliticsMultiplier' in new and 'elitePoliticsMultiplier' in text:
+            return False
+        if 'elitePoliticsCorruptionDelta' in new and 'elitePoliticsCorruptionDelta' in text:
+            return False
     if old not in text:
         raise RuntimeError(f'Expected integration anchor missing in {path}: {old[:140]!r}')
     p.write_text(text.replace(old, new, 1))

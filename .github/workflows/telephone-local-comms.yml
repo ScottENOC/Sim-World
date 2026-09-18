@@ -1,15 +1,18 @@
 name: Telephone and local communications
 on:
   push:
-    branches: [feature/telephone-local-comms-v1]
+    branches: [feature/telephone-local-comms-v1, feature/telephone-admin-military-effects-v1]
     paths:
       - 'js/economy/localCommunications.js'
       - 'js/technology/telephone.js'
       - 'js/economy/construction.js'
       - 'js/technology/breakthroughs.js'
       - 'js/economy/industrialSupply.js'
+      - 'js/politics/polities.js'
+      - 'js/military/campaigns.js'
       - 'js/main.js'
       - 'tools/test-telephone-local-comms.mjs'
+      - 'tools/test-telephone-admin-military-effects.mjs'
       - '.github/workflows/telephone-local-comms.yml'
   pull_request:
     paths:
@@ -18,8 +21,11 @@ on:
       - 'js/economy/construction.js'
       - 'js/technology/breakthroughs.js'
       - 'js/economy/industrialSupply.js'
+      - 'js/politics/polities.js'
+      - 'js/military/campaigns.js'
       - 'js/main.js'
       - 'tools/test-telephone-local-comms.mjs'
+      - 'tools/test-telephone-admin-military-effects.mjs'
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -34,5 +40,8 @@ jobs:
       - run: node --check js/economy/construction.js
       - run: node --check js/technology/breakthroughs.js
       - run: node --check js/economy/industrialSupply.js
+      - run: node --check js/politics/polities.js
+      - run: node --check js/military/campaigns.js
       - run: node --check js/main.js
       - run: node tools/test-telephone-local-comms.mjs
+      - run: node tools/test-telephone-admin-military-effects.mjs

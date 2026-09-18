@@ -25,6 +25,7 @@ import { firearmCombatProfile } from './firearms.js?v=20260912-gunpowder1';
 import { artilleryCampaignProfile, returnGunpowderSiegeTrain, takeGunpowderSiegeTrain } from './earlyModernWarfare.js?v=20260913-early-modern1';
 import { medievalMilitaryCombatMultiplier } from './medievalDoctrine.js?v=20260912-medieval2';
 import { campaignExternalSupport, applyExternalCampaignLosses } from '../politics/privateMilitaryActors.js?v=20260912-pmc1';
+import { telephoneMobilisationMultiplier } from '../economy/localCommunications.js?v=20260918-telephone2';
 
 export const CAMPAIGN_OBJECTIVES = Object.freeze({
   devastation: { label: 'Destroy the region', pressureRate: 0.8, damageRate: 1.8 },
@@ -128,9 +129,11 @@ export function massMobiliseDefender(campaign, defender, fraction = 0.15) {
   if (!campaign || campaign.completed || campaign.phase !== 'engaged' || campaign.militia > 0) return 0;
   const workingAge = Math.max(0, defender.demographics?.workingAge || 0);
   const available = Math.max(0, workingAge - (defender.army?.personnel || 0) - (defender.navy?.personnel || 0));
-  const raised = Math.floor(available * clamp(fraction, 0.05, 0.25));
+  const response = telephoneMobilisationMultiplier(defender);
+  const raised = Math.floor(available * clamp(fraction * response, 0.05, 0.25));
   if (raised <= 0) return 0;
   campaign.militia = raised;
+  campaign.mobilisationResponseMultiplier = response;
   defender.emergencyMilitiaPersonnel = raised;
   defender.stability = clamp((defender.stability ?? 1) - raised / Math.max(1, defender.population) * 0.12);
   campaign.defenderMorale = clamp(campaign.defenderMorale + 0.12);
