@@ -132,6 +132,16 @@ function diplomaticMagnitude(harm, other) {
   return clamp(Math.log1p(Math.max(0, harm) / scale) * 0.035, 0.002, MAX_POLICY_ATTITUDE_CHANGE);
 }
 
+function hasEstablishedTradeContact(region, other) {
+  const recentHere = region.recentTradePartners instanceof Map && region.recentTradePartners.has(other.id);
+  const recentThere = other.recentTradePartners instanceof Map && other.recentTradePartners.has(region.id);
+  const legacy = region.tradePartnerIds instanceof Set &&
+    (region.tradePartnerIds.has(other.id) || region.tradePartnerIds.has(tradeActorId(other)));
+  const outbound = (region.tradeEconomy?.ventures || []).some((venture) => venture.destId === other.id);
+  const inbound = (other.tradeEconomy?.ventures || []).some((venture) => venture.destId === region.id);
+  return Boolean(recentHere || recentThere || legacy || outbound || inbound);
+}
+
 export function setTradeRestriction(region, { direction = 'trade', goods = null, counterparties = null,
   allowed = false, tariffRate = 0, enforcement = 'communicated' } = {}, regions = [], currentTick = null) {
   const policy = ensureTradePolicy(region);
@@ -150,8 +160,12 @@ export function setTradeRestriction(region, { direction = 'trade', goods = null,
   const loosening = allowed !== false && oldRule?.allowed === false;
   const tariffTightening = allowed !== false && oldRule?.allowed !== false && cleanTariffRate > oldTariffRate + 0.0001;
   const tariffLoosening = allowed !== false && oldRule?.allowed !== false && cleanTariffRate + 0.0001 < oldTariffRate;
-  const affected = regions.filter((other) => other.id !== region.id &&
-    (cleanCounterparties === null || cleanCounterparties.includes(tradeActorId(other))));
+  const candidates = regions.filter((other) => other.id !== region.id &&
+    (cleanCounterparties === null ? hasEstablishedTradeContact(region, other) : cleanCounterparties.includes(tradeActorId(other))));
+  // A polity can contain many regions. Send one notice per counterpart actor,
+  // using the actually traded-with region when possible, rather than broadcasting
+  // an all-countries rule to every simulated region in the world.
+  const affected = [...new Map(candidates.map((other) => [tradeActorId(other), other])).values()];
   const harmByActor = {};
   const notificationTickByActor = {};
   const regionsById = new Map(regions.map((r) => [r.id, r]));
