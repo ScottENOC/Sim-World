@@ -5,6 +5,7 @@ function selectedRegion(){const w=globalThis.__worldsim,id=w?.map?.selectedId;re
 function playerPolityId(){return globalThis.__worldsim?.activePlayerPolityId||null;}
 function canRule(region){const id=playerPolityId();return Boolean(region&&id&&(region.governance?.sovereignPolityId===id||region.governance?.localPolityId===id));}
 function optionMap(obj,current){return Object.entries(obj).map(([id,d])=>`<option value="${id}" ${current===id?'selected':''}>${d.label}</option>`).join('');}
+function applyPolity(patch){return setPolityLabourPolicy(globalThis.__worldsim?.regions||[],playerPolityId(),patch,{playerChoice:true});}
 
 export function renderLabourRelationsControls(){
   const host=typeof document!=='undefined'?document.getElementById('region-controls'):null;
@@ -28,13 +29,39 @@ export function renderLabourRelationsControls(){
     </label>
     <div class="raid-status">These policies apply across your polity. Wage floors can reduce low-pay grievance but can discourage hiring if set above current productive capacity. Protection can shelter import-competing jobs but raises input/consumer costs. Police action and strike bans can restore output quickly, but repeated coercion damages bargaining trust and makes future conflict harder to settle.</div>`;
   host.appendChild(panel);
-  const apply=(patch)=>setPolityLabourPolicy(globalThis.__worldsim?.regions||[],playerPolityId(),patch,{playerChoice:true});
-  document.getElementById('labour-min-wage')?.addEventListener('input',e=>{const v=Number(e.target.value)/100;apply({minimumWageRatio:v});document.getElementById('labour-min-wage-label').textContent=`${pct(v)} of reference wage`;});
-  document.getElementById('labour-bargaining')?.addEventListener('change',e=>apply({collectiveBargaining:e.target.value}));
-  document.getElementById('labour-strike-law')?.addEventListener('change',e=>apply({strikeLaw:e.target.value}));
-  document.getElementById('labour-police')?.addEventListener('change',e=>apply({policeResponse:e.target.value}));
-  document.getElementById('labour-protection')?.addEventListener('input',e=>{const v=Number(e.target.value)/100;apply({importProtection:v});document.getElementById('labour-protection-label').textContent=pct(v);});
+  document.getElementById('labour-min-wage')?.addEventListener('input',e=>{const v=Number(e.target.value)/100;applyPolity({minimumWageRatio:v});document.getElementById('labour-min-wage-label').textContent=`${pct(v)} of reference wage`;});
+  document.getElementById('labour-bargaining')?.addEventListener('change',e=>applyPolity({collectiveBargaining:e.target.value}));
+  document.getElementById('labour-strike-law')?.addEventListener('change',e=>applyPolity({strikeLaw:e.target.value}));
+  document.getElementById('labour-police')?.addEventListener('change',e=>applyPolity({policeResponse:e.target.value}));
+  document.getElementById('labour-protection')?.addEventListener('input',e=>{const v=Number(e.target.value)/100;applyPolity({importProtection:v});document.getElementById('labour-protection-label').textContent=pct(v);});
 }
 
-function install(){const host=document.getElementById('region-controls');if(!host)return;const observer=new MutationObserver(()=>queueMicrotask(renderLabourRelationsControls));observer.observe(host,{childList:true});renderLabourRelationsControls();}
+function showLabourNotice(detail){
+  document.getElementById('labour-relations-notice')?.remove();
+  const box=document.createElement('div');box.id='labour-relations-notice';
+  box.style.cssText='position:fixed;left:12px;right:12px;bottom:12px;z-index:10000;max-height:58vh;overflow:auto;background:rgba(20,24,28,.96);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:12px;padding:12px;box-shadow:0 8px 28px rgba(0,0,0,.45);font:14px system-ui';
+  const started=detail.type==='strike_started',ended=detail.type==='strike_ended';
+  const title=started?`Strike begins in ${detail.regionName}`:ended?`Strike ends in ${detail.regionName}`:`Labour tensions rising in ${detail.regionName}`;
+  const causes=(detail.causes||[]).map(c=>`<li>${c}</li>`).join('');
+  box.innerHTML=`<strong style="font-size:16px">${title}</strong>${causes?`<ul>${causes}</ul>`:''}${ended?`<div>The dispute lasted ${Number(detail.durationWeeks||0).toFixed(1)} weeks.</div>`:`<div>This is not a random event: current wages, prices, job security, working conditions, bargaining institutions and prior coercion are driving the pressure.</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+      <button data-labour-quick="recognise">Recognise bargaining</button>
+      <button data-labour-quick="wage">Raise wage floor modestly</button>
+      <button data-labour-quick="order">Police keep order</button>
+      <button data-labour-quick="force">Break strike by force</button>
+    </div>
+    <div style="margin-top:8px;font-size:12px;opacity:.85">Recognition and wage policy can lower the underlying grievance; coercion restores more output immediately but builds repression memory and weakens future bargaining trust.</div>`}
+    <button data-labour-close style="margin-top:10px">Dismiss</button>`;
+  document.body.appendChild(box);
+  box.querySelector('[data-labour-close]')?.addEventListener('click',()=>box.remove());
+  box.querySelector('[data-labour-quick="recognise"]')?.addEventListener('click',()=>{applyPolity({collectiveBargaining:'recognised',policeResponse:'negotiate'});box.remove();});
+  box.querySelector('[data-labour-quick="wage"]')?.addEventListener('click',()=>{const region=(globalThis.__worldsim?.regions||[]).find(r=>(r.governance?.sovereignPolityId||r.polityId)===playerPolityId());const current=ensureLabourRelations(region||{}).policy.minimumWageRatio;applyPolity({minimumWageRatio:Math.min(1.25,current+.1),policeResponse:'negotiate'});box.remove();});
+  box.querySelector('[data-labour-quick="order"]')?.addEventListener('click',()=>{applyPolity({policeResponse:'keep_order'});box.remove();});
+  box.querySelector('[data-labour-quick="force"]')?.addEventListener('click',()=>{applyPolity({strikeLaw:'banned',policeResponse:'force'});box.remove();});
+}
+
+function install(){
+  const host=document.getElementById('region-controls');if(host){const observer=new MutationObserver(()=>queueMicrotask(renderLabourRelationsControls));observer.observe(host,{childList:true});renderLabourRelationsControls();}
+  globalThis.addEventListener?.('labourrelations:notice',e=>showLabourNotice(e.detail));
+}
 if(typeof document!=='undefined'){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();}
