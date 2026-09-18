@@ -1,0 +1,21 @@
+name: Published geography validation
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/core/publishedGeography.js'
+      - 'js/core/knowledge.js'
+      - 'js/main.js'
+      - 'tools/test-published-geography.mjs'
+      - '.github/workflows/published-geography.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --check js/core/publishedGeography.js
+      - run: node --check js/main.js
+      - run: node tools/test-published-geography.mjs
