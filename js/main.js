@@ -1,6 +1,7 @@
 import { Clock } from './core/clock.js?v=20260904-weather1';
 import { createPerformanceProfiler } from './core/performanceProfiler.js?v=20260912-deep-profiler1';
 import { calendarWeekIndex } from './core/simTime.js?v=20260905-time2';
+import { assessWorldTempo } from './core/worldTempo.js?v=20260918-world-tempo1';
 import { EventBus } from './core/eventBus.js?v=20260904-weather1';
 import { loadWorld } from './world/region.js?v=20260912-silkroad1';
 import { loadSeaWorld, linkSeaAdjacency } from './world/seaRegion.js?v=20260912-silkroad1';
@@ -116,6 +117,7 @@ async function main() {
   const profiler = createPerformanceProfiler();
   profiler.mount();
   const regions = await loadWorld();
+  clock.setWorldTempo(assessWorldTempo(regions));
   console.log(`Simulation map loaded: ${regions.length} permanent land regions`);
   seedCensus(regions);
   const religiousWorld = initialiseReligions(regions, createReligiousWorld());
@@ -286,6 +288,7 @@ async function main() {
       updateRegionStats(selectedRegion, seaRegionsById, fogOfWar, regions, playerRegionId);
       document.getElementById('region-sheet').classList.remove('hidden');
     }
+    clock.setWorldTempo(assessWorldTempo(regions));
     document.getElementById('hud-date').textContent = clock.formatDate(START_YEAR);
     clock.start();
     map.draw();
@@ -632,6 +635,10 @@ async function main() {
       showNextEvent(clock, eventQueue);
     }
 
+    // Reassess after this turn's construction, technology and infrastructure
+    // changes. The result applies to the next turn, so historical time contracts
+    // smoothly as fast transport/communications become established.
+    clock.setWorldTempo(assessWorldTempo(regions));
     document.getElementById('hud-date').textContent = clock.formatDate(START_YEAR);
     profiler.measure('UI world-map draw', () => map.draw());
 

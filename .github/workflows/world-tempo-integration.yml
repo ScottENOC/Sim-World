@@ -1,0 +1,23 @@
+name: World tempo validation
+on:
+  push:
+  pull_request:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks
+        run: |
+          node --check js/core/worldTempo.js
+          node --check js/core/clock.js
+          node --check js/main.js
+      - name: World tempo regression
+        run: node tools/test-world-tempo.mjs
+      - name: Existing clock regressions
+        run: |
+          if [ -f tools/test-clock.mjs ]; then node tools/test-clock.mjs; fi
+          if [ -f tools/test-sim-time.mjs ]; then node tools/test-sim-time.mjs; fi
