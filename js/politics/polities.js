@@ -6,6 +6,7 @@ import { monumentalPrestige } from '../economy/construction.js?v=20260906-presti
 import { languagePolicyAdministrativeEffects } from './languagePolicy.js?v=20260909-language-policy1';
 import { ensureCurrencyInstitution, tickCurrencyInstitution } from '../economy/currency.js?v=20260912-currency3';
 import { ensureMonetaryInstitution, tickMonetaryModernisation } from '../economy/monetaryModernisation.js?v=20260918-money1';
+import { ensureInternationalMonetaryState, tickInternationalMonetarySystem } from '../economy/internationalMoney.js?v=20260918-intmoney1';
 import { telephoneAdministrativeMultiplier } from '../economy/localCommunications.js?v=20260918-telephone2';
 
 const EXPERIENCE_SCALE = {
@@ -54,6 +55,7 @@ export function initialisePolities(regions) {
     };
     ensureCurrencyInstitution(polity);
     ensureMonetaryInstitution(polity);
+    ensureInternationalMonetaryState(polity);
     polities.push(polity);
     region.polityId = polity.id;
     region.governance = {
@@ -319,7 +321,7 @@ function transferTribute(subject, capital, amount) {
   return delivered;
 }
 
-export function tickPolities(polities, regions, currentTick, elapsedDays = 7) {
+export function tickPolities(polities, regions, currentTick, elapsedDays = 7, options = {}) {
   const weekScale = Math.max(0.01, elapsedDays / 7);
   const controlAdjustment = 1 - Math.pow(1 - CONTROL_ADJUSTMENT_RATE, weekScale);
   const regionsById = new Map(regions.map((region) => [region.id, region]));
@@ -410,6 +412,8 @@ export function tickPolities(polities, regions, currentTick, elapsedDays = 7) {
       }
     }
   }
+
+  events.push(...tickInternationalMonetarySystem(polities, regions, options.agreements || [], elapsedDays, currentTick));
 
   for (const region of regions) {
     if (!region.militaryThreat) region.militaryThreat = { lastRaidedTick: null, recentRaids: 0 };

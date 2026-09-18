@@ -13,6 +13,7 @@ import { oceanSailingProfile } from '../technology/medievalTransition.js?v=20260
 import { maritimeRouteBetween } from '../world/chokepoints.js?v=20260907-chokepoints1';
 import { collectTransitTolls, estimateTransitToll } from './transitTolls.js?v=20260907-transit1';
 import { currencyTradeFriction, recordCurrencyContact } from './currency.js?v=20260912-currency3';
+import { internationalSettlementPlan, recordInternationalSettlement } from './internationalMoney.js?v=20260918-intmoney1';
 import { quarantineTradeFriction } from '../society/disease.js?v=20260912-disease1';
 import { medievalTradeFrictionMultiplier } from './medievalCommercialInstitutions.js?v=20260912-medieval2';
 import { recordCommodityTrade } from './foodLuxuries.js?v=20260913-food-luxuries1';
@@ -68,7 +69,9 @@ function clamp01(value) {
 }
 
 function combinedTradeFriction(regionA, regionB) {
-  return currencyTradeFriction(regionA, regionB) * quarantineTradeFriction(regionA) * quarantineTradeFriction(regionB) *
+  const directCurrency = currencyTradeFriction(regionA, regionB);
+  const internationalCurrency = internationalSettlementPlan(regionA, regionB).friction;
+  return Math.min(directCurrency, internationalCurrency) * quarantineTradeFriction(regionA) * quarantineTradeFriction(regionB) *
     medievalTradeFrictionMultiplier(regionA) * medievalTradeFrictionMultiplier(regionB);
 }
 
@@ -498,6 +501,7 @@ function settleReturnedVenture(origin, dest, venture, currentTick) {
     recordDirectTrade(origin, dest, venture.soldVolume, currentTick);
     recordCommodityTrade(origin, dest, venture.resource, venture.soldVolume);
     recordCurrencyContact(origin, dest, currentTick);
+    recordInternationalSettlement(origin, dest, payment);
     recordDiplomaticTrade(origin, dest, payment, currentTick);
   } else {
     recordRouteHabit(origin, venture, 0, currentTick, false);
