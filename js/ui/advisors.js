@@ -9,7 +9,7 @@ import { CATAPULT_TECH_ID, ensureSiegeEquipment, setSiegeTarget, siegeCount, sie
 import { dominantReligion, establishReligiousCentre, forkReligion, influenceReligiousLeader,
   religionById, setReligiousTolerance, setStateReligion } from '../society/religion.js?v=20260905-religion1';
 import { TRADE_GOODS } from '../economy/tradeGoods.js?v=20260905-goods2';
-import { activeTradeRestrictions, removeTradeRestriction, setTradeRestriction, tradeActorId } from '../economy/tradePolicy.js?v=20260905-policy1';
+import { activeTariffs, activeTradeRestrictions, removeTradeRestriction, setTradeRestriction, tradeActorId } from '../economy/tradePolicy.js?v=20260905-policy1';
 import { setChokepointTollPolicy, setRoadTollPolicy, transitPolicySummary } from '../economy/transitTolls.js?v=20260907-transit1';
 import { DIPLOMAT_AUTHORITY, dispatchDiplomat, diplomatsFor, recallDiplomat, setDiplomatAuthority } from '../diplomacy/diplomats.js?v=20260909-diplomats1';
 import { ensureCounterIntelligence, setCounterIntelligencePolicy } from '../diplomacy/counterIntelligence.js?v=20260909-counterintel1';
@@ -247,6 +247,7 @@ export class AdvisorCouncil {
     const trade = player.tradeEconomy || {};
     const revenue = (finance.weeklyTaxRevenue || 0) + (finance.weeklyTradeDuties || 0);
     const restrictions = activeTradeRestrictions(player);
+    const tariffs = activeTariffs(player);
     const contacts = this.regions.filter((region) => region.id !== player.id && this.fogOfWar.isVisible(region));
     const actors = [...new Map(contacts.map((region) => [tradeActorId(region), region])).values()];
     const goods = Object.entries(TRADE_GOODS);
@@ -259,7 +260,7 @@ export class AdvisorCouncil {
     };
     return `<p class="advisor-voice">“Coin is stored labour, Majesty. I count where it comes from, and which promises are consuming it.”</p>
       ${section('Treasury', row('Treasury', number(player.treasury)) + row('Household wealth', number(player.wallet)) + row('Revenue this week', revenue.toFixed(1)) + row('Military payroll paid', percent(finance.payRatio ?? 1), (finance.payRatio ?? 1) < .9 ? 'warning' : '') + row('Administration capacity', percent(finance.stateCapacity ?? 1)))}
-      ${section('Trade', row('Exports this week', number(trade.weeklyExports)) + row('Imports this week', number(trade.weeklyImports)) + row('Trade debt', `${number(trade.debt)} / ${number(trade.creditLimit)}`) + row('Known partners', number(player.tradePartnerIds?.size)))}
+      ${section('Trade', row('Exports this week', number(trade.weeklyExports)) + row('Imports this week', number(trade.weeklyImports)) + row('Tariff revenue this week', Number(trade.weeklyTariffRevenue || 0).toFixed(1)) + row('Import tariff burden', percent(trade.importTariffBurdenEma || 0)) + row('Trade debt', `${number(trade.debt)} / ${number(trade.creditLimit)}`) + row('Known partners', number(player.tradePartnerIds?.size)))}
       ${section('Transit tolls', `
         ${row('Toll revenue this tick', (transit.tollRevenueThisTick || 0).toFixed(1))}
         <label class="advisor-field advisor-slider"><span>Road transit toll <b id="road-toll-label">${Math.round((transit.roadPolicy.rate || 0) * 100)}%</b></span><input id="road-toll-rate" type="range" min="0" max="20" value="${Math.round((transit.roadPolicy.rate || 0) * 100)}"></label>
@@ -269,15 +270,17 @@ export class AdvisorCouncil {
           <label class="advisor-field advisor-slider"><span>${entry.label} toll <b id="cp-toll-label-${entry.id}">${Math.round((entry.policy.rate || 0) * 100)}%</b></span><input data-cp-toll="${entry.id}" type="range" min="0" max="20" value="${Math.round((entry.policy.rate || 0) * 100)}" ${entry.controlledByUs ? '' : 'disabled'}></label>
           <label class="advisor-field"><span>${entry.label}: military-support allies</span><select data-cp-allies="${entry.id}" ${entry.controlledByUs ? '' : 'disabled'}><option value="yes" ${entry.policy.alliesFree !== false ? 'selected' : ''}>Travel toll-free</option><option value="no" ${entry.policy.alliesFree === false ? 'selected' : ''}>Pay normal tolls</option></select></label>
           <label class="advisor-field"><span>${entry.label}: passage policy</span><select data-cp-access="${entry.id}" ${entry.controlledByUs ? '' : 'disabled'}><option value="open" ${entry.policy.access === 'open' ? 'selected' : ''}>Open passage</option><option value="hostile" ${entry.policy.access === 'hostile' ? 'selected' : ''}>Interdict hostile traffic</option><option value="closed" ${entry.policy.access === 'closed' ? 'selected' : ''}>Attempt closure</option></select></label>`).join('') : '<p class="advisor-note">This region is not close enough to a major mapped maritime chokepoint to enforce passage tolls.</p>'}`)}
-      ${section('Trade restrictions', `
-        <p class="advisor-note">Imports are open by default. Civilian exports are open by default; military goods are closed by default. Embargoes can cover imports, exports or both. The diplomatic reaction depends on how much the restriction is expected to hurt the other realm.</p>
-        <label class="advisor-field"><span>Direction</span><select id="trade-rule-direction"><option value="trade">All trade</option><option value="export">Exports only</option><option value="import">Imports only</option></select></label>
+      ${section('Trade policy', `
+        <p class="advisor-note">Use the same goods-and-country rule for embargoes or tariffs. Tariffs make the selected trade less attractive, raise the importer's landed cost and transfer the duty to your treasury. They can shelter domestic producers only through those real market effects; there is no separate protectionism bonus.</p>
+        <label class="advisor-field"><span>Direction</span><select id="trade-rule-direction"><option value="import">Imports only</option><option value="export">Exports only</option><option value="trade">Imports and exports</option></select></label>
         <label class="advisor-field"><span>Goods</span><select id="trade-rule-good"><option value="*">All goods</option>${goods.map(([id, good]) => `<option value="${id}">${good.label}${good.strategic ? ' · military' : ''}</option>`).join('')}</select></label>
         <label class="advisor-field"><span>Country</span><select id="trade-rule-country"><option value="*">All countries</option>${actors.map((region) => `<option value="${tradeActorId(region)}">${region.name}</option>`).join('')}</select></label>
+        <label class="advisor-field advisor-slider"><span>Tariff rate <b id="trade-tariff-label">20%</b></span><input id="trade-rule-tariff" type="range" min="0" max="200" step="5" value="20"></label>
+        <button id="add-trade-tariff" class="advisor-order">Set tariff</button>
         <button id="add-trade-embargo" class="advisor-order danger">Prohibit trade</button>
-        ${restrictions.length ? `<div class="advisor-list">${restrictions.map((rule) => `<button data-remove-trade-rule="${rule.id}"><span>${ruleLabel(rule)}</span><small>Lift restriction</small></button>`).join('')}</div>` : '<p class="advisor-note">No additional embargoes are in force.</p>'}
-        <p class="advisor-note">For a list of goods or countries, add several specific rules. The underlying policy supports grouped lists as well; this phone-first control avoids awkward multi-select gestures.</p>`)}
-      ${section('Later institutions', '<p class="advisor-note">The same policy engine already carries a tariff-rate field, but tariffs are not active in Bronze Age play. A later state can use this layer for customs duties without replacing the embargo system.</p>')}`;
+        ${tariffs.length ? `<div class="advisor-list">${tariffs.map((rule) => `<button data-remove-trade-rule="${rule.id}"><span>${ruleLabel(rule)}</span><small>${Math.round((rule.tariffRate || 0) * 100)}% tariff · remove</small></button>`).join('')}</div>` : '<p class="advisor-note">No tariffs are currently in force.</p>'}
+        ${restrictions.length ? `<div class="advisor-list">${restrictions.map((rule) => `<button data-remove-trade-rule="${rule.id}"><span>${ruleLabel(rule)}</span><small>Embargo · lift restriction</small></button>`).join('')}</div>` : '<p class="advisor-note">No additional embargoes are in force.</p>'}
+        <p class="advisor-note">For a list of goods or countries, add several specific rules. The phone-first control avoids awkward multi-select gestures. Very high tariffs can choke off the trade entirely and can provoke diplomatic resentment.</p>`)};
   }
 
   renderSteward(player) {
@@ -471,6 +474,22 @@ export class AdvisorCouncil {
       setTradeRestriction(player, {
         direction, goods: good === '*' ? null : [good],
         counterparties: country === '*' ? null : [country], allowed: false,
+      }, this.regions, this.clock.tickIndex);
+      this.render(false);
+    });
+    const tariffInput = document.getElementById('trade-rule-tariff');
+    tariffInput?.addEventListener('input', () => {
+      const label = document.getElementById('trade-tariff-label');
+      if (label) label.textContent = `${tariffInput.value}%`;
+    });
+    document.getElementById('add-trade-tariff')?.addEventListener('click', () => {
+      const direction = document.getElementById('trade-rule-direction')?.value || 'import';
+      const good = document.getElementById('trade-rule-good')?.value || '*';
+      const country = document.getElementById('trade-rule-country')?.value || '*';
+      const tariffRate = Math.max(0, Number(document.getElementById('trade-rule-tariff')?.value) || 0) / 100;
+      setTradeRestriction(player, {
+        direction, goods: good === '*' ? null : [good],
+        counterparties: country === '*' ? null : [country], allowed: true, tariffRate,
       }, this.regions, this.clock.tickIndex);
       this.render(false);
     });

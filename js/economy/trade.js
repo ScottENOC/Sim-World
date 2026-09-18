@@ -1,6 +1,6 @@
 import { localPrice, TRADABLE_RESOURCES } from './prices.js?v=20260912-steel1';
 import { cargoKgPerUnit } from './tradeGoods.js?v=20260912-steel1';
-import { tradeAllowed } from './tradePolicy.js?v=20260905-policy1';
+import { borderTariffQuote, tradeAllowed } from './tradePolicy.js?v=20260905-policy1';
 import { directContactIds, knownRegionIds, recordDirectTrade, diffuseTradeNetworkKnowledge } from '../core/knowledge.js?v=20260904-weather1';
 import { centroidDistanceKm } from '../world/distance.js?v=20260904-weather1';
 import { advancedMaritimeShare } from '../military/army.js?v=20260905-infra1';
@@ -222,7 +222,8 @@ function ensureTradeEconomy(region) {
     debt: 0, creditLimit: 0, arrearsWeeks: 0,
     exportIncomeEma: 0, nonFoodExportIncomeEma: 0, importSpendEma: 0,
     foodImportEma: 0, bronzeExportEma: 0, routeReliabilityEma: 0,
-    weeklyExports: 0, weeklyImports: 0, searchPressure: 0,
+    importTariffBurdenEma: 0, tariffRevenueEma: 0,
+    weeklyExports: 0, weeklyImports: 0, weeklyImportTariffPaid: 0, weeklyExportTariffPaid: 0, weeklyTariffRevenue: 0, searchPressure: 0,
     merchantPopulation: NaN, merchantConfidence: 0,
     merchantBoats: NaN, advancedMerchantBoats: NaN,
     nextVentureId: 1,
@@ -233,6 +234,8 @@ function ensureTradeEconomy(region) {
   if (!region.tradeEconomy.routeHabits || typeof region.tradeEconomy.routeHabits !== 'object' ||
       Array.isArray(region.tradeEconomy.routeHabits)) region.tradeEconomy.routeHabits = {};
   if (!Array.isArray(region.tradeEconomy.ventures)) region.tradeEconomy.ventures = [];
+  if (!region.tradeEconomy.importSpendByResourceEma || typeof region.tradeEconomy.importSpendByResourceEma !== 'object') region.tradeEconomy.importSpendByResourceEma = {};
+  if (!region.tradeEconomy.weeklyImportsByResource || typeof region.tradeEconomy.weeklyImportsByResource !== 'object') region.tradeEconomy.weeklyImportsByResource = {};
 
   if (!Number.isFinite(region.tradeEconomy.merchantPopulation)) {
     const previous = Math.max(0, Number(region.occupations?.trader) || 0);
@@ -274,6 +277,10 @@ function beginTradeWeek(region) {
   commissionMerchantBoats(region);
   economy.weeklyExports = 0;
   economy.weeklyImports = 0;
+  economy.weeklyImportTariffPaid = 0;
+  economy.weeklyExportTariffPaid = 0;
+  economy.weeklyTariffRevenue = 0;
+  economy.weeklyImportsByResource = {};
   economy.weeklyFoodImports = 0;
   economy.weeklyBronzeExports = 0;
   economy.weeklyNonFoodExportIncome = 0;
@@ -305,6 +312,15 @@ function finishTradeWeek(region) {
   economy.importSpendEma = ema(economy.importSpendEma, economy.weeklyImports);
   economy.foodImportEma = ema(economy.foodImportEma, economy.weeklyFoodImports);
   economy.bronzeExportEma = ema(economy.bronzeExportEma, economy.weeklyBronzeExports);
+  const importTariffBurden = economy.weeklyImports + economy.weeklyImportTariffPaid > 0
+    ? economy.weeklyImportTariffPaid / (economy.weeklyImports + economy.weeklyImportTariffPaid) : 0;
+  economy.importTariffBurdenEma = ema(economy.importTariffBurdenEma, importTariffBurden);
+  economy.tariffRevenueEma = ema(economy.tariffRevenueEma, economy.weeklyTariffRevenue);
+  const importKeys = new Set([...Object.keys(economy.importSpendByResourceEma || {}), ...Object.keys(economy.weeklyImportsByResource || {})]);
+  for (const resource of importKeys) {
+    const value = ema(economy.importSpendByResourceEma[resource] || 0, economy.weeklyImportsByResource[resource] || 0);
+    if (value > 0.01) economy.importSpendByResourceEma[resource] = value; else delete economy.importSpendByResourceEma[resource];
+  }
   const reliability = economy.weeklyTradeCount > 0
     ? economy.weeklyRouteReliability / economy.weeklyTradeCount : 0;
   economy.routeReliabilityEma = ema(economy.routeReliabilityEma, reliability);
@@ -392,11 +408,13 @@ function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByR
     const baseCost = route.cost + (1 - effectiveReliability) * 0.1;
     const pricesThere = pricesByRegion.get(dest.id);
     for (const resource of stockedResources) {
-      if (!tradeAllowed(region, dest, resource)) continue;
+      const tariffQuote = borderTariffQuote(region, dest, resource);
+      if (!tariffQuote.allowed) continue;
       const priceHere = pricesHere[resource];
       const priceThere = pricesThere[resource];
       const cost = baseCost + priceHere * transit.rate;
-      const gap = priceThere - priceHere - cost;
+      const tariffCost = priceThere * tariffQuote.importRate + priceThere * tariffQuote.exportRate;
+      const gap = priceThere - priceHere - cost - tariffCost;
       if (gap <= MIN_PROFIT_THRESHOLD) continue;
       const stockAvailable = Math.max(0, (region.stockpile[resource] || 0) * MAX_EXPORT_FRACTION_PER_TICK);
       if (stockAvailable <= 0) continue;
@@ -475,10 +493,14 @@ function settleReturnedVenture(origin, dest, venture, currentTick) {
   origin.stockpile[venture.resource] = (origin.stockpile[venture.resource] || 0) + returnedCargo;
   const debtRepaid = Math.min(economy.debt, payment * CREDIT_REPAYMENT_SHARE_OF_EXPORTS);
   economy.debt -= debtRepaid;
-  origin.wallet = (origin.wallet || 0) + payment - debtRepaid;
+  const exportTariff = Math.min(payment, Math.max(0, Number(venture.exportTariff) || 0));
+  origin.wallet = (origin.wallet || 0) + payment - debtRepaid - exportTariff;
+  origin.treasury = Math.max(0, Number(origin.treasury) || 0) + exportTariff;
+  economy.weeklyExportTariffPaid += exportTariff;
+  economy.weeklyTariffRevenue += exportTariff;
 
   const costBasis = (venture.cargo || 0) * (venture.originPrice || 0) + (venture.cargo || 0) * (venture.routeCost || 0);
-  const profit = payment - costBasis;
+  const profit = payment - exportTariff - costBasis;
   const profitable = profit > Math.max(0.01, costBasis * 0.02);
   economy.weeklyReturns += 1;
   if (profitable) economy.weeklySuccessfulReturns += 1;
@@ -523,32 +545,43 @@ function processVentures(regions, regionsById, currentTick, time) {
       const arrivalDay = Number.isFinite(venture.arrivalDay) ? venture.arrivalDay : (venture.arrivalTick || currentTick) * 7;
       const returnDay = Number.isFinite(venture.returnDay) ? venture.returnDay : (venture.returnTick || currentTick) * 7;
       if (!venture.arrived && currentDay >= arrivalDay) {
-        if (!tradeAllowed(origin, dest, venture.resource)) {
+        const tariffQuote = borderTariffQuote(origin, dest, venture.resource);
+        if (!tariffQuote.allowed) {
           venture.payment = 0;
+          venture.exportTariff = 0;
           venture.soldVolume = 0;
           venture.unsoldCargo = Math.max(0, venture.cargo || 0);
           venture.arrived = true;
+        } else {
+          const buyerEconomy = ensureTradeEconomy(dest);
+          const destinationPrice = localPrice(dest, venture.resource);
+          const price = Math.max(0.001, destinationPrice);
+          const creditAvailable = Math.max(0, buyerEconomy.creditLimit - buyerEconomy.debt);
+          const purchasingPower = Math.max(0, dest.wallet || 0) + creditAvailable;
+          const landedUnitCost = price * (1 + tariffQuote.importRate);
+          const saleable = Math.min(venture.cargo || 0, purchasingPower / Math.max(0.001, landedUnitCost));
+          const sold = Math.max(0, saleable);
+          const goodsValue = sold * price;
+          const settledTariff = borderTariffQuote(origin, dest, venture.resource, goodsValue);
+          const totalDue = goodsValue + settledTariff.importTariff;
+          const cashPaid = Math.min(Math.max(0, dest.wallet || 0), totalDue);
+          dest.wallet = Math.max(0, (dest.wallet || 0) - cashPaid);
+          buyerEconomy.debt += totalDue - cashPaid;
+          dest.treasury = Math.max(0, Number(dest.treasury) || 0) + settledTariff.importTariff;
+          dest.stockpile[venture.resource] = (dest.stockpile[venture.resource] || 0) + sold;
+          buyerEconomy.weeklyImports += goodsValue;
+          buyerEconomy.weeklyImportsByResource[venture.resource] = (buyerEconomy.weeklyImportsByResource[venture.resource] || 0) + goodsValue;
+          buyerEconomy.weeklyImportTariffPaid += settledTariff.importTariff;
+          buyerEconomy.weeklyTariffRevenue += settledTariff.importTariff;
+          if (venture.resource === 'food') buyerEconomy.weeklyFoodImports += sold;
+          buyerEconomy.weeklyRouteReliability += venture.reliability || 0;
+          buyerEconomy.weeklyTradeCount += sold > 0 ? 1 : 0;
+          venture.payment = goodsValue;
+          venture.exportTariff = settledTariff.exportTariff;
+          venture.soldVolume = sold;
+          venture.unsoldCargo = Math.max(0, (venture.cargo || 0) - sold);
+          venture.arrived = true;
         }
-        const buyerEconomy = ensureTradeEconomy(dest);
-        const destinationPrice = localPrice(dest, venture.resource);
-        const price = Math.max(0.001, destinationPrice);
-        const creditAvailable = Math.max(0, buyerEconomy.creditLimit - buyerEconomy.debt);
-        const purchasingPower = Math.max(0, dest.wallet || 0) + creditAvailable;
-        const saleable = Math.min(venture.cargo || 0, purchasingPower / price);
-        const sold = Math.max(0, saleable);
-        const payment = sold * price;
-        const cashPaid = Math.min(Math.max(0, dest.wallet || 0), payment);
-        dest.wallet = Math.max(0, (dest.wallet || 0) - cashPaid);
-        buyerEconomy.debt += payment - cashPaid;
-        dest.stockpile[venture.resource] = (dest.stockpile[venture.resource] || 0) + sold;
-        buyerEconomy.weeklyImports += payment;
-        if (venture.resource === 'food') buyerEconomy.weeklyFoodImports += sold;
-        buyerEconomy.weeklyRouteReliability += venture.reliability || 0;
-        buyerEconomy.weeklyTradeCount += sold > 0 ? 1 : 0;
-        venture.payment = payment;
-        venture.soldVolume = sold;
-        venture.unsoldCargo = Math.max(0, (venture.cargo || 0) - sold);
-        venture.arrived = true;
       }
       if (currentDay >= returnDay) {
         settleReturnedVenture(origin, dest, venture, currentTick);
