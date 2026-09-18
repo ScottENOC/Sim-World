@@ -17,7 +17,8 @@ import { institutionalContextForPolity } from '../politics/institutionalIntegrat
 import { chooseAiConstruction } from '../economy/construction.js?v=20260905-projects1';
 import { chooseAiSiegeTargets } from '../military/siegeEquipment.js?v=20260905-projects1';
 import { chooseAiReligion, religiousWarModifier } from '../society/religion.js?v=20260905-religion1';
-import { activeTradeRestrictions, setTradeRestriction, tradeActorId } from '../economy/tradePolicy.js?v=20260905-policy1';
+import { activeTariffs, activeTradeRestrictions, setTradeRestriction, tradeActorId } from '../economy/tradePolicy.js?v=20260905-policy1';
+import { TRADE_GOODS } from '../economy/tradeGoods.js?v=20260905-goods2';
 import { buildScoutingContext, startScoutingMission } from '../core/scouting.js?v=20260906-scouting1';
 import { applyMemoryDrivenNpcPolicy, npcMemorySignals } from './memoryDrivenAi.js?v=20260907-memory-ai1';
 import { setChokepointTollPolicy, setRoadTollPolicy, transitPolicySummary } from '../economy/transitTolls.js?v=20260907-transit1';
@@ -71,6 +72,7 @@ export function tickNationAi(regions, playerRegionId, activeRaids, activeCampaig
     detail('religion choice', () => chooseAiReligion(region, religiousWorld, currentTick, rng, strategicWeeks));
     detail('transit tolls', () => maybeManageTransitTolls(region, regions, rng));
     detail('trade embargo', () => maybeAdjustTradeEmbargo(region, regionsById, currentTick));
+    detail('labour tariff', () => maybeAdjustLabourTariff(region, regionsById, currentTick));
     detail('scouting choice', () => maybeScout(region, regionsById, currentTick, rng, scoutingContext));
     detail('diplomat posting', () => chooseNpcDiplomatPosting(region, regions, currentTick, rng));
     detail('agreement choice', () => maybeMakeAgreement(region, regionsById, playerRegionId, agreements, polities, currentTick, toolTypes, rng, chance(DIPLOMACY_CONSIDERATION_CHANCE_PER_WEEK)));
@@ -121,6 +123,40 @@ function maybeAdjustTradeEmbargo(region, regionsById, currentTick) {
     if (hostility <= -0.72 && !keyRule) setTradeRestriction(region, { direction: 'trade', goods: null, counterparties: [actor], allowed: false }, [...regionsById.values()], currentTick);
     else if (hostility >= -0.35 && keyRule) setTradeRestriction(region, { direction: 'trade', goods: null, counterparties: [actor], allowed: true }, [...regionsById.values()], currentTick);
   }
+}
+
+function maybeAdjustLabourTariff(region, regionsById, currentTick) {
+  if (!Number.isFinite(currentTick)) return;
+  const labour = region.labourRelations || {};
+  const employment = region.employment || {};
+  const trade = region.tradeEconomy || {};
+  const grievance = clamp01(labour.grievance || 0);
+  const unemployment = clamp01(employment.unemploymentRate || 0);
+  const hardship = clamp01(employment.hardship || 0);
+  const industrial = clamp01(region.structuralTransformation?.industrialShare || 0);
+  const tariffBurden = clamp01(trade.importTariffBurdenEma || 0);
+  const tariffs = activeTariffs(region).filter((rule) => rule.direction === 'import' || rule.direction === 'trade');
+
+  // If duties themselves have become a major household/input burden, unwind the
+  // highest one first. NPCs therefore face the same trade-off as the player.
+  if ((tariffBurden > 0.14 || hardship > 0.55) && tariffs.length) {
+    const highest = tariffs.slice().sort((a,b)=>(b.tariffRate||0)-(a.tariffRate||0))[0];
+    const next = Math.max(0, (highest.tariffRate || 0) - 0.05);
+    setTradeRestriction(region, { direction: highest.direction, goods: highest.goods, counterparties: highest.counterparties, allowed: true, tariffRate: next }, [...regionsById.values()], currentTick);
+    return;
+  }
+  if (grievance < 0.28 || unemployment < 0.08 || industrial < 0.22 || tariffBurden > 0.10) return;
+
+  const imports = Object.entries(trade.importSpendByResourceEma || {})
+    .filter(([resource, value]) => value > 0.5 && ['manufactured','consumer_good','civilian_equipment'].includes(TRADE_GOODS[resource]?.category))
+    .sort((a,b)=>b[1]-a[1]);
+  if (!imports.length) return;
+  const resource = imports[0][0];
+  const existing = (region.tradePolicy?.rules || []).find((rule) => rule.direction === 'import' && rule.goods?.length === 1 && rule.goods[0] === resource && rule.counterparties === null);
+  if (existing?.allowed === false) return;
+  const desired = Math.min(0.30, 0.08 + unemployment * 0.55 + grievance * 0.20);
+  if ((existing?.tariffRate || 0) >= desired - 0.01) return;
+  setTradeRestriction(region, { direction: 'import', goods: [resource], counterparties: null, allowed: true, tariffRate: desired }, [...regionsById.values()], currentTick);
 }
 
 function maybeScout(region, regionsById, currentTick, rng, scoutingContext = null) {

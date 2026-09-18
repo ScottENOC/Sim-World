@@ -72,16 +72,17 @@ function defenceEmergency(region){const defending=Math.max(0,region.warEconomy?.
 function assess(region,s){
   const e=region.employment||{},formal=pct(e.formalLabourShare||0),literacy=pct(region.publicEducation?.literacy||region.educationLevel||0),urban=urbanShare(region),industry=industrialShare(region);
   const hardship=pct(e.hardship||0),unemployment=pct(e.unemploymentRate||0),food=pct(e.causes?.foodPrices||0),failures=pct(e.causes?.firmFailures||0),trade=pct(e.causes?.tradeDisruption||0);
+  const tariffCost=pct(region.tradeEconomy?.importTariffBurdenEma||0);
   const standards=pct(region.economicRegulation?.labourStandards||0),safety=pct(region.economicRegulation?.workerSafety||standards),relief=pct(region.socialProtection?.coverage||region.socialProtectionReport?.coverage||0);
   const bargaining=BARGAINING_POLICIES[s.policy.collectiveBargaining],capacity=productiveWageCapacity(region),floor=s.policy.minimumWageRatio;
   const affordable=Math.max(0,capacity+.08-unemployment*.18),excessFloor=Math.max(0,floor-affordable),hiringPenalty=clamp(excessFloor*(.16+industry*.14),0,.18);
   const wageRelief=clamp(Math.min(floor,affordable)*.48+standards*.18);
-  const workplace=pct((region.enterpriseExternalities?.labourHarm||0)*.55+(1-safety)*industry*.18),wageCostPressure=pct(hardship*.38+food*.3-wageRelief),insecurity=pct(unemployment*.5+failures*.28+trade*.2-relief*.12);
+  const workplace=pct((region.enterpriseExternalities?.labourHarm||0)*.55+(1-safety)*industry*.18),wageCostPressure=pct(hardship*.38+food*.3+tariffCost*.22-wageRelief),insecurity=pct(unemployment*.5+failures*.28+trade*.2-relief*.12);
   const rawGrievance=pct(wageCostPressure*.42+workplace*.24+insecurity*.24+s.repressionMemory*.28-relief*.18+bargaining.trust*.12),organisationTarget=pct(formal*(.18+literacy*.34+urban*.28+industry*.22)*bargaining.organisation);
   const emergency=defenceEmergency(region),exhaustion=pct(region.warEconomy?.warExhaustion||0),munitionsCritical=(region.warEconomy?.munitionsOutputValue||0)>0?1:0;
   const patrioticRestraint=pct(emergency*(.52+munitionsCritical*.26)*(1-exhaustion*.72)*(1-rawGrievance*.58));
   const strikeBase=pct(rawGrievance*.68+s.unionDensity*.34+s.repressionMemory*.16-unemployment*.16-bargaining.trust*.14-patrioticRestraint*.62);
-  return {formal,literacy,urban,industry,hardship,unemployment,food,failures,trade,standards,safety,relief,capacity,affordable,excessFloor,hiringPenalty,workplace,wageCostPressure,insecurity,rawGrievance,organisationTarget,patrioticRestraint,strikeBase,emergency,munitionsCritical};
+  return {formal,literacy,urban,industry,hardship,unemployment,food,failures,trade,tariffCost,standards,safety,relief,capacity,affordable,excessFloor,hiringPenalty,workplace,wageCostPressure,insecurity,rawGrievance,organisationTarget,patrioticRestraint,strikeBase,emergency,munitionsCritical};
 }
 function maybeNpcPolicy(region,s,a){
   if(s.playerLocked||a.formal<.28)return;
@@ -92,6 +93,7 @@ function maybeNpcPolicy(region,s,a){
 }
 function noticeCauses(a){
   const causes=[];
+  if(a.tariffCost>.08)causes.push('tariffs are materially raising the cost of imported goods and inputs');
   if(a.wageCostPressure>.18)causes.push('living costs are outrunning take-home pay');
   if(a.workplace>.18)causes.push('workplace conditions are generating grievances');
   if(a.insecurity>.16)causes.push('workers fear unemployment or firm closures');
@@ -124,7 +126,7 @@ export function tickLabourRelations(region,currentTick=0,elapsedDays=7,{isPlayer
   }else{s.strikeIntensity=0;s.strikeWeeks=0;s.repressionMemory=Math.max(0,s.repressionMemory-weeks*.0025);}
   const sectorWeight=clamp(.25+a.industry*.65);s.outputMultiplier=clamp(1-s.strikeIntensity*sectorWeight,.45,1);s.munitionsMultiplier=clamp(1-s.strikeIntensity*(a.munitionsCritical?.9:.45),.35,1);
   if(s.activeStrike&&s.policy.policeResponse!=='negotiate')region.stability=clamp((region.stability??.6)+s.strikeIntensity*.0005*weeks-s.repressionMemory*.0009*weeks);
-  region.report ||= {};region.report.labourRelations={unionDensity:s.unionDensity,grievance:s.grievance,bargainingTrust:s.bargainingTrust,strikePressure:s.strikePressure,activeStrike:s.activeStrike,strikeIntensity:s.strikeIntensity,strikeWeeks:s.strikeWeeks,repressionMemory:s.repressionMemory,patrioticRestraint:s.patrioticRestraint,hiringPenalty:s.hiringPenalty,outputMultiplier:s.outputMultiplier,munitionsMultiplier:s.munitionsMultiplier,policy:{...s.policy},causes:{wageCost:a.wageCostPressure,workplace:a.workplace,jobInsecurity:a.insecurity,hardship:a.hardship,unemployment:a.unemployment,warEmergency:a.emergency}};
+  region.report ||= {};region.report.labourRelations={unionDensity:s.unionDensity,grievance:s.grievance,bargainingTrust:s.bargainingTrust,strikePressure:s.strikePressure,activeStrike:s.activeStrike,strikeIntensity:s.strikeIntensity,strikeWeeks:s.strikeWeeks,repressionMemory:s.repressionMemory,patrioticRestraint:s.patrioticRestraint,hiringPenalty:s.hiringPenalty,outputMultiplier:s.outputMultiplier,munitionsMultiplier:s.munitionsMultiplier,policy:{...s.policy},causes:{wageCost:a.wageCostPressure,tariffCost:a.tariffCost,workplace:a.workplace,jobInsecurity:a.insecurity,hardship:a.hardship,unemployment:a.unemployment,warEmergency:a.emergency}};
   return events;
 }
 export function labourRelationsSummary(region){const s=ensureLabourRelations(region);return {...(region.report?.labourRelations||{}),policy:{...s.policy}};}
