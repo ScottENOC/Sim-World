@@ -1,8 +1,22 @@
 from pathlib import Path
 
-campaigns = Path('js/military/campaigns.js')
-text = campaigns.read_text()
-replacements = [
+
+def apply_replacements(path, replacements):
+    p = Path(path)
+    text = p.read_text()
+    changed = False
+    for old, new in replacements:
+        if new in text:
+            continue
+        if old not in text:
+            raise SystemExit(f'missing integration pattern in {path}: {old[:140]!r}')
+        text = text.replace(old, new, 1)
+        changed = True
+    if changed:
+        p.write_text(text)
+    return changed
+
+campaigns_changed = apply_replacements('js/military/campaigns.js', [
     (
         "import { bombardRegionalInfrastructure, entrenchmentDefenceMultiplier, modernArtilleryProfile, modernInfantryProfile } from './modernLandWarfare.js?v=20260918-modern-war1';",
         "import { bombardRegionalInfrastructure, entrenchmentDefenceMultiplier, modernArtilleryProfile, modernInfantryProfile } from './modernLandWarfare.js?v=20260918-modern-war1';\nimport { modernTacticalProfile, recordModernCombatLessons } from './modernTactics.js?v=20260919-mg-tactics1';",
@@ -31,16 +45,9 @@ replacements = [
         "    attackerFirearms, defenderFirearms, attackerModern, defenderModern, modernArtillery, trenchDefence, bombardment };",
         "    attackerFirearms, defenderFirearms, attackerModern, defenderModern, attackerTactics, defenderTactics, modernArtillery, trenchDefence, bombardment };",
     ),
-]
-for old, new in replacements:
-    if old not in text:
-        raise SystemExit(f'missing campaigns integration pattern: {old[:140]!r}')
-    text = text.replace(old, new, 1)
-campaigns.write_text(text)
+])
 
-main = Path('js/main.js')
-text = main.read_text()
-replacements = [
+main_changed = apply_replacements('js/main.js', [
     (
         "import { tickMedievalDoctrine } from './military/medievalDoctrine.js?v=20260912-medieval2';",
         "import { tickMedievalDoctrine } from './military/medievalDoctrine.js?v=20260912-medieval2';\nimport { tickModernTactics } from './military/modernTactics.js?v=20260919-mg-tactics1';",
@@ -49,18 +56,6 @@ replacements = [
         "    profiler.measure('Medieval doctrine', () => tickMedievalDoctrine(regions, time.elapsedDays));",
         "    profiler.measure('Medieval doctrine', () => tickMedievalDoctrine(regions, time.elapsedDays));\n    profiler.measure('Modern tactical adaptation', () => tickModernTactics(regions, time.elapsedDays));",
     ),
-]
-for old, new in replacements:
-    if old not in text:
-        raise SystemExit(f'missing main integration pattern: {old[:140]!r}')
-    text = text.replace(old, new, 1)
-main.write_text(text)
+])
 
-modern = Path('js/military/modernTactics.js')
-text = modern.read_text()
-old = "defensiveMultiplier = 1 + preparation * (0.34 + state.defensiveFireDiscipline * 0.18);"
-new = "defensiveMultiplier = 1 + preparation * (0.40 + state.defensiveFireDiscipline * 0.18);"
-if old not in text:
-    raise SystemExit('missing prepared-defence calibration pattern')
-modern.write_text(text.replace(old, new, 1))
-print('machine-gun tactical revolution integration applied')
+print(f'machine-gun tactical revolution integration applied: campaigns={campaigns_changed} main={main_changed}')
