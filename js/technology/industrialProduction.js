@@ -33,17 +33,12 @@ export function industrialProductionBreakthroughChances(region,byId){
   const standardisation=clamp(region.industrialProduction?.standardisationExperience||region.industrialSupply?.exposure?.precision_machining||0);
   const hasRefining=tech.has(PETROLEUM_REFINING_TECH_ID);
 
-  // Automobile is an engineering breakthrough. It does not require assembly-line production.
   const automobile=tech.has(AUTOMOBILE_TECH_ID)||!hasRefining?0:
     industry*machining*(.35+.35*locomotive+.30*corporate)*0.000010+
     diffusion(region,byId,AUTOMOBILE_TECH_ID,0.00030)*(.25+.75*machining);
-
-  // Assembly lines can emerge in arms, machinery, textiles or other repeat manufacturing.
   const assembly=tech.has(ASSEMBLY_LINE_TECH_ID)?0:
     industry*(.35+.35*standardisation+.20*admin+.10*corporate)*0.000008+
     diffusion(region,byId,ASSEMBLY_LINE_TECH_ID,0.00024)*(.25+.75*industry);
-
-  // Advanced factories are broader plant organisation, machine tooling, quality control and power distribution.
   const advancedReady=industry>.32||tech.has(ASSEMBLY_LINE_TECH_ID);
   const advanced=tech.has(ADVANCED_FACTORY_TECH_ID)||!advancedReady?0:
     industry*machining*(.30+.22*admin+.18*corporate+.30*clamp(region.electricity?.industrialCoverage||0))*0.000006+
@@ -84,6 +79,7 @@ export function tickIndustrialProduction(regions,elapsedDays=7){
 }
 
 export function tickIndustrialProductionBreakthroughs(regions,currentTick,rng=Math.random,elapsedDays=7){
+  tickIndustrialProduction(regions,elapsedDays);
   const events=[]; const byId=new Map((regions||[]).map(r=>[r.id,r]));
   for(const region of regions||[]){
     region.unlockedTechIds||=new Set(); ensureIndustrialProduction(region);
