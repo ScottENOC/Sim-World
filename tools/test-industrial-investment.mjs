@@ -35,7 +35,7 @@ assert(wartime.industrialPlants.lines.some(l=>['tank','self_propelled_gun'].incl
 assert(wartime.treasury<=treasuryBefore,'delivered procurement must not create treasury money');
 
 const collapsing=baseRegion('collapse');
-collapsing.population=0;collapsing.wallet=0;collapsing.stockpile.petrol=0;collapsing.stockpile.diesel=0;
+collapsing.population=0;collapsing.wallet=0;collapsing.army={personnel:0,away:0};collapsing.stockpile.petrol=0;collapsing.stockpile.diesel=0;
 collapsing.industrialPlants.lines=[{id:'line-1',productId:'motor_vehicle',status:'active',capacityShare:1,toolingFit:1,idleWeeks:0,retoolWeeksRemaining:0,lastOutput:0}];
 for(let i=0;i<12;i++)tickIndustrialInvestment(collapsing,90);
 const deadLine=collapsing.industrialPlants.lines[0];
