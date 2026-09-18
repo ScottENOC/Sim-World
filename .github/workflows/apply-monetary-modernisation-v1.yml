@@ -1,0 +1,34 @@
+name: Apply monetary modernisation integration
+on:
+  push:
+    branches: [feature/monetary-modernisation-v1]
+    paths:
+      - 'tools/apply-monetary-modernisation-v1.py'
+      - 'tools/test-monetary-modernisation.mjs'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/monetary-modernisation-v1
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: python tools/apply-monetary-modernisation-v1.py
+      - run: |
+          node --check js/economy/monetaryModernisation.js
+          node --check js/economy/currency.js
+          node --check js/economy/stateFinance.js
+          node --check js/economy/corporateCapital.js
+          node --check js/politics/polities.js
+          node tools/test-monetary-modernisation.mjs
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/economy/tradeGoods.js js/economy/currency.js js/economy/stateFinance.js js/economy/corporateCapital.js js/politics/polities.js
+          git commit -m 'Integrate monetary modernisation'
+          git push origin HEAD:feature/monetary-modernisation-v1
