@@ -42,3 +42,4 @@ assert.ok(target.aviation.aircraft.some(a=>a.id===airLeg.aircraftId),'aircraft c
 assert.equal(reserved.mission,AIR_MISSIONS.IDLE,'aircraft becomes available again only after delivery');
 
 console.log('early aviation regression passed');
+// integration rerun marker
