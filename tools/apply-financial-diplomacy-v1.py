@@ -68,7 +68,6 @@ p=Path('js/main.js'); t=p.read_text()
 imp="import { tickSovereignBondMarkets, setBondPolicy, dumpSovereignBonds } from './economy/sovereignBonds.js?v=20260918-bonds1';\n"
 anchor="import { tickInternationalMonetarySystem } from './economy/internationalMoney.js?v=20260918-intmoney2';\n"
 if imp not in t:t=t.replace(anchor,anchor+imp)
-# extend import to include policy setter
 oldimp="import { tickInternationalMonetarySystem } from './economy/internationalMoney.js?v=20260918-intmoney2';"
 newimp="import { tickInternationalMonetarySystem, setSettlementCurrencyPolicy } from './economy/internationalMoney.js?v=20260918-intmoney2';"
 t=t.replace(oldimp,newimp)
@@ -86,3 +85,4 @@ if 'financialDiplomacyApi:' not in t:
 p.write_text(t)
 
 print('financial diplomacy integration applied')
+# trigger
