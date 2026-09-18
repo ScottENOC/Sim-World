@@ -1,10 +1,12 @@
 import { localPrice } from './prices.js?v=20260904-weather1';
 import { elapsedWeeks } from '../core/simTime.js?v=20260905-time1';
 import { availableResidentHousing } from './housing.js?v=20260916-housing1';
+import { tickUrbanHousing } from '../society/urbanHousing.js?v=20260918-urban-housing1';
 import { tickSocialProtection } from '../society/socialProtection.js?v=20260918-social1';
 import { tickLabourRelations } from '../society/labourRelations.js?v=20260918-labour-relations1';
 import '../ui/socialProtectionUi.js?v=20260918-social1';
 import '../ui/labourRelationsUi.js?v=20260918-labour-relations1';
+import '../ui/urbanHousingUi.js?v=20260918-urban-housing1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const WARNING_RATE=0.10;
@@ -62,15 +64,14 @@ function employmentAssessment(region){
   const firmFailure=clamp(region.corporateCapital?.failedFirmPressure||0);
   const tradeDisruption=clamp(region.tradeEconomy?.tradeDisruption||0);
   const hiringPenalty=clamp(region.labourRelations?.hiringPenalty||0);
-  const protectionJobs=clamp(region.labourRelations?.protectionJobs||0);
   const joblessPool=Math.max(0,availableAdults-employed);
   const involuntaryFromGeneral=Math.min(joblessPool,general*formalShare);
-  const cyclicalRate=clamp(bankContraction*0.12+firmFailure*0.10+tradeDisruption*0.08+hiringPenalty-protectionJobs);
+  const cyclicalRate=clamp(bankContraction*0.12+firmFailure*0.10+tradeDisruption*0.08+hiringPenalty);
   const cyclical=Math.min(joblessPool,availableAdults*cyclicalRate);
   const unemployed=Math.min(joblessPool,Math.max(involuntaryFromGeneral,cyclical)+housingBlocked*0.7);
   const underemployed=Math.max(0,joblessPool-unemployed)*formalShare*0.35;
   const labourForce=Math.max(1,employed+unemployed);
-  return {workingAge,students,availableAdults,employed,unemployed,underemployed,labourForce,unemploymentRate:clamp(unemployed/labourForce),formalShare,housingBlocked,bankContraction,firmFailure,tradeDisruption,hiringPenalty,protectionJobs};
+  return {workingAge,students,availableAdults,employed,unemployed,underemployed,labourForce,unemploymentRate:clamp(unemployed/labourForce),formalShare,housingBlocked,bankContraction,firmFailure,tradeDisruption,hiringPenalty};
 }
 
 function hardshipAssessment(region,employment){
@@ -80,11 +81,10 @@ function hardshipAssessment(region,employment){
   const lowWealth=clamp(1-Math.log1p(wealthPerPerson)/3.2);
   const housingShortage=clamp(Math.max(0,-availableResidentHousing(region))/Math.max(1,region.population||1)*8);
   const creditStress=clamp((region.medievalCommerce?.finance?.creditCrisis||0)*0.7+(region.bankingSystem?.creditContraction||0)*0.5);
-  const protectionCost=clamp(region.labourRelations?.protectionCost||0);
   const unemployment=employment.unemploymentRate;
-  const hardship=clamp(unemployment*0.44+foodStress*0.20+lowWealth*0.18+housingShortage*0.08+creditStress*0.10+protectionCost*0.08);
+  const hardship=clamp(unemployment*0.44+foodStress*0.20+lowWealth*0.18+housingShortage*0.08+creditStress*0.10);
   const povertyPressure=clamp(hardship*0.8+unemployment*0.2);
-  return {hardship,povertyPressure,foodStress,lowWealth,housingShortage,creditStress,protectionCost};
+  return {hardship,povertyPressure,foodStress,lowWealth,housingShortage,creditStress};
 }
 
 export function employmentSummary(region){
@@ -101,6 +101,11 @@ export function tickEmploymentAndHardship(regions,currentTick=0,elapsedDays=7,{p
     const beforeRate=previous.unemploymentRate;
     const a=employmentAssessment(region);
     const h=hardshipAssessment(region,a);
+    const polityId=region.governance?.sovereignPolityId||region.polityId||null;
+    const isPlayer=polityId===playerPolityId;
+    const urban=tickUrbanHousing(region,currentTick,elapsedDays,{isPlayer});
+    h.hardship=clamp(h.hardship+(urban.hardshipPenalty||0));
+    h.povertyPressure=clamp(h.povertyPressure+(urban.hardshipPenalty||0)*0.8);
     previous.employed=a.employed;
     previous.unemployed=a.unemployed;
     previous.underemployed=a.underemployed;
@@ -110,11 +115,9 @@ export function tickEmploymentAndHardship(regions,currentTick=0,elapsedDays=7,{p
     previous.hardship+=(h.hardship-previous.hardship)*clamp(weeks/6);
     previous.povertyPressure+=(h.povertyPressure-previous.povertyPressure)*clamp(weeks/8);
     previous.consumptionPressure=clamp(previous.hardship*0.72+previous.unemploymentRate*0.28);
-    previous.migrationPressure=clamp(previous.unemploymentRate*0.48+previous.hardship*0.52);
-    previous.causes={housing:a.housingBlocked,credit:a.bankContraction,firmFailures:a.firmFailure,tradeDisruption:a.tradeDisruption,foodPrices:h.foodStress,lowWealth:h.lowWealth,minimumWageHiring:a.hiringPenalty,protectionCost:h.protectionCost};
+    previous.migrationPressure=clamp(Math.max(previous.unemploymentRate*0.48+previous.hardship*0.52,urban.migrationPenalty||0));
+    previous.causes={housing:a.housingBlocked,urbanHousing:urban.slumPressure||0,rentPressure:urban.rentPressure||0,credit:a.bankContraction,firmFailures:a.firmFailure,tradeDisruption:a.tradeDisruption,foodPrices:h.foodStress,lowWealth:h.lowWealth,minimumWageHiring:a.hiringPenalty};
 
-    const polityId=region.governance?.sovereignPolityId||region.polityId||null;
-    const isPlayer=polityId===playerPolityId;
     const protection=tickSocialProtection(region,currentTick,elapsedDays,{religiousWorld:world,isPlayer});
     const labourEvents=tickLabourRelations(region,currentTick,elapsedDays,{isPlayer});
     if(labourEvents.length)events.push(...labourEvents.filter(e=>!isPlayer||e.polityId===playerPolityId));
@@ -127,6 +130,7 @@ export function tickEmploymentAndHardship(regions,currentTick=0,elapsedDays=7,{p
     region.report ||= {};
     region.report.employment=employmentSummary(region);
     region.report.socialProtection=protection;
+    region.report.urbanHousing=urban;
 
     const rising=a.unemploymentRate-beforeRate>=0.035;
     const severe=a.unemploymentRate>=SEVERE_RATE;
