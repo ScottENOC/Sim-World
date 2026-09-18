@@ -70,6 +70,8 @@ export const TRADE_GOODS = {
   firearms:       { label: 'Firearms', basePrice: 95, referenceStock: 120, category: 'military_equipment', strategic: true, cargoKgPerUnit: 4 },
   small_arms_ammunition: { label: 'Small-arms ammunition', basePrice: 12, referenceStock: 500, category: 'military_supply', strategic: true, cargoKgPerUnit: 0.35 },
   artillery_shells: { label: 'Artillery shells', basePrice: 38, referenceStock: 180, category: 'military_supply', strategic: true, cargoKgPerUnit: 4.5 },
+  torpedoes: { label: 'Torpedoes', basePrice: 85, referenceStock: 60, category: 'military_supply', strategic: true, cargoKgPerUnit: 12 },
+  naval_mines: { label: 'Naval mines', basePrice: 44, referenceStock: 120, category: 'military_supply', strategic: true, cargoKgPerUnit: 18 },
   siege_equipment:{ label: 'New siege equipment', basePrice: 500, referenceStock: 10, category: 'military_equipment', strategic: true, cargoKgPerUnit: 500 },
   warship:        { label: 'New warship', basePrice: 900, referenceStock: 8, category: 'military_equipment', strategic: true, cargoKgPerUnit: 1200 },
 };
