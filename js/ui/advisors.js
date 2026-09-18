@@ -275,6 +275,8 @@ export class AdvisorCouncil {
         <label class="advisor-field"><span>Direction</span><select id="trade-rule-direction"><option value="import">Imports only</option><option value="export">Exports only</option><option value="trade">Imports and exports</option></select></label>
         <label class="advisor-field"><span>Goods</span><select id="trade-rule-good"><option value="*">All goods</option>${goods.map(([id, good]) => `<option value="${id}">${good.label}${good.strategic ? ' · military' : ''}</option>`).join('')}</select></label>
         <label class="advisor-field"><span>Country</span><select id="trade-rule-country"><option value="*">All countries</option>${actors.map((region) => `<option value="${tradeActorId(region)}">${region.name}</option>`).join('')}</select></label>
+        <label class="advisor-field"><span>Enforcement</span><select id="trade-rule-enforcement"><option value="communicated">Give notice — honour cargo sent before notice arrives</option><option value="immediate">Immediate at border — affects cargo already underway</option></select></label>
+        <p class="advisor-note">Normal policy changes travel by the fastest available message route. Distant partners can keep dispatching under the old terms until notice reaches them, and cargo already sent is honoured. Immediate enforcement is for emergencies and can turn away or surcharge cargo already underway.</p>
         <label class="advisor-field advisor-slider"><span>Tariff rate <b id="trade-tariff-label">20%</b></span><input id="trade-rule-tariff" type="range" min="0" max="200" step="5" value="20"></label>
         <button id="add-trade-tariff" class="advisor-order">Set tariff</button>
         <button id="add-trade-embargo" class="advisor-order danger">Prohibit trade</button>
@@ -471,9 +473,10 @@ export class AdvisorCouncil {
       const direction = document.getElementById('trade-rule-direction')?.value || 'trade';
       const good = document.getElementById('trade-rule-good')?.value || '*';
       const country = document.getElementById('trade-rule-country')?.value || '*';
+      const enforcement = document.getElementById('trade-rule-enforcement')?.value || 'communicated';
       setTradeRestriction(player, {
         direction, goods: good === '*' ? null : [good],
-        counterparties: country === '*' ? null : [country], allowed: false,
+        counterparties: country === '*' ? null : [country], allowed: false, enforcement,
       }, this.regions, this.clock.tickIndex);
       this.render(false);
     });
@@ -487,9 +490,10 @@ export class AdvisorCouncil {
       const good = document.getElementById('trade-rule-good')?.value || '*';
       const country = document.getElementById('trade-rule-country')?.value || '*';
       const tariffRate = Math.max(0, Number(document.getElementById('trade-rule-tariff')?.value) || 0) / 100;
+      const enforcement = document.getElementById('trade-rule-enforcement')?.value || 'communicated';
       setTradeRestriction(player, {
         direction, goods: good === '*' ? null : [good],
-        counterparties: country === '*' ? null : [country], allowed: true, tariffRate,
+        counterparties: country === '*' ? null : [country], allowed: true, tariffRate, enforcement,
       }, this.regions, this.clock.tickIndex);
       this.render(false);
     });

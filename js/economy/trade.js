@@ -1,6 +1,6 @@
 import { localPrice, TRADABLE_RESOURCES } from './prices.js?v=20260912-steel1';
 import { cargoKgPerUnit } from './tradeGoods.js?v=20260912-steel1';
-import { borderTariffQuote, tradeAllowed } from './tradePolicy.js?v=20260905-policy1';
+import { borderTariffQuote, tradeAllowed, tickTradePolicyCommunications } from './tradePolicy.js?v=20260905-policy1';
 import { directContactIds, knownRegionIds, recordDirectTrade, diffuseTradeNetworkKnowledge } from '../core/knowledge.js?v=20260904-weather1';
 import { centroidDistanceKm } from '../world/distance.js?v=20260904-weather1';
 import { advancedMaritimeShare } from '../military/army.js?v=20260905-infra1';
@@ -389,7 +389,7 @@ function ventureRouteProfile(origin, dest, regionsById) {
   };
 }
 
-function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByRegion, regionsById, regions, agreements, transitContext = null) {
+function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByRegion, regionsById, regions, agreements, currentTick, transitContext = null) {
   const opportunities = [];
   const pricesHere = pricesByRegion.get(region.id);
   const stockedResources = TRADABLE_RESOURCES.filter((resource) =>
@@ -408,7 +408,7 @@ function findOpportunities(region, candidateRegions, knownIdsByRegion, pricesByR
     const baseCost = route.cost + (1 - effectiveReliability) * 0.1;
     const pricesThere = pricesByRegion.get(dest.id);
     for (const resource of stockedResources) {
-      const tariffQuote = borderTariffQuote(region, dest, resource);
+      const tariffQuote = borderTariffQuote(region, dest, resource, 0, { currentTick, departureTick: currentTick });
       if (!tariffQuote.allowed) continue;
       const priceHere = pricesHere[resource];
       const priceThere = pricesThere[resource];
@@ -545,7 +545,7 @@ function processVentures(regions, regionsById, currentTick, time) {
       const arrivalDay = Number.isFinite(venture.arrivalDay) ? venture.arrivalDay : (venture.arrivalTick || currentTick) * 7;
       const returnDay = Number.isFinite(venture.returnDay) ? venture.returnDay : (venture.returnTick || currentTick) * 7;
       if (!venture.arrived && currentDay >= arrivalDay) {
-        const tariffQuote = borderTariffQuote(origin, dest, venture.resource);
+        const tariffQuote = borderTariffQuote(origin, dest, venture.resource, 0, { currentTick, departureTick: venture.departureTick });
         if (!tariffQuote.allowed) {
           venture.payment = 0;
           venture.exportTariff = 0;
@@ -562,7 +562,7 @@ function processVentures(regions, regionsById, currentTick, time) {
           const saleable = Math.min(venture.cargo || 0, purchasingPower / Math.max(0.001, landedUnitCost));
           const sold = Math.max(0, saleable);
           const goodsValue = sold * price;
-          const settledTariff = borderTariffQuote(origin, dest, venture.resource, goodsValue);
+          const settledTariff = borderTariffQuote(origin, dest, venture.resource, goodsValue, { currentTick, departureTick: venture.departureTick });
           const totalDue = goodsValue + settledTariff.importTariff;
           const cashPaid = Math.min(Math.max(0, dest.wallet || 0), totalDue);
           dest.wallet = Math.max(0, (dest.wallet || 0) - cashPaid);
@@ -766,6 +766,7 @@ function candidateMarketIds(region, regionsById, knownIds, hubIds, currentTick) 
 }
 
 export function tickTrade(regions, currentTick = null, time = null, agreements = [], profiler = null) {
+  if (Number.isFinite(currentTick)) tickTradePolicyCommunications(regions, currentTick);
   const measureDetail = (label, fn) => profiler?.measureDetail ? profiler.measureDetail(label, fn) : fn();
   const metric = (label, value) => profiler?.metric?.(label, value);
   measureDetail('Trade: initialise regions', () => {
@@ -799,7 +800,7 @@ export function tickTrade(regions, currentTick = null, time = null, agreements =
     const candidates = [...candidateIds].map((id) => regionsById.get(id)).filter(Boolean);
     candidateMarketsChecked += candidates.length; searchingRegions += 1;
     if (!candidates.length) continue;
-    const opportunities = findOpportunities(region, candidates, knownIdsByRegion, pricesByRegion, regionsById, regions, agreements, transitContext);
+    const opportunities = findOpportunities(region, candidates, knownIdsByRegion, pricesByRegion, regionsById, regions, agreements, currentTick, transitContext);
     opportunitiesFound += opportunities.length;
     launchVentures(region, opportunities, currentTick, time, regionsById);
   }

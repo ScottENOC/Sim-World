@@ -1,6 +1,7 @@
 import { localPrice } from './prices.js?v=20260905-goods1';
 import { TRADE_GOODS, defaultExportAllowed } from './tradeGoods.js?v=20260905-goods2';
 import { changeAttitude } from '../diplomacy/relations.js?v=20260904-save1';
+import { messageRouteBetween, messageRouteDeliveryTicks } from '../diplomacy/messageRouting.js?v=20260917-message-routing1';
 
 let nextTradeRuleId = 1;
 const MAX_POLICY_ATTITUDE_CHANGE = 0.22;
@@ -18,6 +19,7 @@ export function ensureTradePolicy(region) {
   if (policy.defaultImportAllowed !== false) policy.defaultImportAllowed = true;
   if (policy.defaultExportAllowed !== false) policy.defaultExportAllowed = true;
   if (!Array.isArray(policy.rules)) policy.rules = [];
+  if (!Array.isArray(policy.pendingNotices)) policy.pendingNotices = [];
   if (!Number.isFinite(policy.nextRuleId)) policy.nextRuleId = nextTradeRuleId++;
   return policy;
 }
@@ -29,7 +31,7 @@ function ruleMatches(rule, direction, resource, counterpartActorId) {
   return true;
 }
 
-export function tradePolicyDecision(region, direction, resource, counterpart) {
+export function tradePolicyDecision(region, direction, resource, counterpart, context = {}) {
   const existing = region.tradePolicy;
   if (!existing) return {
     allowed: direction === 'export' ? defaultExportAllowed(resource) : true,
@@ -44,16 +46,26 @@ export function tradePolicyDecision(region, direction, resource, counterpart) {
   let matchedRule = null;
   for (const rule of policy.rules) {
     if (!ruleMatches(rule, direction, resource, counterpartActorId)) continue;
-    allowed = rule.allowed !== false;
-    tariffRate = Math.max(0, Number(rule.tariffRate) || 0);
+    let ruleAllowed = rule.allowed !== false;
+    let ruleTariff = Math.max(0, Number(rule.tariffRate) || 0);
+    if (direction === 'import' && rule.enforcement !== 'immediate') {
+      const noticeTick = rule.notificationTickByActor?.[counterpartActorId];
+      const referenceTick = Number.isFinite(context.departureTick) ? context.departureTick : context.currentTick;
+      if (Number.isFinite(noticeTick) && Number.isFinite(referenceTick) && referenceTick < noticeTick) {
+        ruleAllowed = rule.previousAllowed !== false;
+        ruleTariff = Math.max(0, Number(rule.previousTariffRate) || 0);
+      }
+    }
+    allowed = ruleAllowed;
+    tariffRate = ruleTariff;
     matchedRule = rule;
   }
   return { allowed, tariffRate, matchedRule };
 }
 
-export function borderTariffQuote(exporter, importer, resource, goodsValue = 0) {
-  const exportDecision = tradePolicyDecision(exporter, 'export', resource, importer);
-  const importDecision = tradePolicyDecision(importer, 'import', resource, exporter);
+export function borderTariffQuote(exporter, importer, resource, goodsValue = 0, context = {}) {
+  const exportDecision = tradePolicyDecision(exporter, 'export', resource, importer, context);
+  const importDecision = tradePolicyDecision(importer, 'import', resource, exporter, context);
   const value = Math.max(0, Number(goodsValue) || 0);
   const exportRate = Math.max(0, Number(exportDecision.tariffRate) || 0);
   const importRate = Math.max(0, Number(importDecision.tariffRate) || 0);
@@ -69,9 +81,9 @@ export function borderTariffQuote(exporter, importer, resource, goodsValue = 0) 
   };
 }
 
-export function tradeAllowed(exporter, importer, resource) {
+export function tradeAllowed(exporter, importer, resource, context = {}) {
   if (!exporter.tradePolicy && !importer.tradePolicy) return defaultExportAllowed(resource);
-  return borderTariffQuote(exporter, importer, resource).allowed;
+  return borderTariffQuote(exporter, importer, resource, 0, context).allowed;
 }
 
 function needPressure(region, resource) {
@@ -120,8 +132,18 @@ function diplomaticMagnitude(harm, other) {
   return clamp(Math.log1p(Math.max(0, harm) / scale) * 0.035, 0.002, MAX_POLICY_ATTITUDE_CHANGE);
 }
 
+function hasEstablishedTradeContact(region, other) {
+  const recentHere = region.recentTradePartners instanceof Map && region.recentTradePartners.has(other.id);
+  const recentThere = other.recentTradePartners instanceof Map && other.recentTradePartners.has(region.id);
+  const legacy = region.tradePartnerIds instanceof Set &&
+    (region.tradePartnerIds.has(other.id) || region.tradePartnerIds.has(tradeActorId(other)));
+  const outbound = (region.tradeEconomy?.ventures || []).some((venture) => venture.destId === other.id);
+  const inbound = (other.tradeEconomy?.ventures || []).some((venture) => venture.destId === region.id);
+  return Boolean(recentHere || recentThere || legacy || outbound || inbound);
+}
+
 export function setTradeRestriction(region, { direction = 'trade', goods = null, counterparties = null,
-  allowed = false, tariffRate = 0 } = {}, regions = [], currentTick = null) {
+  allowed = false, tariffRate = 0, enforcement = 'communicated' } = {}, regions = [], currentTick = null) {
   const policy = ensureTradePolicy(region);
   const cleanGoods = goods === null ? null : unique(goods).filter((id) => TRADE_GOODS[id]);
   const cleanCounterparties = counterparties === null ? null : unique(counterparties);
@@ -130,28 +152,47 @@ export function setTradeRestriction(region, { direction = 'trade', goods = null,
   const oldRule = existingIndex >= 0 ? policy.rules[existingIndex] : null;
   const cleanTariffRate = Math.max(0, Number(tariffRate) || 0);
   const oldTariffRate = Math.max(0, Number(oldRule?.tariffRate) || 0);
+  const previousAllowed = oldRule ? oldRule.allowed !== false :
+    (direction === 'export' && cleanGoods?.length === 1 ? defaultExportAllowed(cleanGoods[0]) : true);
+  const previousTariffRate = oldTariffRate;
+  const cleanEnforcement = enforcement === 'immediate' ? 'immediate' : 'communicated';
   const tightening = allowed === false && oldRule?.allowed !== false;
   const loosening = allowed !== false && oldRule?.allowed === false;
   const tariffTightening = allowed !== false && oldRule?.allowed !== false && cleanTariffRate > oldTariffRate + 0.0001;
   const tariffLoosening = allowed !== false && oldRule?.allowed !== false && cleanTariffRate + 0.0001 < oldTariffRate;
-  const affected = regions.filter((other) => other.id !== region.id &&
-    (cleanCounterparties === null || cleanCounterparties.includes(tradeActorId(other))));
+  const candidates = regions.filter((other) => other.id !== region.id &&
+    (cleanCounterparties === null ? hasEstablishedTradeContact(region, other) : cleanCounterparties.includes(tradeActorId(other))));
+  // A polity can contain many regions. Send one notice per counterpart actor,
+  // using the actually traded-with region when possible, rather than broadcasting
+  // an all-countries rule to every simulated region in the world.
+  const affected = [...new Map(candidates.map((other) => [tradeActorId(other), other])).values()];
   const harmByActor = {};
+  const notificationTickByActor = {};
+  const regionsById = new Map(regions.map((r) => [r.id, r]));
   for (const other of affected) {
     const actor = tradeActorId(other);
+    const route = messageRouteBetween(region, other, regionsById);
+    const deliveryTicks = cleanEnforcement === 'immediate' ? 0 : messageRouteDeliveryTicks(route);
+    const noticeTick = Number.isFinite(currentTick) && Number.isFinite(deliveryTicks) ? currentTick + deliveryTicks : currentTick;
+    notificationTickByActor[actor] = noticeTick;
     const harm = estimateRestrictionHarm(region, other, direction, cleanGoods);
     harmByActor[actor] = Math.max(harmByActor[actor] || 0, harm);
-    if (tightening) changeAttitude(other, region.id, -diplomaticMagnitude(harm, other), 'trade_restriction', currentTick);
+    let attitudeDelta = 0, reason = null;
+    if (tightening) { attitudeDelta = -diplomaticMagnitude(harm, other); reason = 'trade_restriction'; }
     else if (loosening) {
       const remembered = Math.max(harm, oldRule?.harmByActor?.[actor] || 0);
-      changeAttitude(other, region.id, diplomaticMagnitude(remembered, other) * 0.8, 'trade_liberalisation', currentTick);
+      attitudeDelta = diplomaticMagnitude(remembered, other) * 0.8; reason = 'trade_liberalisation';
     } else if (tariffTightening) {
       const delta = clamp(cleanTariffRate - oldTariffRate, 0, 2);
-      changeAttitude(other, region.id, -diplomaticMagnitude(harm, other) * Math.min(0.8, 0.18 + delta * 0.55), 'tariff_increase', currentTick);
+      attitudeDelta = -diplomaticMagnitude(harm, other) * Math.min(0.8, 0.18 + delta * 0.55); reason = 'tariff_increase';
     } else if (tariffLoosening) {
       const delta = clamp(oldTariffRate - cleanTariffRate, 0, 2);
-      changeAttitude(other, region.id, diplomaticMagnitude(Math.max(harm, oldRule?.harmByActor?.[actor] || 0), other) * Math.min(0.65, 0.12 + delta * 0.45), 'tariff_reduction', currentTick);
+      attitudeDelta = diplomaticMagnitude(Math.max(harm, oldRule?.harmByActor?.[actor] || 0), other) * Math.min(0.65, 0.12 + delta * 0.45); reason = 'tariff_reduction';
     }
+    if (reason && Math.abs(attitudeDelta) > 0) policy.pendingNotices.push({
+      targetRegionId: other.id, actorId: actor, effectiveTick: noticeTick,
+      attitudeDelta, reason, sourceRegionId: region.id,
+    });
   }
   const rule = {
     id: oldRule?.id || `trade-rule-${policy.nextRuleId++}`,
@@ -160,6 +201,9 @@ export function setTradeRestriction(region, { direction = 'trade', goods = null,
     counterparties: cleanCounterparties,
     allowed: allowed !== false,
     tariffRate: cleanTariffRate,
+    enforcement: cleanEnforcement,
+    previousAllowed, previousTariffRate,
+    notificationTickByActor,
     changedTick: currentTick,
     harmByActor,
   };
@@ -168,23 +212,31 @@ export function setTradeRestriction(region, { direction = 'trade', goods = null,
   return rule;
 }
 
-export function removeTradeRestriction(region, ruleId, regions = [], currentTick = null) {
+export function removeTradeRestriction(region, ruleId, regions = [], currentTick = null, { enforcement = 'communicated' } = {}) {
   const policy = ensureTradePolicy(region);
-  const index = policy.rules.findIndex((rule) => rule.id === ruleId);
-  if (index < 0) return false;
-  const rule = policy.rules[index];
-  policy.rules.splice(index, 1);
-  if (rule.allowed === false || Number(rule.tariffRate) > 0) {
-    const affected = regions.filter((other) => other.id !== region.id &&
-      (rule.counterparties === null || rule.counterparties.includes(tradeActorId(other))));
-    for (const other of affected) {
-      const actor = tradeActorId(other);
-      const harm = Math.max(estimateRestrictionHarm(region, other, rule.direction, rule.goods), rule.harmByActor?.[actor] || 0);
-      const relief = rule.allowed === false ? 0.8 : Math.min(0.65, 0.12 + Math.max(0, Number(rule.tariffRate) || 0) * 0.45);
-      changeAttitude(other, region.id, diplomaticMagnitude(harm, other) * relief, rule.allowed === false ? 'trade_liberalisation' : 'tariff_removed', currentTick);
-    }
+  const rule = policy.rules.find((candidate) => candidate.id === ruleId);
+  if (!rule) return false;
+  if (rule.allowed !== false && !(Number(rule.tariffRate) > 0)) {
+    policy.rules = policy.rules.filter((candidate) => candidate.id !== ruleId); return true;
   }
+  setTradeRestriction(region, { direction: rule.direction, goods: rule.goods,
+    counterparties: rule.counterparties, allowed: true, tariffRate: 0, enforcement }, regions, currentTick);
   return true;
+}
+
+export function tickTradePolicyCommunications(regions = [], currentTick = 0) {
+  const byId = new Map(regions.map((r) => [r.id, r]));
+  for (const owner of regions) {
+    const policy = owner.tradePolicy;
+    if (!policy?.pendingNotices?.length) continue;
+    const remaining = [];
+    for (const notice of policy.pendingNotices) {
+      if (!Number.isFinite(notice.effectiveTick) || currentTick < notice.effectiveTick) { remaining.push(notice); continue; }
+      const target = byId.get(notice.targetRegionId);
+      if (target) changeAttitude(target, owner.id, notice.attitudeDelta, notice.reason, currentTick);
+    }
+    policy.pendingNotices = remaining;
+  }
 }
 
 export function activeTradeRestrictions(region) {
