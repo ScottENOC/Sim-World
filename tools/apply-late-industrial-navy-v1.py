@@ -116,7 +116,6 @@ new_detect="""  const antiSubmarineSearch = isSubmarineFleet(target) ? fleetDest
 if 'const antiSubmarineSearch' not in t:
     if old_detect not in t: raise RuntimeError('detection anchor missing')
     t=t.replace(old_detect,new_detect,1)
-# Tick special warfare before ordinary contact generation; submarine mission fleets are not SEARCH_MISSIONS.
 tick_anchor="""  const events = [];
   reconcileFleetLedger(regions, fleets, events, weeks);
 """
@@ -129,7 +128,6 @@ if 'events.push(...tickLateIndustrialNavalWarfare' not in t:
     t=t.replace(tick_anchor,tick_repl,1)
 p.write_text(t)
 
-# Fleet UI mission orders.
 p=Path('js/ui/fleetUi.js'); t=p.read_text()
 old="['patrol','intercept','blockade','port_assault','raid_shipping','escort','hide','return_refit']"
 new="['patrol','intercept','blockade','port_assault','raid_shipping','escort','lay_mines','sweep_mines','submarine_patrol','submarine_raid_shipping','hide','return_refit']"
@@ -138,7 +136,6 @@ if 'submarine_patrol' not in t:
     t=t.replace(old,new,1)
 p.write_text(t)
 
-# Strategic naval consumables.
 p=Path('js/economy/tradeGoods.js'); t=p.read_text()
 anchor="  artillery_shells: { label: 'Artillery shells', basePrice: 38, referenceStock: 180, category: 'military_supply', strategic: true, cargoKgPerUnit: 4.5 },\n"
 insert=anchor+"  torpedoes: { label: 'Torpedoes', basePrice: 85, referenceStock: 60, category: 'military_supply', strategic: true, cargoKgPerUnit: 12 },\n  naval_mines: { label: 'Naval mines', basePrice: 44, referenceStock: 120, category: 'military_supply', strategic: true, cargoKgPerUnit: 18 },\n"
@@ -147,7 +144,6 @@ if 'torpedoes:' not in t:
     t=t.replace(anchor,insert,1)
 p.write_text(t)
 
-# Simple industrial production of naval consumables inside the existing munitions economy.
 p=Path('js/economy/industrialWarEconomy.js'); t=p.read_text()
 old=""" return{smallArms,shells,spending,value:smallArms*12+shells*38};
 }
@@ -179,3 +175,4 @@ if 'torpedoesMade:output.torpedoes' not in t:
 p.write_text(t)
 
 print('late industrial navy integration applied')
+# trigger
