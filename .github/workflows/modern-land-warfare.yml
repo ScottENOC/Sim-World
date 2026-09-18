@@ -1,0 +1,28 @@
+name: Modern land warfare validation
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/military/modernLandWarfare.js'
+      - 'js/military/campaigns.js'
+      - 'js/technology/breakthroughs.js'
+      - 'js/military/infrastructureDamage.js'
+      - 'js/economy/railways.js'
+      - 'js/economy/construction.js'
+      - 'tools/test-modern-land-warfare.mjs'
+      - 'tools/test-early-modern-military-transition.mjs'
+      - '.github/workflows/modern-land-warfare.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: |
+          node --check js/military/modernLandWarfare.js
+          node --check js/military/campaigns.js
+          node --check js/technology/breakthroughs.js
+          node tools/test-modern-land-warfare.mjs
+          node tools/test-early-modern-military-transition.mjs
