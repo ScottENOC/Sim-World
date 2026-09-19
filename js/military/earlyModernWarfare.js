@@ -1,6 +1,6 @@
 import { operationalInfrastructure } from '../economy/construction.js?v=20260913-early-modern1';
 import { navalGunTechnologyMultiplier, NAVAL_GUN_TYPES } from '../technology/industrialMarine.js?v=20260916-steam1';
-import { backfillArtilleryDesign, ensureCurrentArtilleryDesign, materialDesignAdjustment, stampEquipment } from './equipmentGenerations.js?v=20260919-equipment1';
+import { backfillArtilleryDesign, ensureCurrentArtilleryDesign, ensureCurrentRocketArtilleryDesign, materialDesignAdjustment, stampEquipment } from './equipmentGenerations.js?v=20260920-rockets1';
 
 const DAYS_PER_YEAR = 365.2425;
 const clamp = (value, low = 0, high = 1) => Math.max(low, Math.min(high, Number(value) || 0));
@@ -96,6 +96,21 @@ function buildArtillery(region, kind) {
   return true;
 }
 
+function buildRocketLauncher(region) {
+  if (!hasTech(region, 'rocket_artillery')) return false;
+  region.stockpile ||= {};
+  const machineInventory=region.industrialSupply?.inventory;
+  if ((region.stockpile.steel || 0) < 4 || (region.stockpile.gunpowder || 0) < 0.05 || (machineInventory?.machine_components || 0) < 1.2) return false;
+  const design=ensureCurrentRocketArtilleryDesign(region);
+  if (!design) return false;
+  region.stockpile.steel -= 4;
+  region.stockpile.gunpowder -= 0.05;
+  machineInventory.machine_components -= 1.2;
+  const launcher=stampEquipment({ kind:'rocket_artillery', metal:'steel', condition:1 }, design);
+  ensureEarlyModernMilitary(region).artillery.inventory.push(launcher);
+  return true;
+}
+
 function buildNavalGun(region) {
   if ((region.stockpile?.wood || 0) < 0.6 || (region.stockpile?.gunpowder || 0) < 0.04) return false;
   const metal = takeMaterial(region, 2.8, { allowSteel: true });
@@ -119,6 +134,7 @@ export function tickEarlyModernIndustry(regions, elapsedDays = 7) {
     const firearmsReadiness = clamp(region.firearms?.readiness || 0.05);
     ensureCurrentArtilleryDesign(region, 'field_cannon');
     if (hasTech(region, 'heavy_howitzers')) ensureCurrentArtilleryDesign(region, 'bombard');
+    if (hasTech(region, 'rocket_artillery')) ensureCurrentRocketArtilleryDesign(region);
     state.artillery.readiness = clamp(state.artillery.readiness + (0.08 + firearmsReadiness * 0.16) * years);
     const hasDockyard = operationalInfrastructure(region, 'shipyard') || operationalInfrastructure(region, 'naval_base');
     if (region.isCoastal && operationalInfrastructure(region, 'harbour')) {
@@ -128,14 +144,23 @@ export function tickEarlyModernIndustry(regions, elapsedDays = 7) {
     const personnel = Math.max(0, (region.army?.personnel || 0) + (region.army?.away || 0));
     const bombards = state.artillery.inventory.filter((item) => item.kind === 'bombard').length + state.artillery.away.filter((item) => item.kind === 'bombard').length;
     const fieldGuns = state.artillery.inventory.filter((item) => item.kind === 'field_cannon').length + state.artillery.away.filter((item) => item.kind === 'field_cannon').length;
+    const rocketLaunchers = state.artillery.inventory.filter((item) => item.kind === 'rocket_artillery').length + state.artillery.away.filter((item) => item.kind === 'rocket_artillery').length;
     const bombardTarget = Math.min(8, Math.floor(personnel / 1400));
     const fieldTarget = state.artillery.readiness >= 0.30 ? Math.min(16, Math.floor(personnel / 900 * state.artillery.readiness)) : 0;
+    const rocketTarget = hasTech(region,'rocket_artillery') && state.artillery.readiness >= 0.35 ? Math.min(12, Math.floor(personnel / 1100 * state.artillery.readiness)) : 0;
     let artilleryBuilt = 0;
     const artilleryAttempts = Math.max(1, Math.floor(buildScale * (0.5 + state.artillery.readiness * 2.5)));
     for (let i = 0; i < artilleryAttempts; i++) {
       const kind = bombards + artilleryBuilt < bombardTarget ? 'bombard' : fieldGuns + artilleryBuilt < fieldTarget ? 'field_cannon' : null;
       if (!kind || !buildArtillery(region, kind)) break;
       artilleryBuilt += 1;
+    }
+
+    let rocketLaunchersBuilt=0;
+    const rocketAttempts=Math.max(1,Math.floor(buildScale*(0.35+state.artillery.readiness*1.8)));
+    while (rocketLaunchers + rocketLaunchersBuilt < rocketTarget && rocketLaunchersBuilt < rocketAttempts) {
+      if (!buildRocketLauncher(region)) break;
+      rocketLaunchersBuilt += 1;
     }
 
     const advanced = Math.max(0, region.navy?.advancedBoats || 0);
@@ -150,7 +175,11 @@ export function tickEarlyModernIndustry(regions, elapsedDays = 7) {
 
     region.marketDemand ||= {};
     if (bombardTarget + fieldTarget > bombards + fieldGuns) region.marketDemand.gunpowder = Math.max(region.marketDemand.gunpowder || 0, 0.3);
-    reports.push({ regionId: region.id, artilleryBuilt, navalGunsBuilt, artilleryReadiness: state.artillery.readiness, navalReadiness: state.naval.readiness });
+    if (rocketTarget > rocketLaunchers) {
+      region.marketDemand.artillery_rockets=Math.max(region.marketDemand.artillery_rockets||0,(rocketTarget-rocketLaunchers)*8);
+      region.marketDemand.machine_components=Math.max(region.marketDemand.machine_components||0,(rocketTarget-rocketLaunchers)*1.2);
+    }
+    reports.push({ regionId: region.id, artilleryBuilt, rocketLaunchersBuilt, navalGunsBuilt, artilleryReadiness: state.artillery.readiness, navalReadiness: state.naval.readiness });
   }
   return reports;
 }
@@ -159,7 +188,8 @@ export function takeGunpowderSiegeTrain(region, personnel) {
   const state = ensureEarlyModernMilitary(region).artillery;
   const capacity = Math.max(0, Math.floor(Math.max(0, personnel) / 250));
   if (!capacity) return [];
-  const ordered = [...state.inventory].sort((a, b) => (b.kind === 'bombard' ? 1 : 0) - (a.kind === 'bombard' ? 1 : 0));
+  const priority={bombard:3,rocket_artillery:2,field_cannon:1};
+  const ordered = [...state.inventory].sort((a, b) => (priority[b.kind]||0) - (priority[a.kind]||0));
   const selected = ordered.slice(0, capacity);
   for (const item of selected) {
     const index = state.inventory.indexOf(item);
@@ -179,10 +209,11 @@ export function returnGunpowderSiegeTrain(region, train = []) {
 }
 
 export function artilleryCampaignProfile(region, train = [], { elapsedDays = 7, logisticsSupply = 1, consumeSupplies = true } = {}) {
-  if (!train?.length || !hasTech(region, 'gunpowder')) return { fortDefenceMultiplier: 1, combatMultiplier: 1, suppliedFraction: 0, powderUsed: 0, shotUsed: 0, guns: 0 };
+  const tubeTrain=(train||[]).filter(g=>g?.kind!=='rocket_artillery');
+  if (!tubeTrain.length || !hasTech(region, 'gunpowder')) return { fortDefenceMultiplier: 1, combatMultiplier: 1, suppliedFraction: 0, powderUsed: 0, shotUsed: 0, guns: 0, models:[] };
   const weeks = Math.max(0.1, elapsedDays / 7);
   let weight = 0;
-  for (const gun of train) {
+  for (const gun of tubeTrain) {
     const spec = ARTILLERY_SPECS[gun.kind] || ARTILLERY_SPECS.field_cannon;
     const design = gun.designStats || {};
     const designEffect = 0.72 + clamp(design.firepower ?? 0.35) * 0.34 + clamp(design.reliability ?? 0.55) * 0.16 + clamp(design.rateOfFire ?? 0.2) * 0.20;
@@ -201,13 +232,13 @@ export function artilleryCampaignProfile(region, train = [], { elapsedDays = 7, 
     shotUsed = shotNeed * suppliedFraction;
     region.stockpile.gunpowder = Math.max(0, (region.stockpile.gunpowder || 0) - powderUsed);
     consumeShotMetal(region, shotUsed);
-    for (const gun of train) gun.condition = clamp((gun.condition ?? 1) - 0.0015 * weeks / Math.max(0.6, materialQuality(gun.metal)), 0, 1);
+    for (const gun of tubeTrain) gun.condition = clamp((gun.condition ?? 1) - 0.0015 * weeks / Math.max(0.6, materialQuality(gun.metal)), 0, 1);
   }
   return {
     fortDefenceMultiplier: Math.max(0.22, 1 / (1 + effective * 0.34)),
     combatMultiplier: 1 + Math.min(0.24, effective * 0.025),
-    suppliedFraction, powderUsed, shotUsed, guns: train.length,
-    models: Object.entries(train.reduce((m,g)=>(m[g.modelName||'Uncatalogued gun']=(m[g.modelName||'Uncatalogued gun']||0)+1,m),{})).map(([name,count])=>({name,count})),
+    suppliedFraction, powderUsed, shotUsed, guns: tubeTrain.length,
+    models: Object.entries(tubeTrain.reduce((m,g)=>(m[g.modelName||'Uncatalogued gun']=(m[g.modelName||'Uncatalogued gun']||0)+1,m),{})).map(([name,count])=>({name,count})),
   };
 }
 

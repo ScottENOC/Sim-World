@@ -1,0 +1,16 @@
+name: Rocket artillery production validation
+on:
+  push:
+    branches: [feature/early-rocket-artillery]
+    paths:
+      - 'tools/test-rocket-artillery-production.mjs'
+      - '.github/workflows/early-rocketry-pr.yml'
+      - '.github/workflows/early-rocketry-branch-production.yml'
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node tools/test-rocket-artillery-production.mjs
