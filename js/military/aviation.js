@@ -111,7 +111,7 @@ export function aviationBasingRelationship(aircraft,hostRegion,agreements=[],reg
   const related=(agreements||[]).find(a=>a?.active&&['military_support','joint_operation','war_commitment','air_basing'].includes(a.type)&&
     ((ownerRegions.includes(a.fromId)&&hostRegions.includes(a.toId))||(ownerRegions.includes(a.toId)&&hostRegions.includes(a.fromId))||
      (a.proposerActorId===owner&&a.partnerActorId===hostActor)||(a.proposerActorId===hostActor&&a.partnerActorId===owner)||
-     (a.fromActorId===owner&&a.toActorId===hostActor)||(a.fromActorId===hostActor&&a.partnerActorId===owner)));
+     (a.fromActorId===owner&&a.toActorId===hostActor)||(a.fromActorId===hostActor&&a.toActorId===owner)));
   if(!related)return{allowed:false,repair:false,reason:'no_basing_rights'};
   return{allowed:true,repair:Boolean(related.aviationMaintenanceSupport||related.maintenanceSupport),relationship:'allied_base',agreementId:related.id};
 }
