@@ -1,4 +1,5 @@
-import { effectiveInfrastructureCount, operationalInfrastructure } from './construction.js?v=20260917-electric1';
+import { effectiveInfrastructureCount, operationalInfrastructure } from './construction.js?v=20260920-nuclear1';
+import { tickNuclearFuelCycle, nuclearGeneration } from './nuclearPower.js?v=20260920-nuclear1';
 
 const DAYS_PER_YEAR = 365.2425;
 const INDUSTRIAL_ELECTRIFICATION_TECH_ID = 'industrial_electrification';
@@ -9,7 +10,8 @@ export function ensureElectricityState(region) {
   region.electricity ||= {
     generated: 0, delivered: 0, householdService: 0, industrialService: 0,
     coalConsumed: 0, copperConsumed: 0, demand: 0, householdDemand: 0, industrialDemand: 0,
-    curtailed: 0, coalCyclingLoss: 0, balancingShortfall: 0, dispatchEfficiency: 1,
+    curtailed: 0, coalCyclingLoss: 0, nuclearCyclingLoss: 0, balancingShortfall: 0, dispatchEfficiency: 1,
+    reactorFuelConsumed: 0, spentFuelGenerated: 0,
   };
   return region.electricity;
 }
@@ -41,9 +43,10 @@ export function dispatchElectricityPortfolio(outputs = {}, demand = Infinity) {
   const solar = nonNegative(outputs.solar);
   const wind = nonNegative(outputs.wind);
   const peaking = nonNegative(outputs.peaking);
-  const grossPotential = coal + hydro + solar + wind + peaking;
+  const nuclear = nonNegative(outputs.nuclear);
+  const grossPotential = coal + hydro + solar + wind + peaking + nuclear;
   if (grossPotential <= 0) return {
-    grossPotential: 0, usableGeneration: 0, curtailed: 0, coalCyclingLoss: 0,
+    grossPotential: 0, usableGeneration: 0, curtailed: 0, coalCyclingLoss: 0, nuclearCyclingLoss: 0,
     balancingNeed: 0, balancingAvailable: 0, balancingShortfall: 0,
     balancingCoverage: 1, dispatchEfficiency: 1, variableComplementarity: 0,
   };
@@ -57,12 +60,15 @@ export function dispatchElectricityPortfolio(outputs = {}, demand = Infinity) {
   const variableOutput = solar + wind;
   const curtailed = Math.min(variableOutput, balancingShortfall * 0.55);
   const coalCyclingLoss = Math.min(coal * 0.18, balancingShortfall * 0.45);
-  const usableGeneration = Math.max(0, grossPotential - curtailed - coalCyclingLoss);
+  // Early large reactors are excellent steady generators but poor peakers. A system
+  // with insufficient flexible plant therefore cannot treat them as balancing supply.
+  const nuclearCyclingLoss = Math.min(nuclear * 0.08, balancingShortfall * 0.18);
+  const usableGeneration = Math.max(0, grossPotential - curtailed - coalCyclingLoss - nuclearCyclingLoss);
   const dispatchEfficiency = grossPotential > 0 ? clamp01(usableGeneration / grossPotential) : 1;
   const demandLimitedGeneration = Math.min(usableGeneration, Math.max(0, Number(demand) || 0));
 
   return {
-    grossPotential, usableGeneration, demandLimitedGeneration, curtailed, coalCyclingLoss,
+    grossPotential, usableGeneration, demandLimitedGeneration, curtailed, coalCyclingLoss, nuclearCyclingLoss,
     balancingNeed, balancingAvailable, balancingShortfall, balancingCoverage,
     dispatchEfficiency, variableComplementarity,
   };
@@ -77,6 +83,8 @@ export function tickElectricity(region, elapsedDays = 7) {
   const solarStations = effectiveInfrastructureCount(region, 'solar_power_station');
   const windStations = effectiveInfrastructureCount(region, 'wind_power_station');
   const grids = effectiveInfrastructureCount(region, 'local_electric_grid');
+  tickNuclearFuelCycle(region, elapsedDays);
+  const nuclear = nuclearGeneration(region, elapsedDays);
 
   const coalPotential = coalStations * 5200 * years;
   const coalNeed = coalStations * 900 * years;
@@ -95,10 +103,11 @@ export function tickElectricity(region, elapsedDays = 7) {
   const windOutput = windStations * 4500 * years * windAvailability;
 
   const demand = electricityDemand(region, elapsedDays);
-  const dispatch = dispatchElectricityPortfolio({ coal: coalOutput, hydro: hydroOutput, solar: solarOutput, wind: windOutput }, demand.total);
+  const dispatch = dispatchElectricityPortfolio({ coal: coalOutput, hydro: hydroOutput, solar: solarOutput, wind: windOutput, nuclear: nuclear.output }, demand.total);
   const generated = dispatch.usableGeneration;
 
-  const copperNeed = (grids * 18 + (coalStations + hydroStations) * 5 + solarStations * 3 + windStations * 4) * years;
+  const nuclearStations = effectiveInfrastructureCount(region, 'nuclear_power_station');
+  const copperNeed = (grids * 18 + (coalStations + hydroStations) * 5 + solarStations * 3 + windStations * 4 + nuclearStations * 8) * years;
   const copperAvailable = Math.max(0, Number(region.stockpile.copper) || 0);
   const copperConsumed = Math.min(copperAvailable, copperNeed);
   if (copperNeed > 0) region.stockpile.copper = Math.max(0, copperAvailable - copperConsumed);
@@ -121,6 +130,9 @@ export function tickElectricity(region, elapsedDays = 7) {
   state.copperConsumed = copperConsumed;
   state.curtailed = dispatch.curtailed;
   state.coalCyclingLoss = dispatch.coalCyclingLoss;
+  state.nuclearCyclingLoss = dispatch.nuclearCyclingLoss;
+  state.reactorFuelConsumed = nuclear.reactorFuelConsumed || 0;
+  state.spentFuelGenerated = nuclear.spentFuelGenerated || 0;
   state.balancingShortfall = dispatch.balancingShortfall;
   state.dispatchEfficiency = dispatch.dispatchEfficiency;
   state.demand = demand.total;
@@ -128,7 +140,7 @@ export function tickElectricity(region, elapsedDays = 7) {
   state.industrialDemand = demand.industrialDemand;
   state.lightMetalsDemand = demand.lightMetalsDemand || 0;
   return {
-    ...state, coalOutput, hydroOutput, solarOutput, windOutput, gridCapacity, networkReliability,
+    ...state, coalOutput, hydroOutput, solarOutput, windOutput, nuclearOutput: nuclear.output || 0, nuclear, gridCapacity, networkReliability,
     copperNeed, balancingNeed: dispatch.balancingNeed, balancingAvailable: dispatch.balancingAvailable,
     balancingCoverage: dispatch.balancingCoverage, variableComplementarity: dispatch.variableComplementarity,
     grossGenerationPotential: dispatch.grossPotential,

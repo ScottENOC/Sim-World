@@ -1,10 +1,10 @@
 from pathlib import Path
 
 
-def replace_once(path, old, new):
+def replace_once(path, old, new, already_contains=None):
     p = Path(path)
     text = p.read_text()
-    if new in text:
+    if new in text or (already_contains and already_contains in text):
         return False
     if old not in text:
         raise RuntimeError(f'anchor not found in {path}: {old[:90]!r}')
@@ -20,10 +20,12 @@ replace_once('js/economy/construction.js',
 """    id: 'reservoir_dam', name: 'Major reservoir dam', requiredTechId: 'hydraulic_engineering', unique: true, requiresRiver: true,\n    requiresInfrastructure: 'river_weir', minPopulation: 12000,\n""")
 replace_once('js/economy/construction.js',
 """    (!type.requiresDeposit || Boolean(region.deposits?.[type.requiresDeposit])) &&\n    (!type.minPopulation || (region.population || 0) >= type.minPopulation) &&\n""",
-"""    (!type.requiresDeposit || Boolean(region.deposits?.[type.requiresDeposit])) &&\n    (!type.requiresRiver || (region.hydrology?.riverIds || []).length > 0) &&\n    (!type.minPopulation || (region.population || 0) >= type.minPopulation) &&\n""")
+"""    (!type.requiresDeposit || Boolean(region.deposits?.[type.requiresDeposit])) &&\n    (!type.requiresRiver || (region.hydrology?.riverIds || []).length > 0) &&\n    (!type.minPopulation || (region.population || 0) >= type.minPopulation) &&\n""",
+"(!type.requiresRiver || (region.hydrology?.riverIds || []).length > 0)")
 replace_once('js/economy/construction.js',
 """      (type.requiresDeposit && !region.deposits?.[type.requiresDeposit]) ||\n      (type.minPopulation && (region.population || 0) < type.minPopulation)) return null;\n""",
-"""      (type.requiresDeposit && !region.deposits?.[type.requiresDeposit]) ||\n      (type.requiresRiver && !(region.hydrology?.riverIds || []).length) ||\n      (type.minPopulation && (region.population || 0) < type.minPopulation)) return null;\n""")
+"""      (type.requiresDeposit && !region.deposits?.[type.requiresDeposit]) ||\n      (type.requiresRiver && !(region.hydrology?.riverIds || []).length) ||\n      (type.minPopulation && (region.population || 0) < type.minPopulation)) return null;\n""",
+"(type.requiresRiver && !(region.hydrology?.riverIds || []).length)")
 
 # Persist which real/procedural rivers pass through each region so construction
 # availability does not have to rediscover spatial geometry every UI render.
