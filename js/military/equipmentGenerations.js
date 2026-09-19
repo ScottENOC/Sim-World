@@ -22,6 +22,7 @@ export function ensureEquipmentCatalogue(region){
   region.militaryEquipment ||= {designs:[],nextDesignSequence:{}};
   region.militaryEquipment.designs ||= [];
   region.militaryEquipment.nextDesignSequence ||= {};
+  region.militaryEquipment.inventoryByDesign ||= {};
   return region.militaryEquipment;
 }
 
@@ -29,11 +30,11 @@ export function designsFor(region,family){return ensureEquipmentCatalogue(region
 export function currentEquipmentDesign(region,family){return designsFor(region,family).sort((a,b)=>b.sequence-a.sequence)[0]||null;}
 export function equipmentDesignById(region,id){return ensureEquipmentCatalogue(region).designs.find(d=>d.id===id)||null;}
 
-export function createEquipmentDesign(region,family,stats,{reason='indigenous_development',tick=0}={}){
+export function createEquipmentDesign(region,family,stats,{reason='indigenous_development',tick=0,authorisedBy='system'}={}){
   const cat=ensureEquipmentCatalogue(region);
   const seq=(cat.nextDesignSequence[family]||0)+1;cat.nextDesignSequence[family]=seq;
   const id=`${region.id||'region'}:${family}:${seq}`;
-  const design={id,family,sequence:seq,name:`${FAMILY_LABELS[family]||family} Mk ${roman(seq)}`,introducedTick:tick,reason,stats:{...stats}};
+  const design={id,family,sequence:seq,name:`${FAMILY_LABELS[family]||family} Mk ${roman(seq)}`,introducedTick:tick,reason,authorisedBy,stats:{...stats}};
   cat.designs.push(design);return design;
 }
 
@@ -70,21 +71,41 @@ export function armouredVehicleDesignFrontier(region,family=EQUIPMENT_FAMILIES.T
   return {family, mobility:clamp(engine*.34+trans*.26+tracks*.30+hull*.10), firepower:clamp(gun*.62+optics*.20+electronics*.08+hull*.10), protection:clamp(armour*(spg?.62:.82)+hull*(spg?.18:.12)+tracks*.06), reliability:clamp(engine*.18+trans*.18+tracks*.16+gun*.10+armour*.08+hull*.12+exp*.18), fireControlPotential:clamp(optics*.50+electronics*.28+gun*.12+exp*.10), integration:exp};
 }
 
+export function equipmentDesignFrontier(region,family,{kind=null}={}){
+  if(family===EQUIPMENT_FAMILIES.TANK||family===EQUIPMENT_FAMILIES.SELF_PROPELLED_GUN)return armouredVehicleDesignFrontier(region,family);
+  if(family===EQUIPMENT_FAMILIES.FIELD_ARTILLERY)return artilleryDesignFrontier(region,kind||'field_cannon');
+  if(family===EQUIPMENT_FAMILIES.HEAVY_ARTILLERY)return artilleryDesignFrontier(region,kind||'heavy_howitzer');
+  return null;
+}
+
+// A frontier is knowledge/capability. A Mark is a deliberate standardisation decision.
+// This function snapshots whatever the country can actually build at that moment;
+// it deliberately does not require the new model to dominate the old one.
+export function authoriseEquipmentMark(region,family,{kind=null,tick=0,reason='new_production_standard',authorisedBy='player'}={}){
+  const frontier=equipmentDesignFrontier(region,family,{kind});
+  if(!frontier)return null;
+  return createEquipmentDesign(region,family,frontier,{reason,tick,authorisedBy});
+}
+
+// Backwards compatibility and first production run only. Capability growth by itself
+// never creates Mk II+; later Marks require authoriseEquipmentMark / factory tooling.
 export function ensureCurrentArmouredVehicleDesign(region,family=EQUIPMENT_FAMILIES.TANK,tick=0){
-  const frontier=armouredVehicleDesignFrontier(region,family),current=currentEquipmentDesign(region,family);
-  const score=(s)=>(s.mobility||0)*.22+(s.firepower||0)*.28+(s.protection||0)*.24+(s.reliability||0)*.14+(s.fireControlPotential||0)*.12;
-  if(!current)return createEquipmentDesign(region,family,frontier,{reason:'first_standard_design',tick});
-  const improvement=(score(frontier)-score(current.stats))/Math.max(.15,score(current.stats));
-  if(improvement>=.06)return createEquipmentDesign(region,family,frontier,{reason:'shared_component_improvement',tick});
-  return current;
+  return currentEquipmentDesign(region,family)||authoriseEquipmentMark(region,family,{tick,reason:'first_standard_design',authorisedBy:'initial_standard'});
 }
 
 export function ensureCurrentArtilleryDesign(region,kind='field_cannon',tick=0){
-  const frontier=artilleryDesignFrontier(region,kind),family=frontier.family,current=currentEquipmentDesign(region,family);
-  if(!current)return createEquipmentDesign(region,family,frontier,{reason:'first_standard_design',tick});
-  const improvement=(designScore(frontier)-designScore(current.stats))/Math.max(.2,designScore(current.stats));
-  if(improvement>=.065)return createEquipmentDesign(region,family,frontier,{reason:'meaningful_capability_improvement',tick});
-  return current;
+  const frontier=artilleryDesignFrontier(region,kind),family=frontier.family;
+  return currentEquipmentDesign(region,family)||authoriseEquipmentMark(region,family,{kind,tick,reason:'first_standard_design',authorisedBy:'initial_standard'});
+}
+
+export function equipmentFrontierImprovement(region,family,{kind=null}={}){
+  const frontier=equipmentDesignFrontier(region,family,{kind}),current=currentEquipmentDesign(region,family);
+  if(!frontier)return 0;if(!current)return 1;
+  if(family===EQUIPMENT_FAMILIES.TANK||family===EQUIPMENT_FAMILIES.SELF_PROPELLED_GUN){
+    const score=(s)=>(s.mobility||0)*.22+(s.firepower||0)*.28+(s.protection||0)*.24+(s.reliability||0)*.14+(s.fireControlPotential||0)*.12;
+    return (score(frontier)-score(current.stats))/Math.max(.15,score(current.stats));
+  }
+  return (designScore(frontier)-designScore(current.stats))/Math.max(.2,designScore(current.stats));
 }
 
 export function stampEquipment(unit,design){
@@ -96,6 +117,21 @@ export function backfillArtilleryDesign(region,gun,tick=0){
   if(gun?.designId)return gun;
   const design=ensureCurrentArtilleryDesign(region,gun?.kind||'field_cannon',tick);
   return stampEquipment(gun,design);
+}
+
+export function equipmentSupportBurden(region){
+  const cat=ensureEquipmentCatalogue(region),byFamily=new Map();let total=0;
+  for(const [id,rawQty] of Object.entries(cat.inventoryByDesign||{})){
+    const qty=Math.max(0,Number(rawQty)||0);if(qty<=.001)continue;
+    const design=equipmentDesignById(region,id);if(!design)continue;
+    total+=qty;const row=byFamily.get(design.family)||{family:design.family,total:0,models:0,designIds:[]};
+    row.total+=qty;row.models+=1;row.designIds.push(id);byFamily.set(design.family,row);
+  }
+  let weightedExtraModels=0;
+  for(const row of byFamily.values())weightedExtraModels+=Math.max(0,row.models-1)*Math.sqrt(Math.max(1,row.total));
+  const scale=Math.sqrt(Math.max(1,total));
+  const diversityMultiplier=total>0?1+clamp(weightedExtraModels/Math.max(1,scale)*.16,0,1.5):1;
+  return {total,diversityMultiplier,families:[...byFamily.values()]};
 }
 
 export function equipmentModernitySummary(region,units=[]){
