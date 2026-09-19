@@ -1,4 +1,5 @@
 import { estimateForeignNuclearWeaponCapability, nuclearDeterrentStatus } from '../military/nuclearWeaponisation.js?v=20260920-nuclear-deterrence1';
+import { secondStrikeAssessment, strategicForceReadiness } from '../military/strategicDelivery.js?v=20260920-strategic-delivery1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const actorId=(r)=>r?.governance?.sovereignPolityId||r?.controllingActorId||r?.id||null;
@@ -59,14 +60,15 @@ function categoryMatch(line,action){
 }
 
 export function estimateRedLineRisk(observer,target,action={}){
-  const estimate=estimateForeignNuclearWeaponCapability(observer,target);
+  const estimate=estimateForeignNuclearWeaponCapability(observer,target),secondStrike=secondStrikeAssessment(target);
   const observed=publicLines(target);
   let best=null;
   for(const line of observed){const match=categoryMatch(line,action);if(match<=0)continue;const severity=clamp(action.severity??.5);const thresholdFit=clamp((severity-line.severity+.35)/.7);const ambiguityPenalty=1-line.ambiguity*.45;const score=match*thresholdFit*line.credibility*ambiguityPenalty;if(!best||score>best.score)best={line,score};}
   const capability=estimate.assessment==='nuclear_capability_demonstrated'?1:estimate.assessment==='probable_nuclear_test'?.82:estimate.assessment==='untested_device_probable'?.62:estimate.assessment==='weaponisation_programme_suspected'?.28:0;
+  const survivabilitySignal=clamp(.35+secondStrike.retaliationConfidence*.65*estimate.confidence);
   const deniability=clamp(action.deniability??0),reversible=clamp(action.reversible??0);
-  const perceivedRisk=clamp((best?.score||.03)*(.28+.72*capability)*(1-deniability*.34)*(1-reversible*.22));
-  return {perceivedRisk,capabilityConfidence:estimate.confidence,matchedRedLineId:best?.line.id||null,publicRedLine:Boolean(best),salamiOpportunity:clamp((1-perceivedRisk)*(.45+.35*deniability+.20*reversible))};
+  const perceivedRisk=clamp((best?.score||.03)*(.28+.72*capability)*survivabilitySignal*(1-deniability*.34)*(1-reversible*.22));
+  return {perceivedRisk,capabilityConfidence:estimate.confidence,estimatedRetaliationConfidence:clamp(secondStrike.retaliationConfidence*estimate.confidence),matchedRedLineId:best?.line.id||null,publicRedLine:Boolean(best),salamiOpportunity:clamp((1-perceivedRisk)*(.45+.35*deniability+.20*reversible))};
 }
 
 export function actualRedLineCrossing(defender,action={}){
@@ -87,18 +89,20 @@ export function recordRedLineProbe(defender,redLineId,{crossed=false,strongRespo
 export function beginOrUpdateNuclearCrisis(defender,challenger,action={},currentTick=null){
   const s=ensureNuclearDeterrence(defender),key=actorId(challenger)||challenger?.id||'unknown';
   const actual=actualRedLineCrossing(defender,action),foreign=estimateForeignNuclearWeaponCapability(challenger,defender);
-  const deterrent=nuclearDeterrentStatus(defender);
-  const capable=deterrent==='demonstrated_device_capability'?1:deterrent==='untested_device_capability'?.6:0;
+  const deterrent=nuclearDeterrentStatus(defender),secondStrike=secondStrikeAssessment(defender);
+  const device=deterrent==='demonstrated_device_capability'?1:deterrent==='untested_device_capability'?.6:0;
+  const delivery=clamp(.28+secondStrike.retaliationConfidence*.72);
+  const capable=device*delivery;
   const crisis=s.crises[key]||{opponentActorId:key,level:0,pressure:0,lastTick:null,history:[]};
   const severity=clamp(action.severity??.5);
   const added=severity*.32+(actual.crossed?.34:0)+capable*.16;
   crisis.pressure=clamp(crisis.pressure+added);
   crisis.level=Math.min(NUCLEAR_CRISIS_LEVELS.RELEASE_CONSIDERATION,Math.floor(crisis.pressure*5.2));
   crisis.lastTick=currentTick;
-  crisis.history.push({tick:currentTick,category:action.category,severity,redLineCrossed:actual.crossed,level:crisis.level});
+  crisis.history.push({tick:currentTick,category:action.category,severity,redLineCrossed:actual.crossed,level:crisis.level,retaliationConfidence:secondStrike.retaliationConfidence});
   if(crisis.history.length>20)crisis.history.shift();
   s.crises[key]=crisis;
-  return {...crisis,actualRedLine:actual,opponentEstimate:foreign};
+  return {...crisis,actualRedLine:actual,opponentEstimate:foreign,secondStrike};
 }
 
 export function coolNuclearCrises(region,elapsedDays=7){
@@ -115,15 +119,10 @@ export function npcNuclearProbeDecision(actor,target,action={}){
 
 export function nuclearTriadReadiness(region,{fleets=[]}={}){
   const demonstrated=nuclearDeterrentStatus(region)==='demonstrated_device_capability';
-  const aircraft=region.aviation?.aircraft||[];
-  const bombers=aircraft.filter(a=>a.ownerType==='military'&&a.role==='bomber'&&a.status!=='destroyed').length;
-  const tankers=aircraft.filter(a=>a.ownerType==='military'&&a.role==='tanker'&&a.status!=='destroyed').length;
-  const ownedFleets=(fleets||[]).filter(f=>f.ownerRegionId===region.id||f.ownerActorId===actorId(region));
-  const submarines=ownedFleets.flatMap(f=>f.ships||[]).filter(s=>s.designId==='submarine').length;
-  const air={available:demonstrated&&bombers>0,bombers,tankers,refuellingSupported:tankers>0&&region.unlockedTechIds?.has?.('aerial_refuelling')};
-  const land={available:false,reason:'strategic_land_missile_system_not_implemented'};
-  const sea={available:false,submarines,reason:'ballistic_missile_submarine_system_not_implemented'};
-  return {air,land,sea,legsAvailable:[air,land,sea].filter(x=>x.available).length,fullTriad:false};
+  const force=strategicForceReadiness(region,{fleets});
+  const gate=(leg)=>({...leg,available:Boolean(demonstrated&&leg.available)});
+  const air=gate(force.air),land=gate(force.land),sea=gate(force.sea),legs=[air,land,sea];
+  return {air,land,sea,legsAvailable:legs.filter(x=>x.available).length,survivableLegs:legs.filter(x=>x.available&&x.survivability>=.5).length,fullTriad:demonstrated&&legs.every(x=>x.available),retaliationConfidence:demonstrated?force.retaliationConfidence:0,firstStrikeVulnerability:demonstrated?force.firstStrikeVulnerability:1,warning:force.warning,commandResilience:force.commandResilience};
 }
 
 export function tickNuclearDeterrence(regions,currentTick,elapsedDays=7){
