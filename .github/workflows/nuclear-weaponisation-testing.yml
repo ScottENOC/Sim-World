@@ -1,0 +1,63 @@
+name: Nuclear weaponisation and testing
+
+on:
+  push:
+    branches: [feature/nuclear-weaponisation-testing]
+    paths:
+      - 'js/military/nuclearWeaponisation.js'
+      - 'js/technology/nuclearWeaponisation.js'
+      - 'tools/apply-nuclear-weaponisation-testing.py'
+      - 'tools/test-nuclear-weaponisation.mjs'
+      - '.github/workflows/nuclear-weaponisation-testing.yml'
+  pull_request:
+    paths:
+      - 'js/military/nuclearWeaponisation.js'
+      - 'js/technology/nuclearWeaponisation.js'
+      - 'js/economy/construction.js'
+      - 'js/technology/breakthroughs.js'
+      - 'tools/test-nuclear-weaponisation.mjs'
+      - '.github/workflows/nuclear-weaponisation-testing.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && 'feature/nuclear-weaponisation-testing' || github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply integration on feature branch
+        if: github.event_name == 'push'
+        run: python tools/apply-nuclear-weaponisation-testing.py
+      - name: Syntax checks
+        run: |
+          node --check js/military/nuclearWeaponisation.js
+          node --check js/technology/nuclearWeaponisation.js
+          node --check js/economy/construction.js
+          node --check js/technology/breakthroughs.js
+      - name: Nuclear weaponisation regressions
+        run: |
+          node tools/test-nuclear-weaponisation.mjs
+          node tools/test-strategic-nuclear.mjs
+          node tools/test-nuclear-power.mjs
+          node tools/test-electricity.mjs
+      - name: Commit integrated source
+        if: github.event_name == 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/economy/construction.js js/technology/breakthroughs.js
+          if ! git diff --cached --quiet; then
+            git commit -m "Integrate nuclear weaponisation and testing"
+            git push origin HEAD:feature/nuclear-weaponisation-testing
+          fi
