@@ -163,6 +163,13 @@ function spontaneousEvidence(region, hazard, state, elapsedYears) {
 export function tickExternalities(region, elapsedDays = 7) {
   const years = Math.max(0, elapsedDays) / DAYS_PER_YEAR;
   const e = ensureExternalities(region);
+  const internationalPollution = clamp01(region.internationalPolicy?.pollutionCommitment || 0);
+  if (internationalPollution > 0) {
+    for (const [hazardId, knowledge] of Object.entries(e.knowledge || {})) {
+      if (!knowledge?.recognised) continue;
+      e.regulation[hazardId] = Math.max(clamp01(e.regulation[hazardId] || 0), internationalPollution * 0.75);
+    }
+  }
 
   tickLeadPlumbingAdoption(region, years);
   const leadExposure = leadExposureFromCurrentEconomy(region);
