@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { ensureWarSociety, setWarInformationPolicy, tickWarSociety } from '../js/society/warSociety.js';
 import { charterMetrics, proposeInternationalOrganisation, submitInternationalMotion, worldInstitutionReadiness } from '../js/diplomacy/internationalOrganisations.js';
+import { tickClimateChange } from '../js/world/climateChange.js';
+import { tickExternalities } from '../js/society/externalities.js';
 
-const makeRegion=(id,polity,{pop=1_000_000,wear=0,media=true,climate=true}={})=>({
+const makeRegion=(id,polity,{pop=1_000_000,media=true,climate=true}={})=>({
   id,name:id,polityId:polity,governance:{sovereignPolityId:polity,administrativeControl:.8},population:pop,
   demographics:{workingAge:pop*.58},army:{personnel:120_000},navy:{personnel:15_000},wallet:10000,treasury:8000,
-  employment:{hardship:.22},relations:new Map(),communicationState:{messengerExperience:200},
+  employment:{hardship:.22},relations:new Map(),communicationState:{messengerExperience:200},centroid:[0,35],terrain:{plains:.6},forest:{currentStock:1000},
   massEducation:{literacy:.78},earlyModernReform:{printDensity:.75},unlockedTechIds:new Set(media?['printing_press','electrical_telegraphy','photography','telephone_networks',...(climate?['anthropogenic_climate_change']:[])]:[]),
   report:{conflict:{pressure:.82,recentCasualties:5200,artilleryIntensity:.8,momentum:.45}},modernTactics:{machineGunExposure:.8},externalities:{knowledge:{ozone_depletion:{recognised:true}}},
 });
@@ -43,4 +45,12 @@ assert.ok(!rigged.formed||rigged.acceptance<fairAcceptance||rigged.organisation?
 const motion=submitInternationalMotion(fair.organisation,{proposerPolityId:'A',type:'climate_action',strength:.7},world,320);
 assert.equal(motion.submitted,true,'members should be able to put global motions before the organisation');
 if(motion.passed)assert.ok(regions.some(r=>r.internationalPolicy?.climateCommitment>0),'passed climate motions should create member commitments');
+
+const dirty=[makeRegion('dirty','X')],cooperative=[makeRegion('cooperative','Y')];
+dirty[0].protoIndustry={coalHeatUse:100000};cooperative[0].protoIndustry={coalHeatUse:100000};cooperative[0].internationalPolicy={climateCommitment:.8};
+tickClimateChange(dirty,1,365,()=>1);tickClimateChange(cooperative,1,365,()=>1);
+assert.ok(cooperative[0]._worldClimate.carbonBurdenIndex<dirty[0]._worldClimate.carbonBurdenIndex*.7,'high-compliance climate commitments should materially slow carbon accumulation');
+const regulated=makeRegion('regulated','Z');regulated.externalities={knowledge:{lead:{evidence:3,confidence:.9,recognised:true}},regulation:{lead:0},hazards:{},adoption:{leadPlumbing:{coverage:0,installedLead:0}}};regulated.internationalPolicy={pollutionCommitment:.8};
+tickExternalities(regulated,30);
+assert.ok(regulated.externalities.regulation.lead>=.59,'pollution accord compliance should strengthen regulation of recognised hazards');
 console.log('war society and international institutions regression passed');
