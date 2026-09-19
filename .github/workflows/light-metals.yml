@@ -1,0 +1,26 @@
+name: Light metals regression
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  light-metals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check light metals
+        run: node --check js/economy/lightMetals.js
+      - name: Syntax check integrations
+        run: |
+          node --check js/economy/labor.js
+          node --check js/economy/electricity.js
+          node --check js/economy/tradeGoods.js
+      - name: Light metals regression
+        run: node tools/test-light-metals.mjs
+      - name: Whitespace check
+        run: git diff --check
