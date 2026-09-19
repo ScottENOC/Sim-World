@@ -4,6 +4,14 @@ export const MILITARY_PLATFORM=Object.freeze({
   TANK:'tank',SELF_PROPELLED_GUN:'self_propelled_gun',ARTILLERY:'artillery',AIRCRAFT:'aircraft',WARSHIP:'warship',
 });
 
+export const DEPLOYED_BASE_SERVICES=Object.freeze({
+  HEADQUARTERS:'headquarters',RADIO:'radio',TELEPHONE:'telephone',RADAR:'radar',WORKSHOP:'workshop',REFRIGERATION:'refrigeration',MEDICAL:'medical',COMPUTING:'computing',
+});
+
+const BASE_SERVICE_LOAD=Object.freeze({
+  headquarters:0,radio:.10,telephone:.04,radar:.34,workshop:.24,refrigeration:.13,medical:.08,computing:.22,
+});
+
 function has(region,id){return Boolean(region?.unlockedTechIds?.has?.(id));}
 function components(region){return region?.industrialPlants?.componentCapability||{};}
 
@@ -36,6 +44,48 @@ export function ensureFieldPower(base){
   return base.fieldPower;
 }
 
+export function ensureDeployedBase(base){
+  base.services||={headquarters:true};
+  if(base.services.headquarters===undefined)base.services.headquarters=true;
+  base.servicePower||={};
+  return base;
+}
+
+export function deployedBaseElectricalDemand(base){
+  ensureDeployedBase(base);let total=0;
+  for(const [service,enabled] of Object.entries(base.services||{}))if(enabled)total+=BASE_SERVICE_LOAD[service]||0;
+  return total;
+}
+
+export function deployedBaseCapabilityProfile(base,fieldPower=null){
+  ensureDeployedBase(base);const power=fieldPower||ensureFieldPower(base),demand=Math.max(0,deployedBaseElectricalDemand(base));
+  const coverage=demand>0?clamp((power.availablePower||0)/demand):1;
+  const reliability=demand>0?clamp(power.reliability||0):1;
+  const powered=clamp(coverage*reliability);
+  const s=base.services||{};
+  // Headquarters are timeless. Electricity improves only the optional powered services attached to them.
+  const commandMultiplier=1+(s.radio?.055:0)*powered+(s.telephone?.035:0)*powered+(s.computing?.10:0)*powered;
+  const detectionMultiplier=1+(s.radar?.24:0)*powered+(s.radio?.025:0)*powered+(s.computing?.045:0)*powered;
+  const maintenanceMultiplier=1+(s.workshop?.14:0)*powered+(s.computing?.035:0)*powered;
+  const medicalMultiplier=1+(s.medical?.055:0)*powered+(s.refrigeration?.035:0)*powered;
+  const logisticsMultiplier=1+(s.refrigeration?.045:0)*powered+(s.computing?.055:0)*powered+(s.radio?.025:0)*powered;
+  return {demand,coverage,reliability,poweredFraction:powered,commandMultiplier,detectionMultiplier,maintenanceMultiplier,medicalMultiplier,logisticsMultiplier};
+}
+
+export function inferDeployedBaseServices(region,{headquarters=true}={}){
+  const c=components(region),compute=computationalCapability(region);
+  return {
+    headquarters,
+    radio:clamp(c.radio_navigation||c.electronics||0)>.18,
+    telephone:clamp(region?.telephone?.service||region?.telephone?.militaryCoordination||0)>.10,
+    radar:has(region,'radar')&&clamp(c.radar_set||0)>.12,
+    workshop:clamp(region?.industrialSupply?.capability?.precision_machining||0)>.18,
+    refrigeration:has(region,'petroleum_refining')&&clamp(c.engine||0)>.22&&clamp(c.electronics||0)>.10,
+    medical:clamp(region?.medicalProgress?.militaryMedicine||region?.medicalProgress?.careCapacity||0)>.12,
+    computing:compute>.12,
+  };
+}
+
 export function installFieldDieselGenerators(base,region,count=1){
   const frontier=portableDieselGeneratorFrontier(region),state=ensureFieldPower(base),n=Math.max(0,Math.floor(Number(count)||0));
   if(!frontier.available||n<=0)return {installed:0,reason:'generator_industry_unavailable',state};
@@ -50,6 +100,7 @@ export function installFieldDieselGenerators(base,region,count=1){
 export function tickFieldPower(base,sourceRegion,{requestedLoad=0,gridAvailable=false,gridTrusted=false,weeks=1}={}){
   const state=ensureFieldPower(base),frontier=portableDieselGeneratorFrontier(sourceRegion),duration=Math.max(0,Number(weeks)||0);
   state.requestedLoad=Math.max(0,Number(requestedLoad)||0);state.gridTrusted=Boolean(gridAvailable&&gridTrusted);state.dieselUsedLastWeek=0;
+  if(state.requestedLoad<=0){state.availablePower=0;state.reliability=1;state.status='no_power_required';return state;}
   if(state.gridTrusted){state.availablePower=state.requestedLoad;state.reliability=clamp(sourceRegion?.electricity?.reliability??.85);state.status='trusted_grid';return state;}
   const gross=state.generatorCount*frontier.outputPerGenerator*frontier.reliability;
   const needed=Math.min(state.requestedLoad,gross),dieselNeed=frontier.outputPerGenerator>0?needed/frontier.outputPerGenerator*frontier.dieselPerGeneratorWeek*duration:0;
@@ -58,6 +109,12 @@ export function tickFieldPower(base,sourceRegion,{requestedLoad=0,gridAvailable=
   state.availablePower=supplied;state.reliability=state.requestedLoad>0?clamp((supplied/state.requestedLoad)*frontier.reliability):frontier.reliability;
   state.status=state.generatorCount<=0?'unpowered':fuelFraction<.15?'fuel_exhausted':supplied+1e-6<state.requestedLoad?'generator_limited':'generator_powered';
   return state;
+}
+
+export function tickDeployedBasePower(base,sourceRegion,{gridAvailable=false,gridTrusted=false,weeks=1}={}){
+  ensureDeployedBase(base);const requestedLoad=deployedBaseElectricalDemand(base);
+  const fieldPower=tickFieldPower(base,sourceRegion,{requestedLoad,gridAvailable,gridTrusted,weeks});
+  const capability=deployedBaseCapabilityProfile(base,fieldPower);base.lastCapability={...capability};return {fieldPower,capability};
 }
 
 export function platformElectronicsFrontier(region,platform,{radarCapability=0,fireControlBase=0}={}){
