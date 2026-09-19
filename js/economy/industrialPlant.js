@@ -1,7 +1,7 @@
 import {
   EQUIPMENT_FAMILIES, authoriseEquipmentMark, currentEquipmentDesign, equipmentDesignById,
-  equipmentFrontierImprovement, equipmentSupportBurden, ensureCurrentArmouredVehicleDesign, ensureCurrentArtilleryDesign,
-} from '../military/equipmentGenerations.js?v=20260919-production-marks1';
+  equipmentFrontierImprovement, equipmentSupportBurden, ensureCurrentAircraftDesign, ensureCurrentArmouredVehicleDesign, ensureCurrentArtilleryDesign,
+} from '../military/equipmentGenerations.js?v=20260919-aircraft-industry1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
@@ -9,6 +9,8 @@ export const INDUSTRIAL_COMPONENTS=Object.freeze({
   ENGINE:'engine', TRANSMISSION:'transmission', TRACKED_RUNNING_GEAR:'tracked_running_gear',
   WHEELED_CHASSIS:'wheeled_chassis', GUN_SYSTEM:'gun_system', ARMOUR_PLATE:'armour_plate',
   OPTICS:'optics', ELECTRONICS:'electronics', HULL_FABRICATION:'hull_fabrication',
+  AIRCRAFT_ENGINE:'aircraft_engine', AIRFRAME:'airframe', WING_DESIGN:'wing_design',
+  AIRCRAFT_WEAPON:'aircraft_weapon', RADIO_NAVIGATION:'radio_navigation', RADAR_SET:'radar_set',
 });
 
 export const PRODUCT_RECIPES=Object.freeze({
@@ -16,6 +18,9 @@ export const PRODUCT_RECIPES=Object.freeze({
   towed_artillery:{kind:'assembly',components:{gun_system:1,wheeled_chassis:.45,optics:.20,hull_fabrication:.20,electronics:.04}},
   self_propelled_gun:{kind:'assembly',components:{engine:1,transmission:1,tracked_running_gear:1,gun_system:1,armour_plate:.65,optics:.35,electronics:.12,hull_fabrication:.8}},
   tank:{kind:'assembly',components:{engine:1,transmission:1,tracked_running_gear:1,gun_system:.85,armour_plate:1,optics:.45,electronics:.18,hull_fabrication:1}},
+  fighter:{kind:'assembly',components:{aircraft_engine:1,airframe:.9,wing_design:1,aircraft_weapon:.75,radio_navigation:.34,radar_set:.12,optics:.18}},
+  bomber:{kind:'assembly',components:{aircraft_engine:1.6,airframe:1.45,wing_design:1.35,aircraft_weapon:.45,radio_navigation:.55,radar_set:.28,optics:.12}},
+  transport_aircraft:{kind:'assembly',components:{aircraft_engine:1.35,airframe:1.35,wing_design:1.25,radio_navigation:.48,radar_set:.08}},
 });
 
 const COMPONENT_INPUTS=Object.freeze({
@@ -23,6 +28,8 @@ const COMPONENT_INPUTS=Object.freeze({
   tracked_running_gear:{steel:1.1,machine_components:.28}, wheeled_chassis:{steel:.55,machine_components:.22},
   gun_system:{steel:1.0,machine_components:.42}, armour_plate:{steel:1.25}, optics:{machine_components:.18},
   electronics:{machine_components:.22}, hull_fabrication:{steel:.8},
+  aircraft_engine:{steel:.62,machine_components:.92}, airframe:{steel:.42,machine_components:.32}, wing_design:{steel:.28,machine_components:.36},
+  aircraft_weapon:{steel:.48,machine_components:.38}, radio_navigation:{machine_components:.42}, radar_set:{machine_components:.72},
 });
 
 function hasTech(region,id){return Boolean(region.unlockedTechIds?.has?.(id));}
@@ -57,6 +64,8 @@ export function equipmentFamilyForProduct(productId){
   if(productId==='tank')return EQUIPMENT_FAMILIES.TANK;
   if(productId==='self_propelled_gun')return EQUIPMENT_FAMILIES.SELF_PROPELLED_GUN;
   if(productId==='towed_artillery')return EQUIPMENT_FAMILIES.FIELD_ARTILLERY;
+  if(productId==='fighter')return EQUIPMENT_FAMILIES.FIGHTER;
+  if(productId==='bomber')return EQUIPMENT_FAMILIES.BOMBER;
   return null;
 }
 function kindForProduct(productId){return productId==='towed_artillery'?'field_cannon':null;}
@@ -76,9 +85,14 @@ function productSimilarity(a,b){
   for(const k of keys){shared+=Math.min(ra[k]||0,rb[k]||0);total+=Math.max(ra[k]||0,rb[k]||0);}return total?shared/total:0;
 }
 
+export function productionSimilarity(a,b){return productSimilarity(a,b);}
+
 export function retoolProductionLine(region,lineId,newProductId){
   const s=ensureIndustrialPlantState(region),line=s.lines.find(l=>l.id===lineId);if(!line)throw new Error(`Unknown production line ${lineId}`);
-  const similarity=productSimilarity(line.productId,newProductId);line.previousProductId=line.productId;line.productId=newProductId;
+  const oldProductId=line.productId,similarity=productSimilarity(oldProductId,newProductId),oldExperience=clamp(s.productExperience[oldProductId]||0);
+  line.previousProductId=oldProductId;line.productId=newProductId;
+  // Closely related production transfers jigs, supplier knowledge and integration practice as well as reducing downtime.
+  s.productExperience[newProductId]=Math.max(clamp(s.productExperience[newProductId]||0),oldExperience*similarity*.70);
   line.toolingFit=clamp(.25+similarity*.7);line.retoolWeeksRemaining=Math.ceil((1-similarity)*26);line.status='retooling';line.idleWeeks=0;line.approvedDesignId=null;line.pendingDesignId=null;return line;
 }
 
@@ -143,7 +157,9 @@ function produceComponent(region,component,requested){
 
 function initialDesignForProduct(region,productId){
   const family=equipmentFamilyForProduct(productId);if(!family)return null;
-  return productId==='towed_artillery'?ensureCurrentArtilleryDesign(region,'field_cannon'):ensureCurrentArmouredVehicleDesign(region,family);
+  if(productId==='towed_artillery')return ensureCurrentArtilleryDesign(region,'field_cannon');
+  if(productId==='fighter'||productId==='bomber')return ensureCurrentAircraftDesign(region,family);
+  return ensureCurrentArmouredVehicleDesign(region,family);
 }
 
 function assemble(region,productId,requested,line=null){
@@ -204,5 +220,5 @@ export function tickIndustrialPlants(region,elapsedDays=7){
 }
 
 export function strategicIndustrialCapacity(region){
-  const s=ensureIndustrialPlantState(region);return {factoryCapacity:baseFactoryCapacity(region),components:{...s.componentCapability},motorVehicle:productCapability(region,'motor_vehicle'),selfPropelledGun:productCapability(region,'self_propelled_gun'),tank:productCapability(region,'tank'),equipmentSupportReadiness:region.militaryEquipment?.supportReadiness??1};
+  const s=ensureIndustrialPlantState(region);return {factoryCapacity:baseFactoryCapacity(region),components:{...s.componentCapability},motorVehicle:productCapability(region,'motor_vehicle'),selfPropelledGun:productCapability(region,'self_propelled_gun'),tank:productCapability(region,'tank'),fighter:productCapability(region,'fighter'),bomber:productCapability(region,'bomber'),equipmentSupportReadiness:region.militaryEquipment?.supportReadiness??1};
 }
