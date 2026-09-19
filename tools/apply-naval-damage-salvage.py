@@ -19,8 +19,6 @@ rep("  return {\n    id: `ship-${nextShipId++}`,\n",
 rep("    ...overrides,\n  };\n}\n\nfunction fleetCoalCapacity",
     "    ...overrides,\n  });\n}\n\nfunction fleetCoalCapacity")
 
-rep("  for (let i = 0; i < count; i++) {\n    let id;\n",
-    "  for (let i = 0; i < count; i++) {\n    let id;\n")
 rep("  return targets;\n}\n\nexport function ensureNavalProcurement",
     "  if (region?.unlockedTechIds?.has(MARINE_STEAM_TECH_ID) && count >= 4) targets.fleet_tug = Math.max(targets.fleet_tug || 0, Math.ceil(count / 8));\n  return targets;\n}\n\nexport function ensureNavalProcurement")
 
@@ -39,8 +37,19 @@ rep("  const shipPower = fleet.ships.reduce((sum, ship) => sum + designOf(ship).
 rep("  for (const ship of fleet.ships) ship.condition = clamp((ship.condition ?? fleet.condition) + repairRate * weeks);",
     "  for (const ship of fleet.ships) repairShipDamage(ship, repairRate * weeks, { dockyard: access !== 'ally' && (operationalInfrastructure(port, 'shipyard') || operationalInfrastructure(port, 'naval_base')) });")
 
-rep("function damageRandomShip(fleet, amount, rng) {\n  if (!fleet.ships.length) return null;\n  const ship = fleet.ships[Math.min(fleet.ships.length - 1, Math.floor(rng() * fleet.ships.length))];\n  ship.condition = clamp((ship.condition ?? fleet.condition) - amount, 0.05, 1);\n  return ship;\n}",
-"function damageRandomShip(fleet, amount, rng) {\n  if (!fleet.ships.length) return null;\n  const ship = fleet.ships[Math.min(fleet.ships.length - 1, Math.floor(rng() * fleet.ships.length))];\n  applyShipHit(ship, amount, { rng });\n  return ship;\n}")
+old_damage="""function damageRandomShip(fleet, amount, rng) {
+  if (!fleet.ships.length) return null;
+  const ship = fleet.ships[Math.min(fleet.ships.length - 1, Math.floor(rng() * fleet.ships.length))];
+  const dc=clamp(designOf(ship).damageControl||0);ship.condition = clamp((ship.condition ?? fleet.condition) - amount*(1-dc*.28), 0.05, 1);
+  return ship;
+}"""
+new_damage="""function damageRandomShip(fleet, amount, rng) {
+  if (!fleet.ships.length) return null;
+  const ship = fleet.ships[Math.min(fleet.ships.length - 1, Math.floor(rng() * fleet.ships.length))];
+  applyShipHit(ship, amount, { rng });
+  return ship;
+}"""
+rep(old_damage,new_damage)
 
 rep("function lossesForSide(fleet, enemyShare, rng, portProtected = false) {\n  const results = { sunk: [], capturedCandidates: [], damaged: [] };",
     "function lossesForSide(fleet, enemyShare, rng, portProtected = false) {\n  const results = { sunk: [], capturedCandidates: [], damaged: [], salvaged: [] };")
