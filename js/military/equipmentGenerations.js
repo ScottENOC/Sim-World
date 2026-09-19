@@ -71,10 +71,44 @@ export function armouredVehicleDesignFrontier(region,family=EQUIPMENT_FAMILIES.T
   return {family, mobility:clamp(engine*.34+trans*.26+tracks*.30+hull*.10), firepower:clamp(gun*.62+optics*.20+electronics*.08+hull*.10), protection:clamp(armour*(spg?.62:.82)+hull*(spg?.18:.12)+tracks*.06), reliability:clamp(engine*.18+trans*.18+tracks*.16+gun*.10+armour*.08+hull*.12+exp*.18), fireControlPotential:clamp(optics*.50+electronics*.28+gun*.12+exp*.10), integration:exp};
 }
 
+export function aircraftDesignFrontier(region,family=EQUIPMENT_FAMILIES.FIGHTER){
+  const c=region.industrialPlants?.componentCapability||{};
+  const productId=family===EQUIPMENT_FAMILIES.BOMBER?'bomber':'fighter';
+  const exp=clamp(region.industrialPlants?.productExperience?.[productId]||0);
+  const q=(k,fallback=.04)=>clamp(c[k]??fallback);
+  const engine=q('aircraft_engine',Math.max(.04,(c.engine||0)*.32));
+  const airframe=q('airframe');
+  const wing=q('wing_design');
+  const weapons=q('aircraft_weapon',Math.max(.03,(c.gun_system||0)*.35));
+  const radio=q('radio_navigation',Math.max(.02,(c.electronics||0)*.35));
+  const radar=q('radar_set',0);
+  const precision=clamp(region.industrialSupply?.capability?.precision_machining||0);
+  const jet=Boolean(region?.unlockedTechIds?.has?.('jet_propulsion'));
+  const radarKnowledge=Boolean(region?.unlockedTechIds?.has?.('radar'));
+  const bomber=family===EQUIPMENT_FAMILIES.BOMBER;
+  const enginePower=clamp(engine*.72+precision*.18+exp*.10+(jet?.10:0));
+  const structural=clamp(airframe*.58+wing*.24+precision*.10+exp*.08);
+  const aerodynamics=clamp(wing*.55+airframe*.24+precision*.11+exp*.10);
+  const usefulLift=clamp(enginePower*.38+wing*.34+structural*.20+exp*.08);
+  const payload=clamp(usefulLift*(bomber?.92:.38)+structural*(bomber?.12:.05));
+  const speed=clamp(enginePower*.50+aerodynamics*.38+structural*.06+exp*.06+(jet?.12:0));
+  const range=clamp(enginePower*.22+aerodynamics*.22+structural*.14+radio*.08+payload*(bomber?.26:.08)+exp*.12+(bomber?.10:0));
+  const manoeuvrability=clamp(aerodynamics*.46+enginePower*.30+structural*.10+exp*.14-(bomber?.18:0));
+  const firepower=clamp(weapons*(bomber?.30:.72)+payload*(bomber?.42:.12)+radio*.05+exp*.08);
+  const reliability=clamp(engine*.32+airframe*.22+wing*.14+precision*.14+exp*.18);
+  const detectionAndNavigation=clamp(radio*.46+(radarKnowledge?radar*.38:0)+exp*.10+precision*.06);
+  // Lower is harder to detect. Pre-digital shaping/size choices matter, but there is no modern RAM/computer optimisation.
+  const rawSignature=(bomber?.72:.42)+payload*.18+structural*.06;
+  const signatureReduction=(radarKnowledge?airframe*.06+wing*.07+exp*.04:airframe*.015+wing*.02);
+  const radarSignature=clamp(rawSignature-signatureReduction,.18,1);
+  return {family,enginePower,airframe:structural,wingDesign:aerodynamics,weapons:weapons,payload,speed,range,manoeuvrability,reliability,firepower,radioNavigation:radio,radarCapability:radarKnowledge?radar:0,radarSignature,integration:exp,propulsion:jet?'jet':'piston'};
+}
+
 export function equipmentDesignFrontier(region,family,{kind=null}={}){
   if(family===EQUIPMENT_FAMILIES.TANK||family===EQUIPMENT_FAMILIES.SELF_PROPELLED_GUN)return armouredVehicleDesignFrontier(region,family);
   if(family===EQUIPMENT_FAMILIES.FIELD_ARTILLERY)return artilleryDesignFrontier(region,kind||'field_cannon');
   if(family===EQUIPMENT_FAMILIES.HEAVY_ARTILLERY)return artilleryDesignFrontier(region,kind||'heavy_howitzer');
+  if(family===EQUIPMENT_FAMILIES.FIGHTER||family===EQUIPMENT_FAMILIES.BOMBER)return aircraftDesignFrontier(region,family);
   return null;
 }
 
@@ -98,6 +132,12 @@ export function ensureCurrentArtilleryDesign(region,kind='field_cannon',tick=0){
   return currentEquipmentDesign(region,family)||authoriseEquipmentMark(region,family,{kind,tick,reason:'first_standard_design',authorisedBy:'initial_standard'});
 }
 
+export function ensureCurrentAircraftDesign(region,family=EQUIPMENT_FAMILIES.FIGHTER,tick=0){
+  return currentEquipmentDesign(region,family)||authoriseEquipmentMark(region,family,{tick,reason:'first_standard_design',authorisedBy:'initial_standard'});
+}
+
+function aircraftScore(s){return (s.speed||0)*.18+(s.range||0)*.13+(s.manouevrability||s.manoeuvrability||0)*.18+(s.reliability||0)*.13+(s.firepower||0)*.16+(s.payload||0)*.12+(s.radarCapability||0)*.06+(1-(s.radarSignature??1))*.04;}
+
 export function equipmentFrontierImprovement(region,family,{kind=null}={}){
   const frontier=equipmentDesignFrontier(region,family,{kind}),current=currentEquipmentDesign(region,family);
   if(!frontier)return 0;if(!current)return 1;
@@ -105,6 +145,7 @@ export function equipmentFrontierImprovement(region,family,{kind=null}={}){
     const score=(s)=>(s.mobility||0)*.22+(s.firepower||0)*.28+(s.protection||0)*.24+(s.reliability||0)*.14+(s.fireControlPotential||0)*.12;
     return (score(frontier)-score(current.stats))/Math.max(.15,score(current.stats));
   }
+  if(family===EQUIPMENT_FAMILIES.FIGHTER||family===EQUIPMENT_FAMILIES.BOMBER)return (aircraftScore(frontier)-aircraftScore(current.stats))/Math.max(.15,aircraftScore(current.stats));
   return (designScore(frontier)-designScore(current.stats))/Math.max(.2,designScore(current.stats));
 }
 
