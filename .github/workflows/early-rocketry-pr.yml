@@ -13,6 +13,7 @@ on:
       - 'js/economy/tradeGoods.js'
       - 'tools/test-early-rocketry.mjs'
       - 'tools/test-rocket-artillery-campaign.mjs'
+      - 'tools/test-rocket-artillery-production.mjs'
       - '.github/workflows/early-rocketry-pr.yml'
 
 jobs:
@@ -37,6 +38,7 @@ jobs:
         run: |
           node tools/test-early-rocketry.mjs
           node tools/test-rocket-artillery-campaign.mjs
+          node tools/test-rocket-artillery-production.mjs
           node tools/test-artillery-fire-control.mjs
           node tools/test-modern-land-warfare.mjs
           node tools/test-industrial-war-economics.mjs
