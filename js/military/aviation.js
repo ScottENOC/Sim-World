@@ -89,7 +89,7 @@ export function buildAircraft(region,{ownerType='civilian',role='recon'}={}){
   if(role==='transport'&&!has(region,TRANSPORT_AIRCRAFT_TECH_ID))return null;
   if(['fighter','interceptor'].includes(role)&&!has(region,AIRCRAFT_ARMAMENT_TECH_ID))return null;
   if(role==='bomber'&&!has(region,AERIAL_BOMBING_TECH_ID))return null;
-  const family=ownerType==='military'?familyForRole(role):null,productId=productForRole(role);
+  const family=ownerType==='military'?familyForRole(role):null,productId=productForRole(role),foundingMilitaryCadre=ownerType==='military'&&!region.qualifiedMilitaryPersonnel;
   let design=null;
   if(family&&productId){
     design=takeFinishedEquipment(region,productId,1);
@@ -100,7 +100,7 @@ export function buildAircraft(region,{ownerType='civilian',role='recon'}={}){
     if(family)design=ensureCurrentAircraftDesign(region,family);
   }
   const aircraft={id:`air-${nextAircraftId++}`,ownerType,ownerActorId:actorId(region),role,baseType:'airfield',homeBaseRegionId:region.id,baseRegionId:region.id,carrierId:null,condition:1,fuel:1,status:'serviceable',mission:AIR_MISSIONS.IDLE,targetRegionId:null,pilotExperience:0,totalFlights:0,repairNeed:0,designId:design?.id||null,modelName:design?.name||null,designSequence:design?.sequence||null,designStats:design?.stats?{...design.stats}:null};
-  ensureAviation(region).aircraft.push(aircraft); if(ownerType==='military')assignAircraftCrew(region,aircraft); return aircraft;
+  ensureAviation(region).aircraft.push(aircraft); if(ownerType==='military')assignAircraftCrew(region,aircraft,{bootstrap:foundingMilitaryCadre}); return aircraft;
 }
 
 export function aviationBasingRelationship(aircraft,hostRegion,agreements=[],regionsById=new Map()){
