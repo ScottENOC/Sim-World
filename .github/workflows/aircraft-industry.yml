@@ -16,4 +16,6 @@ jobs:
       - run: node --check js/military/equipmentGenerations.js
       - run: node --check js/economy/industrialPlant.js
       - run: node --check js/military/aviation.js
+      - run: node --check js/military/preDigitalAirNaval.js
       - run: node tools/test-aircraft-industry.mjs
+      - run: node tools/test-predigital-air-defence-navy.mjs
