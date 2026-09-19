@@ -1,0 +1,41 @@
+name: Qualified military personnel
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/military/qualifiedPersonnel.js'
+      - 'js/military/aviation.js'
+      - 'js/military/fleets.js'
+      - 'js/military/navalDamage.js'
+      - 'tools/test-qualified-military-personnel.mjs'
+      - '.github/workflows/qualified-military-personnel.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'js/military/qualifiedPersonnel.js'
+      - 'js/military/aviation.js'
+      - 'js/military/fleets.js'
+      - 'js/military/navalDamage.js'
+      - 'tools/test-qualified-military-personnel.mjs'
+      - '.github/workflows/qualified-military-personnel.yml'
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Syntax checks
+        run: |
+          node --check js/military/qualifiedPersonnel.js
+          node --check js/military/aviation.js
+          node --check js/military/fleets.js
+          node --check js/military/navalDamage.js
+      - name: Personnel regressions
+        run: |
+          node tools/test-qualified-military-personnel.mjs
+          node tools/test-aircraft-industry.mjs
+          node tools/test-naval-damage-salvage.mjs
+          node tools/test-fleet-ship-progression.mjs
+          git diff --check
