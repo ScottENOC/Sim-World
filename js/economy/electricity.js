@@ -1,12 +1,13 @@
 import { effectiveInfrastructureCount, operationalInfrastructure } from './construction.js?v=20260917-electric1';
 
 const DAYS_PER_YEAR = 365.2425;
+const INDUSTRIAL_ELECTRIFICATION_TECH_ID = 'industrial_electrification';
 const clamp01 = (v) => Math.max(0, Math.min(1, Number(v) || 0));
 
 export function ensureElectricityState(region) {
   region.electricity ||= {
     generated: 0, delivered: 0, householdService: 0, industrialService: 0,
-    coalConsumed: 0, demand: 0, householdDemand: 0, industrialDemand: 0,
+    coalConsumed: 0, copperConsumed: 0, demand: 0, householdDemand: 0, industrialDemand: 0,
   };
   return region.electricity;
 }
@@ -48,8 +49,18 @@ export function tickElectricity(region, elapsedDays = 7) {
   const hydroOutput = hydroStations * 4300 * years * hydroReliability;
   const generated = coalOutput + hydroOutput;
 
+  // Copper is not the energy source, but generators, switchgear and distribution wiring
+  // create a durable new demand for it. Shortages erode network reliability rather than
+  // instantly making already-installed wires disappear.
+  const copperNeed = (grids * 18 + (coalStations + hydroStations) * 5) * years;
+  const copperAvailable = Math.max(0, Number(region.stockpile.copper) || 0);
+  const copperConsumed = Math.min(copperAvailable, copperNeed);
+  if (copperNeed > 0) region.stockpile.copper = Math.max(0, copperAvailable - copperConsumed);
+  const copperUpkeepRatio = copperNeed > 0 ? clamp01(copperConsumed / copperNeed) : 1;
+  const networkReliability = 0.80 + copperUpkeepRatio * 0.20;
+
   const demand = electricityDemand(region, elapsedDays);
-  const gridCapacity = grids * 6200 * years;
+  const gridCapacity = grids * 6200 * years * networkReliability;
   const delivered = Math.min(generated, gridCapacity, demand.total);
   const householdShare = demand.total > 0 ? demand.householdDemand / demand.total : 0;
   const householdDelivered = delivered * householdShare;
@@ -62,13 +73,15 @@ export function tickElectricity(region, elapsedDays = 7) {
   state.generated = generated;
   state.delivered = delivered;
   state.coalConsumed = coalConsumed;
+  state.copperConsumed = copperConsumed;
   state.demand = demand.total;
   state.householdDemand = demand.householdDemand;
   state.industrialDemand = demand.industrialDemand;
-  return { ...state, coalOutput, hydroOutput, gridCapacity };
+  return { ...state, coalOutput, hydroOutput, gridCapacity, networkReliability, copperNeed };
 }
 
 export function electricityIndustrialMultiplier(region) {
+  if (!region.unlockedTechIds?.has(INDUSTRIAL_ELECTRIFICATION_TECH_ID)) return 1;
   return 1 + clamp01(region.electricity?.industrialService || 0) * 0.20;
 }
 
