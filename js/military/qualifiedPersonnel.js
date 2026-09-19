@@ -6,7 +6,7 @@ export const PERSONNEL_TYPES=Object.freeze({
 });
 
 const TRAINING_DAYS=Object.freeze({pilot:240,aircrew:120,sailor:90,naval_technical:180,naval_officer:270});
-const INITIAL_EXPERIENCE=Object.freeze({pilot:.08,aircrew:.06,sailor:.08,naval_technical:.10,naval_officer:.12});
+const INITIAL_EXPERIENCE=Object.freeze({pilot:.04,aircrew:.06,sailor:.08,naval_technical:.10,naval_officer:.12});
 
 function emptyPool(){return{available:0,experienceMass:0};}
 export function ensureQualifiedPersonnel(region){
@@ -97,11 +97,23 @@ export function applyShipCrewCasualties(ship,severity,{rng=Math.random}={}){
 }
 
 function literacy(region){return clamp(region?.massEducation?.literacy??region?.education?.literacy??region?.literacy??.15);}
+export function civilianPilotBase(region){
+  const aircraft=(region?.aviation?.aircraft||[]).filter(a=>a.ownerType==='civilian'&&a.status!=='destroyed').length,flights=Math.max(0,Number(region?.aviation?.flightExperience)||0);
+  const powered=Boolean(region?.unlockedTechIds?.has?.('powered_flight')||aircraft>0||flights>0);if(!powered)return 0;
+  // Civilian flying creates a much broader basic airmanship/instructor base than the combat-qualified military pool.
+  return Math.max(2,aircraft*1.7+Math.sqrt(flights)*.55);
+}
+function pilotTrainingDays(region){
+  const civilian=civilianPilotBase(region);return TRAINING_DAYS.pilot/(1+Math.min(.48,civilian/80));
+}
 function trainingCapacity(region,type){
   const pop=Math.max(0,Number(region?.population)||0),lit=literacy(region),military=Math.max(0,Number(region?.militaryStrategy?.spendingPriority)||0);
   if(type==='pilot'||type==='aircrew'){
     const airfields=(region?.construction?.assets||[]).filter(a=>a.typeId==='airfield'&&(a.condition??1)>.45).reduce((s,a)=>s+Math.max(.5,a.scale||1),0);if(!airfields)return 0;
-    return airfields*(type==='pilot'?10:28)*(.45+lit*.55)*(1+military*.35);
+    const civilian=type==='pilot'?civilianPilotBase(region):0;
+    // Civilian instructors expand access to flight 101; military infrastructure still limits combat conversion throughput.
+    const base=type==='pilot'?10+Math.min(34,civilian*.55):28;
+    return airfields*base*(.45+lit*.55)*(1+military*.35);
   }
   const maritime=Math.max(.2,Math.min(1.5,Math.log10(10+pop)/5));const ports=(region?.construction?.assets||[]).filter(a=>['harbour','naval_base','shipyard'].includes(a.typeId)&&(a.condition??1)>.45).reduce((s,a)=>s+Math.max(.4,a.scale||1),0);if(!ports)return 0;
   const base=type==='sailor'?90:type==='naval_technical'?24:10;return ports*base*maritime*(.45+lit*.55)*(1+military*.30);
@@ -119,7 +131,8 @@ function tickTraining(region,aircraft,ships,elapsedDays){
   for(const type of Object.values(PERSONNEL_TYPES)){
     const p=pool(region,type),t=state.training[type],reserveTarget=demand[type]*.18+({pilot:2,aircrew:4,sailor:8,naval_technical:3,naval_officer:2}[type]||0),shortage=Math.max(0,demand[type]+reserveTarget-assigned[type]-p.available-t.trainees),annualCap=trainingCapacity(region,type);
     const entrants=Math.min(shortage,annualCap*years);t.trainees+=entrants;
-    const graduate=Math.min(t.trainees,t.trainees*Math.max(0,elapsedDays)/TRAINING_DAYS[type]);if(graduate>0){t.trainees-=graduate;addToPool(region,type,graduate,INITIAL_EXPERIENCE[type]);}
+    const trainingDays=type==='pilot'?pilotTrainingDays(region):TRAINING_DAYS[type];
+    const graduate=Math.min(t.trainees,t.trainees*Math.max(0,elapsedDays)/trainingDays);if(graduate>0){t.trainees-=graduate;addToPool(region,type,graduate,INITIAL_EXPERIENCE[type]);}
     cost+=(entrants+graduate)*({pilot:8,aircrew:3,sailor:.5,naval_technical:2,naval_officer:3.5}[type]||1);if(type==='pilot')fuel+=(entrants+graduate)*.16;
   }
   const treasury=Math.max(0,region.treasury||0),fuelStock=Math.max(0,region.stockpile?.aviation_fuel||0),cashFraction=cost?Math.min(1,treasury/cost):1,fuelFraction=fuel?Math.min(1,fuelStock/fuel):1,fraction=Math.min(cashFraction,fuelFraction);
@@ -143,5 +156,5 @@ export function tickNavalPersonnel(region,fleets=[],weeks=1){
 export function qualifiedPersonnelSummary(region,aircraft=[],ships=[]){
   const s=ensureQualifiedPersonnel(region),demand=demandFromPlatforms(aircraft,ships),assigned=assignedCounts(aircraft,ships);const pools={};
   for(const type of Object.values(PERSONNEL_TYPES)){const p=pool(region,type);pools[type]={available:p.available,averageExperience:averageExperience(p),trainees:s.training[type]?.trainees||0,required:demand[type]||0,assigned:assigned[type]||0};}
-  return{pools,lastTrainingCost:s.lastTrainingCost||0,lastTrainingFuel:s.lastTrainingFuel||0};
+  return{pools,civilianPilotBase:civilianPilotBase(region),lastTrainingCost:s.lastTrainingCost||0,lastTrainingFuel:s.lastTrainingFuel||0};
 }
