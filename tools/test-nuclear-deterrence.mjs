@@ -20,7 +20,10 @@ const crisis=beginOrUpdateNuclearCrisis(defender,challenger,{category:RED_LINE_C
 const probe=npcNuclearProbeDecision(challenger,defender,{category:'border_incursion',severity:.15,deniability:.9,reversible:.9});assert(probe.salamiOpportunity>high.salamiOpportunity,'small deniable actions should offer greater salami opportunity');
 
 defender.unlockedTechIds.add(AERIAL_REFUELLING_TECH_ID);
-defender.aviation.aircraft.push({ownerType:'military',role:'bomber',status:'serviceable',condition:1,fuel:1,crewAssignment:{readiness:1}},{ownerType:'military',role:'tanker',status:'serviceable',condition:1,fuel:1,crewAssignment:{readiness:1}});
+defender.aviation.aircraft.push(
+  {ownerType:'military',role:'bomber',status:'serviceable',condition:1,fuel:1,crewAssignment:{pilots:1,pilotExperience:1,aircrew:4,aircrewExperience:1}},
+  {ownerType:'military',role:'tanker',status:'serviceable',condition:1,fuel:1,crewAssignment:{pilots:2,pilotExperience:1,aircrew:2,aircrewExperience:1}}
+);
 const refuel=aerialRefuellingSupport(defender);assert(refuel.enabled,'serviceable tanker should provide aerial-refuelling support');
 const triad=nuclearTriadReadiness(defender,{fleets:[{ownerRegionId:defender.id,ships:[{designId:'submarine'}]}]});
 assert.equal(triad.air.available,true);assert.equal(triad.land.available,false);assert.equal(triad.sea.available,false);assert.equal(triad.fullTriad,false);
