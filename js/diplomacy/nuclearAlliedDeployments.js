@@ -20,6 +20,13 @@ export const ALLIED_NUCLEAR_ASSETS=Object.freeze({
 export const ALLIED_DEPLOYMENT_MODES=Object.freeze({
   EXERCISE:'exercise',TEMPORARY:'temporary',CRISIS:'crisis',PERMANENT:'permanent'
 });
+export const ALLIED_RED_LINE_CATEGORIES=Object.freeze({
+  HOMELAND_INVASION:'homeland_invasion',
+  CAPITAL_ATTACK:'capital_attack',
+  NUCLEAR_ATTACK:'nuclear_attack',
+  STRATEGIC_FORCES_ATTACK:'strategic_forces_attack',
+  REGIME_SURVIVAL:'regime_survival'
+});
 
 export function ensureNuclearAllianceState(region){
   region.nuclearAlliance ||= {};
@@ -38,13 +45,26 @@ function mirrorArrangement(provider,host,a){
   ensureNuclearAllianceState(host).arrangements[a.id]={...a,role:'host'};
 }
 
-export function establishNuclearSecurityArrangement(provider,host,{id=null,type=NUCLEAR_ALLIANCE_TYPES.CONSULTATION,commitment=.45,publiclyDeclared=true,consultation=true,basingRights=false,peacetimeBasing=false,crisisBasing=true,assetTypes=[ALLIED_NUCLEAR_ASSETS.BOMBER],maxAssets=4,sharedPlanning=false,hostConsent=true,currentTick=null}={}){
+export function establishNuclearSecurityArrangement(provider,host,{id=null,type=NUCLEAR_ALLIANCE_TYPES.CONSULTATION,commitment=.45,publiclyDeclared=true,consultation=true,basingRights=false,peacetimeBasing=false,crisisBasing=true,assetTypes=[ALLIED_NUCLEAR_ASSETS.BOMBER],maxAssets=4,sharedPlanning=false,hostConsent=true,redLineCategories=[],redLineAmbiguity=.25,currentTick=null}={}){
   if(!provider||!host||provider===host||!Object.values(NUCLEAR_ALLIANCE_TYPES).includes(type))return null;
-  const arrangement={id:id||`nuclear-arrangement-${provider.id}-${host.id}`,type,providerRegionId:provider.id,providerActorId:actorId(provider),hostRegionId:host.id,hostActorId:actorId(host),commitment:clamp(commitment),publiclyDeclared:Boolean(publiclyDeclared),consultation:Boolean(consultation),basingRights:Boolean(basingRights||type===NUCLEAR_ALLIANCE_TYPES.BASING_RIGHTS||type===NUCLEAR_ALLIANCE_TYPES.NUCLEAR_SHARING),peacetimeBasing:Boolean(peacetimeBasing),crisisBasing:Boolean(crisisBasing),assetTypes:[...new Set(assetTypes)].filter(x=>Object.values(ALLIED_NUCLEAR_ASSETS).includes(x)),maxAssets:Math.max(0,Math.round(maxAssets||0)),sharedPlanning:Boolean(sharedPlanning),hostConsent:Boolean(hostConsent),status:'active',createdTick:currentTick};
+  const arrangement={id:id||`nuclear-arrangement-${provider.id}-${host.id}`,type,providerRegionId:provider.id,providerActorId:actorId(provider),hostRegionId:host.id,hostActorId:actorId(host),commitment:clamp(commitment),publiclyDeclared:Boolean(publiclyDeclared),consultation:Boolean(consultation),basingRights:Boolean(basingRights||type===NUCLEAR_ALLIANCE_TYPES.BASING_RIGHTS||type===NUCLEAR_ALLIANCE_TYPES.NUCLEAR_SHARING),peacetimeBasing:Boolean(peacetimeBasing),crisisBasing:Boolean(crisisBasing),assetTypes:[...new Set(assetTypes)].filter(x=>Object.values(ALLIED_NUCLEAR_ASSETS).includes(x)),maxAssets:Math.max(0,Math.round(maxAssets||0)),sharedPlanning:Boolean(sharedPlanning),hostConsent:Boolean(hostConsent),redLineCategories:[...new Set(redLineCategories)].filter(x=>Object.values(ALLIED_RED_LINE_CATEGORIES).includes(x)),redLineAmbiguity:clamp(redLineAmbiguity),status:'active',createdTick:currentTick};
   mirrorArrangement(provider,host,arrangement);
   ensureNuclearAllianceState(provider).history.push({tick:currentTick,type:'nuclear_arrangement_established',arrangementId:arrangement.id,hostRegionId:host.id});
   ensureNuclearAllianceState(host).history.push({tick:currentTick,type:'nuclear_arrangement_established',arrangementId:arrangement.id,providerRegionId:provider.id});
   return structuredClone(arrangement);
+}
+
+export function setAlliedNuclearRedLines(provider,host,arrangementId,{categories=[],commitment=null,ambiguity=null,publiclyDeclared=null,currentTick=null}={}){
+  const ps=ensureNuclearAllianceState(provider),hs=ensureNuclearAllianceState(host),pa=ps.arrangements[arrangementId],ha=hs.arrangements[arrangementId];
+  if(!pa||!ha)return null;
+  const cats=[...new Set(categories)].filter(x=>Object.values(ALLIED_RED_LINE_CATEGORIES).includes(x));
+  pa.redLineCategories=cats;ha.redLineCategories=[...cats];
+  if(Number.isFinite(commitment)){pa.commitment=clamp(commitment);ha.commitment=pa.commitment;}
+  if(Number.isFinite(ambiguity)){pa.redLineAmbiguity=clamp(ambiguity);ha.redLineAmbiguity=pa.redLineAmbiguity;}
+  if(typeof publiclyDeclared==='boolean'){pa.publiclyDeclared=publiclyDeclared;ha.publiclyDeclared=publiclyDeclared;}
+  ps.history.push({tick:currentTick,type:'allied_nuclear_red_lines_updated',arrangementId,categories:[...cats]});
+  hs.history.push({tick:currentTick,type:'allied_nuclear_red_lines_updated',arrangementId,categories:[...cats]});
+  return structuredClone(pa);
 }
 
 export function setNuclearHostConsent(host,arrangementId,consent,{currentTick=null}={}){
@@ -92,19 +112,25 @@ export function estimateHostedNuclearPresence(observer,host){
   return{suspected:evidence.length>0,confidence:clamp(score),evidence};
 }
 
-export function extendedDeterrenceCoverage(host){
-  return ensureNuclearAllianceState(host).coverage||[];
+export function extendedDeterrenceCoverage(host){return ensureNuclearAllianceState(host).coverage||[];}
+
+function redLineMatch(coverage,action={}){
+  if(!coverage.redLineCategories?.length)return .55;
+  if(coverage.redLineCategories.includes(action.category))return 1;
+  if(coverage.redLineCategories.includes(ALLIED_RED_LINE_CATEGORIES.HOMELAND_INVASION)&&action.category==='border_incursion')return .45;
+  if(coverage.redLineCategories.includes(ALLIED_RED_LINE_CATEGORIES.REGIME_SURVIVAL)&&['capital_attack','homeland_invasion'].includes(action.category))return .72;
+  return 0;
 }
 
 export function estimateExtendedDeterrenceForAttack(observer,host,action={}){
   const coverage=extendedDeterrenceCoverage(host);let best=null;
-  for(const c of coverage){if(!c.active)continue;const publicFactor=c.publiclyDeclared?1:.45;const commitment=clamp(c.commitment);const deployed=clamp(c.forwardDeploymentSignal||0);const actionSeverity=clamp(action.severity??.5);const categoryBoost=['homeland_invasion','capital_attack','nuclear_attack'].includes(action.category)?.18:0;const risk=clamp((commitment*.52+c.providerRetaliationConfidence*.28+deployed*.20+categoryBoost)*publicFactor*(.62+.38*actionSeverity));if(!best||risk>best.perceivedRisk)best={perceivedRisk:risk,providerActorId:c.providerActorId,arrangementId:c.arrangementId,forwardDeploymentSignal:deployed};}
-  return best||{perceivedRisk:0,providerActorId:null,arrangementId:null,forwardDeploymentSignal:0};
+  for(const c of coverage){if(!c.active)continue;const match=redLineMatch(c,action);if(match<=0)continue;const publicFactor=c.publiclyDeclared?1:.45,commitment=clamp(c.commitment),deployed=clamp(c.forwardDeploymentSignal||0),actionSeverity=clamp(action.severity??.5),ambiguityPenalty=1-clamp(c.redLineAmbiguity??.25)*.42;const risk=clamp((commitment*.50+c.providerRetaliationConfidence*.28+deployed*.22)*publicFactor*ambiguityPenalty*match*(.62+.38*actionSeverity));if(!best||risk>best.perceivedRisk)best={perceivedRisk:risk,providerActorId:c.providerActorId,arrangementId:c.arrangementId,forwardDeploymentSignal:deployed,matchedAlliedRedLine:action.category};}
+  return best||{perceivedRisk:0,providerActorId:null,arrangementId:null,forwardDeploymentSignal:0,matchedAlliedRedLine:null};
 }
 
 export function tickAlliedNuclearDeployments(regions,currentTick,elapsedDays=7){
   const events=[],byId=new Map((regions||[]).map(r=>[r.id,r]));
   for(const r of regions||[]){const s=ensureNuclearAllianceState(r);for(const d of Object.values(s.deployments)){if(d.status==='active'&&Number.isFinite(d.endTick)&&currentTick>=d.endTick){d.status='withdrawn';d.withdrawnTick=currentTick;events.push({type:'allied_nuclear_deployment_ended',regionId:r.id,deploymentId:d.id,tick:currentTick});}}s.coverage=[];s.extendedDeterrenceAssurance=0;}
-  for(const provider of regions||[]){const ps=ensureNuclearAllianceState(provider),providerStatus=nuclearDeterrentStatus(provider),force=strategicForceReadiness(provider,{fleets:provider.fleets||[]});for(const a of Object.values(ps.arrangements)){if(a.role!=='provider'||a.status!=='active'||!a.hostConsent)continue;const host=byId.get(a.hostRegionId);if(!host)continue;const activeDeployments=Object.values(ps.deployments).filter(d=>d.role==='provider'&&d.status==='active'&&d.arrangementId===a.id);const forwardSignal=clamp(activeDeployments.reduce((n,d)=>n+d.count*(d.mode===ALLIED_DEPLOYMENT_MODES.CRISIS?.13:.08),0));const capable=providerStatus==='demonstrated_device_capability';const coverage={arrangementId:a.id,providerRegionId:provider.id,providerActorId:actorId(provider),active:capable&&a.type!==NUCLEAR_ALLIANCE_TYPES.CONSULTATION,commitment:a.commitment,publiclyDeclared:a.publiclyDeclared,consultation:a.consultation,sharedPlanning:a.sharedPlanning,providerRetaliationConfidence:force.retaliationConfidence,forwardDeploymentSignal:forwardSignal};const hs=ensureNuclearAllianceState(host);hs.coverage.push(coverage);if(coverage.active)hs.extendedDeterrenceAssurance=Math.max(hs.extendedDeterrenceAssurance,clamp(a.commitment*.62+force.retaliationConfidence*.28+forwardSignal*.10));}}
+  for(const provider of regions||[]){const ps=ensureNuclearAllianceState(provider),providerStatus=nuclearDeterrentStatus(provider),force=strategicForceReadiness(provider,{fleets:provider.fleets||[]});for(const a of Object.values(ps.arrangements)){if(a.role!=='provider'||a.status!=='active')continue;const host=byId.get(a.hostRegionId);if(!host)continue;const hostCopy=ensureNuclearAllianceState(host).arrangements[a.id];if(!hostCopy?.hostConsent)continue;const activeDeployments=Object.values(ps.deployments).filter(d=>d.role==='provider'&&d.status==='active'&&d.arrangementId===a.id);const forwardSignal=clamp(activeDeployments.reduce((n,d)=>n+d.count*(d.mode===ALLIED_DEPLOYMENT_MODES.CRISIS?.13:.08),0));const capable=providerStatus==='demonstrated_device_capability';const coverage={arrangementId:a.id,providerRegionId:provider.id,providerActorId:actorId(provider),active:capable&&a.type!==NUCLEAR_ALLIANCE_TYPES.CONSULTATION,commitment:a.commitment,publiclyDeclared:a.publiclyDeclared,consultation:a.consultation,sharedPlanning:a.sharedPlanning,redLineCategories:[...(a.redLineCategories||[])],redLineAmbiguity:a.redLineAmbiguity??.25,providerRetaliationConfidence:force.retaliationConfidence,forwardDeploymentSignal:forwardSignal};const hs=ensureNuclearAllianceState(host);hs.coverage.push(coverage);if(coverage.active)hs.extendedDeterrenceAssurance=Math.max(hs.extendedDeterrenceAssurance,clamp(a.commitment*.62+force.retaliationConfidence*.28+forwardSignal*.10));}}
   return events;
 }
