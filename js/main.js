@@ -89,7 +89,7 @@ import { postWarSocietySummary, setVeteranSupportPolicy, tickPostWarSociety } fr
 import { renderPostWarSocietyControls } from './ui/postWarSocietyUi.js?v=20260918-postwar1';
 import { setWarInformationPolicy, tickWarSociety, warSocietySummary } from './society/warSociety.js?v=20260919-war-society1';
 import { renderWarSocietyControls } from './ui/warSocietyUi.js?v=20260919-war-society1';
-import { internationalOrganisationSummary, proposeInternationalOrganisation, submitInternationalMotion, tickInternationalOrganisations, worldInstitutionReadiness } from './diplomacy/internationalOrganisations.js?v=20260919-global-institutions1';
+import { internationalOrganisationSummary, proposeInternationalOrganisation, submitInternationalMotion, syncNextInternationalOrganisationIds, tickInternationalOrganisations, worldInstitutionReadiness } from './diplomacy/internationalOrganisations.js?v=20260919-global-institutions1';
 import { renderInternationalOrganisationControls } from './ui/internationalOrganisationsUi.js?v=20260919-global-institutions1';
 import { resolvePlayerJointOperationAdvice, tickPlayerJointOperationAdvisor } from './military/playerJointOperationAdvisor.js?v=20260909-joint-player1';
 import { CAMPAIGN_ORDERS, issueCampaignOrder, marshalCampaignAssessment, tickCampaignCommandAdvisor } from './military/campaignCommand.js?v=20260909-command1';
@@ -270,7 +270,7 @@ async function main() {
   const loadSavedGame = () => {
     const snapshot = readSave();
     if (!snapshot) throw new Error('No saved game was found.');
-    const restored = restoreGameSnapshot(snapshot, { regions, seaRegions, polities, religiousWorld, agreements, activeRaids, activeCampaigns, activeWars, fleets, clock, fogOfWar });
+    const restored = restoreGameSnapshot(snapshot, { regions, seaRegions, polities, religiousWorld, agreements, activeRaids, activeCampaigns, activeWars, fleets, internationalOrganisations, clock, fogOfWar });
     if (!restored.fleetsRestored) fleets.splice(0, fleets.length, ...initialiseFleets(regions, []));
     playerRegionId = restored.playerRegionId;
     activePlayerPolityId = restored.playerPolityId || regionsById.get(playerRegionId)?.polityId || null;
@@ -279,6 +279,7 @@ async function main() {
     syncNextCampaignId(activeCampaigns);
     syncNextWarId(activeWars);
     syncNextFleetIds(fleets);
+    syncNextInternationalOrganisationIds(internationalOrganisations);
     syncRegionalNavyLedger(regions, fleets);
     syncNextDiplomaticMessageId(regions);
     syncNextAircraftId(regions);
@@ -317,6 +318,7 @@ async function main() {
     polities,
     religiousWorld,
     agreements,
+    internationalOrganisations,
     getActiveRaids: () => activeRaids,
     getActiveCampaigns: () => activeCampaigns,
     getPlayerRegionId: () => playerRegionId,
@@ -957,7 +959,7 @@ function wireHud(clock) {
   syncSpeedControls();
 }
 
-function wireMenu({ fogOfWar, map, clock, regions, seaRegions, polities, religiousWorld, agreements, getActiveRaids,
+function wireMenu({ fogOfWar, map, clock, regions, seaRegions, polities, religiousWorld, agreements, internationalOrganisations, getActiveRaids,
   getActiveCampaigns, getPlayerRegionId, loadGame, getSelectedRegion, clearSelection }) {
   const menuModal = document.getElementById('menu-modal');
   const menuButton = document.getElementById('btn-menu');
@@ -1011,7 +1013,7 @@ function wireMenu({ fogOfWar, map, clock, regions, seaRegions, polities, religio
   saveButton.addEventListener('click', () => {
     try {
       const snapshot = createGameSnapshot({ regions, seaRegions, polities, religiousWorld, agreements,
-        activeRaids: getActiveRaids(), activeCampaigns: getActiveCampaigns(), activeWars: window.__worldsim?.activeWars || [], fleets: window.__worldsim?.fleets || [],
+        activeRaids: getActiveRaids(), activeCampaigns: getActiveCampaigns(), activeWars: window.__worldsim?.activeWars || [], fleets: window.__worldsim?.fleets || [], internationalOrganisations,
         clock, playerRegionId: getPlayerRegionId(), playerPolityId: activePlayerPolityId, fogOfWar });
       writeSave(snapshot);
       refreshSaveStatus(`Game saved · ${clock.formatDate(START_YEAR)}.`);
