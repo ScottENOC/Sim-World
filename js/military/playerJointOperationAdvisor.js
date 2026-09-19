@@ -1,5 +1,6 @@
 import { canCampaign, launchCampaign } from './campaigns.js?v=20260905-projects1';
 import { reviewMilitaryStrategy, setMilitaryStrategy } from './strategicPlanning.js?v=20260908-strategy1';
+import { interoperabilityWith } from './combinedExercises.js?v=20260919-exercises1';
 
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
 
@@ -91,14 +92,15 @@ export function jointOperationCouncilAssessment(player, plan, regionsById, activ
   const readiness = clamp(player.militaryFinance?.readiness ?? 1);
   const food = Number(player.stockpile?.food || 0);
   const affordability = Number(player.treasury || 0) > promised * 0.15 ? 'acceptable' : 'strained';
+  const interoperability=ally?interoperabilityWith(player,ally):0;
 
   return {
-    allyName: ally?.name || 'ally', enemyName: enemy?.name || 'enemy', allySignal, allySummary,
+    allyName: ally?.name || 'ally', enemyName: enemy?.name || 'enemy', allySignal, allySummary, interoperability,
     promised, readiness, affordability, food, staging,
     marshal: readiness >= 0.75 ? `Marshal: the army is about ${Math.round(readiness * 100)}% ready.` : `Marshal: readiness is only about ${Math.round(readiness * 100)}%; delay would improve preparation.`,
     treasurer: affordability === 'acceptable' ? 'Treasurer: the treasury can support the promised mobilisation in the short term.' : 'Treasurer: the promised mobilisation will put immediate strain on the treasury.',
     steward: food > promised * 2 ? 'Steward: stores look adequate for initial operations.' : 'Steward: stores are thin for the size of force promised.',
-    envoy: `Envoy: ${allySummary}`,
+    envoy: `Envoy: ${allySummary} Combined-training interoperability is about ${Math.round(interoperability*100)}%.`,
     spymaster: relevantIntel.length ? `Spymaster: we have ${relevantIntel.length} relevant intelligence report${relevantIntel.length === 1 ? '' : 's'} on the plan.` : 'Spymaster: we have no independent confirmation of allied preparations.',
     strategicReport: report,
   };

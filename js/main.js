@@ -57,6 +57,8 @@ import { tickOceanicExploration } from './economy/oceanicExploration.js?v=202609
 import { tickMedievalDoctrine } from './military/medievalDoctrine.js?v=20260912-medieval2';
 import { tickModernTactics } from './military/modernTactics.js?v=20260919-mg-tactics1';
 import { tickArtilleryFireControl } from './military/artilleryFireControl.js?v=20260919-artillery1';
+import { combinedExerciseSummary, eligibleExerciseAllies, startCombinedExercise, tickCombinedExercises } from './military/combinedExercises.js?v=20260919-exercises1';
+import { renderCombinedExerciseControls } from './ui/combinedExercisesUi.js?v=20260919-exercises1';
 import { tickNonStateOrganisations } from './politics/nonStateOrganisations.js?v=20260912-organisations1';
 import { tickPrivateMilitaryActors } from './politics/privateMilitaryActors.js?v=20260912-pmc1';
 import { tickOrganisationInteractions } from './politics/nonStateInteractions.js?v=20260912-organisations2';
@@ -344,7 +346,7 @@ async function main() {
     // index derived from absolute simulated time. The expensive scheduler can
     // therefore tick monthly without turning 104 historical weeks into 104 months.
     const calendarWeek = calendarWeekIndex(time.endDay);
-    const campaignResult = profiler.measure('Campaigns', () => tickCampaigns(activeCampaigns, regionsById, polities, calendarWeek, toolTypes, Math.random, { playerPolityId: activePlayerPolityId, activeWars, fleets, nonStateWorld: religiousWorld }));
+    const campaignResult = profiler.measure('Campaigns', () => tickCampaigns(activeCampaigns, regionsById, polities, calendarWeek, toolTypes, Math.random, { playerPolityId: activePlayerPolityId, activeWars, fleets, agreements, nonStateWorld: religiousWorld }));
     activeCampaigns = campaignResult.remaining;
     const campaignCommandEvents = profiler.measure('Campaign command advisor', () => tickCampaignCommandAdvisor(activeCampaigns, regions, activePlayerPolityId, calendarWeek));
     for (const advisoryEvent of campaignCommandEvents) {
@@ -435,6 +437,7 @@ async function main() {
     const maintainDiplomaticRelationships = diplomacyRelationshipElapsedDays >= 90;
     const diplomacyElapsedDays = maintainDiplomaticRelationships ? diplomacyRelationshipElapsedDays : time.elapsedDays;
     const diplomacyEvents = profiler.measure('Diplomacy', () => tickDiplomacy(regions, agreements, toolTypes, calendarWeek, diplomacyElapsedDays, profiler, { maintainRelationships: maintainDiplomaticRelationships }));
+    const combinedExerciseEvents = profiler.measure('Combined allied exercises', () => tickCombinedExercises(regions, seaRegions, fleets, agreements, calendarWeek, time.elapsedDays));
     if (maintainDiplomaticRelationships) diplomacyRelationshipElapsedDays = 0;
     const playerCapitalForPlan = regionsById.get(playerRegionId);
     if (playerCapitalForPlan) profiler.measure('Military strategy review', () => reviewMilitaryStrategy(playerCapitalForPlan, { regions, polities, agreements, activeCampaigns, currentTick: calendarWeek }));
@@ -600,6 +603,7 @@ async function main() {
       ...languageChangeEvents.filter((event) => event.regionId === playerRegionId),
       ...playerRaidEvents,
       ...diplomacyEvents.filter((event) => event.agreement.fromId === playerRegionId || event.agreement.toId === playerRegionId),
+      ...combinedExerciseEvents.filter((event) => event.organiserRegionId === playerRegionId || event.observerRegionId === playerRegionId || event.participantRegionIds?.includes?.(playerRegionId)),
       ...warEvents.filter((event) => event.playerInvolved),
       ...courierEvents.filter((event) => {
         const message = event.message;
@@ -708,6 +712,7 @@ async function main() {
     financialDiplomacyApi: { setBondPolicy, dumpSovereignBonds, setSettlementCurrencyPolicy },
     massPoliticsApi: { setMassPoliticsPolicy, massPoliticsSummary },
     postWarSocietyApi: { setVeteranSupportPolicy, postWarSocietySummary },
+    combinedExerciseApi: { startCombinedExercise, combinedExerciseSummary, eligibleExerciseAllies },
     diplomatApi: { dispatchDiplomat, recallDiplomat, setDiplomatAuthority, setCounterIntelligencePolicy, sendForgedJointOperationLetter, sendDeceptionJointOperationLetter, attemptBribeDiplomat, expelDiplomat, releaseDiplomat, diplomatPublicProfile, foreignGovernmentTrust },
     campaignCommandApi: { issueCampaignOrder, marshalCampaignAssessment },
     agreements,
@@ -1444,6 +1449,7 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
     renderMassPoliticsControls(document.getElementById('region-controls'), playerPolity, regions, () => council?.refresh());
     renderPostWarSocietyControls(document.getElementById('region-controls'), playerPolity, () => council?.refresh());
   }
+  if (region.id === playerRegionId) renderCombinedExerciseControls(document.getElementById('region-controls'),region,{regions,seaRegions:window.__worldsim?.seaRegions||[],agreements,fleets:window.__worldsim?.fleets||[],currentTick:calendarWeekIndex(clock.elapsedDays||0),onAction:()=>council?.refresh()});
   if (region.id === playerRegionId) renderDiplomaticServicePanel(document.getElementById('region-controls'), region, regions, calendarWeekIndex(clock.elapsedDays || 0), {
     polities,
     visiblePolityIds: [...new Set(regions.filter((candidate) => fogOfWar.isVisible(candidate)).map((candidate) => candidate.governance?.sovereignPolityId).filter(Boolean))],

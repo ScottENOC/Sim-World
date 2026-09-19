@@ -30,6 +30,7 @@ import { bombardRegionalInfrastructure, entrenchmentDefenceMultiplier, modernArt
 import { modernTacticalProfile, recordModernCombatLessons } from './modernTactics.js?v=20260919-mg-tactics1';
 import { artilleryFireControlProfile, recordArtilleryFireControlLessons, resolveArtilleryTargeting } from './artilleryFireControl.js?v=20260919-artillery1';
 import { resolveMilitaryCasualties } from '../technology/medicalProgress.js?v=20260918-medical1';
+import { alliedCoordinationMultiplier } from './combinedExercises.js?v=20260919-exercises1';
 
 export const CAMPAIGN_OBJECTIVES = Object.freeze({
   devastation: { label: 'Destroy the region', pressureRate: 0.8, damageRate: 1.8 },
@@ -262,8 +263,12 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   const defenderTactics = modernTacticalProfile(defender, attacker, { role: 'defender', weeksEngaged: campaign.weeksEngaged, terrain });
   const externalSupport = campaignExternalSupport(campaign, options.nonStateWorld);
   const effectiveExternal = externalSupport.personnel * externalSupport.quality;
+  const jointPlan=campaign.jointOperationId?(options.agreements||[]).find(a=>a.id===campaign.jointOperationId&&a.active):null;
+  const jointAllyId=jointPlan?(jointPlan.proposerRegionId===attacker.id?jointPlan.partnerRegionId:jointPlan.proposerRegionId):null;
+  const jointAlly=jointAllyId?regions.find(r=>r.id===jointAllyId):null;
+  const jointCoordination=jointAlly?alliedCoordinationMultiplier(attacker,jointAlly):1;
   let attackerPower = combatPower(attacker, campaign.personnel + effectiveExternal, toolTypes, 'attacker', campaign.supply,
-    campaign.attackerMorale, null, terrain) * (expedition?.combatMultiplier ?? 1) * attackerFirearms.multiplier * artillery.combatMultiplier * attackerModern.multiplier * modernArtillery.combatMultiplier * artilleryFireControl.combatMultiplier * attackerTactics.combatMultiplier;
+    campaign.attackerMorale, null, terrain) * (expedition?.combatMultiplier ?? 1) * attackerFirearms.multiplier * artillery.combatMultiplier * attackerModern.multiplier * modernArtillery.combatMultiplier * artilleryFireControl.combatMultiplier * attackerTactics.combatMultiplier * jointCoordination;
   attackerPower *= medievalMilitaryCombatMultiplier(attacker, defender, terrain, 'attacker');
   const defenderArmyPower = combatPower(defender, defender.army.personnel, toolTypes, 'defender', 1,
     campaign.defenderMorale, campaign.siegeEquipment, terrain) * defenderFirearms.multiplier * defenderModern.multiplier * defenderModern.defenceMultiplier * trenchDefence * artillery.fortDefenceMultiplier *

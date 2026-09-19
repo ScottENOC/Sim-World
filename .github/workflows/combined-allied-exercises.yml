@@ -1,0 +1,44 @@
+name: Combined allied exercises
+on:
+  pull_request:
+    paths:
+      - 'js/military/combinedExercises.js'
+      - 'js/ui/combinedExercisesUi.js'
+      - 'js/military/campaigns.js'
+      - 'js/military/playerJointOperationAdvisor.js'
+      - 'js/military/navalDamage.js'
+      - 'js/main.js'
+      - 'tools/test-combined-exercises.mjs'
+      - '.github/workflows/combined-allied-exercises.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'js/military/combinedExercises.js'
+      - 'js/ui/combinedExercisesUi.js'
+      - 'js/military/campaigns.js'
+      - 'js/military/playerJointOperationAdvisor.js'
+      - 'js/military/navalDamage.js'
+      - 'js/main.js'
+      - 'tools/test-combined-exercises.mjs'
+      - '.github/workflows/combined-allied-exercises.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Syntax and regressions
+        run: |
+          node --check js/military/combinedExercises.js
+          node --check js/ui/combinedExercisesUi.js
+          node --check js/military/campaigns.js
+          node --check js/military/playerJointOperationAdvisor.js
+          node --check js/military/navalDamage.js
+          node --check js/main.js
+          node tools/test-combined-exercises.mjs
+          node tools/test-machine-gun-tactical-revolution.mjs
+          node tools/test-fleet-ship-progression.mjs
+          git diff --check
