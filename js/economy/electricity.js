@@ -26,12 +26,15 @@ export function electricityDemand(region, elapsedDays = 7) {
   const population = Math.max(0, Number(region.population) || 0);
   const urban = clamp01(region.medievalSociety?.urban?.urbanisation || region.settlements?.urbanShare || 0);
   const householdDemand = Math.pow(population / 1000, 0.68) * (0.4 + urban * 0.8) * Math.max(0.0001, years);
-  const industrialDemand = industrialDemandSignal(region) * Math.max(0.0001, years);
-  return { householdDemand, industrialDemand, total: householdDemand + industrialDemand };
+  const baseIndustrialDemand = industrialDemandSignal(region) * Math.max(0.0001, years);
+  // Primary aluminium smelting is deliberately a very large industrial electricity load.
+  // lightMetals.electricityLoad is already measured for the elapsed period, so it is not
+  // multiplied by years a second time here.
+  const lightMetalsDemand = nonNegative(region.lightMetals?.electricityLoad);
+  const industrialDemand = baseIndustrialDemand + lightMetalsDemand;
+  return { householdDemand, industrialDemand, total: householdDemand + industrialDemand, lightMetalsDemand };
 }
 
-// Aggregate dispatch approximation for a simulation that advances in week-sized steps.
-// Source diversity only helps when the sources have complementary operating roles.
 export function dispatchElectricityPortfolio(outputs = {}, demand = Infinity) {
   const coal = nonNegative(outputs.coal);
   const hydro = nonNegative(outputs.hydro);
@@ -45,21 +48,12 @@ export function dispatchElectricityPortfolio(outputs = {}, demand = Infinity) {
     balancingCoverage: 1, dispatchEfficiency: 1, variableComplementarity: 0,
   };
 
-  // Solar and wind are not perfectly correlated. A mixed variable portfolio therefore
-  // has a somewhat smaller balancing requirement than either technology alone.
   const rawBalancingNeed = solar * 0.30 + wind * 0.24;
   const variableComplementarity = Math.min(solar * 0.30, wind * 0.24) * 0.30;
   const balancingNeed = Math.max(0, rawBalancingNeed - variableComplementarity);
-
-  // Reservoir hydro and purpose-built peakers can move output through time. Coal can
-  // load-follow a little, but repeated ramping/cycling is deliberately weak and costly.
   const balancingAvailable = hydro * 0.58 + peaking * 0.78 + coal * 0.06;
   const balancingShortfall = Math.max(0, balancingNeed - balancingAvailable);
   const balancingCoverage = balancingNeed > 0 ? clamp01(balancingAvailable / balancingNeed) : 1;
-
-  // Unbalanced variable output is partly curtailed and partly forces thermal plant to
-  // cycle inefficiently. The cycling term is an energy-equivalent loss: the coal was
-  // still burned, but less useful electricity reaches the system over the period.
   const variableOutput = solar + wind;
   const curtailed = Math.min(variableOutput, balancingShortfall * 0.55);
   const coalCyclingLoss = Math.min(coal * 0.18, balancingShortfall * 0.45);
@@ -104,9 +98,6 @@ export function tickElectricity(region, elapsedDays = 7) {
   const dispatch = dispatchElectricityPortfolio({ coal: coalOutput, hydro: hydroOutput, solar: solarOutput, wind: windOutput }, demand.total);
   const generated = dispatch.usableGeneration;
 
-  // Copper is not the energy source, but generators, switchgear and distribution wiring
-  // create a durable new demand for it. Shortages erode network reliability rather than
-  // instantly making already-installed wires disappear.
   const copperNeed = (grids * 18 + (coalStations + hydroStations) * 5 + solarStations * 3 + windStations * 4) * years;
   const copperAvailable = Math.max(0, Number(region.stockpile.copper) || 0);
   const copperConsumed = Math.min(copperAvailable, copperNeed);
@@ -135,6 +126,7 @@ export function tickElectricity(region, elapsedDays = 7) {
   state.demand = demand.total;
   state.householdDemand = demand.householdDemand;
   state.industrialDemand = demand.industrialDemand;
+  state.lightMetalsDemand = demand.lightMetalsDemand || 0;
   return {
     ...state, coalOutput, hydroOutput, solarOutput, windOutput, gridCapacity, networkReliability,
     copperNeed, balancingNeed: dispatch.balancingNeed, balancingAvailable: dispatch.balancingAvailable,
