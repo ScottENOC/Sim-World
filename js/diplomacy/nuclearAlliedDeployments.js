@@ -1,6 +1,7 @@
 import { knowledgeLevel } from '../core/knowledge.js?v=20260906-scouting1';
 import { nuclearDeterrentStatus } from '../military/nuclearWeaponisation.js?v=20260920-nuclear-alliance1';
 import { strategicForceReadiness, STRATEGIC_BOMBER_DELIVERY_TECH_ID, STRATEGIC_MISSILE_TECH_ID, STRATEGIC_MISSILE_SUBMARINE_TECH_ID } from '../military/strategicDelivery.js?v=20260920-nuclear-alliance1';
+import { nuclearTreatyConstraints } from './nuclearArmsControl.js?v=20260920-nuclear-diplomacy1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const actorId=(r)=>r?.governance?.sovereignPolityId||r?.controllingActorId||r?.id||null;
@@ -85,6 +86,7 @@ export function deployNuclearAssetsToAlly(provider,host,{id=null,arrangementId,a
   const ps=ensureNuclearAllianceState(provider),hs=ensureNuclearAllianceState(host),pa=ps.arrangements[arrangementId],ha=hs.arrangements[arrangementId];
   if(!pa||!ha||pa.status!=='active'||ha.status!=='active'||pa.hostRegionId!==host.id)return{deployed:false,reason:'no_active_arrangement'};
   if(!ha.hostConsent)return{deployed:false,reason:'host_consent_required'};
+  if(nuclearTreatyConstraints(host).prohibitForeignNuclearBasing)return{deployed:false,reason:'treaty_prohibits_foreign_nuclear_basing'};
   if(!pa.basingRights)return{deployed:false,reason:'no_basing_rights'};
   if(!pa.assetTypes.includes(assetType))return{deployed:false,reason:'asset_type_not_authorised'};
   if(mode===ALLIED_DEPLOYMENT_MODES.PERMANENT&&!pa.peacetimeBasing)return{deployed:false,reason:'peacetime_basing_not_authorised'};

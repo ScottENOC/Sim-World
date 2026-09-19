@@ -35,6 +35,7 @@ function normaliseTerms(type,terms={}){
     prohibitAcquisition:Boolean(terms.prohibitAcquisition??type===NUCLEAR_TREATY_TYPES.NON_PROLIFERATION),
     prohibitTesting:Boolean(terms.prohibitTesting??type===NUCLEAR_TREATY_TYPES.TEST_BAN),
     safeguards:Boolean(terms.safeguards??type===NUCLEAR_TREATY_TYPES.MATERIAL_SAFEGUARDS),
+    prohibitForeignNuclearBasing:Boolean(terms.prohibitForeignNuclearBasing??false),
     maxLandLaunchers:Number.isFinite(terms.maxLandLaunchers)?Math.max(0,Math.round(terms.maxLandLaunchers)):null,
     maxStrategicSubmarines:Number.isFinite(terms.maxStrategicSubmarines)?Math.max(0,Math.round(terms.maxStrategicSubmarines)):null,
     maxPrototypes:Number.isFinite(terms.maxPrototypes)?Math.max(0,Math.round(terms.maxPrototypes)):(type===NUCLEAR_TREATY_TYPES.DISARMAMENT?0:null),
@@ -69,8 +70,8 @@ export function leaveNuclearTreaty(region,treatyId,{currentTick=null,immediate=f
 function activeTreaties(region){return Object.values(ensureNuclearArmsControl(region).treaties).filter(t=>t.status==='active'||t.status==='withdrawing');}
 
 export function nuclearTreatyConstraints(region){
-  const active=activeTreaties(region),out={prohibitAcquisition:false,prohibitTesting:false,safeguards:false,maxLandLaunchers:null,maxStrategicSubmarines:null,maxPrototypes:null,verification:0,inspectionAccess:0,securityAssurance:0};
-  for(const m of active){const t=m.terms;out.prohibitAcquisition ||= t.prohibitAcquisition;out.prohibitTesting ||= t.prohibitTesting;out.safeguards ||= t.safeguards;out.verification=Math.max(out.verification,t.verification);out.inspectionAccess=Math.max(out.inspectionAccess,t.inspectionAccess);out.securityAssurance=Math.max(out.securityAssurance,t.securityAssurance);for(const k of ['maxLandLaunchers','maxStrategicSubmarines','maxPrototypes'])if(t[k]!=null)out[k]=out[k]==null?t[k]:Math.min(out[k],t[k]);}
+  const active=activeTreaties(region),out={prohibitAcquisition:false,prohibitTesting:false,safeguards:false,prohibitForeignNuclearBasing:false,maxLandLaunchers:null,maxStrategicSubmarines:null,maxPrototypes:null,verification:0,inspectionAccess:0,securityAssurance:0};
+  for(const m of active){const t=m.terms;out.prohibitAcquisition ||= t.prohibitAcquisition;out.prohibitTesting ||= t.prohibitTesting;out.safeguards ||= t.safeguards;out.prohibitForeignNuclearBasing ||= t.prohibitForeignNuclearBasing;out.verification=Math.max(out.verification,t.verification);out.inspectionAccess=Math.max(out.inspectionAccess,t.inspectionAccess);out.securityAssurance=Math.max(out.securityAssurance,t.securityAssurance);for(const k of ['maxLandLaunchers','maxStrategicSubmarines','maxPrototypes'])if(t[k]!=null)out[k]=out[k]==null?t[k]:Math.min(out[k],t[k]);}
   return out;
 }
 
@@ -131,6 +132,7 @@ export function inspectNuclearTreaty(inspector,subject,treatyId,{currentTick=nul
   if(c.maxLandLaunchers!=null&&land>c.maxLandLaunchers)violations.push('land_launcher_ceiling');
   if(c.maxStrategicSubmarines!=null&&sea>c.maxStrategicSubmarines)violations.push('strategic_submarine_ceiling');
   if(c.maxPrototypes!=null&&weapons.prototypeCount>c.maxPrototypes)violations.push('prototype_ceiling');
+  if(c.prohibitForeignNuclearBasing&&Object.values(subject.nuclearAlliance?.deployments||{}).some(d=>d.role==='host'&&d.status==='active'))violations.push('foreign_nuclear_basing_prohibited');
   const concealment=clamp(weapons.policy?.secrecy??.5);
   const capability=clamp((inspector?.nuclearArmsControl?.verificationCapacity??.35)*.35+c.verification*.35+c.inspectionAccess*.3);
   const detectChance=clamp(.08+capability*.82-concealment*.42);
