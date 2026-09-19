@@ -1,6 +1,21 @@
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 let nextOrganisationId=1,nextMotionId=1;
 
+export function syncNextInternationalOrganisationIds(organisations=[]){
+  let organisationMax=0,motionMax=0;
+  for(const org of organisations||[]){
+    const orgId=Number(String(org?.id||'').match(/(\d+)$/)?.[1])||0;
+    organisationMax=Math.max(organisationMax,orgId);
+    for(const motion of org?.motions||[]){
+      const motionId=Number(String(motion?.id||'').match(/(\d+)$/)?.[1])||0;
+      motionMax=Math.max(motionMax,motionId);
+    }
+  }
+  nextOrganisationId=organisationMax+1;
+  nextMotionId=motionMax+1;
+  return{nextOrganisationId,nextMotionId};
+}
+
 export const ORGANISATION_LEVELS=Object.freeze({
   conference:{id:'conference',label:'Conference system',capacity:.20},
   secretariat:{id:'secretariat',label:'Permanent secretariat',capacity:.38},
@@ -35,7 +50,7 @@ export function worldInstitutionReadiness(polities,regions,activeWars=[]){
   const rs=regions||[];const connectivity=weighted(rs,r=>comms(r)*.65+literacy(r)*.35);const administration=(polities||[]).length?polities.reduce((n,p)=>n+admin(p,territories(p,rs)),0)/(polities.length||1):0;
   const diplomaticDensity=clamp(rs.reduce((n,r)=>n+(r.relations instanceof Map?r.relations.size:0),0)/Math.max(1,rs.length*Math.max(2,Math.sqrt(rs.length))));
   const warTrauma=(polities||[]).length?polities.reduce((n,p)=>n+clamp(p.warSociety?.warWeariness||0)*.45+clamp(p.warSociety?.combatTraumaBurden||0)*.25+clamp(p.warSociety?.publicWarKnowledge||0)*.30,0)/polities.length:0;
-  const majorWar=clamp((activeWars||[]).filter(w=>w.active!==false).reduce((n,w)=>n+Math.min(1,(w.participantPolityIds?.length||2)/6),0)/2);
+  const majorWar=clamp((activeWars||[]).filter(w=>w.active!==false).reduce((n,w)=>n+Math.min(1,((w.participants?.length||w.participantPolityIds?.length||2))/6),0)/2);
   const sharedProblem=clamp(rs.reduce((n,r)=>n+(hasTech(r,'anthropogenic_climate_change')?1:0),0)/Math.max(1,rs.length)*.65 + rs.reduce((n,r)=>n+(r.externalities?.knowledge?.ozone_depletion?.recognised?1:0),0)/Math.max(1,rs.length)*.35);
   const demand=clamp(warTrauma*.45+majorWar*.30+sharedProblem*.25);
   const readiness=clamp(connectivity*.28+administration*.22+diplomaticDensity*.18+demand*.32);
