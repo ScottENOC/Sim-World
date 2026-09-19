@@ -9,8 +9,10 @@ on:
       - 'js/ui/internationalOrganisationsUi.js'
       - 'js/world/climateChange.js'
       - 'js/society/externalities.js'
+      - 'js/core/saveGame.js'
       - 'js/main.js'
       - 'tools/test-war-society-global-institutions.mjs'
+      - 'tools/test-international-organisations-save.mjs'
       - '.github/workflows/war-society-global-institutions.yml'
   push:
     branches: [main]
@@ -22,8 +24,10 @@ on:
       - 'js/ui/internationalOrganisationsUi.js'
       - 'js/world/climateChange.js'
       - 'js/society/externalities.js'
+      - 'js/core/saveGame.js'
       - 'js/main.js'
       - 'tools/test-war-society-global-institutions.mjs'
+      - 'tools/test-international-organisations-save.mjs'
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -36,8 +40,10 @@ jobs:
           node --check js/diplomacy/internationalOrganisations.js
           node --check js/ui/warSocietyUi.js
           node --check js/ui/internationalOrganisationsUi.js
+          node --check js/core/saveGame.js
           node --check js/main.js
           node tools/test-war-society-global-institutions.mjs
+          node tools/test-international-organisations-save.mjs
           node tools/test-postwar-society.mjs
           node tools/test-mass-politics.mjs
           node tools/test-climate-change.mjs
