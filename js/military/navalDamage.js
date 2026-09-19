@@ -1,3 +1,4 @@
+import { shipCrewReadiness, shipTechnicalReadiness, applyShipCrewCasualties } from './qualifiedPersonnel.js?v=20260919-personnel1';
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
 export const NAVAL_SUBSYSTEMS=Object.freeze({
@@ -66,14 +67,14 @@ export function applyShipHit(ship,amount,{rng=Math.random,tick=null,catastrophic
   const pumpHealth=ship.subsystems.pumps?.installed?ship.subsystems.pumps.health:1,controlHealth=ship.subsystems.damage_control?.installed?ship.subsystems.damage_control.health:1;
   if(rng()<clamp(raw*.72+(catastrophic?.18:0)))ship.damageState.flooding=clamp(ship.damageState.flooding+raw*(.45+(1-pumpHealth)*.45));
   if(rng()<clamp(raw*.58+(catastrophic?.15:0)))ship.damageState.fire=clamp(ship.damageState.fire+raw*(.42+(1-controlHealth)*.42));
-  ship.damageState.hitLog.push({tick,amount:raw,catastrophic,damaged});if(ship.damageState.hitLog.length>12)ship.damageState.hitLog.splice(0,ship.damageState.hitLog.length-12);
+  const crewLost=applyShipCrewCasualties(ship,raw*(catastrophic?1.35:1),{rng});ship.damageState.hitLog.push({tick,amount:raw,catastrophic,damaged,crewLost});if(ship.damageState.hitLog.length>12)ship.damageState.hitLog.splice(0,ship.damageState.hitLog.length-12);
   refreshShipDamageStatus(ship);return {ship,damaged,condition:ship.condition,...ship.damageState};
 }
 
 export function tickShipDamageAtSea(ship,weeks=1){
   initialiseShipDamage(ship);const w=Math.max(0,Number(weeks)||0),d=ship.damageState;
-  const pumps=ship.subsystems.pumps?.installed?ship.subsystems.pumps.health:1,control=ship.subsystems.damage_control?.installed?ship.subsystems.damage_control.health:1;
-  const floodControl=clamp(.12+pumps*.58+control*.18),fireControl=clamp(.12+control*.62+(ship.subsystems.electrical?.health??1)*.08);
+  const pumps=ship.subsystems.pumps?.installed?ship.subsystems.pumps.health:1,control=ship.subsystems.damage_control?.installed?ship.subsystems.damage_control.health:1,crew=shipCrewReadiness(ship),technical=shipTechnicalReadiness(ship);
+  const floodControl=clamp((.12+pumps*.58+control*.18)*(.62+.22*crew+.16*technical)),fireControl=clamp((.12+control*.62+(ship.subsystems.electrical?.health??1)*.08)*(.62+.22*crew+.16*technical));
   d.flooding=clamp(d.flooding-w*.035*floodControl+w*.018*(1-floodControl));d.fire=clamp(d.fire-w*.05*fireControl+w*.014*(1-fireControl));
   const ongoing=w*(d.flooding*d.flooding*.018+d.fire*d.fire*.014);if(ongoing>0)ship.condition=clamp((ship.condition??1)-ongoing,0,1);
   refreshShipDamageStatus(ship);return d;
@@ -82,7 +83,7 @@ export function tickShipDamageAtSea(ship,weeks=1){
 export function shipPropulsionMultiplier(ship){
   initialiseShipDamage(ship);const prop=ship.subsystems.propulsion?.health??1,steer=ship.subsystems.steering?.health??1;
   if(ship.damageState.sinking)return .02;if(ship.damageState.underTow)return .18;
-  return clamp(.08+prop*.68+steer*.24,.05,1);
+  return clamp((.08+prop*.68+steer*.24)*(.72+.28*shipTechnicalReadiness(ship)),.05,1);
 }
 export function shipCombatMultiplier(ship){
   initialiseShipDamage(ship);if(ship.damageState.sinking)return 0;
@@ -90,11 +91,11 @@ export function shipCombatMultiplier(ship){
   const fc=ship.subsystems.fire_control?.installed?ship.subsystems.fire_control.health:1,e=ship.subsystems.electrical?.installed?ship.subsystems.electrical.health:1;
   const radar=ship.subsystems.radar?.installed?ship.subsystems.radar.health:1;
   const disabled=ship.damageState.disabled?.72:1;
-  return clamp((p*.55+s*.15+fc*.20+e*.06+radar*.04)*disabled,.03,1);
+  return clamp((p*.55+s*.15+fc*.20+e*.06+radar*.04)*disabled*(.62+.38*shipCrewReadiness(ship)),.03,1);
 }
 export function shipSensorMultiplier(ship,type='radar'){
   initialiseShipDamage(ship);const sensor=ship.subsystems[type]?.installed?ship.subsystems[type].health:0,fc=ship.subsystems.fire_control?.installed?ship.subsystems.fire_control.health:1,e=ship.subsystems.electrical?.installed?ship.subsystems.electrical.health:1;
-  return clamp(sensor*(.55+fc*.25+e*.20));
+  return clamp(sensor*(.55+fc*.25+e*.20)*(.65+.35*shipCrewReadiness(ship)));
 }
 
 export function repairShipDamage(ship,repairAmount,{dockyard=false}={}){
