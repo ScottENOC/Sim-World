@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { EQUIPMENT_FAMILIES, authoriseEquipmentMark, ensureCurrentArmouredVehicleDesign, ensureCurrentArtilleryDesign, designsFor } from '../js/military/equipmentGenerations.js';
-import { SHIP_DESIGNS, ensureCurrentNavalDesign } from '../js/military/fleets.js';
+import { SHIP_DESIGNS, ensureCurrentNavalDesign, authoriseNavalMark, tickNavalDesignPrograms } from '../js/military/fleets.js';
 import { ensureIndustrialPlantState, addProductionLine, authoriseProductionMark, tickIndustrialPlants } from '../js/economy/industrialPlant.js';
 
 function industrialRegion(id='r'){
@@ -41,11 +41,21 @@ tickIndustrialPlants(prod,upgrade.downtimeWeeks*7+7);for(const c of Object.keys(
 const ids=Object.keys(prod.militaryEquipment.inventoryByDesign);assert(ids.length>=2,'after explicit retooling later production should use a newer tank Mark');
 assert.equal(prod.militaryEquipment.inventoryByDesign[firstId],firstQty,'creating a newer tank Mark must not upgrade old inventory');
 
-// Every persistent ship class can acquire several pre-digital Marks when a navy deliberately standardises improved designs.
+// Naval frontiers also require deliberate standardisation/tooling before the fleet gets a new Mark.
 const navy=industrialRegion('navy');
 const shipIds=Object.keys(SHIP_DESIGNS).filter(id=>id!=='advanced_warship');
-for(const q of [.08,.32,.56,.80,1]){setComponents(navy,q);navy.earlyModernMilitary.naval.readiness=q;for(const id of shipIds)ensureCurrentNavalDesign(navy,id);}
-for(const id of shipIds){const list=navy.navalDesignCatalogue[id]||[];assert(list.length>=3,`${id} should support multiple persistent Marks before digital computing`);assert(list.at(-1).stats.combat>=list[0].stats.combat,`${id} later Marks should not lose the accumulated component frontier`);}
+setComponents(navy,.08);navy.earlyModernMilitary.naval.readiness=.08;for(const id of shipIds)ensureCurrentNavalDesign(navy,id);
+for(const q of [.32,.56,.80,1]){
+  setComponents(navy,q);navy.earlyModernMilitary.naval.readiness=q;
+  for(const id of shipIds){
+    const before=(navy.navalDesignCatalogue[id]||[]).length;
+    ensureCurrentNavalDesign(navy,id);
+    assert.equal((navy.navalDesignCatalogue[id]||[]).length,before,`${id} capability progress must not silently create a new Mark`);
+    const authorised=authoriseNavalMark(navy,id,{authorisedBy:'test'});assert(authorised.authorised,`${id} improved Mark should be authorisable`);
+    tickNavalDesignPrograms(navy,authorised.downtimeWeeks);
+  }
+}
+for(const id of shipIds){const list=navy.navalDesignCatalogue[id]||[];assert(list.length>=5,`${id} should support multiple deliberately standardised Marks before digital computing`);assert(list.at(-1).stats.combat>=list[0].stats.combat,`${id} later Marks should not lose the accumulated component frontier`);}
 const dread=navy.navalDesignCatalogue.dreadnought;assert(dread.at(-1).name.includes('Mk'),'naval models should expose explicit Mark names');
 
 console.log('pre-digital tank, artillery and naval generation regressions passed');
