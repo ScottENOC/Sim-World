@@ -12,6 +12,11 @@ export const FIELD_ENTRENCHMENT_TECH_ID='field_entrenchment';
 export const BREECH_ARTILLERY_TECH_ID='breech_loading_artillery';
 export const QUICK_FIRE_ARTILLERY_TECH_ID='quick_firing_artillery';
 export const HEAVY_HOWITZER_TECH_ID='heavy_howitzers';
+export const EARLY_ROCKETRY_TECH_ID='early_rocketry';
+export const ROCKET_ARTILLERY_TECH_ID='rocket_artillery';
+export const IMPROVED_ROCKET_PROPELLANT_TECH_ID='improved_rocket_propellant';
+export const ROCKET_STABILISATION_TECH_ID='rocket_stabilisation';
+export const ROCKET_LAUNCHER_SYSTEMS_TECH_ID='rocket_launcher_systems';
 
 const TECHS=[
  {id:BREECH_RIFLE_TECH_ID,prereq:['rifling','steelmaking'],base:0.000018,label:'Breech-loading rifles'},
@@ -22,6 +27,11 @@ const TECHS=[
  {id:HEAVY_HOWITZER_TECH_ID,prereq:[BREECH_ARTILLERY_TECH_ID,'steelmaking'],base:0.000010,label:'Heavy howitzers'},
  {id:MACHINE_GUN_TECH_ID,prereq:[MAGAZINE_RIFLE_TECH_ID,'steelmaking'],base:0.000009,label:'Machine guns'},
  {id:QUICK_FIRE_ARTILLERY_TECH_ID,prereq:[BREECH_ARTILLERY_TECH_ID,SMOKELESS_POWDER_TECH_ID],base:0.000008,label:'Quick-firing artillery'},
+ {id:EARLY_ROCKETRY_TECH_ID,prereq:['gunpowder'],base:0.000012,label:'Early military rocketry'},
+ {id:ROCKET_ARTILLERY_TECH_ID,prereq:[EARLY_ROCKETRY_TECH_ID,'steelmaking'],base:0.000010,label:'Rocket artillery'},
+ {id:IMPROVED_ROCKET_PROPELLANT_TECH_ID,prereq:[ROCKET_ARTILLERY_TECH_ID,SMOKELESS_POWDER_TECH_ID],base:0.000008,label:'Consistent rocket propellants'},
+ {id:ROCKET_STABILISATION_TECH_ID,prereq:[ROCKET_ARTILLERY_TECH_ID,'precision_machining'],base:0.000007,label:'Stabilised artillery rockets'},
+ {id:ROCKET_LAUNCHER_SYSTEMS_TECH_ID,prereq:[ROCKET_ARTILLERY_TECH_ID],base:0.000008,label:'Multiple rocket launcher systems'},
 ];
 
 function connected(region,byId){

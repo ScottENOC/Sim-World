@@ -28,7 +28,7 @@ import { campaignExternalSupport, applyExternalCampaignLosses } from '../politic
 import { telephoneMobilisationMultiplier } from '../economy/localCommunications.js?v=20260918-telephone2';
 import { bombardRegionalInfrastructure, entrenchmentDefenceMultiplier, modernArtilleryProfile, modernInfantryProfile } from './modernLandWarfare.js?v=20260918-modern-war1';
 import { modernTacticalProfile, recordModernCombatLessons } from './modernTactics.js?v=20260919-mg-tactics1';
-import { artilleryFireControlProfile, recordArtilleryFireControlLessons, resolveArtilleryTargeting } from './artilleryFireControl.js?v=20260919-artillery1';
+import { artilleryFireControlProfile, recordArtilleryFireControlLessons, resolveArtilleryTargeting, resolveCounterBatteryFire } from './artilleryFireControl.js?v=20260920-counterbattery1';
 import { resolveMilitaryCasualties } from '../technology/medicalProgress.js?v=20260918-medical1';
 import { alliedCoordinationMultiplier } from './combinedExercises.js?v=20260919-exercises1';
 
@@ -258,6 +258,12 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
   const modernArtillery = modernArtilleryProfile(attacker, artillery, { elapsedDays: 7, logisticsSupply: campaign.supply, consumeSupplies: true });
   const artilleryFireControl = artilleryFireControlProfile(attacker, defender, { currentTick, weeksEngaged: campaign.weeksEngaged, train: campaign.gunpowderArtillery || [] });
   const artilleryTargeting = resolveArtilleryTargeting(attacker, defender, artilleryFireControl, { bombardment: modernArtillery.bombardment, rng, currentTick });
+  const defenderTrain=defender.earlyModernMilitary?.artillery?.inventory||[];
+  const defenderArtilleryBase=artilleryCampaignProfile(defender,defenderTrain,{elapsedDays:7,logisticsSupply:1,consumeSupplies:false});
+  const defenderModernArtillery=modernArtilleryProfile(defender,defenderArtilleryBase,{elapsedDays:7,logisticsSupply:1,consumeSupplies:false});
+  const defenderFireControl=artilleryFireControlProfile(defender,attacker,{currentTick,weeksEngaged:campaign.weeksEngaged,train:defenderTrain});
+  const attackerCounterBattery=resolveCounterBatteryFire(attacker,defender,artilleryFireControl,defenderTrain,{bombardment:modernArtillery.bombardment,rng,currentTick});
+  const defenderCounterBattery=resolveCounterBatteryFire(defender,attacker,defenderFireControl,campaign.gunpowderArtillery||[],{bombardment:defenderModernArtillery.bombardment,rng,currentTick});
   const trenchDefence = entrenchmentDefenceMultiplier(defender, campaign.weeksEngaged);
   const attackerTactics = modernTacticalProfile(attacker, defender, { role: 'attacker', weeksEngaged: campaign.weeksEngaged, terrain });
   const defenderTactics = modernTacticalProfile(defender, attacker, { role: 'defender', weeksEngaged: campaign.weeksEngaged, terrain });
@@ -363,7 +369,7 @@ function resolveCampaignWeek(campaign, attacker, defender, polities, regions, cu
     defenderWoundedSurvivors: defenderMedical.survivingWounded + militiaMedical.survivingWounded, defenderMedicalCapacity: defenderMedical.capacityRatio, civilianDeaths, attackerMorale: campaign.attackerMorale,
     defenderMorale: campaign.defenderMorale, supply: campaign.supply, strengthRatio, navalControl: control,
     logisticsStatus: campaign.logisticsState?.status || null, routeReliability: campaign.logisticsState?.routeReliability ?? null,
-    attackerFirearms, defenderFirearms, attackerModern, defenderModern, attackerTactics, defenderTactics, modernArtillery, artilleryFireControl, artilleryTargeting, trenchDefence, bombardment };
+    attackerFirearms, defenderFirearms, attackerModern, defenderModern, attackerTactics, defenderTactics, modernArtillery, artilleryFireControl, artilleryTargeting, attackerCounterBattery, defenderCounterBattery, trenchDefence, bombardment };
   campaign.lastWeek = week;
   campaign.history.push(week);
   if (campaign.history.length > 26) campaign.history.shift();

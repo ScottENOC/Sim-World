@@ -1,10 +1,12 @@
 import { MILITARY_PLATFORM, platformElectronicsFrontier } from './militaryElectronics.js?v=20260919-military-computing1';
+import { rocketArtilleryFrontier } from './earlyRocketry.js?v=20260919-rockets1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
 export const EQUIPMENT_FAMILIES=Object.freeze({
   FIELD_ARTILLERY:'field_artillery',
   HEAVY_ARTILLERY:'heavy_artillery',
+  ROCKET_ARTILLERY:'rocket_artillery',
   TANK:'tank',
   SELF_PROPELLED_GUN:'self_propelled_gun',
   FIGHTER:'fighter',
@@ -18,7 +20,7 @@ export const MILITARY_MATERIALS=Object.freeze({
 });
 
 const FAMILY_LABELS=Object.freeze({
-  field_artillery:'Field Gun',heavy_artillery:'Heavy Howitzer',tank:'Tank',self_propelled_gun:'Self-Propelled Gun',fighter:'Fighter',bomber:'Bomber',
+  field_artillery:'Field Gun',heavy_artillery:'Heavy Howitzer',rocket_artillery:'Rocket Artillery',tank:'Tank',self_propelled_gun:'Self-Propelled Gun',fighter:'Fighter',bomber:'Bomber',
 });
 
 const DEFAULT_PRIORITIES=Object.freeze({
@@ -222,6 +224,7 @@ export function equipmentDesignFrontier(region,family,{kind=null}={}){
   if(family===EQUIPMENT_FAMILIES.TANK||family===EQUIPMENT_FAMILIES.SELF_PROPELLED_GUN)return armouredVehicleDesignFrontier(region,family);
   if(family===EQUIPMENT_FAMILIES.FIELD_ARTILLERY)return artilleryDesignFrontier(region,kind||'field_cannon');
   if(family===EQUIPMENT_FAMILIES.HEAVY_ARTILLERY)return artilleryDesignFrontier(region,kind||'heavy_howitzer');
+  if(family===EQUIPMENT_FAMILIES.ROCKET_ARTILLERY)return rocketArtilleryFrontier(region);
   if(family===EQUIPMENT_FAMILIES.FIGHTER||family===EQUIPMENT_FAMILIES.BOMBER)return aircraftDesignFrontier(region,family);
   return null;
 }
@@ -238,6 +241,7 @@ export function authoriseEquipmentMark(region,family,{kind=null,tick=0,reason='n
 
 export function ensureCurrentArmouredVehicleDesign(region,family=EQUIPMENT_FAMILIES.TANK,tick=0){return currentEquipmentDesign(region,family)||authoriseEquipmentMark(region,family,{tick,reason:'first_standard_design',authorisedBy:'initial_standard'});}
 export function ensureCurrentArtilleryDesign(region,kind='field_cannon',tick=0){const frontier=artilleryDesignFrontier(region,kind),family=frontier.family;return currentEquipmentDesign(region,family)||authoriseEquipmentMark(region,family,{kind,tick,reason:'first_standard_design',authorisedBy:'initial_standard'});}
+export function ensureCurrentRocketArtilleryDesign(region,tick=0){if(!rocketArtilleryFrontier(region))return null;return currentEquipmentDesign(region,EQUIPMENT_FAMILIES.ROCKET_ARTILLERY)||authoriseEquipmentMark(region,EQUIPMENT_FAMILIES.ROCKET_ARTILLERY,{tick,reason:'first_standard_design',authorisedBy:'initial_standard'});}
 export function ensureCurrentAircraftDesign(region,family=EQUIPMENT_FAMILIES.FIGHTER,tick=0){return currentEquipmentDesign(region,family)||authoriseEquipmentMark(region,family,{tick,reason:'first_standard_design',authorisedBy:'initial_standard'});}
 
 function aircraftScore(s){return (s.speed||0)*.18+(s.range||0)*.13+(s.manouevrability||s.manoeuvrability||0)*.18+(s.reliability||0)*.13+(s.firepower||0)*.16+(s.payload||0)*.12+(s.radarCapability||0)*.06+(1-(s.radarSignature??1))*.04+(s.computationalPower||0)*.03;}

@@ -7,7 +7,7 @@ const has=(r,id)=>Boolean(r?.unlockedTechIds?.has?.(id));
 export function ensureArtilleryFireControl(region){
   region.artilleryFireControl ||= {};
   const s=region.artilleryFireControl;
-  const defaults={rangeFinding:0,survey:0,fireDirection:0,predictedFire:0,aerialObservationIntegration:0,counterBattery:0,targetIntelligence:0,combatWeeks:0,lessonsCaptured:0};
+  const defaults={rangeFinding:0,survey:0,fireDirection:0,predictedFire:0,aerialObservationIntegration:0,counterBattery:0,soundRanging:0,counterBatteryRadar:0,targetIntelligence:0,combatWeeks:0,lessonsCaptured:0};
   for(const [k,v] of Object.entries(defaults)) if(!Number.isFinite(s[k])) s[k]=v;
   return s;
 }
@@ -53,6 +53,38 @@ export function artilleryFireControlProfile(region,defender,{currentTick=null,we
   return {effectiveRangeKm,rangeMultiplier,precision,combatMultiplier,observation:obs,counterBatteryEffect,commandStrikeChance,commandDisruption,logisticsInterdiction,technique,weeksEngaged};
 }
 
+export function artilleryTargetExposure(train=[]){
+  if(!train?.length)return{mobility:0,rapidSalvo:0,exposure:.72};
+  const mobility=train.reduce((s,g)=>s+clamp(g?.designStats?.mobility??.3),0)/train.length;
+  const rapidSalvo=train.reduce((s,g)=>s+clamp(g?.designStats?.salvoDensity??g?.designStats?.rateOfFire??.15),0)/train.length;
+  const exposure=clamp(.78-mobility*.62-rapidSalvo*.24,.035,.78);
+  return{mobility,rapidSalvo,exposure};
+}
+
+export function counterBatteryTargetability(attacker,defender,targetTrain=[],currentTick=null){
+  const obs=artilleryObservationProfile(attacker,defender,currentTick),s=ensureArtilleryFireControl(attacker),target=artilleryTargetExposure(targetTrain);
+  const known=clamp(attacker?.artilleryIntelligence?.[defender?.id]?.confidence||0);
+  const sound=clamp(s.soundRanging||0),radar=clamp(s.counterBatteryRadar||0);
+  const activeAcquisition=clamp(1-(1-obs.aerial)*(1-known)*(1-sound*.80)*(1-radar));
+  const background=clamp(obs.ground*.18+s.counterBattery*.08);
+  const targetability=clamp(target.exposure*.10+activeAcquisition*(.30+.70*target.exposure)+background*target.exposure*.22);
+  return{...target,activeAcquisition,background,targetability,observation:obs};
+}
+
+export function resolveCounterBatteryFire(attacker,defender,attackerProfile,targetTrain=[],{bombardment=0,rng=Math.random,currentTick=0}={}){
+  if(!targetTrain?.length)return{targetability:0,engaged:0,damaged:0,destroyed:0};
+  const acquisition=counterBatteryTargetability(attacker,defender,targetTrain,currentTick);
+  const fire=clamp(attackerProfile?.counterBatteryEffect||0)*clamp(bombardment)*acquisition.targetability;
+  let engaged=0,damaged=0,destroyed=0;
+  for(const gun of targetTrain){
+    const condition=clamp(gun?.condition??1,0,1);if(condition<=.02)continue;
+    const hitChance=clamp(fire*(.36+.28*clamp(attackerProfile?.precision||0)),0,.62);
+    if(rng()>=hitChance)continue;engaged++;
+    const damage=clamp(.08+fire*.34+rng()*.18,.05,.48);gun.condition=clamp(condition-damage,0,1);damaged++;if(gun.condition<=.08)destroyed++;
+  }
+  return{...acquisition,fire,engaged,damaged,destroyed};
+}
+
 export function resolveArtilleryTargeting(attacker,defender,profile,{bombardment=0,rng=Math.random,currentTick=0}={}){
   const active=clamp(bombardment);
   if(active<=0||profile.precision<=0) return {commandHit:false,commandMultiplier:1,logisticsMultiplier:1,counterBatteryMultiplier:1};
@@ -89,7 +121,10 @@ export function recordArtilleryFireControlLessons(region,defender,{currentTick=0
   s.targetIntelligence=clamp(s.targetIntelligence+learn*(.55+obs.combined*.55)*(1-s.targetIntelligence));
   if(has(region,QUICK_FIRE_ARTILLERY_TECH_ID)) s.predictedFire=clamp(s.predictedFire+learn*.62*(1-s.predictedFire));
   if(obs.aerial>0.05) s.aerialObservationIntegration=clamp(s.aerialObservationIntegration+learn*(.45+obs.aerial)*(1-s.aerialObservationIntegration));
-  if(enemyArtillery>0) s.counterBattery=clamp(s.counterBattery+learn*(.45+obs.combined*.55)*(1-s.counterBattery));
+  if(enemyArtillery>0){
+    s.counterBattery=clamp(s.counterBattery+learn*(.45+obs.combined*.55)*(1-s.counterBattery));
+    s.soundRanging=clamp(s.soundRanging+learn*.34*(1-s.soundRanging));
+  }
   s.lessonsCaptured=clamp(s.lessonsCaptured+learn*.55);
   s.combatWeeks+=1;
   return s;
