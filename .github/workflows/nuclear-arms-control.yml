@@ -1,0 +1,37 @@
+name: Nuclear arms control
+
+on:
+  push:
+    branches: [feature/nuclear-arms-control]
+    paths:
+      - 'js/diplomacy/nuclearArmsControl.js'
+      - 'js/diplomacy/nuclearDeterrence.js'
+      - 'tools/test-nuclear-arms-control.mjs'
+      - '.github/workflows/nuclear-arms-control.yml'
+  pull_request:
+    paths:
+      - 'js/diplomacy/nuclearArmsControl.js'
+      - 'js/diplomacy/nuclearDeterrence.js'
+      - 'tools/test-nuclear-arms-control.mjs'
+      - '.github/workflows/nuclear-arms-control.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks
+        run: |
+          node --check js/diplomacy/nuclearArmsControl.js
+          node --check js/diplomacy/nuclearDeterrence.js
+      - name: Arms control and compatibility regressions
+        run: |
+          node tools/test-nuclear-arms-control.mjs
+          node tools/test-nuclear-deterrence.mjs
+          node tools/test-strategic-delivery-second-strike.mjs
+          node tools/test-nuclear-weaponisation.mjs
+          node tools/test-strategic-nuclear.mjs
