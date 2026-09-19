@@ -1,0 +1,22 @@
+name: Military computing and field power
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/military/militaryElectronics.js'
+      - 'js/military/equipmentGenerations.js'
+      - 'tools/test-military-computing-power.mjs'
+      - '.github/workflows/military-computing-power.yml'
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --check js/military/militaryElectronics.js
+      - run: node --check js/military/equipmentGenerations.js
+      - run: node tools/test-military-computing-power.mjs
+      - run: node tools/test-predigital-equipment-generations.mjs
+      - run: node tools/test-aircraft-industry.mjs
+      - run: git diff --check

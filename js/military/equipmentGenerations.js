@@ -1,3 +1,5 @@
+import { MILITARY_PLATFORM, platformElectronicsFrontier } from './militaryElectronics.js?v=20260919-military-computing1';
+
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
 export const EQUIPMENT_FAMILIES=Object.freeze({
@@ -48,15 +50,17 @@ export function artilleryDesignFrontier(region,kind='field_cannon'){
   const components=region.industrialPlants?.componentCapability||{};
   const gunComponent=clamp(components.gun_system||0),optical=clamp(components.optics||0),analogueElectrical=Math.min(.65,clamp(components.electronics||0)),chassis=clamp(components.wheeled_chassis||0);
   const engineering=clamp((region.industrialSupply?.capability?.precision_machining||0)*.32+(region.structuralTransformation?.capability?.manufacture||0)*.18+(region.steelIndustry?.readiness||0)*.12+(region.massEducation?.literacy||0)*.10+gunComponent*.16+optical*.08+analogueElectrical*.04);
+  const electronics=platformElectronicsFrontier(region,MILITARY_PLATFORM.ARTILLERY,{fireControlBase:.20+(fc.rangeFinding||0)*.12+(fc.survey||0)*.12+(fc.fireDirection||0)*.16+(fc.predictedFire||0)*.16+optical*.14+analogueElectrical*.08+engineering*.08});
   return {
     family:heavy?EQUIPMENT_FAMILIES.HEAVY_ARTILLERY:EQUIPMENT_FAMILIES.FIELD_ARTILLERY,
     rangeKm:(heavy?3.4:2.8)*(1+(breech?.55:0)+(quick?.28:0)+(howitzer&&heavy?.55:0)+engineering*.30+gunComponent*.24),
-    intrinsicAccuracy:clamp(.18+(breech?.13:0)+(quick?.11:0)+engineering*.18+optical*.22+gunComponent*.10),
+    intrinsicAccuracy:clamp(.18+(breech?.13:0)+(quick?.11:0)+engineering*.18+optical*.22+gunComponent*.10+electronics.fireControlGain*.35),
     rateOfFire:clamp(.16+(breech?.22:0)+(quick?.42:0)+engineering*.10+gunComponent*.12),
     reliability:clamp(.52+engineering*.22+gunComponent*.10+(has('steelmaking')?.10:0)),
     mobility:clamp((heavy?.34:.58)+engineering*.08+chassis*.18),
     firepower:clamp((heavy?.52:.34)+(breech?.10:0)+(quick?.12:0)+(howitzer&&heavy?.18:0)+engineering*.08+gunComponent*.18),
-    fireControlPotential:clamp(.20+(fc.rangeFinding||0)*.12+(fc.survey||0)*.12+(fc.fireDirection||0)*.16+(fc.predictedFire||0)*.16+optical*.14+analogueElectrical*.08+engineering*.08),
+    fireControlPotential:electronics.fireControl,
+    onboardPower:electronics.power,computationalPower:electronics.compute,electronicCapabilities:electronics.capabilities,systemInputs:electronics.systemInputs,
   };
 }
 
@@ -68,7 +72,18 @@ export function armouredVehicleDesignFrontier(region,family=EQUIPMENT_FAMILIES.T
   const q=(k,fallback=.05)=>clamp(c[k]??fallback);
   const engine=q('engine'),trans=q('transmission'),tracks=q('tracked_running_gear'),gun=q('gun_system'),armour=q('armour_plate'),optics=q('optics'),electronics=Math.min(.65,q('electronics')),hull=q('hull_fabrication');
   const spg=family===EQUIPMENT_FAMILIES.SELF_PROPELLED_GUN;
-  return {family, mobility:clamp(engine*.34+trans*.26+tracks*.30+hull*.10), firepower:clamp(gun*.62+optics*.20+electronics*.08+hull*.10), protection:clamp(armour*(spg?.62:.82)+hull*(spg?.18:.12)+tracks*.06), reliability:clamp(engine*.18+trans*.18+tracks*.16+gun*.10+armour*.08+hull*.12+exp*.18), fireControlPotential:clamp(optics*.50+electronics*.28+gun*.12+exp*.10), integration:exp};
+  const platform=spg?MILITARY_PLATFORM.SELF_PROPELLED_GUN:MILITARY_PLATFORM.TANK;
+  const digital=platformElectronicsFrontier(region,platform,{fireControlBase:clamp(optics*.50+electronics*.28+gun*.12+exp*.10)});
+  return {
+    family,
+    mobility:clamp(engine*.34+trans*.26+tracks*.30+hull*.10),
+    firepower:clamp(gun*.62+optics*.20+electronics*.08+hull*.10+digital.mobileFireGain*.20),
+    protection:clamp(armour*(spg?.62:.82)+hull*(spg?.18:.12)+tracks*.06),
+    reliability:clamp(engine*.18+trans*.18+tracks*.16+gun*.10+armour*.08+hull*.12+exp*.18),
+    fireControlPotential:digital.fireControl,
+    movingFireEffectiveness:clamp(.10+optics*.12+digital.mobileFireGain),
+    onboardPower:digital.power,computationalPower:digital.compute,electronicCapabilities:digital.capabilities,systemInputs:digital.systemInputs,integration:exp,
+  };
 }
 
 export function aircraftDesignFrontier(region,family=EQUIPMENT_FAMILIES.FIGHTER){
@@ -94,14 +109,14 @@ export function aircraftDesignFrontier(region,family=EQUIPMENT_FAMILIES.FIGHTER)
   const speed=clamp(enginePower*.50+aerodynamics*.38+structural*.06+exp*.06+(jet?.12:0));
   const range=clamp(enginePower*.22+aerodynamics*.22+structural*.14+radio*.08+payload*(bomber?.26:.08)+exp*.12+(bomber?.10:0));
   const manoeuvrability=clamp(aerodynamics*.46+enginePower*.30+structural*.10+exp*.14-(bomber?.18:0));
-  const firepower=clamp(weapons*(bomber?.30:.72)+payload*(bomber?.42:.12)+radio*.05+exp*.08);
+  const digital=platformElectronicsFrontier(region,MILITARY_PLATFORM.AIRCRAFT,{radarCapability:radarKnowledge?radar:0,fireControlBase:clamp(weapons*.18+radio*.12)});
+  const firepower=clamp(weapons*(bomber?.30:.72)+payload*(bomber?.42:.12)+radio*.05+exp*.08+digital.fireControlGain*.10);
   const reliability=clamp(engine*.32+airframe*.22+wing*.14+precision*.14+exp*.18);
-  const detectionAndNavigation=clamp(radio*.46+(radarKnowledge?radar*.38:0)+exp*.10+precision*.06);
-  // Lower is harder to detect. Pre-digital shaping/size choices matter, but there is no modern RAM/computer optimisation.
+  const detectionAndNavigation=clamp(radio*.46+(radarKnowledge?radar*.38:0)+exp*.10+precision*.06+digital.sensorGain*.14);
   const rawSignature=(bomber?.72:.42)+payload*.18+structural*.06;
-  const signatureReduction=(radarKnowledge?airframe*.06+wing*.07+exp*.04:airframe*.015+wing*.02);
+  const signatureReduction=(radarKnowledge?airframe*.06+wing*.07+exp*.04:airframe*.015+wing*.02)+(digital.capabilities.sensorFusion?.025:0);
   const radarSignature=clamp(rawSignature-signatureReduction,.18,1);
-  return {family,enginePower,airframe:structural,wingDesign:aerodynamics,weapons:weapons,payload,speed,range,manoeuvrability,reliability,firepower,radioNavigation:radio,radarCapability:radarKnowledge?radar:0,radarSignature,integration:exp,propulsion:jet?'jet':'piston'};
+  return {family,enginePower,airframe:structural,wingDesign:aerodynamics,weapons:weapons,payload,speed,range,manoeuvrability,reliability,firepower,radioNavigation:radio,radarCapability:radarKnowledge?radar:0,radarSignature,detectionAndNavigation,onboardPower:digital.power,computationalPower:digital.compute,electronicCapabilities:digital.capabilities,systemInputs:digital.systemInputs,integration:exp,propulsion:jet?'jet':'piston'};
 }
 
 export function equipmentDesignFrontier(region,family,{kind=null}={}){
@@ -112,17 +127,12 @@ export function equipmentDesignFrontier(region,family,{kind=null}={}){
   return null;
 }
 
-// A frontier is knowledge/capability. A Mark is a deliberate standardisation decision.
-// This function snapshots whatever the country can actually build at that moment;
-// it deliberately does not require the new model to dominate the old one.
 export function authoriseEquipmentMark(region,family,{kind=null,tick=0,reason='new_production_standard',authorisedBy='player'}={}){
   const frontier=equipmentDesignFrontier(region,family,{kind});
   if(!frontier)return null;
   return createEquipmentDesign(region,family,frontier,{reason,tick,authorisedBy});
 }
 
-// Backwards compatibility and first production run only. Capability growth by itself
-// never creates Mk II+; later Marks require authoriseEquipmentMark / factory tooling.
 export function ensureCurrentArmouredVehicleDesign(region,family=EQUIPMENT_FAMILIES.TANK,tick=0){
   return currentEquipmentDesign(region,family)||authoriseEquipmentMark(region,family,{tick,reason:'first_standard_design',authorisedBy:'initial_standard'});
 }
@@ -136,13 +146,13 @@ export function ensureCurrentAircraftDesign(region,family=EQUIPMENT_FAMILIES.FIG
   return currentEquipmentDesign(region,family)||authoriseEquipmentMark(region,family,{tick,reason:'first_standard_design',authorisedBy:'initial_standard'});
 }
 
-function aircraftScore(s){return (s.speed||0)*.18+(s.range||0)*.13+(s.manouevrability||s.manoeuvrability||0)*.18+(s.reliability||0)*.13+(s.firepower||0)*.16+(s.payload||0)*.12+(s.radarCapability||0)*.06+(1-(s.radarSignature??1))*.04;}
+function aircraftScore(s){return (s.speed||0)*.18+(s.range||0)*.13+(s.manouevrability||s.manoeuvrability||0)*.18+(s.reliability||0)*.13+(s.firepower||0)*.16+(s.payload||0)*.12+(s.radarCapability||0)*.06+(1-(s.radarSignature??1))*.04+(s.computationalPower||0)*.03;}
 
 export function equipmentFrontierImprovement(region,family,{kind=null}={}){
   const frontier=equipmentDesignFrontier(region,family,{kind}),current=currentEquipmentDesign(region,family);
   if(!frontier)return 0;if(!current)return 1;
   if(family===EQUIPMENT_FAMILIES.TANK||family===EQUIPMENT_FAMILIES.SELF_PROPELLED_GUN){
-    const score=(s)=>(s.mobility||0)*.22+(s.firepower||0)*.28+(s.protection||0)*.24+(s.reliability||0)*.14+(s.fireControlPotential||0)*.12;
+    const score=(s)=>(s.mobility||0)*.20+(s.firepower||0)*.25+(s.protection||0)*.22+(s.reliability||0)*.13+(s.fireControlPotential||0)*.12+(s.movingFireEffectiveness||0)*.08;
     return (score(frontier)-score(current.stats))/Math.max(.15,score(current.stats));
   }
   if(family===EQUIPMENT_FAMILIES.FIGHTER||family===EQUIPMENT_FAMILIES.BOMBER)return (aircraftScore(frontier)-aircraftScore(current.stats))/Math.max(.15,aircraftScore(current.stats));
