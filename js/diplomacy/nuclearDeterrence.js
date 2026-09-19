@@ -1,6 +1,7 @@
 import { estimateForeignNuclearWeaponCapability, nuclearDeterrentStatus } from '../military/nuclearWeaponisation.js?v=20260920-nuclear-deterrence1';
 import { secondStrikeAssessment, strategicForceReadiness } from '../military/strategicDelivery.js?v=20260920-strategic-delivery1';
 import { tickNuclearArmsControl } from './nuclearArmsControl.js?v=20260920-arms-control1';
+import { estimateExtendedDeterrenceForAttack, tickAlliedNuclearDeployments } from './nuclearAlliedDeployments.js?v=20260920-nuclear-alliance1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const actorId=(r)=>r?.governance?.sovereignPolityId||r?.controllingActorId||r?.id||null;
@@ -68,8 +69,10 @@ export function estimateRedLineRisk(observer,target,action={}){
   const capability=estimate.assessment==='nuclear_capability_demonstrated'?1:estimate.assessment==='probable_nuclear_test'?.82:estimate.assessment==='untested_device_probable'?.62:estimate.assessment==='weaponisation_programme_suspected'?.28:0;
   const survivabilitySignal=clamp(.35+secondStrike.retaliationConfidence*.65*estimate.confidence);
   const deniability=clamp(action.deniability??0),reversible=clamp(action.reversible??0);
-  const perceivedRisk=clamp((best?.score||.03)*(.28+.72*capability)*survivabilitySignal*(1-deniability*.34)*(1-reversible*.22));
-  return {perceivedRisk,capabilityConfidence:estimate.confidence,estimatedRetaliationConfidence:clamp(secondStrike.retaliationConfidence*estimate.confidence),matchedRedLineId:best?.line.id||null,publicRedLine:Boolean(best),salamiOpportunity:clamp((1-perceivedRisk)*(.45+.35*deniability+.20*reversible))};
+  const ownPerceivedRisk=clamp((best?.score||.03)*(.28+.72*capability)*survivabilitySignal*(1-deniability*.34)*(1-reversible*.22));
+  const allied=estimateExtendedDeterrenceForAttack(observer,target,action);
+  const perceivedRisk=Math.max(ownPerceivedRisk,allied.perceivedRisk||0);
+  return {perceivedRisk,ownPerceivedRisk,alliedDeterrenceRisk:allied.perceivedRisk||0,alliedProviderActorId:allied.providerActorId||null,capabilityConfidence:estimate.confidence,estimatedRetaliationConfidence:clamp(secondStrike.retaliationConfidence*estimate.confidence),matchedRedLineId:best?.line.id||null,publicRedLine:Boolean(best),salamiOpportunity:clamp((1-perceivedRisk)*(.45+.35*deniability+.20*reversible))};
 }
 
 export function actualRedLineCrossing(defender,action={}){
@@ -129,6 +132,7 @@ export function nuclearTriadReadiness(region,{fleets=[]}={}){
 export function tickNuclearDeterrence(regions,currentTick,elapsedDays=7){
   const events=[];
   for(const r of regions||[]){ensureNuclearDeterrence(r);coolNuclearCrises(r,elapsedDays);}
+  events.push(...tickAlliedNuclearDeployments(regions,currentTick,elapsedDays));
   events.push(...tickNuclearArmsControl(regions,currentTick,elapsedDays));
   return events;
 }

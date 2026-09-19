@@ -89,7 +89,7 @@ function observedRivalPressure(region,rivals=[]){
 export function npcStrategicArmsDecision(region,{rivals=[],currentTick=null}={}){
   const arms=ensureNuclearArmsControl(region),delivery=ensureStrategicDelivery(region),weapons=ensureNuclearWeaponState(region),constraints=nuclearTreatyConstraints(region);
   const threat=observedRivalPressure(region,rivals),own=secondStrikeAssessment(region,{fleets:region.fleets||[]});
-  const assurance=constraints.securityAssurance;
+  const assurance=clamp(Math.max(constraints.securityAssurance,region.nuclearAlliance?.extendedDeterrenceAssurance||0));
   const effectiveThreat=clamp(threat*(1-assurance*.55));
   const riskTolerance=clamp(region.nuclearDeterrence?.riskTolerance??.28);
   let desired=STRATEGIC_POSTURES.MINIMAL;
