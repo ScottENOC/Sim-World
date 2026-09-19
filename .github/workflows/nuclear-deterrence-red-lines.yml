@@ -6,6 +6,7 @@ on:
     paths:
       - 'js/diplomacy/nuclearDeterrence.js'
       - 'js/military/aviation.js'
+      - 'js/military/qualifiedPersonnel.js'
       - 'js/technology/breakthroughs.js'
       - 'tools/apply-nuclear-deterrence-red-lines.py'
       - 'tools/test-nuclear-deterrence.mjs'
@@ -14,6 +15,7 @@ on:
     paths:
       - 'js/diplomacy/nuclearDeterrence.js'
       - 'js/military/aviation.js'
+      - 'js/military/qualifiedPersonnel.js'
       - 'js/technology/breakthroughs.js'
       - 'tools/test-nuclear-deterrence.mjs'
       - '.github/workflows/nuclear-deterrence-red-lines.yml'
@@ -43,6 +45,7 @@ jobs:
         run: |
           node --check js/diplomacy/nuclearDeterrence.js
           node --check js/military/aviation.js
+          node --check js/military/qualifiedPersonnel.js
           node --check js/technology/breakthroughs.js
       - name: Deterrence and compatibility regressions
         run: |
@@ -57,7 +60,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add js/military/aviation.js js/technology/breakthroughs.js
+          git add js/military/aviation.js js/military/qualifiedPersonnel.js js/technology/breakthroughs.js
           if ! git diff --cached --quiet; then
             git commit -m "Integrate nuclear deterrence and aerial refuelling"
             git push origin HEAD:feature/nuclear-deterrence-red-lines
