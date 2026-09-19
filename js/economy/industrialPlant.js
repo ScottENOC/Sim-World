@@ -1,7 +1,8 @@
 import {
   EQUIPMENT_FAMILIES, authoriseEquipmentMark, currentEquipmentDesign, equipmentDesignById,
-  equipmentFrontierImprovement, equipmentSupportBurden, ensureCurrentAircraftDesign, ensureCurrentArmouredVehicleDesign, ensureCurrentArtilleryDesign,
-} from '../military/equipmentGenerations.js?v=20260919-aircraft-industry1';
+  equipmentFrontierImprovement, equipmentSupportBurden, ensureCurrentArmouredVehicleDesign, ensureCurrentArtilleryDesign,
+  ensureCurrentAircraftDesign,
+} from '../military/equipmentGenerations.js?v=20260919-aircraft-industry2';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
@@ -18,9 +19,9 @@ export const PRODUCT_RECIPES=Object.freeze({
   towed_artillery:{kind:'assembly',components:{gun_system:1,wheeled_chassis:.45,optics:.20,hull_fabrication:.20,electronics:.04}},
   self_propelled_gun:{kind:'assembly',components:{engine:1,transmission:1,tracked_running_gear:1,gun_system:1,armour_plate:.65,optics:.35,electronics:.12,hull_fabrication:.8}},
   tank:{kind:'assembly',components:{engine:1,transmission:1,tracked_running_gear:1,gun_system:.85,armour_plate:1,optics:.45,electronics:.18,hull_fabrication:1}},
-  fighter:{kind:'assembly',components:{aircraft_engine:1,airframe:.9,wing_design:1,aircraft_weapon:.75,radio_navigation:.34,radar_set:.12,optics:.18}},
-  bomber:{kind:'assembly',components:{aircraft_engine:1.6,airframe:1.45,wing_design:1.35,aircraft_weapon:.45,radio_navigation:.55,radar_set:.28,optics:.12}},
-  transport_aircraft:{kind:'assembly',components:{aircraft_engine:1.35,airframe:1.35,wing_design:1.25,radio_navigation:.48,radar_set:.08}},
+  fighter:{kind:'assembly',components:{aircraft_engine:1,airframe:.82,wing_design:.92,aircraft_weapon:.70,radio_navigation:.30,radar_set:.08,optics:.12,electronics:.14}},
+  bomber:{kind:'assembly',components:{aircraft_engine:1.25,airframe:1.15,wing_design:1.05,aircraft_weapon:.36,radio_navigation:.50,radar_set:.12,optics:.16,electronics:.18}},
+  transport_aircraft:{kind:'assembly',components:{aircraft_engine:1.15,airframe:1.20,wing_design:1.10,radio_navigation:.46,radar_set:.06,optics:.08,electronics:.16}},
 });
 
 const COMPONENT_INPUTS=Object.freeze({
@@ -28,8 +29,9 @@ const COMPONENT_INPUTS=Object.freeze({
   tracked_running_gear:{steel:1.1,machine_components:.28}, wheeled_chassis:{steel:.55,machine_components:.22},
   gun_system:{steel:1.0,machine_components:.42}, armour_plate:{steel:1.25}, optics:{machine_components:.18},
   electronics:{machine_components:.22}, hull_fabrication:{steel:.8},
-  aircraft_engine:{steel:.62,machine_components:.92}, airframe:{steel:.42,machine_components:.32}, wing_design:{steel:.28,machine_components:.36},
-  aircraft_weapon:{steel:.48,machine_components:.38}, radio_navigation:{machine_components:.42}, radar_set:{machine_components:.72},
+  aircraft_engine:{steel:.55,machine_components:.85}, airframe:{steel:.42,machine_components:.30},
+  wing_design:{steel:.18,machine_components:.34}, aircraft_weapon:{steel:.42,machine_components:.38},
+  radio_navigation:{machine_components:.34}, radar_set:{steel:.14,machine_components:.62},
 });
 
 function hasTech(region,id){return Boolean(region.unlockedTechIds?.has?.(id));}
@@ -77,7 +79,7 @@ export function addProductionLine(region,{productId=null,capacityShare=1}={}){
   s.lines.push(line);return line;
 }
 
-function productSimilarity(a,b){
+export function productionSimilarity(a,b){
   if(!a||!b)return 0; if(a===b)return 1;
   const ra=PRODUCT_RECIPES[a]?.components,rb=PRODUCT_RECIPES[b]?.components;
   if(!ra||!rb){if(String(a).startsWith('component:')&&String(b).startsWith('component:'))return .45;return .15;}
@@ -85,14 +87,12 @@ function productSimilarity(a,b){
   for(const k of keys){shared+=Math.min(ra[k]||0,rb[k]||0);total+=Math.max(ra[k]||0,rb[k]||0);}return total?shared/total:0;
 }
 
-export function productionSimilarity(a,b){return productSimilarity(a,b);}
-
 export function retoolProductionLine(region,lineId,newProductId){
   const s=ensureIndustrialPlantState(region),line=s.lines.find(l=>l.id===lineId);if(!line)throw new Error(`Unknown production line ${lineId}`);
-  const oldProductId=line.productId,similarity=productSimilarity(oldProductId,newProductId),oldExperience=clamp(s.productExperience[oldProductId]||0);
-  line.previousProductId=oldProductId;line.productId=newProductId;
-  // Closely related production transfers jigs, supplier knowledge and integration practice as well as reducing downtime.
-  s.productExperience[newProductId]=Math.max(clamp(s.productExperience[newProductId]||0),oldExperience*similarity*.70);
+  const oldProduct=line.productId,similarity=productionSimilarity(oldProduct,newProductId);
+  const relatedExperience=clamp(s.productExperience[oldProduct]||0)*similarity*.65;
+  line.previousProductId=oldProduct;line.productId=newProductId;
+  s.productExperience[newProductId]=Math.max(s.productExperience[newProductId]||0,relatedExperience);
   line.toolingFit=clamp(.25+similarity*.7);line.retoolWeeksRemaining=Math.ceil((1-similarity)*26);line.status='retooling';line.idleWeeks=0;line.approvedDesignId=null;line.pendingDesignId=null;return line;
 }
 
@@ -102,7 +102,8 @@ export function quoteProductionMarkUpgrade(region,lineId){
   if(!factoryAssets(region).length)return {available:false,reason:'no_operational_factory'};
   if((line.retoolWeeksRemaining||0)>0)return {available:false,reason:'line_already_retooling'};
   const current=currentEquipmentDesign(region,family),nextSequence=(current?.sequence||0)+1;
-  return {available:true,family,nextSequence,machineComponents:6+nextSequence*4,steel:10+nextSequence*6,treasury:12+nextSequence*8,downtimeWeeks:Math.min(26,5+nextSequence*2)};
+  const aircraft=family===EQUIPMENT_FAMILIES.FIGHTER||family===EQUIPMENT_FAMILIES.BOMBER;
+  return {available:true,family,nextSequence,machineComponents:(aircraft?9:6)+nextSequence*(aircraft?5:4),steel:(aircraft?8:10)+nextSequence*(aircraft?4:6),treasury:(aircraft?16:12)+nextSequence*(aircraft?10:8),downtimeWeeks:Math.min(30,(aircraft?7:5)+nextSequence*2)};
 }
 
 export function authoriseProductionMark(region,lineId,{tick=0,authorisedBy='player'}={}){
@@ -166,13 +167,31 @@ function assemble(region,productId,requested,line=null){
   const s=ensureIndustrialPlantState(region),recipe=PRODUCT_RECIPES[productId]?.components||{};let actual=requested;
   for(const [c,per] of Object.entries(recipe))actual=Math.min(actual,(s.componentInventory[c]||0)/Math.max(.0001,per));actual=Math.max(0,actual);
   for(const [c,per] of Object.entries(recipe))s.componentInventory[c]=Math.max(0,(s.componentInventory[c]||0)-per*actual);
-  region.industrialSupply||={};region.industrialSupply.inventory||={};region.industrialSupply.inventory[productId]=(region.industrialSupply.inventory[productId]||0)+actual;
+  region.industrialSupply||={};region.industrialSupply.inventory||={};region.industrialSupply.inventoryByDesign||={};
+  region.industrialSupply.inventory[productId]=(region.industrialSupply.inventory[productId]||0)+actual;
   if(actual>0&&equipmentFamilyForProduct(productId)){
     let design=line?.approvedDesignId?equipmentDesignById(region,line.approvedDesignId):null;
     if(!design){design=initialDesignForProduct(region,productId);if(line)line.approvedDesignId=design?.id||null;}
-    if(design){region.militaryEquipment.inventoryByDesign[design.id]=(region.militaryEquipment.inventoryByDesign[design.id]||0)+actual;}
+    if(design){
+      region.militaryEquipment.inventoryByDesign[design.id]=(region.militaryEquipment.inventoryByDesign[design.id]||0)+actual;
+      region.industrialSupply.inventoryByDesign[design.id]=(region.industrialSupply.inventoryByDesign[design.id]||0)+actual;
+    }
   }
   return actual;
+}
+
+export function takeFinishedEquipment(region,productId,amount=1){
+  const family=equipmentFamilyForProduct(productId),need=Math.max(0,amount);if(!family||need<=0)return null;
+  region.industrialSupply||={};region.industrialSupply.inventory||={};region.industrialSupply.inventoryByDesign||={};
+  if((region.industrialSupply.inventory[productId]||0)<need)return null;
+  const designs=Object.entries(region.industrialSupply.inventoryByDesign)
+    .map(([id,qty])=>({design:equipmentDesignById(region,id),qty:Number(qty)||0}))
+    .filter(x=>x.design?.family===family&&x.qty>=need)
+    .sort((a,b)=>(b.design.sequence||0)-(a.design.sequence||0));
+  const chosen=designs[0];if(!chosen)return null;
+  region.industrialSupply.inventory[productId]-=need;region.industrialSupply.inventoryByDesign[chosen.design.id]-=need;
+  if(region.militaryEquipment?.inventoryByDesign?.[chosen.design.id]!=null)region.militaryEquipment.inventoryByDesign[chosen.design.id]=Math.max(0,region.militaryEquipment.inventoryByDesign[chosen.design.id]-need);
+  return chosen.design;
 }
 
 function serviceModelDiversity(region,weeks){
