@@ -1,0 +1,51 @@
+name: Early rocketry validation
+
+on:
+  push:
+    branches: [feature/early-rocket-artillery]
+    paths:
+      - 'js/military/earlyRocketry.js'
+      - 'tools/apply-early-rocketry.py'
+      - 'tools/test-early-rocketry.mjs'
+      - '.github/workflows/early-rocketry.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/early-rocket-artillery
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply early rocketry integration
+        run: python tools/apply-early-rocketry.py
+      - name: Syntax checks
+        run: |
+          node --check js/military/earlyRocketry.js
+          node --check js/military/modernLandWarfare.js
+          node --check js/military/equipmentGenerations.js
+      - name: Rocket artillery regressions
+        run: |
+          node tools/test-early-rocketry.mjs
+          node tools/test-artillery-fire-control.mjs
+          node tools/test-modern-land-warfare.mjs
+          node tools/test-equipment-generations.mjs
+      - name: Commit integrated source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/military/modernLandWarfare.js js/military/equipmentGenerations.js
+          if ! git diff --cached --quiet; then
+            git commit -m "Integrate early rocket artillery progression"
+            git push origin HEAD:feature/early-rocket-artillery
+          fi
