@@ -27,7 +27,8 @@ import { skillMultiplier, LEARNABLE_ACTIVITIES } from './technology/learningByDo
 import { tickBreakthroughs, IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID, CATAPULT_TECH_ID } from './technology/breakthroughs.js?v=20260912-medieval1';
 import { tickGunpowderIndustry } from './military/firearms.js?v=20260912-gunpowder1';
 import { tickIndustrialWarEconomy } from './economy/industrialWarEconomy.js?v=20260918-industrial-war1';
-import { tickAviation, syncNextAircraftId, buildAircraft, assignAircraftMission, rebaseAircraft, aviationSummary } from './military/aviation.js?v=20260918-aviation1';
+import { tickAviation, syncNextAircraftId, buildAircraft, assignAircraftMission, rebaseAircraft, aviationSummary } from './military/aviation.js?v=20260919-carriers1';
+import { embarkAircraftOnCarrier, disembarkAircraftFromCarrier, assignCarrierAircraftMission, carrierAirWingSummary, fleetAviationFuelCapacity } from './military/carrierAviation.js?v=20260919-carriers1';
 import { tickEarlyModernIndustry, tickIrregularTechnology } from './military/earlyModernWarfare.js?v=20260913-early-modern1';
 import { MapRenderer } from './ui/mapRenderer.js?v=20260904-war1';
 import { AdvisorCouncil } from './ui/advisors.js?v=20260905-projects1';
@@ -718,8 +719,8 @@ async function main() {
     get activeWars() { return activeWars; },
     get fleets() { return fleets; },
     get activePlayerPolityId() { return activePlayerPolityId; },
-    fleetApi: { deployFleet, dockFleet, orderFleetHome, orderFleetToSea, setFleetFlag, setFleetMission, syncRegionalNavyLedger, navalDesignClassOptions, navalDesignMaterialOptions, previewNavalDesign, quoteNavalMarkUpgrade, authoriseNavalMark, currentNavalDesign },
-    aviationApi: { buildAircraft, assignAircraftMission, rebaseAircraft, aviationSummary },
+    fleetApi: { deployFleet, dockFleet, orderFleetHome, orderFleetToSea, setFleetFlag, setFleetMission, syncRegionalNavyLedger, authoriseNavalMark, currentNavalDesign, navalDesignClassOptions, navalDesignMaterialOptions, previewNavalDesign, quoteNavalMarkUpgrade },
+    aviationApi: { buildAircraft, assignAircraftMission, rebaseAircraft, aviationSummary, embarkAircraftOnCarrier, disembarkAircraftFromCarrier, assignCarrierAircraftMission, carrierAirWingSummary, fleetAviationFuelCapacity },
     financialDiplomacyApi: { setBondPolicy, dumpSovereignBonds, setSettlementCurrencyPolicy },
     warSocietyApi: { setWarInformationPolicy, warSocietySummary },
     internationalOrganisationApi: { proposeInternationalOrganisation, submitInternationalMotion, internationalOrganisationSummary, worldInstitutionReadiness },

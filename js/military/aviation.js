@@ -17,6 +17,8 @@ export const AERIAL_BOMBING_TECH_ID='aerial_bombing';
 export const TRANSPORT_AIRCRAFT_TECH_ID='transport_aircraft';
 export const RADAR_TECH_ID='radar';
 export const JET_PROPULSION_TECH_ID='jet_propulsion';
+export const NAVAL_AVIATION_TECH_ID='naval_aviation';
+export const AIRCRAFT_CARRIER_TECH_ID='aircraft_carrier';
 
 export const AIR_MISSIONS=Object.freeze({IDLE:'idle',SCOUT:'scout',INTERCEPT:'intercept',ATTACK:'attack',COURIER:'courier',TRANSPORT:'transport',REBASE:'rebase'});
 
@@ -59,6 +61,15 @@ export function tickAviationBreakthroughs(regions,currentTick,rng=Math.random,el
     }
     if(has(region,POWERED_FLIGHT_TECH_ID)&&!has(region,MILITARY_AVIATION_TECH_ID)&&a.aircraft.length){
       const annual=clamp(.01+Math.min(.08,a.flightExperience/5000)+connectedSources(region,byId,MILITARY_AVIATION_TECH_ID)*.02,0,.18); if(rng()<1-Math.pow(1-annual,years)){region.unlockedTechIds.add(MILITARY_AVIATION_TECH_ID);events.push({type:'aviation_breakthrough',techId:MILITARY_AVIATION_TECH_ID,regionId:region.id,title:'Military aviation organisation'});}
+    }
+    if(has(region,MILITARY_AVIATION_TECH_ID)&&has(region,'steel_hull_shipbuilding')&&!has(region,NAVAL_AVIATION_TECH_ID)&&operationalInfrastructure(region,'shipyard')&&a.flightExperience>45){
+      const navalPractice=clamp(Math.min(1,(region.navalAviationExperience||0)/180)*.30+practice*.45+marine*.25);
+      const annual=clamp(.003+navalPractice*.025+connectedSources(region,byId,NAVAL_AVIATION_TECH_ID)*.025,0,.16);
+      if(rng()<1-Math.pow(1-annual,years)){region.unlockedTechIds.add(NAVAL_AVIATION_TECH_ID);events.push({type:'aviation_breakthrough',techId:NAVAL_AVIATION_TECH_ID,regionId:region.id,title:'Naval aviation'});}
+    }
+    if(has(region,NAVAL_AVIATION_TECH_ID)&&has(region,'dreadnought_design')&&!has(region,AIRCRAFT_CARRIER_TECH_ID)&&industry>.52&&a.flightExperience>90){
+      const annual=clamp(.002+industry*.016+practice*.012+Math.min(1,(region.navalAviationExperience||0)/250)*.025+connectedSources(region,byId,AIRCRAFT_CARRIER_TECH_ID)*.025,0,.13);
+      if(rng()<1-Math.pow(1-annual,years)){region.unlockedTechIds.add(AIRCRAFT_CARRIER_TECH_ID);events.push({type:'aviation_breakthrough',techId:AIRCRAFT_CARRIER_TECH_ID,regionId:region.id,title:'Purpose-built aircraft carrier'});}
     }
     if(has(region,MILITARY_AVIATION_TECH_ID)&&!has(region,RADAR_TECH_ID)&&electricity>.34&&radio>.24&&optics>.20){
       const annual=clamp(.003+electricity*.012+radio*.018+optics*.010+connectedSources(region,byId,RADAR_TECH_ID)*.025,0,.14);
@@ -162,6 +173,7 @@ export function tickAviation(regions,currentTick,elapsedDays=7,rng=Math.random,o
         const need=Math.max(0,1-(a.fuel||0)); const available=Math.max(0,region.stockpile?.aviation_fuel||0); const take=Math.min(need,available);
         if(take>0){region.stockpile.aviation_fuel-=take;a.fuel=clamp((a.fuel||0)+take);if(a.status==='grounded'&&a.fuel>.12)a.status='serviceable';}
       }
+      if(a.baseType==='carrier')continue;
       if(a.status==='destroyed'||a.mission===AIR_MISSIONS.IDLE||a.mission===AIR_MISSIONS.COURIER)continue;
       const target=byId.get(a.targetRegionId)||region,need=missionFuel(a.mission,a); if((a.fuel||0)<need){a.status='grounded';events.push({type:'aircraft_grounded_no_fuel',aircraftId:a.id,regionId:region.id});continue;}
       const fuelStock=region.stockpile?.aviation_fuel||0;if(fuelStock<need){a.status='grounded';events.push({type:'aircraft_grounded_no_fuel',aircraftId:a.id,regionId:region.id});continue;}
