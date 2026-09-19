@@ -3,6 +3,7 @@ import {
   equipmentFrontierImprovement, equipmentSupportBurden, ensureCurrentArmouredVehicleDesign, ensureCurrentArtilleryDesign,
   ensureCurrentAircraftDesign,
 } from '../military/equipmentGenerations.js?v=20260919-aircraft-industry2';
+import { productionAmountForSystemInputs, consumeSystemInputs } from '../military/militaryElectronics.js?v=20260919-base-power2';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
@@ -165,17 +166,18 @@ function initialDesignForProduct(region,productId){
 
 function assemble(region,productId,requested,line=null){
   const s=ensureIndustrialPlantState(region),recipe=PRODUCT_RECIPES[productId]?.components||{};let actual=requested;
-  for(const [c,per] of Object.entries(recipe))actual=Math.min(actual,(s.componentInventory[c]||0)/Math.max(.0001,per));actual=Math.max(0,actual);
+  const family=equipmentFamilyForProduct(productId);let design=null;
+  if(family){design=line?.approvedDesignId?equipmentDesignById(region,line.approvedDesignId):null;if(!design){design=initialDesignForProduct(region,productId);if(line)line.approvedDesignId=design?.id||null;}}
+  for(const [c,per] of Object.entries(recipe))actual=Math.min(actual,(s.componentInventory[c]||0)/Math.max(.0001,per));
+  region.stockpile||={};if(design?.stats?.systemInputs)actual=productionAmountForSystemInputs(region.stockpile,design.stats.systemInputs,actual);
+  actual=Math.max(0,actual);
   for(const [c,per] of Object.entries(recipe))s.componentInventory[c]=Math.max(0,(s.componentInventory[c]||0)-per*actual);
+  if(design?.stats?.systemInputs)consumeSystemInputs(region.stockpile,design.stats.systemInputs,actual);
   region.industrialSupply||={};region.industrialSupply.inventory||={};region.industrialSupply.inventoryByDesign||={};
   region.industrialSupply.inventory[productId]=(region.industrialSupply.inventory[productId]||0)+actual;
-  if(actual>0&&equipmentFamilyForProduct(productId)){
-    let design=line?.approvedDesignId?equipmentDesignById(region,line.approvedDesignId):null;
-    if(!design){design=initialDesignForProduct(region,productId);if(line)line.approvedDesignId=design?.id||null;}
-    if(design){
-      region.militaryEquipment.inventoryByDesign[design.id]=(region.militaryEquipment.inventoryByDesign[design.id]||0)+actual;
-      region.industrialSupply.inventoryByDesign[design.id]=(region.industrialSupply.inventoryByDesign[design.id]||0)+actual;
-    }
+  if(actual>0&&design){
+    region.militaryEquipment.inventoryByDesign[design.id]=(region.militaryEquipment.inventoryByDesign[design.id]||0)+actual;
+    region.industrialSupply.inventoryByDesign[design.id]=(region.industrialSupply.inventoryByDesign[design.id]||0)+actual;
   }
   return actual;
 }
@@ -230,12 +232,12 @@ export function tickIndustrialPlants(region,elapsedDays=7){
   for(const line of active){
     if(line.retoolWeeksRemaining>0){line.retoolWeeksRemaining=Math.max(0,line.retoolWeeksRemaining-weeks);if(line.retoolWeeksRemaining<=0&&line.pendingDesignId){line.approvedDesignId=line.pendingDesignId;line.pendingDesignId=null;}line.status=line.retoolWeeksRemaining>0?'retooling':'active';line.lastOutput=0;continue;}
     const demand=Math.max(0,Number(orders[line.productId])||0);if(!line.productId||demand<=0){line.idleWeeks+=weeks;line.lastOutput=0;line.status=line.idleWeeks>=104?'mothballed':'idle';if(line.idleWeeks>=260){line.productId=null;line.toolingFit=0;line.approvedDesignId=null;}continue;}
-    line.idleWeeks=0;line.status='active';const cap=factoryCapacity*(line.capacityShare/shares)*clamp(line.toolingFit||1,.2,1)*weeks;
+    line.idleWeeks=0;line.status='active';const cap=baseFactoryCapacity(region)*(line.capacityShare/shares)*clamp(line.toolingFit||1,.2,1)*weeks;
     const requested=Math.min(demand,cap);const output=String(line.productId).startsWith('component:')?produceComponent(region,String(line.productId).slice(10),requested):assemble(region,line.productId,requested,line);
     line.lastOutput=output;orders[line.productId]=Math.max(0,demand-output);if(PRODUCT_RECIPES[line.productId])learnComponents(region,line.productId,output,cap);
     line.toolingFit=clamp((line.toolingFit||.25)+.003*clamp(output/Math.max(1,cap))*(1-(line.toolingFit||.25)));
   }
-  considerNpcModelReviews(region,weeks);s.factoryCapacity=factoryCapacity;return s;
+  considerNpcModelReviews(region,weeks);s.factoryCapacity=baseFactoryCapacity(region);return s;
 }
 
 export function strategicIndustrialCapacity(region){
