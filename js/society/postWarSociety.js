@@ -166,7 +166,8 @@ export function tickPostWarSociety(polities, regions, currentTick = 0, elapsedDa
 
     const queueShare = clamp(state.reintegrationQueue / workingAge * 5);
     const supportGap = 1 - effectiveHelp;
-    const stressTarget = clamp(queueShare * 0.38 + signals.unemployment * 0.22 + signals.housingStress * 0.16 + signals.hardship * 0.14 + state.mobilisationMemory * 0.10);
+    const traumaBurden = clamp(polity.warSociety?.combatTraumaBurden || 0);
+    const stressTarget = clamp(queueShare * 0.34 + signals.unemployment * 0.20 + signals.housingStress * 0.14 + signals.hardship * 0.12 + state.mobilisationMemory * 0.08 + traumaBurden * 0.12);
     state.reintegrationStress = smooth(state.reintegrationStress, stressTarget * (0.72 + supportGap * 0.28), elapsedDays, 1.35);
     state.politicalPressure = clamp(state.reintegrationStress * 0.58 + state.mobilisationMemory * 0.24 + queueShare * 0.18 - effectiveHelp * 0.22);
 
