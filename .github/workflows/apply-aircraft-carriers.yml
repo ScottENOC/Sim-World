@@ -1,0 +1,61 @@
+name: Apply aircraft carrier integration
+
+on:
+  push:
+    branches: [feature/conventional-aircraft-carriers]
+    paths:
+      - 'tools/apply-aircraft-carriers.py'
+      - 'tools/test-aircraft-carriers.mjs'
+      - 'js/military/carrierAviation.js'
+      - 'js/ui/carrierAviationUi.js'
+      - '.github/workflows/apply-aircraft-carriers.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/conventional-aircraft-carriers
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply carrier integration
+        run: python tools/apply-aircraft-carriers.py
+      - name: Syntax checks
+        run: |
+          node --check js/military/carrierAviation.js
+          node --check js/military/aviation.js
+          node --check js/military/fleets.js
+          node --check js/economy/construction.js
+          node --check js/economy/laborCore.js
+          node --check js/ui/carrierAviationUi.js
+          node --check js/ui/navalDesignUi.js
+          node --check js/main.js
+      - name: Carrier regressions
+        run: |
+          node tools/test-aircraft-carriers.mjs
+          node tools/test-naval-light-metal-designs.mjs
+          node tools/test-late-industrial-navy.mjs
+          node tools/test-naval-procurement.mjs
+          node tools/test-fleet-ship-progression.mjs
+          node tools/test-persistent-fleets.mjs
+          node tools/test-aircraft-industry.mjs
+          node tools/test-early-aviation.mjs
+      - name: Commit integrated source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/military/aviation.js js/military/fleets.js js/economy/construction.js js/economy/laborCore.js js/ui/navalDesignUi.js js/main.js index.html
+          if ! git diff --cached --quiet; then
+            git commit -m "Integrate conventional aircraft carriers"
+            git push origin HEAD:feature/conventional-aircraft-carriers
+          fi
