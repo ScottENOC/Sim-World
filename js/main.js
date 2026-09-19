@@ -87,6 +87,10 @@ import { massPoliticsSummary, setMassPoliticsPolicy, tickMassPolitics } from './
 import { renderMassPoliticsControls } from './ui/massPoliticsUi.js?v=20260918-mass-politics1';
 import { postWarSocietySummary, setVeteranSupportPolicy, tickPostWarSociety } from './society/postWarSociety.js?v=20260918-postwar1';
 import { renderPostWarSocietyControls } from './ui/postWarSocietyUi.js?v=20260918-postwar1';
+import { setWarInformationPolicy, tickWarSociety, warSocietySummary } from './society/warSociety.js?v=20260919-war-society1';
+import { renderWarSocietyControls } from './ui/warSocietyUi.js?v=20260919-war-society1';
+import { internationalOrganisationSummary, proposeInternationalOrganisation, submitInternationalMotion, syncNextInternationalOrganisationIds, tickInternationalOrganisations, worldInstitutionReadiness } from './diplomacy/internationalOrganisations.js?v=20260919-global-institutions1';
+import { renderInternationalOrganisationControls } from './ui/internationalOrganisationsUi.js?v=20260919-global-institutions1';
 import { resolvePlayerJointOperationAdvice, tickPlayerJointOperationAdvisor } from './military/playerJointOperationAdvisor.js?v=20260909-joint-player1';
 import { CAMPAIGN_ORDERS, issueCampaignOrder, marshalCampaignAssessment, tickCampaignCommandAdvisor } from './military/campaignCommand.js?v=20260909-command1';
 import { WAR_STANCES, participantInWar, setEnemyPriority, setWarStance, syncNextWarId, syncWarTheatres } from './military/warTheatres.js?v=20260908-war1';
@@ -163,6 +167,7 @@ async function main() {
   let fleets = initialiseFleets(regions);
   const agreements = [];
   const eventQueue = [];
+  const internationalOrganisations = [];
   let council;
   let localRegionView = null;
   const addRegionZoomButton = (region) => {
@@ -265,7 +270,7 @@ async function main() {
   const loadSavedGame = () => {
     const snapshot = readSave();
     if (!snapshot) throw new Error('No saved game was found.');
-    const restored = restoreGameSnapshot(snapshot, { regions, seaRegions, polities, religiousWorld, agreements, activeRaids, activeCampaigns, activeWars, fleets, clock, fogOfWar });
+    const restored = restoreGameSnapshot(snapshot, { regions, seaRegions, polities, religiousWorld, agreements, activeRaids, activeCampaigns, activeWars, fleets, internationalOrganisations, clock, fogOfWar });
     if (!restored.fleetsRestored) fleets.splice(0, fleets.length, ...initialiseFleets(regions, []));
     playerRegionId = restored.playerRegionId;
     activePlayerPolityId = restored.playerPolityId || regionsById.get(playerRegionId)?.polityId || null;
@@ -274,6 +279,7 @@ async function main() {
     syncNextCampaignId(activeCampaigns);
     syncNextWarId(activeWars);
     syncNextFleetIds(fleets);
+    syncNextInternationalOrganisationIds(internationalOrganisations);
     syncRegionalNavyLedger(regions, fleets);
     syncNextDiplomaticMessageId(regions);
     syncNextAircraftId(regions);
@@ -312,6 +318,7 @@ async function main() {
     polities,
     religiousWorld,
     agreements,
+    internationalOrganisations,
     getActiveRaids: () => activeRaids,
     getActiveCampaigns: () => activeCampaigns,
     getPlayerRegionId: () => playerRegionId,
@@ -443,8 +450,10 @@ async function main() {
     if (playerCapitalForPlan) profiler.measure('Military strategy review', () => reviewMilitaryStrategy(playerCapitalForPlan, { regions, polities, agreements, activeCampaigns, currentTick: calendarWeek }));
     const languagePolicyEvents = profiler.measure('Language policy', () => tickRegionalLanguagePolicies(regions, polities, calendarWeek, time.elapsedDays, { playerPolityId: activePlayerPolityId }));
     const polityEvents = profiler.measure('Polities', () => tickPolities(polities, regions, calendarWeek, time.elapsedDays, { agreements }));
+    const warSocietyEvents = profiler.measure('War and society', () => tickWarSociety(polities, regions, activeWars, calendarWeek, time.elapsedDays, { playerPolityId: activePlayerPolityId }));
     const postWarSocietyEvents = profiler.measure('Post-war society', () => tickPostWarSociety(polities, regions, calendarWeek, time.elapsedDays, { playerPolityId: activePlayerPolityId }));
     const massPoliticsEvents = profiler.measure('Mass politics', () => tickMassPolitics(polities, regions, calendarWeek, time.elapsedDays, { playerPolityId: activePlayerPolityId }));
+    const internationalOrganisationEvents = profiler.measure('International organisations', () => tickInternationalOrganisations({ polities, regions, activeWars, internationalOrganisations }, calendarWeek, time.elapsedDays));
     const internationalMonetaryEvents = profiler.measure('International money', () => tickInternationalMonetarySystem(polities, regions, agreements, time.elapsedDays, calendarWeek));
     const sovereignBondEvents = profiler.measure('Sovereign bond markets', () => tickSovereignBondMarkets(polities, regions, calendarWeek));
     const continuityEvents = profiler.measure('Political continuity', () => tickPoliticalContinuity(polities, regions, time.elapsedDays / 365.2425, calendarWeek, { playerPolityId: activePlayerPolityId }));
@@ -621,8 +630,10 @@ async function main() {
       ...earlyModernReformEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),
       ...oceanicExplorationEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId),
       ...polityEvents.filter((event) => event.regionId === playerRegionId),
+      ...warSocietyEvents.filter((event) => event.playerRelevant),
       ...postWarSocietyEvents.filter((event) => event.playerRelevant),
       ...massPoliticsEvents.filter((event) => event.playerRelevant),
+      ...internationalOrganisationEvents.filter((event) => internationalOrganisations.find((org) => org.id === event.organisationId)?.memberPolityIds?.includes?.(activePlayerPolityId)),
       ...internationalMonetaryEvents.filter((event) => event.polityId === activePlayerPolityId || event.anchorPolityId === activePlayerPolityId || event.members?.includes?.(activePlayerPolityId)),
       ...sovereignBondEvents.filter((event) => event.polityId === activePlayerPolityId || event.issuerPolityId === activePlayerPolityId || event.holderPolityId === activePlayerPolityId),
       ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),
@@ -710,6 +721,9 @@ async function main() {
     fleetApi: { deployFleet, dockFleet, orderFleetHome, orderFleetToSea, setFleetFlag, setFleetMission, syncRegionalNavyLedger },
     aviationApi: { buildAircraft, assignAircraftMission, rebaseAircraft, aviationSummary },
     financialDiplomacyApi: { setBondPolicy, dumpSovereignBonds, setSettlementCurrencyPolicy },
+    warSocietyApi: { setWarInformationPolicy, warSocietySummary },
+    internationalOrganisationApi: { proposeInternationalOrganisation, submitInternationalMotion, internationalOrganisationSummary, worldInstitutionReadiness },
+    internationalOrganisations,
     massPoliticsApi: { setMassPoliticsPolicy, massPoliticsSummary },
     postWarSocietyApi: { setVeteranSupportPolicy, postWarSocietySummary },
     combinedExerciseApi: { startCombinedExercise, combinedExerciseSummary, eligibleExerciseAllies },
@@ -945,7 +959,7 @@ function wireHud(clock) {
   syncSpeedControls();
 }
 
-function wireMenu({ fogOfWar, map, clock, regions, seaRegions, polities, religiousWorld, agreements, getActiveRaids,
+function wireMenu({ fogOfWar, map, clock, regions, seaRegions, polities, religiousWorld, agreements, internationalOrganisations, getActiveRaids,
   getActiveCampaigns, getPlayerRegionId, loadGame, getSelectedRegion, clearSelection }) {
   const menuModal = document.getElementById('menu-modal');
   const menuButton = document.getElementById('btn-menu');
@@ -999,7 +1013,7 @@ function wireMenu({ fogOfWar, map, clock, regions, seaRegions, polities, religio
   saveButton.addEventListener('click', () => {
     try {
       const snapshot = createGameSnapshot({ regions, seaRegions, polities, religiousWorld, agreements,
-        activeRaids: getActiveRaids(), activeCampaigns: getActiveCampaigns(), activeWars: window.__worldsim?.activeWars || [], fleets: window.__worldsim?.fleets || [],
+        activeRaids: getActiveRaids(), activeCampaigns: getActiveCampaigns(), activeWars: window.__worldsim?.activeWars || [], fleets: window.__worldsim?.fleets || [], internationalOrganisations,
         clock, playerRegionId: getPlayerRegionId(), playerPolityId: activePlayerPolityId, fogOfWar });
       writeSave(snapshot);
       refreshSaveStatus(`Game saved · ${clock.formatDate(START_YEAR)}.`);
@@ -1450,6 +1464,11 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
     renderPostWarSocietyControls(document.getElementById('region-controls'), playerPolity, () => council?.refresh());
   }
   if (region.id === playerRegionId) renderCombinedExerciseControls(document.getElementById('region-controls'),region,{regions,seaRegions:window.__worldsim?.seaRegions||[],agreements,fleets:window.__worldsim?.fleets||[],currentTick:calendarWeekIndex(clock.elapsedDays||0),onAction:()=>council?.refresh()});
+  if (region.id === playerRegionId) {
+    const polity = polityById(polities, activePlayerPolityId);
+    renderWarSocietyControls(document.getElementById('region-controls'), polity, { onAction: () => council?.refresh() });
+    renderInternationalOrganisationControls(document.getElementById('region-controls'), polity, { polities, regions, activeWars: window.__worldsim?.activeWars || [], internationalOrganisations: window.__worldsim?.internationalOrganisations || [], currentTick: calendarWeekIndex(clock.elapsedDays || 0) }, { onAction: () => council?.refresh() });
+  }
   if (region.id === playerRegionId) renderDiplomaticServicePanel(document.getElementById('region-controls'), region, regions, calendarWeekIndex(clock.elapsedDays || 0), {
     polities,
     visiblePolityIds: [...new Set(regions.filter((candidate) => fogOfWar.isVisible(candidate)).map((candidate) => candidate.governance?.sovereignPolityId).filter(Boolean))],

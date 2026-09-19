@@ -60,9 +60,15 @@ function forestCarbonFlux(regions) {
 }
 
 function fossilCarbonFlux(regions) {
-  // Proto-industry reports physical coal burned during its previous operating tick.
-  // This is deliberately an abstract carbon index rather than atmospheric ppm.
-  return regions.reduce((sum, region) => sum + positive(region?.protoIndustry?.coalHeatUse), 0) * 0.00002;
+  // International commitments are not magic: they represent the fraction of
+  // otherwise-emitting activity actually avoided through member-state policy,
+  // efficiency, substitution and enforcement. Weak/illegitimate organisations
+  // generate low commitments and therefore little physical effect.
+  return regions.reduce((sum, region) => {
+    const commitment = clamp(region?.internationalPolicy?.climateCommitment || 0, 0, 1);
+    const abatement = 1 - commitment * 0.65;
+    return sum + positive(region?.protoIndustry?.coalHeatUse) * abatement;
+  }, 0) * 0.00002;
 }
 
 function updateGlobalClimate(world, regions, elapsedDays) {
