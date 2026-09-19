@@ -11,7 +11,7 @@ function region(){return {
   industrialSupply:{inventory:{machine_components:10000},capability:{precision_machining:.9,steelmaking:.9}},
   industrialPlants:{componentCapability:{hull_fabrication:.9,gun_system:.7,armour_plate:.75,optics:.8,electronics:.82,engine:.88,transmission:.86,radar_set:.8,naval_fire_control:.7,damage_control:.9}},
   earlyModernMilitary:{naval:{readiness:.85}},navalProcurement:{targets:{},built:{}},navalAviationExperience:180,
-  aviation:{flightExperience:300,aircraft:[{id:'air-1',ownerType:'military',ownerActorId:'carrier-home',role:'fighter',baseType:'airfield',homeBaseRegionId:'carrier-home',baseRegionId:'carrier-home',carrierId:null,condition:1,fuel:1,status:'serviceable',mission:'idle',targetRegionId:null,pilotExperience:.5,totalFlights:0,repairNeed:0,designId:'fighter-1',modelName:'Fleet Fighter',designStats:{range:.65,enginePower:.65,reliability:.75,payload:.25,firepower:.55},crew:{pilotReadiness:1}}]},
+  aviation:{flightExperience:300,aircraft:[{id:'air-1',ownerType:'military',ownerActorId:'carrier-home',role:'fighter',baseType:'airfield',homeBaseRegionId:'carrier-home',baseRegionId:'carrier-home',carrierId:null,condition:1,fuel:1,status:'serviceable',mission:'idle',targetRegionId:null,pilotExperience:.5,totalFlights:0,repairNeed:0,designId:'fighter-1',modelName:'Fleet Fighter',designStats:{range:.65,enginePower:.65,reliability:.75,payload:.25,firepower:.55},crewAssignment:{pilots:1,pilotExperience:.5,aircrew:0,aircrewExperience:0}}]},
   neighbors:['target'],adjacentSeaIds:['sea-1'],airRecon:{},warDamage:{infrastructureDamage:0,bombardmentWeeks:0},
 };}
 
