@@ -1,0 +1,33 @@
+name: Apply international organisation save wiring
+on:
+  push:
+    branches: [feature/war-society-global-institutions-v1]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[generated org-save]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/war-society-global-institutions-v1
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Apply save wiring
+        run: python tools/apply-international-org-save-wiring.py
+      - name: Validate syntax
+        run: |
+          node --check js/main.js
+          node --check js/core/saveGame.js
+          node --check js/diplomacy/internationalOrganisations.js
+          git diff --check
+      - name: Commit generated source
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/main.js
+          git commit -m 'Wire international organisations into save/load [generated org-save]'
+          git push origin HEAD:feature/war-society-global-institutions-v1
