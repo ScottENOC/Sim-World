@@ -36,20 +36,13 @@ export function tickWorldOzoneLayer(regions,elapsedDays=7){
   const released=newRegionalOzoneDamage(regions,s);
   s.atmosphericCfcBank+=released;
   s.cumulativeOzoneDepletingEmissions+=released;
-
-  // Ozone-depleting compounds are long-lived. Their atmospheric burden declines
-  // on a multi-decade timescale, and the ozone layer responds/rebuilds gradually.
   const atmosphericRetention=Math.pow(.5,years/52);
   s.atmosphericCfcBank*=atmosphericRetention;
   const targetOzone=clamp(1-s.atmosphericCfcBank*.018,.35,1);
   const response=1-Math.exp(-years/7.5);
   s.ozoneIndex=clamp(s.ozoneIndex+(targetOzone-s.ozoneIndex)*response,.35,1);
-
   const depletion=1-s.ozoneIndex;
   s.uvBurden=clamp(Math.pow(depletion,1.12)*1.35);
-  // These are deliberately modest aggregate effects, not country-specific disease
-  // simulations. Ozone depletion matters, but diplomacy and technology response
-  // should usually be the more visible gameplay consequence.
   s.healthBurden=clamp(s.uvBurden*.16);
   s.ecosystemBurden=clamp(s.uvBurden*.055);
   return {...s,newOzoneDepletingEmissions:released};
@@ -69,4 +62,22 @@ export function ozoneDiplomaticSignal(region,regions){
   const responsibility=clamp((Number(h.ozoneDamageContribution)||0)/worldDamage*4);
   const solutionLeadership=region?.unlockedTechIds?.has?.('alternative_refrigerants')?clamp(.45+(Number(h.cfcUse)||0)/(1+(Number(h.cfcUse)||0))*.35):0;
   return {known:true,responsibility,solutionLeadership,ozoneIndex:s.ozoneIndex};
+}
+
+export function tickOzoneDiplomacy(regions,currentTick,elapsedDays=7){
+  const weekScale=Math.max(.01,(Number(elapsedDays)||7)/7),byId=new Map((regions||[]).map(r=>[r.id,r]));
+  for(const observer of regions||[]){
+    if(!observer?.unlockedTechIds?.has?.('cfc_ozone_harm')||!(observer.relations instanceof Map))continue;
+    for(const [otherId,relation] of observer.relations.entries()){
+      const other=byId.get(otherId);if(!other)continue;
+      const signal=ozoneDiplomaticSignal(other,regions);
+      if(!signal.known)continue;
+      const pressure=clamp((1-ozoneLayerState(regions).ozoneIndex)*3.5);
+      const delta=(signal.solutionLeadership*.00055-signal.responsibility*.00042)*pressure*weekScale;
+      if(Math.abs(delta)<1e-10)continue;
+      relation.attitude=clamp((Number(relation.attitude)||0)+delta,-1,1);
+      relation.lastCause=delta>0?'ozone_solution_leadership':'ozone_pollution';
+      relation.lastChangedTick=currentTick;
+    }
+  }
 }
