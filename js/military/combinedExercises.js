@@ -74,7 +74,8 @@ export function startCombinedExercise({organiserRegionId,hostRegionId,participan
   for(const id of ids){const r=byId.get(id);if(!r||isSea(r))continue;if(r.id!==organiser.id&&!areExerciseAllies(organiser,r,agreements))continue;participants.push(r);}
   if(participants.length<2)return{started:false,reason:'no_allied_participants'};
   const existing=new Set([...(regions||[]),...(seaRegions||[])].flatMap(r=>(r.combinedExercises||[]).map(x=>x.id)));let id;do{id=`exercise-${currentTick}-${organiser.id}-${nextExerciseId++}`;}while(existing.has(id));const exercise={id,organiserRegionId:organiser.id,hostRegionId:host.id,missionType:mission.id,startTick:currentTick,durationWeeks:Math.max(2,Math.min(52,Number(durationWeeks)||12)),elapsedWeeks:0,scale:clamp(scale,.05,.5),active:true,participants:[],lastDiplomaticTick:null};
-  for(const r of participants)exercise.participants.push(participantCommitment(r,host,mission,exercise.scale,fleets,id));
+  for(const r of participants){const p=participantCommitment(r,host,mission,exercise.scale,fleets,id);if(p.landPersonnel>0||(p.shipIds?.length||0)>0)exercise.participants.push(p);}
+  if(exercise.participants.length<2){for(const p of exercise.participants)releaseCommitment(byId.get(p.regionId),p,fleets);return{started:false,reason:'insufficient_deployable_forces'};}
   host.combinedExercises ||= [];host.combinedExercises.push(exercise);
   return{started:true,exercise};
 }
