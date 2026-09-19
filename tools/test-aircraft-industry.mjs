@@ -5,6 +5,7 @@ import {
 import {
   PRODUCT_RECIPES, addProductionLine, ensureIndustrialPlantState, productionSimilarity, retoolProductionLine,
 } from '../js/economy/industrialPlant.js';
+import { aviationBasingRelationship } from '../js/military/aviation.js';
 
 function region(id='test'){
   return {
@@ -67,5 +68,15 @@ assert.equal(stillFirst.id,first.id,'frontier improvement alone must not mint a 
 const second=authoriseEquipmentMark(air,EQUIPMENT_FAMILIES.FIGHTER,{tick:20,authorisedBy:'test'});
 assert.equal(second.sequence,2,'explicit authorisation should create Mk II');
 assert.ok(second.stats.weapons>first.stats.weapons,'new Mark should snapshot the improved component frontier');
+
+// Actor-level basing agreements must work in either direction.
+const ownerRegion=region('owner-region');ownerRegion.governance={sovereignPolityId:'owner-actor'};
+const hostRegion=region('host-region');hostRegion.governance={sovereignPolityId:'host-actor'};hostRegion.construction.assets.push({typeId:'airfield',condition:1,scale:1});
+const regionsById=new Map([[ownerRegion.id,ownerRegion],[hostRegion.id,hostRegion]]);
+const testAircraft={ownerActorId:'owner-actor',homeBaseRegionId:ownerRegion.id};
+const reverseAgreement=[{id:'reverse-basing',active:true,type:'air_basing',fromActorId:'host-actor',toActorId:'owner-actor',aviationMaintenanceSupport:true}];
+const rights=aviationBasingRelationship(testAircraft,hostRegion,reverseAgreement,regionsById);
+assert.equal(rights.allowed,true,'reverse actor-level basing agreement should grant access');
+assert.equal(rights.repair,true,'maintenance support should survive the reciprocal actor-level match');
 
 console.log('aircraft industry regression: ok');
