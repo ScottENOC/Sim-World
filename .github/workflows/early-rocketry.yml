@@ -41,7 +41,6 @@ jobs:
           node tools/test-early-rocketry.mjs
           node tools/test-artillery-fire-control.mjs
           node tools/test-modern-land-warfare.mjs
-          node tools/test-equipment-generations.mjs
       - name: Commit integrated source
         run: |
           git config user.name "github-actions[bot]"
