@@ -9,6 +9,7 @@ on:
       - 'js/technology/breakthroughs.js'
       - 'tools/apply-strategic-delivery-second-strike.py'
       - 'tools/test-strategic-delivery-second-strike.mjs'
+      - 'tools/test-nuclear-deterrence.mjs'
       - '.github/workflows/strategic-delivery-second-strike.yml'
   pull_request:
     paths:
@@ -16,6 +17,7 @@ on:
       - 'js/diplomacy/nuclearDeterrence.js'
       - 'js/technology/breakthroughs.js'
       - 'tools/test-strategic-delivery-second-strike.mjs'
+      - 'tools/test-nuclear-deterrence.mjs'
       - '.github/workflows/strategic-delivery-second-strike.yml'
   workflow_dispatch:
 
