@@ -1,0 +1,38 @@
+name: Industrial investment and equipment generations
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/economy/industrialPlant.js'
+      - 'js/economy/industrialInvestment.js'
+      - 'js/economy/corporateInfrastructureAi.js'
+      - 'js/military/equipmentGenerations.js'
+      - 'js/military/fleets.js'
+      - 'tools/test-industrial-investment.mjs'
+      - 'tools/test-predigital-equipment-generations.mjs'
+      - '.github/workflows/industrial-equipment-generations.yml'
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Syntax checks
+        run: |
+          node --check js/economy/industrialPlant.js
+          node --check js/economy/industrialInvestment.js
+          node --check js/economy/corporateInfrastructureAi.js
+          node --check js/military/equipmentGenerations.js
+          node --check js/military/fleets.js
+      - name: Industrial investment regressions
+        run: |
+          node tools/test-industrial-investment.mjs
+          node tools/test-component-industrial-base.mjs
+          node tools/test-industrial-production.mjs
+      - name: Equipment generation regressions
+        run: |
+          node tools/test-artillery-fire-control.mjs
+          node tools/test-fleet-ship-progression.mjs
+          node tools/test-predigital-equipment-generations.mjs
+      - run: git diff --check

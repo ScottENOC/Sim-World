@@ -7,6 +7,7 @@ import { navalGunCombatProfile } from './earlyModernWarfare.js?v=20260913-early-
 import { ensureFleetProvisioning, provisioningCombatMultiplier, serviceProvisioningInPort, shouldReturnForProvisioning, tickProvisioningAtSea } from './oceanicProvisioning.js?v=20260913-provisioning1';
 import { MARINE_STEAM_TECH_ID, SCREW_PROPULSION_TECH_ID, IRON_HULL_TECH_ID, STEEL_HULL_TECH_ID } from '../technology/industrialMarine.js?v=20260916-steam1';
 import { DREADNOUGHT_TECH_ID, SUBMARINE_TECH_ID, tickLateIndustrialNavalWarfare } from './lateIndustrialNavy.js?v=20260918-navy1';
+import { initialiseShipDamage, applyShipHit, tickShipDamageAtSea, shipPropulsionMultiplier, shipCombatMultiplier, shipSensorMultiplier, repairShipDamage, attemptFleetSalvage, fleetTowSpeedMultiplier } from './navalDamage.js?v=20260919-damage1';
 
 export const FLEET_MISSIONS = Object.freeze({
   PORT: 'port',
@@ -85,6 +86,11 @@ export const SHIP_DESIGNS = Object.freeze({
     fallbackSpeed: 0.42, combat: 3.55, durability: 2.20, pursuit: 2.10, captureResistance: 1.12, gunCapacity: 9, armour: 0.55,
     coalCapacity: 28, coalPerWeek: 2.6, refitCost: { steel: 38, coal: 12, machine: 11, gunpowder: 1 },
   },
+  fleet_tug: {
+    id: 'fleet_tug', label: 'fleet salvage tug', tier: 6, advanced: true, support: true, propulsion: 'steam', crew: 18, speed: 1.48,
+    fallbackSpeed: 0.34, combat: 0.18, durability: 1.65, pursuit: 0.70, captureResistance: 0.88, gunCapacity: 1, armour: 0.08,
+    coalCapacity: 20, coalPerWeek: 1.45, salvageCapacity: 1.0, towPower: 1.0, refitCost: { wood: 35, iron: 18, coal: 8, machine: 9 },
+  },
   submarine: {
     id: 'submarine', label: 'submarine', tier: 9, advanced: true, propulsion: 'submersible', crew: 18, speed: 1.08,
     combat: 0.62, durability: 0.78, pursuit: 0.72, captureResistance: 1.30, gunCapacity: 0, armour: 0.18, submersible: true,
@@ -112,7 +118,64 @@ let nextFleetId = 1;
 let nextShipId = 1;
 let nextEncounterId = 1;
 
-function designOf(ship) { return SHIP_DESIGNS[ship?.designId] || SHIP_DESIGNS.basic_war_boat; }
+function romanMark(n){const t=[[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']];let x=Math.max(1,Math.floor(n)),o='';for(const[v,s]of t)while(x>=v){o+=s;x-=v;}return o;}
+function navalFrontier(region,designId){
+  const base=SHIP_DESIGNS[designId]||SHIP_DESIGNS.basic_war_boat,c=region?.industrialPlants?.componentCapability||{};
+  const precision=clamp(region?.industrialSupply?.capability?.precision_machining||0),readiness=clamp(region?.earlyModernMilitary?.naval?.readiness||0);
+  const hull=clamp(c.hull_fabrication||precision*.45),gun=clamp(c.gun_system||precision*.35),armour=clamp(c.armour_plate||0),optics=clamp(c.optics||0),electrical=Math.min(.72,clamp(c.electronics||0));
+  const engine=clamp(c.engine||precision*.35),trans=clamp(c.transmission||precision*.30),radar=region?.unlockedTechIds?.has?.('radar')?clamp(c.radar_set||0):0;
+  const fireControl=clamp((c.naval_fire_control||0)*.50+optics*.27+electrical*.13+precision*.10);
+  const sonar=base.submersible?0:clamp((c.sonar_set||0)*.72+electrical*.12+readiness*.16);
+  const torpedo=clamp((c.torpedo_system||0)*.72+precision*.16+readiness*.12);
+  const damageControl=clamp((c.damage_control||0)*.58+hull*.16+readiness*.18+electrical*.08);
+  const quality=clamp(precision*.10+hull*.16+gun*.14+armour*.08+optics*.08+electrical*.05+readiness*.08+engine*.07+trans*.04+fireControl*.10+radar*.05+damageControl*.05);
+  const propulsion=base.propulsion==='steam'||base.propulsion==='submersible'?clamp(engine*.48+trans*.24+precision*.12+readiness*.10+hull*.06):clamp(readiness*.55+precision*.25+hull*.20);
+  const gunEffect=base.gunCapacity?clamp(gun*.44+fireControl*.34+optics*.14+radar*.08):0;
+  const torpedoEffect=(designId==='destroyer'||designId==='submarine')?torpedo:0;
+  const antiAir=clamp(gun*.18+fireControl*.24+radar*.30+electrical*.10+readiness*.18);
+  const signature=clamp((base.submersible?.28:.72)-hull*.05-radar*.01+(base.tier||0)*.012,.18,1);
+  const combatBoost=gunEffect*.15+torpedoEffect*.12+fireControl*.10+radar*.035+readiness*.04;
+  return {quality,stats:{...base,combat:base.combat*(.90+quality*.12+combatBoost),durability:base.durability*(.92+(hull*.32+armour*.25+precision*.13+damageControl*.30)*.22),speed:base.speed*(.94+propulsion*.16),pursuit:base.pursuit*(.94+(propulsion*.50+optics*.12+radar*.12+readiness*.16+fireControl*.10)*.16),captureResistance:base.captureResistance*(.96+(hull*.30+armour*.20+readiness*.20+damageControl*.30)*.12),armour:base.armour*(.90+armour*.24),gunCapacity:base.gunCapacity,fireControl,radarSearch:radar,sonar,torpedoEffect,damageControl,antiAir,signature,propulsionQuality:propulsion}};
+}
+export function currentNavalDesign(region,designId){
+  const list=region?.navalDesignCatalogue?.[designId]||[];return [...list].reverse().find(d=>d.toolingReady!==false)||null;
+}
+function createNavalDesign(region,designId,{authorisedBy='initial_standard',toolingReady=true}={}){
+  region.navalDesignCatalogue ||= {};const list=region.navalDesignCatalogue[designId] ||= [],f=navalFrontier(region,designId),sequence=(list.at(-1)?.sequence||0)+1;
+  const design={id:`${region.id}:${designId}:${sequence}`,designId,sequence,name:`${SHIP_DESIGNS[designId]?.label||designId} Mk ${romanMark(sequence)}`,quality:f.quality,stats:f.stats,authorisedBy,toolingReady};list.push(design);return design;
+}
+export function ensureCurrentNavalDesign(region,designId){return currentNavalDesign(region,designId)||createNavalDesign(region,designId,{authorisedBy:'initial_standard',toolingReady:true});}
+export function quoteNavalMarkUpgrade(region,designId){
+  const spec=SHIP_DESIGNS[designId];if(!spec)return {available:false,reason:'unknown_ship_class'};
+  if(!operationalInfrastructure(region,'shipyard')&&!operationalInfrastructure(region,'naval_base'))return {available:false,reason:'no_operational_shipyard'};
+  const procurement=ensureNavalProcurement(region);procurement.designTooling ||= {};
+  if(procurement.designTooling[designId]?.pendingDesignId)return {available:false,reason:'tooling_already_in_progress'};
+  const nextSequence=((region.navalDesignCatalogue?.[designId]||[]).at(-1)?.sequence||0)+1,industrial=(spec.tier||0)>=5;
+  return {available:true,designId,nextSequence,machineComponents:industrial?5+nextSequence*3:0,steel:industrial?10+nextSequence*6:0,wood:industrial?0:35+nextSequence*18,treasury:10+nextSequence*7,downtimeWeeks:Math.min(30,6+nextSequence*2)};
+}
+export function authoriseNavalMark(region,designId,{authorisedBy='player'}={}){
+  const quote=quoteNavalMarkUpgrade(region,designId);if(!quote.available)return {authorised:false,...quote};
+  region.industrialSupply ||= {};region.industrialSupply.inventory ||= {};region.stockpile ||= {};const inv=region.industrialSupply.inventory;
+  if((inv.machine_components||0)<quote.machineComponents)return {authorised:false,reason:'insufficient_machine_components',...quote};
+  if((region.stockpile.steel||0)<quote.steel)return {authorised:false,reason:'insufficient_steel',...quote};
+  if((region.stockpile.wood||0)<quote.wood)return {authorised:false,reason:'insufficient_wood',...quote};
+  if((region.treasury||0)<quote.treasury)return {authorised:false,reason:'insufficient_treasury',...quote};
+  inv.machine_components=(inv.machine_components||0)-quote.machineComponents;region.stockpile.steel=(region.stockpile.steel||0)-quote.steel;region.stockpile.wood=(region.stockpile.wood||0)-quote.wood;region.treasury-=quote.treasury;
+  const design=createNavalDesign(region,designId,{authorisedBy,toolingReady:false}),procurement=ensureNavalProcurement(region);procurement.designTooling ||= {};
+  procurement.designTooling[designId]={pendingDesignId:design.id,weeksRemaining:quote.downtimeWeeks,totalWeeks:quote.downtimeWeeks,cost:quote,authorisedBy};
+  return {authorised:true,design,cost:quote,downtimeWeeks:quote.downtimeWeeks};
+}
+export function tickNavalDesignPrograms(region,weeks=1){
+  const procurement=ensureNavalProcurement(region);procurement.designTooling ||= {};
+  for(const [designId,program] of Object.entries(procurement.designTooling)){if(!program?.pendingDesignId)continue;program.weeksRemaining=Math.max(0,(program.weeksRemaining||0)-Math.max(0,weeks));if(program.weeksRemaining<=0){const design=(region.navalDesignCatalogue?.[designId]||[]).find(d=>d.id===program.pendingDesignId);if(design)design.toolingReady=true;program.pendingDesignId=null;program.completedDesignId=design?.id||null;}}
+  return procurement.designTooling;
+}
+function playerControlsNavalRegion(region){const p=globalThis.__worldsim?.activePlayerPolityId;if(!p)return false;return actorId(region)===p||region?.id===p;}
+function considerNpcNavalDesignReview(region,weeks){
+  const procurement=ensureNavalProcurement(region);procurement.designReviewWeeks=(procurement.designReviewWeeks||0)+Math.max(0,weeks);if(procurement.designReviewWeeks<26||playerControlsNavalRegion(region))return;procurement.designReviewWeeks=0;
+  const classes=Object.keys(procurement.targets||{}).filter(id=>(procurement.targets[id]||0)>0);for(const id of classes){const current=ensureCurrentNavalDesign(region,id),frontier=navalFrontier(region,id),improvement=frontier.quality-(current?.quality||0);if(improvement<.07)continue;const result=authoriseNavalMark(region,id,{authorisedBy:'npc_naval_staff'});if(result.authorised)break;}
+}
+function designOf(ship) { return ship?.designStats || SHIP_DESIGNS[ship?.designId] || SHIP_DESIGNS.basic_war_boat; }
 function isSubmarineFleet(fleet) { return (fleet?.ships?.length || 0) > 0 && fleet.ships.every((ship) => ship.designId === 'submarine'); }
 function fleetDestroyerCount(fleet) { return (fleet?.ships || []).filter((ship) => ship.designId === 'destroyer').length; }
 function shipLabel(ship) { return ship?.classLabel || designOf(ship).label; }
@@ -153,6 +216,7 @@ export function desiredWarshipComposition(region, total = region?.targetNavySize
     } else id = preferredWarshipDesign(region, i);
     targets[id] = (targets[id] || 0) + 1;
   }
+  if (region?.unlockedTechIds?.has(MARINE_STEAM_TECH_ID) && count >= 4) targets.fleet_tug = Math.max(targets.fleet_tug || 0, Math.ceil(count / 8));
   return targets;
 }
 
@@ -180,11 +244,14 @@ function actualClassCounts(fleets) {
   return counts;
 }
 
-function makeShip(designId, ownerRegionId, overrides = {}) {
+function makeShip(designId, ownerRegionOrId, overrides = {}) {
+  const region=typeof ownerRegionOrId==='object'?ownerRegionOrId:null,ownerRegionId=region?.id||ownerRegionOrId;
   const spec = SHIP_DESIGNS[designId] || SHIP_DESIGNS.basic_war_boat;
-  return {
+  const generation=region?ensureCurrentNavalDesign(region,spec.id):null;
+  return initialiseShipDamage({
     id: `ship-${nextShipId++}`,
     designId: spec.id,
+    navalDesignId:generation?.id||null,modelSequence:generation?.sequence||1,modelName:generation?.name||spec.label,designStats:generation?.stats?{...generation.stats}:null,
     classLabel: spec.label,
     condition: 1,
     prize: false,
@@ -194,7 +261,7 @@ function makeShip(designId, ownerRegionId, overrides = {}) {
     propulsion: spec.propulsion || 'oar_sail',
     armour: spec.armour || 0,
     ...overrides,
-  };
+  });
 }
 
 function fleetCoalCapacity(fleet) {
@@ -211,11 +278,11 @@ function consumeFleetCoal(fleet, weeks) {
 }
 
 function effectiveShipSpeed(ship, fleet) {
-  const spec = designOf(ship);
-  if (!spec.coalPerWeek) return spec.speed;
+  const spec = designOf(ship), damage=shipPropulsionMultiplier(ship);
+  if (!spec.coalPerWeek) return spec.speed * damage;
   const fuel = clamp(fleet.steamFuelFraction ?? 1);
   const fallback = spec.fallbackSpeed ?? spec.speed * 0.45;
-  return fallback + (spec.speed - fallback) * fuel;
+  return (fallback + (spec.speed - fallback) * fuel) * damage;
 }
 
 function takeRefitMetal(region, amount, preferred = null) {
@@ -250,19 +317,31 @@ function payRefitCost(region, designId) {
   return true;
 }
 
+function serviceNavalModelDiversity(region,fleets,weeks){
+  const ships=fleets.flatMap(f=>f.ships||[]),byClass=new Map();for(const ship of ships){if(!ship.navalDesignId)continue;const set=byClass.get(ship.designId)||new Set();set.add(ship.navalDesignId);byClass.set(ship.designId,set);}
+  const extra=[...byClass.values()].reduce((sum,set)=>sum+Math.max(0,set.size-1),0),procurement=ensureNavalProcurement(region);if(extra<=0){procurement.modelSupportReadiness=1;return 1;}
+  region.industrialSupply ||= {};region.industrialSupply.inventory ||= {};region.stockpile ||= {};const inv=region.industrialSupply.inventory,industrial=ships.some(s=>(SHIP_DESIGNS[s.designId]?.tier||0)>=5);
+  const machineNeed=industrial*ships.length*.012*extra*Math.max(0,weeks),materialNeed=ships.length*.018*extra*Math.max(0,weeks);let fraction=1;
+  if(machineNeed>0)fraction=Math.min(fraction,(inv.machine_components||0)/machineNeed);
+  const materialKey=industrial?'steel':'wood';fraction=Math.min(fraction,(region.stockpile[materialKey]||0)/Math.max(.0001,materialNeed));fraction=clamp(fraction);
+  inv.machine_components=Math.max(0,(inv.machine_components||0)-machineNeed*fraction);region.stockpile[materialKey]=Math.max(0,(region.stockpile[materialKey]||0)-materialNeed*fraction);procurement.modelSupportReadiness=clamp(.6+.4*fraction);procurement.lastModelSupport={extraModels:extra,machineComponents:machineNeed*fraction,[materialKey]:materialNeed*fraction,readiness:procurement.modelSupportReadiness};return procurement.modelSupportReadiness;
+}
+
 function moderniseOwnedFleet(region, fleets, weeks, events) {
   if (!operationalInfrastructure(region, 'shipyard') && !operationalInfrastructure(region, 'naval_base')) return;
   for (const fleet of fleets) {
     if (fleet.locationType !== 'port' || fleet.portRegionId !== region.id) continue;
     fleet.refitProgress = Math.max(0, fleet.refitProgress || 0) + Math.max(0, weeks) * (operationalInfrastructure(region, 'naval_base') ? 0.06 : 0.035);
     if (fleet.refitProgress < 1) continue;
+    const markCandidate=fleet.ships.map((ship,index)=>({ship,index,current:currentNavalDesign(region,ship.designId)})).find(x=>(x.current?.sequence||1)>(x.ship.modelSequence||1));
+    if(markCandidate&&payRefitCost(region,markCandidate.ship.designId)){const oldLabel=markCandidate.ship.modelName||shipLabel(markCandidate.ship),replacement=makeShip(markCandidate.ship.designId,region,{id:markCandidate.ship.id,prize:false,capturedFromActorId:null});fleet.ships[markCandidate.index]=replacement;fleet.refitProgress-=1;if(events)events.push({type:'fleet_ship_mark_refit',ownerRegionId:region.id,fleetId:fleet.id,shipId:replacement.id,fromClassLabel:oldLabel,toClassLabel:replacement.modelName||replacement.classLabel});continue;}
     const candidates = fleet.ships.map((ship, index) => ({ ship, index, target: preferredWarshipDesign(region, index) }))
-      .filter(({ ship, target }) => isAdvancedShip(ship) && (SHIP_DESIGNS[target]?.tier || 0) > shipTier(ship))
+      .filter(({ ship, target }) => !designOf(ship).support && isAdvancedShip(ship) && (SHIP_DESIGNS[target]?.tier || 0) > shipTier(ship))
       .sort((a, b) => shipTier(a.ship) - shipTier(b.ship));
     const choice = candidates[0];
     if (!choice || !payRefitCost(region, choice.target)) continue;
     const oldLabel = shipLabel(choice.ship);
-    const replacement = makeShip(choice.target, region.id, { id: choice.ship.id, prize: false, capturedFromActorId: null });
+    const replacement = makeShip(choice.target, region, { id: choice.ship.id, prize: false, capturedFromActorId: null });
     fleet.ships[choice.index] = replacement;
     fleet.refitProgress -= 1;
     if (events) events.push({ type: 'fleet_ship_modernised', ownerRegionId: region.id, fleetId: fleet.id,
@@ -305,8 +384,8 @@ function createHomeFleet(region) {
   if (total <= 0 || !(region.adjacentSeaIds || []).length) return null;
   const advanced = Math.min(total, Math.max(0, Math.round(region.navy?.advancedBoats || 0)));
   const ships = [];
-  for (let i = 0; i < advanced; i++) ships.push(makeShip(preferredWarshipDesign(region, i), region.id));
-  for (let i = advanced; i < total; i++) ships.push(makeShip('basic_war_boat', region.id));
+  for (let i = 0; i < advanced; i++) ships.push(makeShip(preferredWarshipDesign(region, i), region));
+  for (let i = advanced; i < total; i++) ships.push(makeShip('basic_war_boat', region));
   const ownerActorId = actorId(region);
   return ensureFleetState({
     id: `fleet-${nextFleetId++}`,
@@ -364,6 +443,8 @@ export function reconcileFleetLedger(regions, fleets, events = null, weeks = 1) 
   for (const region of regions) {
     if (!(region.adjacentSeaIds || []).length) continue;
     const owned = byOwner.get(region.id) || [];
+    tickNavalDesignPrograms(region,weeks);considerNpcNavalDesignReview(region,weeks);
+    serviceNavalModelDiversity(region,owned,weeks);
     const procurement = ensureNavalProcurement(region);
     const explicitTargets = Object.values(procurement.targets || {}).reduce((sum, value) => sum + Math.max(0, Math.round(value || 0)), 0);
     const wantedTotal = explicitTargets > 0 ? explicitTargets : Math.max(0, Math.round(region.navy?.boats || 0));
@@ -408,7 +489,7 @@ export function reconcileFleetLedger(regions, fleets, events = null, weeks = 1) 
       for (const [designId, wanted] of Object.entries(procurement.targets)) {
         if (!SHIP_DESIGNS[designId]) continue;
         const actual = classCounts[designId] || 0;
-        for (let i = actual; i < Math.max(0, Math.round(wanted || 0)); i++) target.ships.push(makeShip(designId, region.id));
+        for (let i = actual; i < Math.max(0, Math.round(wanted || 0)); i++) target.ships.push(makeShip(designId, region));
       }
     } else {
       for (let i = actualAdvanced; i < wantedAdvanced; i++) target.ships.push(makeShip(preferredWarshipDesign(region, i), region.id));
@@ -542,7 +623,7 @@ function serviceInPort(fleet, regionsById, agreements, weeks) {
   }
   const before = fleet.condition;
   fleet.condition = clamp(fleet.condition + repairRate * weeks);
-  for (const ship of fleet.ships) ship.condition = clamp((ship.condition ?? fleet.condition) + repairRate * weeks);
+  for (const ship of fleet.ships) repairShipDamage(ship, repairRate * weeks, { dockyard: access !== 'ally' && (operationalInfrastructure(port, 'shipyard') || operationalInfrastructure(port, 'naval_base')) });
   const coalCapacity = fleetCoalCapacity(fleet);
   let coalLoaded = 0;
   if (coalCapacity > 0) {
@@ -581,20 +662,23 @@ function wearAtSea(fleet, weeks) {
   fleet.fatigue = clamp(fleet.fatigue + 0.018 * weeks * missionUse);
   fleet.condition = clamp(fleet.condition - 0.0015 * weeks * missionUse);
   fleet.morale = clamp(fleet.morale - Math.max(0, 0.55 - fleet.supply) * 0.015 * weeks);
+  for (const ship of fleet.ships) tickShipDamageAtSea(ship, weeks);
 }
+
 
 function fleetAverageSpeed(fleet) {
   if (!fleet.ships.length) return 0;
   const harmonic = fleet.ships.length / fleet.ships.reduce((sum, ship) => sum + 1 / Math.max(0.2, effectiveShipSpeed(ship, fleet)), 0);
-  return harmonic * (0.65 + fleet.condition * 0.35) * (0.72 + fleet.supply * 0.18 + (1 - fleet.fatigue) * 0.10) * provisioningCombatMultiplier(fleet);
+  return harmonic * (0.65 + fleet.condition * 0.35) * (0.72 + fleet.supply * 0.18 + (1 - fleet.fatigue) * 0.10) * provisioningCombatMultiplier(fleet) * fleetTowSpeedMultiplier(fleet);
 }
 
 function fleetCombatPower(fleet, regionsById, { inPort = false } = {}) {
   const origin = regionsById.get(fleet.ownerRegionId);
-  const shipPower = fleet.ships.reduce((sum, ship) => sum + designOf(ship).combat * clamp(ship.condition ?? fleet.condition, 0.1, 1), 0);
+  const shipPower = fleet.ships.reduce((sum, ship) => sum + designOf(ship).combat * clamp(ship.condition ?? fleet.condition, 0.1, 1) * shipCombatMultiplier(ship), 0);
   const skill = origin ? maritimeSkillMultiplier(origin, MARITIME_SKILLS.COMBAT) : 1;
   const readiness = (0.55 + fleet.supply * 0.25 + (1 - fleet.fatigue) * 0.12 + fleet.morale * 0.08);
-  let power = shipPower * skill * readiness * provisioningCombatMultiplier(fleet);
+  const modelSupport=clamp(origin?.navalProcurement?.modelSupportReadiness??1,.6,1);
+  let power = shipPower * skill * readiness * provisioningCombatMultiplier(fleet) * modelSupport;
   if (inPort && fleet.portRegionId) {
     const port = regionsById.get(fleet.portRegionId);
     if (port) {
@@ -613,7 +697,8 @@ function targetConcealment(fleet) {
   const hideBonus = fleet.mission === FLEET_MISSIONS.HIDE ? 0.5 : 0;
   const submarineBonus = isSubmarineFleet(fleet) ? 0.40 : 0;
   const activePenalty = fleet.mission === FLEET_MISSIONS.BLOCKADE ? 0.25 : fleet.mission === FLEET_MISSIONS.PATROL ? 0.14 : 0;
-  return clamp(0.42 + hideBonus + submarineBonus - sizePenalty - activePenalty, 0.05, 0.97);
+  const signature=fleet.ships.length?fleet.ships.reduce((s,ship)=>s+clamp(designOf(ship).signature??.72,.18,1),0)/fleet.ships.length:.72;
+  return clamp(0.42 + hideBonus + submarineBonus + (1-signature)*.14 - sizePenalty - activePenalty, 0.05, 0.97);
 }
 
 function visibleFlagActor(fleet) {
@@ -684,8 +769,10 @@ function detectionChance(observer, target, regionsById, weeks) {
     : observer.mission === FLEET_MISSIONS.PATROL ? 0.16
       : observer.mission === FLEET_MISSIONS.BLOCKADE ? 0.13 : 0.08;
   const searchSize = Math.min(0.22, Math.log2(1 + observer.ships.length) * 0.045);
-  const antiSubmarineSearch = isSubmarineFleet(target) ? fleetDestroyerCount(observer) * 0.075 : 0;
-  const perWeek = clamp(0.03 + searchMission + scouting * 0.2 + searchSize + antiSubmarineSearch - targetConcealment(target) * 0.22, 0.01, 0.65);
+  const radarSearch=observer.ships.length?observer.ships.reduce((s,ship)=>s+clamp(designOf(ship).radarSearch||0)*shipSensorMultiplier(ship,'radar'),0)/observer.ships.length:0;
+  const sonarSearch=observer.ships.length?observer.ships.reduce((s,ship)=>s+clamp(designOf(ship).sonar||0)*shipSensorMultiplier(ship,'sonar'),0)/observer.ships.length:0;
+  const antiSubmarineSearch = isSubmarineFleet(target) ? fleetDestroyerCount(observer) * (0.055+sonarSearch*.085) : 0;
+  const perWeek = clamp(0.03 + searchMission + scouting * 0.2 + searchSize + radarSearch*.18 + antiSubmarineSearch - targetConcealment(target) * 0.22, 0.01, 0.82);
   return 1 - Math.pow(1 - perWeek, Math.max(0.1, weeks));
 }
 
@@ -784,12 +871,12 @@ function removeRandomShip(fleet, rng) {
 function damageRandomShip(fleet, amount, rng) {
   if (!fleet.ships.length) return null;
   const ship = fleet.ships[Math.min(fleet.ships.length - 1, Math.floor(rng() * fleet.ships.length))];
-  ship.condition = clamp((ship.condition ?? fleet.condition) - amount, 0.05, 1);
+  applyShipHit(ship, amount, { rng });
   return ship;
 }
 
 function lossesForSide(fleet, enemyShare, rng, portProtected = false) {
-  const results = { sunk: [], capturedCandidates: [], damaged: [] };
+  const results = { sunk: [], capturedCandidates: [], damaged: [], salvaged: [] };
   const durability = fleet.ships.length ? fleet.ships.reduce((sum, ship) => sum + Math.max(0.5, designOf(ship).durability || 1), 0) / fleet.ships.length : 1;
   const exposure = clamp(enemyShare * (portProtected ? 0.55 : 1) / Math.sqrt(durability), 0, 1);
   const attempts = Math.min(fleet.ships.length, Math.max(0, Math.floor(fleet.ships.length * exposure * (0.12 + rng() * 0.18) + rng())));
@@ -797,7 +884,12 @@ function lossesForSide(fleet, enemyShare, rng, portProtected = false) {
     const roll = rng();
     if (roll < 0.38) {
       const ship = removeRandomShip(fleet, rng);
-      if (ship) results.sunk.push(ship);
+      if (ship) {
+        applyShipHit(ship, 0.48 + rng() * 0.42, { rng, catastrophic: true });
+        const recovery = portProtected ? { recovered: true, tugId: null } : attemptFleetSalvage(fleet, ship, { rng, hostilePressure: enemyShare });
+        if (recovery.recovered) { fleet.ships.push(ship); results.salvaged.push({ ship, tugId: recovery.tugId }); results.damaged.push(ship); }
+        else results.sunk.push(ship);
+      }
     } else if (roll < 0.72) {
       const ship = removeRandomShip(fleet, rng);
       if (ship) results.capturedCandidates.push(ship);
