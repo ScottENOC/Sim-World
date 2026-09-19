@@ -66,6 +66,7 @@ export function tickNuclearWeaponProgramme(region,currentTick,elapsedDays=7,rng=
   const years=Math.max(0,Number(elapsedDays)||0)/DAYS_PER_YEAR;
   const events=[];
   const labs=effectiveInfrastructureCount(region,'nuclear_weapons_research_establishment');
+  const testRanges=effectiveInfrastructureCount(region,'nuclear_test_range');
   const canWork=region.unlockedTechIds?.has(NUCLEAR_WEAPONISATION_TECH_ID)&&labs>0&&s.policy.programme!==NUCLEAR_WEAPON_PROGRAMMES.INACTIVE;
   const readiness=nuclearWeaponisationReadiness(region);
   if(canWork&&years>0){
@@ -91,9 +92,9 @@ export function tickNuclearWeaponProgramme(region,currentTick,elapsedDays=7,rng=
   const researchFootprint=clamp(labs/2);
   const procurement=clamp((s.weaponisationProgress||0)*.7+s.programmeExperience*.3);
   const concealment=clamp(s.policy.secrecy*.72+(region.strategicNuclear?.policy?.secrecy||0)*.28);
-  s.observableSignals={researchFootprint,procurement,concealment};
+  s.observableSignals={researchFootprint,procurement,testRange:clamp(testRanges),concealment};
 
-  if(s.prototypeCount>0&&s.policy.testPolicy!==NUCLEAR_TEST_POLICIES.NONE&&region.unlockedTechIds?.has(NUCLEAR_TEST_VALIDATION_TECH_ID)){
+  if(s.prototypeCount>0&&testRanges>0&&s.policy.testPolicy!==NUCLEAR_TEST_POLICIES.NONE&&region.unlockedTechIds?.has(NUCLEAR_TEST_VALIDATION_TECH_ID)){
     const already=s.tests.some(t=>t.completed);
     if(!already&&years>0){
       const chance=clamp(years*(.55+.35*readiness));
@@ -124,12 +125,12 @@ export function estimateForeignNuclearWeaponCapability(observer,target){
   const sig=s.observableSignals||{};
   const detectedTest=s.tests.some(t=>t.completed&&(t.publiclyDeclared||t.detected));
   const publicTest=s.tests.some(t=>t.completed&&t.publiclyDeclared);
-  const visibility=clamp((sig.researchFootprint||0)*.38+(sig.procurement||0)*.32+(detectedTest?.30:0)-(sig.concealment||0)*.28);
+  const visibility=clamp((sig.researchFootprint||0)*.34+(sig.procurement||0)*.29+(sig.testRange||0)*.09+(detectedTest?.28:0)-(sig.concealment||0)*.28);
   const confidence=observer?.id===target?.id?1:clamp(.04+familiarity*.52+visibility*.44);
   let assessment='no_indication';
   if(publicTest) assessment='nuclear_capability_demonstrated';
   else if(detectedTest&&confidence>.35) assessment='probable_nuclear_test';
   else if(s.prototypeCount>0&&confidence>.7) assessment='untested_device_probable';
   else if((s.weaponisationProgress||0)>.35&&confidence>.35) assessment='weaponisation_programme_suspected';
-  return {targetRegionId:target.id,assessment,confidence,exactPrototypeCountKnown:observer?.id===target?.id,evidence:{researchFootprint:clamp((sig.researchFootprint||0)*familiarity),procurement:clamp((sig.procurement||0)*familiarity),testSignal:detectedTest?clamp(.5+.5*familiarity):0}};
+  return {targetRegionId:target.id,assessment,confidence,exactPrototypeCountKnown:observer?.id===target?.id,evidence:{researchFootprint:clamp((sig.researchFootprint||0)*familiarity),procurement:clamp((sig.procurement||0)*familiarity),testRange:clamp((sig.testRange||0)*familiarity),testSignal:detectedTest?clamp(.5+.5*familiarity):0}};
 }
