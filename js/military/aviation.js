@@ -1,6 +1,7 @@
 import { operationalInfrastructure } from '../economy/construction.js?v=20260918-aviation1';
 import { EQUIPMENT_FAMILIES, ensureCurrentAircraftDesign } from './equipmentGenerations.js?v=20260919-aircraft-industry2';
 import { takeFinishedEquipment } from '../economy/industrialPlant.js?v=20260919-aircraft-industry2';
+import { airDefenceEngagementRisk, tickAirDefenceIndustry, tickAntiAircraftBreakthrough } from './preDigitalAirNaval.js?v=20260919-aa-naval1';
 
 const DAYS_PER_YEAR=365.2425;
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
@@ -66,6 +67,7 @@ export function tickAviationBreakthroughs(regions,currentTick,rng=Math.random,el
       const annual=clamp(.002+aircraftEngine*.018+industry*.012+connectedSources(region,byId,JET_PROPULSION_TECH_ID)*.020,0,.12);
       if(rng()<1-Math.pow(1-annual,years)){region.unlockedTechIds.add(JET_PROPULSION_TECH_ID);events.push({type:'aviation_breakthrough',techId:JET_PROPULSION_TECH_ID,regionId:region.id,title:'Jet propulsion'});}
     }
+    for(const event of tickAntiAircraftBreakthrough(region,rng,elapsedDays))events.push({...event,regionId:region.id});
   }
   return events;
 }
@@ -109,7 +111,7 @@ export function aviationBasingRelationship(aircraft,hostRegion,agreements=[],reg
   const related=(agreements||[]).find(a=>a?.active&&['military_support','joint_operation','war_commitment','air_basing'].includes(a.type)&&
     ((ownerRegions.includes(a.fromId)&&hostRegions.includes(a.toId))||(ownerRegions.includes(a.toId)&&hostRegions.includes(a.fromId))||
      (a.proposerActorId===owner&&a.partnerActorId===hostActor)||(a.proposerActorId===hostActor&&a.partnerActorId===owner)||
-     (a.fromActorId===owner&&a.toActorId===hostActor)||(a.fromActorId===hostActor&&a.toActorId===owner)));
+     (a.fromActorId===owner&&a.toActorId===hostActor)||(a.fromActorId===hostActor&&a.partnerActorId===owner)));
   if(!related)return{allowed:false,repair:false,reason:'no_basing_rights'};
   return{allowed:true,repair:Boolean(related.aviationMaintenanceSupport||related.maintenanceSupport),relationship:'allied_base',agreementId:related.id};
 }
@@ -123,17 +125,7 @@ export function rebaseAircraft(origin,target,aircraftId,agreements=[],regionsByI
   return{rebased:true,aircraft:a,rights};
 }
 
-export function airDefenceRisk(region,aircraft=null){
-  const mg=has(region,'machine_guns') ? .10 : 0;
-  const modernGuns=has(region,'quick_firing_artillery') ? .07 : has(region,'breech_loading_artillery') ? .035 : 0;
-  const density=clamp(((region.earlyModernMilitary?.artillery?.inventory?.length||0)+(region.army?.personnel||0)/5000)/8);
-  const coordination=clamp(region.telephone?.militaryCoordination||region.telephone?.service||0);
-  const radar=has(region,RADAR_TECH_ID)?clamp(region.industrialPlants?.componentCapability?.radar_set||0):0;
-  const signature=clamp(aircraft?.designStats?.radarSignature??.55,.18,1),speed=clamp(aircraft?.designStats?.speed||.25);
-  const detection=radar*signature*.16;
-  const evasion=aircraft?speed*.035:0;
-  return clamp(.01+mg+modernGuns+density*.07+coordination*.06+detection-evasion,0,.55);
-}
+export function airDefenceRisk(region,aircraft=null){return airDefenceEngagementRisk(region,aircraft);}
 
 function missionFuel(mission,a=null){
   const base=mission===AIR_MISSIONS.INTERCEPT?.12:mission===AIR_MISSIONS.SCOUT?.18:mission===AIR_MISSIONS.COURIER?.16:mission===AIR_MISSIONS.ATTACK?.22:.08;
@@ -160,6 +152,7 @@ function repairAtBase(region,a,elapsedDays,agreements=[],regionsById=new Map()) 
 export function tickAviation(regions,currentTick,elapsedDays=7,rng=Math.random,options={}){
   const byId=new Map(regions.map(r=>[r.id,r])),agreements=options.agreements||[],events=[];
   for(const region of regions){
+    tickAirDefenceIndustry(region,elapsedDays);
     const av=ensureAviation(region);
     for(const a of av.aircraft){
       repairAtBase(region,a,elapsedDays,agreements,byId);
