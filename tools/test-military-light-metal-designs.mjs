@@ -12,10 +12,10 @@ function modernRegion(){
     id:'test-region',name:'Test Region',
     unlockedTechIds:new Set(['advanced_factories','industrial_electrification','aerospace_light_alloys','hall_heroult_aluminium','kroll_titanium','jet_propulsion','radar']),
     stockpile:{aluminium:1000,titanium:500,packaged_chips:1000,electronic_components:1000,copper:1000,industrial_polymers:1000},
-    industrialSupply:{capability:{precision_machining:.9}},
-    structuralTransformation:{capability:{manufacture:.9}},
-    massEducation:{literacy:.9},
-    industrialPlants:{componentCapability:{aircraft_engine:.92,airframe:.9,wing_design:.9,aircraft_weapon:.86,radio_navigation:.82,radar_set:.72,electronics:.84,engine:.88,transmission:.86,tracked_running_gear:.84,gun_system:.86,armour_plate:.88,optics:.84,hull_fabrication:.9},productExperience:{fighter:.82,bomber:.72,tank:.8,self_propelled_gun:.78}},
+    industrialSupply:{capability:{precision_machining:.68}},
+    structuralTransformation:{capability:{manufacture:.72}},
+    massEducation:{literacy:.78},
+    industrialPlants:{componentCapability:{aircraft_engine:.69,airframe:.68,wing_design:.70,aircraft_weapon:.66,radio_navigation:.64,radar_set:.58,electronics:.66,engine:.69,transmission:.68,tracked_running_gear:.67,gun_system:.68,armour_plate:.69,optics:.67,hull_fabrication:.70},productExperience:{fighter:.62,bomber:.58,tank:.62,self_propelled_gun:.60}},
   };
 }
 
