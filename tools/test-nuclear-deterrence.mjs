@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import { declareNuclearRedLine, estimateRedLineRisk, actualRedLineCrossing, recordRedLineProbe, beginOrUpdateNuclearCrisis, npcNuclearProbeDecision, nuclearTriadReadiness, RED_LINE_CATEGORIES } from '../js/diplomacy/nuclearDeterrence.js';
 import { ensureNuclearWeaponState } from '../js/military/nuclearWeaponisation.js';
 import { AERIAL_REFUELLING_TECH_ID, aerialRefuellingSupport } from '../js/military/aviation.js';
+import { KnowledgeLedger, KNOWLEDGE_TOPICS, KNOWLEDGE_SOURCES } from '../js/core/knowledge.js';
 
-function region(id){return {id,name:id,population:100000,unlockedTechIds:new Set(),stockpile:{aviation_fuel:20,strategic_uranium_material:1,separated_plutonium:0},aviation:{aircraft:[]},knowledge:{addObservation(){},observations:[],knownSubjectIds:new Set(),directContactIds:new Set(),_observationByStream:new Map()},governance:{administrativeControl:.8,administration:{recordKeeping:.8}},industrialSupply:{capability:{precision_machining:.8}},structuralTransformation:{capability:{manufacture:.8}},massEducation:{literacy:.8},strategicNuclear:{policy:{posture:'strategic',safeguards:.3,secrecy:.5,declared:false}}};}
+function region(id){return {id,name:id,population:100000,unlockedTechIds:new Set(),stockpile:{aviation_fuel:20,strategic_uranium_material:1,separated_plutonium:0},aviation:{aircraft:[]},knowledge:new KnowledgeLedger(id),governance:{administrativeControl:.8,administration:{recordKeeping:.8}},industrialSupply:{capability:{precision_machining:.8}},structuralTransformation:{capability:{manufacture:.8}},massEducation:{literacy:.8},strategicNuclear:{policy:{posture:'strategic',safeguards:.3,secrecy:.5,declared:false}}};}
 
 const defender=region('defender'),challenger=region('challenger');
+challenger.knowledge.addObservation({subjectId:defender.id,topic:KNOWLEDGE_TOPICS.MILITARY,source:KNOWLEDGE_SOURCES.SPY,confidence:.88,specificity:.86,observedTick:90,receivedTick:90,details:{nuclearSignals:true}});
 const nw=ensureNuclearWeaponState(defender);nw.prototypeCount=1;nw.validationConfidence=.9;nw.tests=[{completed:true,publiclyDeclared:true,detected:true}];nw.observableSignals={researchFootprint:1,procurement:1,testRange:1,concealment:0};
 const line=declareNuclearRedLine(defender,{category:RED_LINE_CATEGORIES.HOMELAND_INVASION,severity:.7,publiclyDeclared:true,ambiguity:.2});
 assert(line);
