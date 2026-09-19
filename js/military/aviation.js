@@ -1,5 +1,6 @@
 import { operationalInfrastructure } from '../economy/construction.js?v=20260918-aviation1';
-import { EQUIPMENT_FAMILIES, ensureCurrentAircraftDesign } from './equipmentGenerations.js?v=20260919-aircraft-industry1';
+import { EQUIPMENT_FAMILIES, ensureCurrentAircraftDesign } from './equipmentGenerations.js?v=20260919-aircraft-industry2';
+import { takeFinishedEquipment } from '../economy/industrialPlant.js?v=20260919-aircraft-industry2';
 
 const DAYS_PER_YEAR=365.2425;
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
@@ -77,6 +78,7 @@ function spendBuildInputs(region,cost){
 }
 
 function familyForRole(role){return role==='bomber'?EQUIPMENT_FAMILIES.BOMBER:['fighter','interceptor'].includes(role)?EQUIPMENT_FAMILIES.FIGHTER:null;}
+function productForRole(role){return role==='bomber'?'bomber':['fighter','interceptor'].includes(role)?'fighter':null;}
 
 export function buildAircraft(region,{ownerType='civilian',role='recon'}={}){
   if(!canBuild(region))return null;
@@ -84,9 +86,16 @@ export function buildAircraft(region,{ownerType='civilian',role='recon'}={}){
   if(role==='transport'&&!has(region,TRANSPORT_AIRCRAFT_TECH_ID))return null;
   if(['fighter','interceptor'].includes(role)&&!has(region,AIRCRAFT_ARMAMENT_TECH_ID))return null;
   if(role==='bomber'&&!has(region,AERIAL_BOMBING_TECH_ID))return null;
-  const cost=role==='transport'?{wood:40,textiles:24,steel:18,machine:10,cash:22}:role==='bomber'?{wood:34,textiles:24,steel:22,machine:15,cash:28}:role==='fighter'||role==='interceptor'?{wood:24,textiles:16,steel:15,machine:12,cash:22}:{wood:26,textiles:18,steel:10,machine:7,cash:14};
-  if(!spendBuildInputs(region,cost))return null;
-  const family=ownerType==='military'?familyForRole(role):null,design=family?ensureCurrentAircraftDesign(region,family):null;
+  const family=ownerType==='military'?familyForRole(role):null,productId=productForRole(role);
+  let design=null;
+  if(family&&productId){
+    design=takeFinishedEquipment(region,productId,1);
+    if(!design){region.industrialOrders ||= {};region.industrialOrders[productId]=Math.max(region.industrialOrders[productId]||0,1);return null;}
+  } else {
+    const cost=role==='transport'?{wood:40,textiles:24,steel:18,machine:10,cash:22}:{wood:26,textiles:18,steel:10,machine:7,cash:14};
+    if(!spendBuildInputs(region,cost))return null;
+    if(family)design=ensureCurrentAircraftDesign(region,family);
+  }
   const aircraft={id:`air-${nextAircraftId++}`,ownerType,ownerActorId:actorId(region),role,baseType:'airfield',homeBaseRegionId:region.id,baseRegionId:region.id,carrierId:null,condition:1,fuel:1,status:'serviceable',mission:AIR_MISSIONS.IDLE,targetRegionId:null,pilotExperience:0,totalFlights:0,repairNeed:0,designId:design?.id||null,modelName:design?.name||null,designSequence:design?.sequence||null,designStats:design?.stats?{...design.stats}:null};
   ensureAviation(region).aircraft.push(aircraft); return aircraft;
 }
@@ -167,7 +176,6 @@ export function tickAviation(regions,currentTick,elapsedDays=7,rng=Math.random,o
       if(a.status!=='destroyed'&&a.mission===AIR_MISSIONS.ATTACK&&has(region,AERIAL_BOMBING_TECH_ID)){const payload=clamp(a.designStats?.payload??.18),firepower=clamp(a.designStats?.firepower??.15);target.warDamage ||= {infrastructureDamage:0,bombardmentWeeks:0};target.warDamage.infrastructureDamage+=.006*a.condition*(.45+payload*1.6+firepower*.35);events.push({type:'aerial_attack',aircraftId:a.id,targetRegionId:target.id,payload});}
       if(a.status!=='destroyed'&&a.mission!==AIR_MISSIONS.INTERCEPT){a.mission=AIR_MISSIONS.IDLE;a.status=a.condition<.42?'damaged':'serviceable';a.targetRegionId=null;}
     }
-    // Rare civilian aviation: no automatic swarm. A wealthy industrial region slowly acquires a few civil machines.
     const civil=av.aircraft.filter(a=>a.ownerType==='civilian'&&a.status!=='destroyed').length;
     if(canBuild(region)&&civil<Math.max(1,Math.floor(Math.log10(Math.max(10,region.population||0))-3))){
       const wealth=clamp(Math.log1p(Math.max(0,region.wallet||0))/12),industry=industrialReadiness(region); if(rng()<elapsedDays/DAYS_PER_YEAR*.08*wealth*industry)buildAircraft(region,{ownerType:'civilian',role:'mail'});
