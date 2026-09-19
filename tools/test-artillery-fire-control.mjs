@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { artilleryFireControlProfile, ensureArtilleryFireControl, recordArtilleryFireControlLessons, resolveArtilleryTargeting } from '../js/military/artilleryFireControl.js';
 import { BREECH_ARTILLERY_TECH_ID, QUICK_FIRE_ARTILLERY_TECH_ID, HEAVY_HOWITZER_TECH_ID, MACHINE_GUN_TECH_ID } from '../js/military/modernLandWarfare.js';
 import { ensureModernTactics, recordModernCombatLessons } from '../js/military/modernTactics.js';
-import { ensureCurrentArtilleryDesign, stampEquipment } from '../js/military/equipmentGenerations.js';
+import { authoriseEquipmentMark, equipmentDesignFrontier, ensureCurrentArtilleryDesign, stampEquipment } from '../js/military/equipmentGenerations.js';
 
 function region(id,{advanced=false,machineGuns=false}={}){
   const unlockedTechIds=new Set(['military_drill','gunpowder']);
@@ -34,9 +34,14 @@ attacker.unlockedTechIds.add('steelmaking');
 attacker.industrialSupply.capability.precision_machining=.85;
 attacker.structuralTransformation.capability.manufacture=.8;
 attacker.steelIndustry.readiness=.75;
-const newDesign=ensureCurrentArtilleryDesign(attacker,'bombard',2);
+const improvedFrontier=equipmentDesignFrontier(attacker,oldDesign.family,{kind:'bombard'});
+const unchangedDesign=ensureCurrentArtilleryDesign(attacker,'bombard',2);
+assert.equal(unchangedDesign.id,oldDesign.id,'physical improvement alone should advance the frontier, not silently mint a new Mark');
+assert(improvedFrontier.rangeKm>oldDesign.stats.rangeKm*1.5,'the design frontier should reflect materially better physical range');
+const newDesign=authoriseEquipmentMark(attacker,oldDesign.family,{kind:'bombard',tick:2,reason:'test_authorised_upgrade',authorisedBy:'test'});
 const newGun=stampEquipment({kind:'bombard',metal:'steel',condition:1},newDesign);
-assert.notEqual(newDesign.id,oldDesign.id,'a meaningful physical improvement should create a new artillery model');
+assert.notEqual(newDesign.id,oldDesign.id,'explicit authorisation should create a new artillery model');
+assert.equal(newDesign.sequence,2,'authorised improvement should create Mk II');
 assert.equal(oldGun.designStats.rangeKm,oldRange,'introducing a new design must not upgrade an existing gun');
 assert(newGun.designStats.rangeKm>oldGun.designStats.rangeKm*1.5,'new-production artillery should preserve a materially better physical range envelope');
 
