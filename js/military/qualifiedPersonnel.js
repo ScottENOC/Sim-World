@@ -31,7 +31,7 @@ export function aircraftCrewRequirements(aircraft){
   const role=aircraft?.role||'recon';
   if(aircraft?.ownerType!=='military')return{pilot:0,aircrew:0};
   if(role==='bomber')return{pilot:1,aircrew:4};
-  if(role==='transport')return{pilot:2,aircrew:2};
+  if(['transport','tanker'].includes(role))return{pilot:2,aircrew:2};
   if(role==='recon')return{pilot:1,aircrew:1};
   return{pilot:1,aircrew:0};
 }
