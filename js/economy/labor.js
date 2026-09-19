@@ -4,9 +4,11 @@ import { finalizeStructuralTransformation, prepareStructuralTransformation } fro
 import { tickIndustrialSupply } from './industrialSupply.js?v=20260915-industrial1';
 import { enforceHousingEmployment, housingSummary, prepareHousingConstruction } from './housing.js?v=20260916-housing1';
 import { tickEmploymentAndHardship } from './employmentAndHardship.js?v=20260918-employment1';
+import { tickHouseholdFoodSecurity } from './householdFoodSecurity.js?v=20260919-household-food1';
 export * from './laborCore.js?v=20260905-merchant1';
 export * from './housing.js?v=20260916-housing1';
 export * from './employmentAndHardship.js?v=20260918-employment1';
+export * from './householdFoodSecurity.js?v=20260919-household-food1';
 
 function committedMerchantCount(region) {
   const workingAge = Math.max(0, Number(region.demographics?.workingAge) || 0);
@@ -63,6 +65,7 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
       region.occupations.housingBuilder = housingBuilders;
       finalizeStructuralTransformation(region, elapsedDays);
       tickIndustrialSupply(region, elapsedDays);
+      tickHouseholdFoodSecurity(region, elapsedDays);
 
       const housingEmployment = enforceHousingEmployment(region, previousOccupations);
       region.report ||= {};

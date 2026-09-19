@@ -174,9 +174,16 @@ export function draughtFarmMultiplier(region, farmerCount) {
 
 export function horseTransportMultiplier(region) {
   const traders = Math.max(1, region.occupations?.trader || 0);
-  const coverage = clamp01((region.horseEconomy?.transport || 0) /
+  const horseCoverage = clamp01((region.horseEconomy?.transport || 0) /
     Math.max(1, traders / TRADERS_PER_TRANSPORT_HORSE));
-  return 1 + coverage * 0.75;
+  // This legacy function is used by the trade network as its generic overland
+  // freight capability. Once motorised refrigerated distribution emerges, the
+  // cold-chain fleet supplements animal haulage rather than replacing the horse
+  // economy overnight. The extra capacity is especially important for food,
+  // although the current merchant-route abstraction shares some benefit with
+  // other road freight too.
+  const refrigeratedMotorFreight = clamp01(region.householdFoodSecurity?.refrigeratedRoadShare || 0);
+  return 1 + horseCoverage * 0.75 + refrigeratedMotorFreight * 0.90;
 }
 
 export function horseMilitaryMultiplier(region) {
