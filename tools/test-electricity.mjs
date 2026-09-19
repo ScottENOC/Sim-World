@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { tickElectricity, electricityIndustrialMultiplier, electricityWellbeing } from '../js/economy/electricity.js';
+import { tickElectricity, dispatchElectricityPortfolio, electricityIndustrialMultiplier, electricityWellbeing } from '../js/economy/electricity.js';
 import { electrificationBreakthroughChances, ELECTRICAL_GENERATION_TECH_ID, LOCAL_ELECTRIC_DISTRIBUTION_TECH_ID, INDUSTRIAL_ELECTRIFICATION_TECH_ID, HYDROELECTRIC_GENERATION_TECH_ID } from '../js/technology/electrification.js';
 import { assessPopularWellbeing } from '../js/politics/popularWellbeing.js';
 
@@ -43,6 +43,23 @@ const hydroResult=tickElectricity(hydro,365.2425);
 assert(hydroResult.hydroOutput>0 && hydroResult.delivered>0,'hydroelectric generation should work with controlled water and a grid');
 assert.equal(hydroResult.coalConsumed,0,'hydroelectricity should not consume coal');
 
+// Source diversity is operational, not a flat bonus. Coal is efficient as steady baseload,
+// while variable renewables need a flexible companion if their output becomes material.
+const coalOnly=dispatchElectricityPortfolio({coal:5000},10000);
+assert.equal(coalOnly.dispatchEfficiency,1,'steady coal baseload should not be penalised merely for being a single-source system');
+const coalSolar=dispatchElectricityPortfolio({coal:5000,solar:4000},10000);
+assert(coalSolar.coalCyclingLoss>0 && coalSolar.curtailed>0,'coal plus solar without flexibility should incur cycling and curtailment losses');
+assert(coalSolar.dispatchEfficiency<coalOnly.dispatchEfficiency,'forcing coal to balance solar should reduce dispatch efficiency');
+const coalSolarHydro=dispatchElectricityPortfolio({coal:5000,solar:4000,hydro:1800},12000);
+assert(coalSolarHydro.balancingCoverage>coalSolar.balancingCoverage,'reservoir hydro should provide useful balancing flexibility');
+assert(coalSolarHydro.dispatchEfficiency>coalSolar.dispatchEfficiency,'a complementary flexible source should improve the coal-plus-solar portfolio');
+assert(coalSolarHydro.coalCyclingLoss<coalSolar.coalCyclingLoss,'hydro flexibility should reduce coal cycling losses');
+const solarOnly=dispatchElectricityPortfolio({solar:6000},10000);
+assert(solarOnly.balancingShortfall>0 && solarOnly.curtailed>0,'large variable generation without flexibility should not all count as firm usable supply');
+const solarWind=dispatchElectricityPortfolio({solar:3000,wind:3000},10000);
+assert(solarWind.variableComplementarity>0,'solar and wind should receive a modest variability-diversification benefit');
+assert(solarWind.balancingNeed < 3000*.30 + 3000*.24,'variable-source complementarity should reduce, not eliminate, balancing needs');
+
 const noService=region({electricity:{householdService:0,industrialService:0}});
 const fullService=region({electricity:{householdService:1,industrialService:1}});
 assert(electricityWellbeing(fullService).culturalAccess>electricityWellbeing(noService).culturalAccess);
@@ -69,4 +86,4 @@ assert(breakthroughs.includes('tickElectrificationBreakthroughs'));
 const main=fs.readFileSync(new URL('../js/main.js',import.meta.url),'utf8');
 assert(main.includes('tickElectricity(region, time.elapsedDays)'));
 
-console.log('electricity generation, staged distribution/use, fuel, copper, hydro, industry and wellbeing regressions passed');
+console.log('electricity generation, staged distribution/use, source complementarity, fuel, copper, hydro, industry and wellbeing regressions passed');
