@@ -1,0 +1,43 @@
+name: Early rocketry PR validation
+
+on:
+  pull_request:
+    paths:
+      - 'js/military/earlyRocketry.js'
+      - 'js/military/modernLandWarfare.js'
+      - 'js/military/equipmentGenerations.js'
+      - 'js/military/artilleryFireControl.js'
+      - 'js/military/earlyModernWarfare.js'
+      - 'js/military/campaigns.js'
+      - 'js/economy/industrialWarEconomy.js'
+      - 'js/economy/tradeGoods.js'
+      - 'tools/test-early-rocketry.mjs'
+      - 'tools/test-rocket-artillery-campaign.mjs'
+      - '.github/workflows/early-rocketry-pr.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax
+        run: |
+          node --check js/military/earlyRocketry.js
+          node --check js/military/modernLandWarfare.js
+          node --check js/military/equipmentGenerations.js
+          node --check js/military/artilleryFireControl.js
+          node --check js/military/earlyModernWarfare.js
+          node --check js/military/campaigns.js
+          node --check js/economy/industrialWarEconomy.js
+          node --check js/economy/tradeGoods.js
+      - name: Regressions
+        run: |
+          node tools/test-early-rocketry.mjs
+          node tools/test-rocket-artillery-campaign.mjs
+          node tools/test-artillery-fire-control.mjs
+          node tools/test-modern-land-warfare.mjs
+          node tools/test-industrial-war-economics.mjs
+          node tools/test-early-modern-military-transition.mjs
