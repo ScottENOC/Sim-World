@@ -48,6 +48,18 @@ export const TRADE_GOODS = {
   textiles:   { label: 'Textiles', basePrice: 4, referenceStock: 300, category: 'manufactured', cargoKgPerUnit: 0.5 },
   clothes:    { label: 'Clothing', basePrice: 7, referenceStock: 600, category: 'consumer_good', cargoKgPerUnit: 0.6 },
   motor_vehicle: { label: 'Motor vehicles', basePrice: 80, referenceStock: 90, category: 'civilian_equipment', cargoKgPerUnit: 900 },
+
+  // Computing is deliberately decomposed into tradeable stages. This permits
+  // design, precision-tooling, fabrication, packaging and final assembly to
+  // specialise in different regions, creating real supply-chain dependencies.
+  electronic_grade_silicon: { label: 'Electronic-grade silicon', basePrice: 18, referenceStock: 180, category: 'advanced_material', strategic: true, cargoKgPerUnit: 0.35 },
+  industrial_polymers: { label: 'Industrial polymers', basePrice: 8, referenceStock: 500, category: 'advanced_material', cargoKgPerUnit: 0.45 },
+  electronic_components: { label: 'Electronic components', basePrice: 35, referenceStock: 180, category: 'precision_component', strategic: true, cargoKgPerUnit: 0.08 },
+  lithography_equipment: { label: 'Lithography equipment', basePrice: 900, referenceStock: 8, category: 'precision_capital_equipment', strategic: true, cargoKgPerUnit: 140 },
+  semiconductor_wafers: { label: 'Processed semiconductor wafers', basePrice: 260, referenceStock: 40, category: 'precision_component', strategic: true, cargoKgPerUnit: 0.03 },
+  packaged_chips: { label: 'Packaged integrated circuits', basePrice: 420, referenceStock: 70, category: 'precision_component', strategic: true, cargoKgPerUnit: 0.01 },
+  computers: { label: 'Computers', basePrice: 700, referenceStock: 50, category: 'civilian_equipment', strategic: true, cargoKgPerUnit: 18 },
+
   horses:     { label: 'Horses', basePrice: 18, referenceStock: 100, category: 'livestock', cargoKgPerUnit: 60 },
 
   // New civilian tools. Issued/used tools live under region.equipment instead
