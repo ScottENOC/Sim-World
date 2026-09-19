@@ -231,6 +231,20 @@ export const CONSTRUCTION_TYPES = Object.freeze({
     workRequired: 90000, defaultWorkers: 700, minWorkers: 220, maxWorkers: 2600,
     materials: { stone: 4800, steel: 1200, copper: 100 }, wagePerWorkerWeek: 0.0055, maintenanceRate: 0.055,
   },
+  uranium_enrichment_complex: {
+    id: 'uranium_enrichment_complex', name: 'Uranium isotope-separation complex', requiredTechId: 'isotope_separation', unique: false,
+    requiresInfrastructure: 'local_electric_grid', minPopulation: 50000,
+    description: 'A large precision-industrial isotope-separation complex. It can support advanced civilian fuel production or, under a deliberate strategic programme, accumulate proliferation-significant material. Its electricity and procurement footprint is difficult to hide completely.',
+    workRequired: 260000, defaultWorkers: 1500, minWorkers: 450, maxWorkers: 4800,
+    materials: { stone: 5200, steel: 2600, copper: 900, aluminium: 260 }, wagePerWorkerWeek: 0.0062, maintenanceRate: 0.105,
+  },
+  nuclear_reprocessing_plant: {
+    id: 'nuclear_reprocessing_plant', name: 'Nuclear reprocessing plant', requiredTechId: 'spent_fuel_reprocessing', unique: false,
+    requiresInfrastructure: 'nuclear_power_station', minPopulation: 40000,
+    description: 'A shielded chemical-industrial complex for recovering useful material from spent reactor fuel. It reduces waste pressure and extends fuel supply, while also creating strategically sensitive separation capability.',
+    workRequired: 210000, defaultWorkers: 1300, minWorkers: 400, maxWorkers: 4200,
+    materials: { stone: 6500, steel: 2300, copper: 520, aluminium: 130 }, wagePerWorkerWeek: 0.0060, maintenanceRate: 0.10,
+  },
   petroleum_refinery: {
     id: 'petroleum_refinery', name: 'Petroleum refinery', requiredTechId: 'petroleum_refining', unique: false,
     minPopulation: 8000,
