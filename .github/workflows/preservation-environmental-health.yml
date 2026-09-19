@@ -1,0 +1,27 @@
+name: Preservation and environmental health
+
+on:
+  push:
+    branches: [ main, 'feature/**' ]
+  pull_request:
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: |
+          node --check js/technology/foodPreservationEnvironmentalHealth.js
+          node --check js/world/ozoneLayer.js
+          node --check js/military/oceanicProvisioning.js
+          node --check js/technology/medicalProgress.js
+      - name: Preservation and environmental health regression
+        run: node tools/test-preservation-environmental-health.mjs
+      - name: Existing oceanic provisioning regression
+        run: node tools/test-oceanic-provisioning-scurvy.mjs
+      - name: Whitespace
+        run: git diff --check origin/main...HEAD
