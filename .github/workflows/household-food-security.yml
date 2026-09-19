@@ -1,0 +1,28 @@
+name: Household food security
+
+on:
+  push:
+    branches: [ main, 'feature/**' ]
+  pull_request:
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: |
+          node --check js/economy/householdFoodSecurity.js
+          node --check js/economy/labor.js
+          node --check js/economy/horses.js
+      - name: Household food security regression
+        run: node tools/test-household-food-security.mjs
+      - name: Existing economy regression
+        run: node tools/test-preservation-environmental-health.mjs
+      - name: Whitespace
+        run: git diff --check origin/main...HEAD
