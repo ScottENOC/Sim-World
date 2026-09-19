@@ -24,13 +24,16 @@ export function rocketArtilleryFrontier(region){
   return {family:'rocket_artillery',rangeKm,intrinsicAccuracy,reliability,salvoDensity,firepower,mobility,propellantConsistency:propellant,casingQuality:casing,stabilisation,launcherQuality:launcher,areaWeapon:true,guided:false};
 }
 
-export function rocketArtilleryCombatProfile(region,{launchers=0,logisticsSupply=1,elapsedDays=7,consumeSupplies=true}={}){
-  const frontier=rocketArtilleryFrontier(region);if(!frontier||!has(region,ROCKET_ARTILLERY_TECH_ID)||launchers<=0)return{combatMultiplier:1,bombardment:0,areaSuppression:0,precision:0,ammoSupply:1,rocketsUsed:0,rangeKm:0};
-  const weeks=Math.max(.1,elapsedDays/7),needed=launchers*(.45+.85*frontier.salvoDensity)*weeks;
+export function rocketArtilleryCombatProfile(region,{launchers=0,launcherUnits=[],logisticsSupply=1,elapsedDays=7,consumeSupplies=true}={}){
+  const current=rocketArtilleryFrontier(region);const units=(launcherUnits||[]).filter(x=>(x?.condition??1)>.08);const n=units.length||Math.max(0,launchers);
+  if(!current||!has(region,ROCKET_ARTILLERY_TECH_ID)||n<=0)return{combatMultiplier:1,bombardment:0,areaSuppression:0,precision:0,ammoSupply:1,rocketsUsed:0,rangeKm:0};
+  const avg=(key,fallback)=>units.length?units.reduce((s,x)=>s+(Number(x?.designStats?.[key])||fallback),0)/units.length:fallback;
+  const frontier={...current,rangeKm:avg('rangeKm',current.rangeKm),intrinsicAccuracy:avg('intrinsicAccuracy',current.intrinsicAccuracy),reliability:avg('reliability',current.reliability),salvoDensity:avg('salvoDensity',current.salvoDensity),firepower:avg('firepower',current.firepower)};
+  const weeks=Math.max(.1,elapsedDays/7),needed=n*(.45+.85*frontier.salvoDensity)*weeks;
   const available=Math.max(0,region.stockpile?.artillery_rockets||0),ammoSupply=Math.min(clamp(logisticsSupply),needed>0?clamp(available/needed):1);
   const rocketsUsed=needed*ammoSupply;if(consumeSupplies&&rocketsUsed>0)region.stockpile.artillery_rockets=Math.max(0,available-rocketsUsed);
   const effective=clamp(ammoSupply*frontier.reliability);
-  return {combatMultiplier:1+Math.min(.12,launchers*.008*effective),bombardment:clamp(frontier.firepower*frontier.salvoDensity*effective),areaSuppression:clamp(frontier.salvoDensity*effective*(1-frontier.intrinsicAccuracy*.25)),precision:frontier.intrinsicAccuracy,ammoSupply,rocketsUsed,rangeKm:frontier.rangeKm,reliability:frontier.reliability,salvoDensity:frontier.salvoDensity};
+  return {combatMultiplier:1+Math.min(.12,n*.008*effective),bombardment:clamp(frontier.firepower*frontier.salvoDensity*effective),areaSuppression:clamp(frontier.salvoDensity*effective*(1-frontier.intrinsicAccuracy*.25)),precision:frontier.intrinsicAccuracy,ammoSupply,rocketsUsed,rangeKm:frontier.rangeKm,reliability:frontier.reliability,salvoDensity:frontier.salvoDensity};
 }
 
 export function rocketArtilleryTargetingBonus(region,fireControlProfile={}){

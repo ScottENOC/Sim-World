@@ -5,7 +5,7 @@ const DAYS_PER_YEAR=365.2425;
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const has=(r,id)=>Boolean(r?.unlockedTechIds?.has?.(id));
 const modernInfantry=(r)=>has(r,'breech_loading_rifles')||has(r,'magazine_rifles')||has(r,'machine_guns');
-const modernArtillery=(r)=>has(r,'breech_loading_artillery')||has(r,'heavy_howitzers')||has(r,'quick_firing_artillery');
+const modernArtillery=(r)=>has(r,'breech_loading_artillery')||has(r,'heavy_howitzers')||has(r,'quick_firing_artillery')||has(r,'rocket_artillery');
 
 export function ensureIndustrialWarEconomy(region){
  region.warEconomy ||= {};
@@ -36,7 +36,7 @@ function produceMunitions(region,elapsedDays){
  const firearmPractice=clamp(region.firearms?.readiness||0);
  const labourMultiplier=clamp(region.labourRelations?.munitionsMultiplier??1,.35,1);
  const base=clamp(precision*.42+steel*.28+firearmPractice*.30)*labourMultiplier;
- let smallArms=0,shells=0,spending=0;
+ let smallArms=0,shells=0,rockets=0,spending=0;
  const personnel=Math.max(0,(region.army?.personnel||0)+(region.army?.away||0)+(region.emergencyMilitiaPersonnel||0));
  if(modernInfantry(region)){
   const target=personnel*(region.warEconomy?.activeCampaigns?0.34:0.10);
@@ -57,6 +57,16 @@ function produceMunitions(region,elapsedDays){
   if(shells>0){const cash=shells*cashNeedPer;region.stockpile.gunpowder-=shells*powderNeedPer;consumeMetal(region,shells*metalNeedPer);region.treasury=Math.max(0,region.treasury-cash);region.wallet=(region.wallet||0)+cash;spending+=cash;region.stockpile.artillery_shells=(region.stockpile.artillery_shells||0)+shells;}
   region.marketDemand.artillery_shells=Math.max(region.marketDemand.artillery_shells||0,gap/Math.max(1,elapsedDays/7));
  }
+ if(has(region,'rocket_artillery')){
+  const launchers=[...(region.earlyModernMilitary?.artillery?.inventory||[]),...(region.earlyModernMilitary?.artillery?.away||[])].filter(x=>x?.kind==='rocket_artillery').length;
+  const target=launchers*(region.warEconomy?.activeCampaigns?32:9);
+  const gap=Math.max(0,target-(region.stockpile.artillery_rockets||0));
+  const capacity=Math.max(0,base*(2+launchers*12)*years);
+  const powderPer=.22,metalPer=.055,cashPer=.032;
+  rockets=Math.min(gap,capacity,(region.stockpile.gunpowder||0)/powderPer,((region.stockpile.steel||0)+(region.stockpile.iron||0))/metalPer,Math.max(0,region.treasury||0)/cashPer);
+  if(rockets>0){const cash=rockets*cashPer;region.stockpile.gunpowder-=rockets*powderPer;consumeMetal(region,rockets*metalPer);region.treasury=Math.max(0,region.treasury-cash);region.wallet=(region.wallet||0)+cash;spending+=cash;region.stockpile.artillery_rockets=(region.stockpile.artillery_rockets||0)+rockets;}
+  region.marketDemand.artillery_rockets=Math.max(region.marketDemand.artillery_rockets||0,gap/Math.max(1,elapsedDays/7));
+ }
  let torpedoes=0,navalMines=0;
  if(has(region,'self_propelled_torpedo')){
   const gap=Math.max(0,12-(region.stockpile.torpedoes||0)),cashPer=.08,steelPer=.12,powderPer=.08;
@@ -70,7 +80,7 @@ function produceMunitions(region,elapsedDays){
   if(navalMines>0){const cash=navalMines*cashPer;region.stockpile.steel-=navalMines*steelPer;region.stockpile.gunpowder-=navalMines*powderPer;region.treasury-=cash;region.wallet=(region.wallet||0)+cash;spending+=cash;region.stockpile.naval_mines=(region.stockpile.naval_mines||0)+navalMines;}
   region.marketDemand.naval_mines=Math.max(region.marketDemand.naval_mines||0,gap/Math.max(1,elapsedDays/7));
  }
- return{smallArms,shells,torpedoes,navalMines,spending,value:smallArms*12+shells*38+torpedoes*85+navalMines*44};
+ return{smallArms,shells,rockets,torpedoes,navalMines,spending,value:smallArms*12+shells*38+rockets*46+torpedoes*85+navalMines*44};
 }
 
 export function warTradeDisruptionMultiplier(region){return Math.max(.35,1-clamp(region?.warEconomy?.tradeDisruption||0)*.65);}
@@ -92,6 +102,6 @@ export function tickIndustrialWarEconomy(regions,campaigns=[],elapsedDays=7,poli
   else s.warExhaustion=Math.max(0,s.warExhaustion-years*.045);
   if(s.warExhaustion>.15)region.stability=Math.max(0,(region.stability??1)-weekScale*(s.warExhaustion-.15)*.00025);
   const output=produceMunitions(region,elapsedDays);s.munitionsOutputValue=output.value;
-  region.report ||= {};region.report.warEconomy={...s,smallArmsAmmunitionMade:output.smallArms,artilleryShellsMade:output.shells,torpedoesMade:output.torpedoes,navalMinesMade:output.navalMines,munitionsSpending:output.spending};
+  region.report ||= {};region.report.warEconomy={...s,smallArmsAmmunitionMade:output.smallArms,artilleryShellsMade:output.shells,artilleryRocketsMade:output.rockets,torpedoesMade:output.torpedoes,navalMinesMade:output.navalMines,munitionsSpending:output.spending};
  }
 }
