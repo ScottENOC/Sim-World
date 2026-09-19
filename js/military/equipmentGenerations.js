@@ -44,16 +44,18 @@ export function artilleryDesignFrontier(region,kind='field_cannon'){
   const fc=region.artilleryFireControl||{};
   const heavy=kind==='bombard'||kind==='heavy_howitzer';
   const breech=has('breech_loading_artillery'),quick=has('quick_firing_artillery'),howitzer=has('heavy_howitzers');
-  const engineering=clamp((region.industrialSupply?.capability?.precision_machining||0)*.45+(region.structuralTransformation?.capability?.manufacture||0)*.25+(region.steelIndustry?.readiness||0)*.15+(region.massEducation?.literacy||0)*.15);
+  const components=region.industrialPlants?.componentCapability||{};
+  const gunComponent=clamp(components.gun_system||0),optical=clamp(components.optics||0),analogueElectrical=Math.min(.65,clamp(components.electronics||0)),chassis=clamp(components.wheeled_chassis||0);
+  const engineering=clamp((region.industrialSupply?.capability?.precision_machining||0)*.32+(region.structuralTransformation?.capability?.manufacture||0)*.18+(region.steelIndustry?.readiness||0)*.12+(region.massEducation?.literacy||0)*.10+gunComponent*.16+optical*.08+analogueElectrical*.04);
   return {
     family:heavy?EQUIPMENT_FAMILIES.HEAVY_ARTILLERY:EQUIPMENT_FAMILIES.FIELD_ARTILLERY,
-    rangeKm:(heavy?3.4:2.8)*(1+(breech?.55:0)+(quick?.28:0)+(howitzer&&heavy?.55:0)+engineering*.22),
-    intrinsicAccuracy:clamp(.18+(breech?.13:0)+(quick?.11:0)+engineering*.24),
-    rateOfFire:clamp(.16+(breech?.22:0)+(quick?.42:0)+engineering*.12),
-    reliability:clamp(.52+engineering*.30+(has('steelmaking')?.10:0)),
-    mobility:clamp((heavy?.34:.58)+engineering*.14),
-    firepower:clamp((heavy?.52:.34)+(breech?.10:0)+(quick?.12:0)+(howitzer&&heavy?.18:0)+engineering*.14),
-    fireControlPotential:clamp(.20+(fc.rangeFinding||0)*.14+(fc.survey||0)*.14+(fc.fireDirection||0)*.18+(fc.predictedFire||0)*.18+engineering*.16),
+    rangeKm:(heavy?3.4:2.8)*(1+(breech?.55:0)+(quick?.28:0)+(howitzer&&heavy?.55:0)+engineering*.30+gunComponent*.24),
+    intrinsicAccuracy:clamp(.18+(breech?.13:0)+(quick?.11:0)+engineering*.18+optical*.22+gunComponent*.10),
+    rateOfFire:clamp(.16+(breech?.22:0)+(quick?.42:0)+engineering*.10+gunComponent*.12),
+    reliability:clamp(.52+engineering*.22+gunComponent*.10+(has('steelmaking')?.10:0)),
+    mobility:clamp((heavy?.34:.58)+engineering*.08+chassis*.18),
+    firepower:clamp((heavy?.52:.34)+(breech?.10:0)+(quick?.12:0)+(howitzer&&heavy?.18:0)+engineering*.08+gunComponent*.18),
+    fireControlPotential:clamp(.20+(fc.rangeFinding||0)*.12+(fc.survey||0)*.12+(fc.fireDirection||0)*.16+(fc.predictedFire||0)*.16+optical*.14+analogueElectrical*.08+engineering*.08),
   };
 }
 
@@ -63,7 +65,7 @@ export function armouredVehicleDesignFrontier(region,family=EQUIPMENT_FAMILIES.T
   const c=region.industrialPlants?.componentCapability||{};
   const exp=clamp(region.industrialPlants?.productExperience?.[family]||0);
   const q=(k,fallback=.05)=>clamp(c[k]??fallback);
-  const engine=q('engine'),trans=q('transmission'),tracks=q('tracked_running_gear'),gun=q('gun_system'),armour=q('armour_plate'),optics=q('optics'),electronics=q('electronics'),hull=q('hull_fabrication');
+  const engine=q('engine'),trans=q('transmission'),tracks=q('tracked_running_gear'),gun=q('gun_system'),armour=q('armour_plate'),optics=q('optics'),electronics=Math.min(.65,q('electronics')),hull=q('hull_fabrication');
   const spg=family===EQUIPMENT_FAMILIES.SELF_PROPELLED_GUN;
   return {family, mobility:clamp(engine*.34+trans*.26+tracks*.30+hull*.10), firepower:clamp(gun*.62+optics*.20+electronics*.08+hull*.10), protection:clamp(armour*(spg?.62:.82)+hull*(spg?.18:.12)+tracks*.06), reliability:clamp(engine*.18+trans*.18+tracks*.16+gun*.10+armour*.08+hull*.12+exp*.18), fireControlPotential:clamp(optics*.50+electronics*.28+gun*.12+exp*.10), integration:exp};
 }
@@ -73,7 +75,7 @@ export function ensureCurrentArmouredVehicleDesign(region,family=EQUIPMENT_FAMIL
   const score=(s)=>(s.mobility||0)*.22+(s.firepower||0)*.28+(s.protection||0)*.24+(s.reliability||0)*.14+(s.fireControlPotential||0)*.12;
   if(!current)return createEquipmentDesign(region,family,frontier,{reason:'first_standard_design',tick});
   const improvement=(score(frontier)-score(current.stats))/Math.max(.15,score(current.stats));
-  if(improvement>=.08)return createEquipmentDesign(region,family,frontier,{reason:'shared_component_improvement',tick});
+  if(improvement>=.06)return createEquipmentDesign(region,family,frontier,{reason:'shared_component_improvement',tick});
   return current;
 }
 
@@ -81,7 +83,7 @@ export function ensureCurrentArtilleryDesign(region,kind='field_cannon',tick=0){
   const frontier=artilleryDesignFrontier(region,kind),family=frontier.family,current=currentEquipmentDesign(region,family);
   if(!current)return createEquipmentDesign(region,family,frontier,{reason:'first_standard_design',tick});
   const improvement=(designScore(frontier)-designScore(current.stats))/Math.max(.2,designScore(current.stats));
-  if(improvement>=.10)return createEquipmentDesign(region,family,frontier,{reason:'meaningful_capability_improvement',tick});
+  if(improvement>=.065)return createEquipmentDesign(region,family,frontier,{reason:'meaningful_capability_improvement',tick});
   return current;
 }
 

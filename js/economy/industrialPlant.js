@@ -1,3 +1,5 @@
+import { EQUIPMENT_FAMILIES, ensureCurrentArmouredVehicleDesign, ensureCurrentArtilleryDesign } from '../military/equipmentGenerations.js?v=20260919-predigital1';
+
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
 export const INDUSTRIAL_COMPONENTS=Object.freeze({
@@ -21,7 +23,11 @@ const COMPONENT_INPUTS=Object.freeze({
 });
 
 function hasTech(region,id){return Boolean(region.unlockedTechIds?.has?.(id));}
-function factoryAssets(region){return (region.construction?.assets||[]).filter(a=>a.typeId==='factory'&&(a.condition??1)>.15);}
+function factoryAssets(region){
+  const publicAssets=(region.construction?.assets||[]).filter(a=>a.typeId==='factory'&&(a.condition??1)>.15).map(a=>({source:'construction',scale:Math.max(.2,a.scale||1),condition:clamp(a.condition??1)}));
+  const corporateAssets=(region.corporateInfrastructure?.assets||[]).filter(a=>a.type==='factory'&&a.status==='operational'&&(a.condition??1)>.15).map(a=>({source:'corporate',scale:Math.max(.2,a.effectiveCapacity||a.baseCapacity||1),condition:clamp(a.condition??1)}));
+  return [...publicAssets,...corporateAssets];
+}
 function baseFactoryCapacity(region){
   const assets=factoryAssets(region); if(!assets.length)return 0;
   const sophistication=clamp(region.industrialProduction?.factorySophistication||0);
@@ -104,7 +110,14 @@ function assemble(region,productId,requested){
   const s=ensureIndustrialPlantState(region),recipe=PRODUCT_RECIPES[productId]?.components||{};let actual=requested;
   for(const [c,per] of Object.entries(recipe))actual=Math.min(actual,(s.componentInventory[c]||0)/Math.max(.0001,per));actual=Math.max(0,actual);
   for(const [c,per] of Object.entries(recipe))s.componentInventory[c]=Math.max(0,(s.componentInventory[c]||0)-per*actual);
-  region.industrialSupply||={};region.industrialSupply.inventory||={};region.industrialSupply.inventory[productId]=(region.industrialSupply.inventory[productId]||0)+actual;return actual;
+  region.industrialSupply||={};region.industrialSupply.inventory||={};region.industrialSupply.inventory[productId]=(region.industrialSupply.inventory[productId]||0)+actual;
+  if(actual>0&&['tank','self_propelled_gun','towed_artillery'].includes(productId)){
+    const family=productId==='tank'?EQUIPMENT_FAMILIES.TANK:productId==='self_propelled_gun'?EQUIPMENT_FAMILIES.SELF_PROPELLED_GUN:EQUIPMENT_FAMILIES.FIELD_ARTILLERY;
+    const design=productId==='towed_artillery'?ensureCurrentArtilleryDesign(region,'field_cannon'):ensureCurrentArmouredVehicleDesign(region,family);
+    region.militaryEquipment ||= {designs:[],nextDesignSequence:{}};region.militaryEquipment.inventoryByDesign ||= {};
+    region.militaryEquipment.inventoryByDesign[design.id]=(region.militaryEquipment.inventoryByDesign[design.id]||0)+actual;
+  }
+  return actual;
 }
 
 export function tickIndustrialPlants(region,elapsedDays=7){

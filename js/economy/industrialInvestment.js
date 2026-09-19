@@ -6,9 +6,9 @@ const YEARS=(days)=>Math.max(0,Number(days)||0)/365.2425;
 const PRODUCTS=['motor_vehicle','self_propelled_gun','tank'];
 
 export function ensureIndustrialInvestmentState(region){
-  region.industrialInvestment ||= {demandEma:{},marginEma:{},subsidyRate:{},procurement:{},last:{}};
+  region.industrialInvestment ||= {demandEma:{},marginEma:{},subsidyRate:{},procurement:{},last:{},factoryInvestmentSignal:0};
   const s=region.industrialInvestment;
-  s.demandEma ||= {}; s.marginEma ||= {}; s.subsidyRate ||= {}; s.procurement ||= {}; s.last ||= {};
+  s.demandEma ||= {}; s.marginEma ||= {}; s.subsidyRate ||= {}; s.procurement ||= {}; s.last ||= {}; if(!Number.isFinite(s.factoryInvestmentSignal))s.factoryInvestmentSignal=0;
   for(const p of PRODUCTS){if(!Number.isFinite(s.demandEma[p]))s.demandEma[p]=0;if(!Number.isFinite(s.marginEma[p]))s.marginEma[p]=0;if(!Number.isFinite(s.subsidyRate[p]))s.subsidyRate[p]=0;if(!Number.isFinite(s.procurement[p]))s.procurement[p]=0;}
   return s;
 }
@@ -123,12 +123,26 @@ function settleProduction(region,elapsedDays){
   s.last={...s.last,revenue,militarySpend,subsidySpend};
 }
 
+function factoryDemandSignal(region){
+  const pop=clamp(Math.log1p(Math.max(0,region.population||0))/12);
+  const urban=clamp(region.structuralTransformation?.urbanShare||region.urbanisation?.urbanShare||0);
+  const finance=clamp(region.corporateCapital?.financialDepth||0);
+  const motor=region.unlockedTechIds?.has?.('automobile')?1:0;
+  const tariff=importTariffRate(region,'motor_vehicle');
+  const subsidy=clamp(ensureIndustrialInvestmentState(region).subsidyRate.motor_vehicle||0,0,.8);
+  const army=Math.max(0,(region.army?.personnel||0)+(region.army?.away||0));
+  const war=region.warEconomy?.activeCampaigns>0?1:0;
+  return clamp(pop*.22+urban*.20+finance*.20+motor*.16+clamp(tariff/1.5)*.10+subsidy*.08+clamp(army/20000)*.05+war*.12);
+}
+
 export function tickIndustrialInvestment(region,elapsedDays=7){
-  const s=ensureIndustrialInvestmentState(region);if(industrialFactoryCapacity(region)<=0){s.last={factoryCapacity:0};return s;}
+  const s=ensureIndustrialInvestmentState(region);
+  const targetSignal=factoryDemandSignal(region);s.factoryInvestmentSignal+= (targetSignal-s.factoryInvestmentSignal)*clamp(YEARS(elapsedDays)*1.6,0,.3);
+  if(industrialFactoryCapacity(region)<=0){s.last={factoryCapacity:0,factoryInvestmentSignal:s.factoryInvestmentSignal};region.report ||= {};region.report.industrialInvestment=s.last;return s;}
   const demands={};for(const p of PRODUCTS){const raw=strategicDemand(region,p);s.demandEma[p]+=(raw-s.demandEma[p])*clamp(YEARS(elapsedDays)*2.4,0,.35);demands[p]=Math.max(raw,s.demandEma[p]);const m=expectedMargin(region,p,demands[p]);s.marginEma[p]+=(m-s.marginEma[p])*clamp(YEARS(elapsedDays)*3,0,.4);}
   placeGovernmentOrders(region,demands,elapsedDays);
   for(const p of PRODUCTS){const demand=p==='motor_vehicle'?demands[p]:Math.min(demands[p],s.procurement[p]||0);manageProductLine(region,p,demand,s.marginEma[p]);}
   tickIndustrialPlants(region,elapsedDays);settleProduction(region,elapsedDays);
-  s.last={...s.last,factoryCapacity:industrialFactoryCapacity(region),demands,margins:{...s.marginEma},tariffSupport:importTariffRate(region,'motor_vehicle')};
+  s.last={...s.last,factoryCapacity:industrialFactoryCapacity(region),factoryInvestmentSignal:s.factoryInvestmentSignal,demands,margins:{...s.marginEma},tariffSupport:importTariffRate(region,'motor_vehicle')};
   region.report ||= {};region.report.industrialInvestment=s.last;return s;
 }

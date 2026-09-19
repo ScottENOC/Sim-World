@@ -112,7 +112,22 @@ let nextFleetId = 1;
 let nextShipId = 1;
 let nextEncounterId = 1;
 
-function designOf(ship) { return SHIP_DESIGNS[ship?.designId] || SHIP_DESIGNS.basic_war_boat; }
+function romanMark(n){const t=[[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']];let x=Math.max(1,Math.floor(n)),o='';for(const[v,s]of t)while(x>=v){o+=s;x-=v;}return o;}
+function navalFrontier(region,designId){
+  const base=SHIP_DESIGNS[designId]||SHIP_DESIGNS.basic_war_boat,c=region?.industrialPlants?.componentCapability||{};
+  const precision=clamp(region?.industrialSupply?.capability?.precision_machining||0),readiness=clamp(region?.earlyModernMilitary?.naval?.readiness||0);
+  const hull=clamp(c.hull_fabrication||precision*.45),gun=clamp(c.gun_system||precision*.35),armour=clamp(c.armour_plate||0),optics=clamp(c.optics||0),electrical=Math.min(.65,clamp(c.electronics||0));
+  const engine=clamp(c.engine||precision*.35),trans=clamp(c.transmission||precision*.30);
+  const quality=clamp(precision*.15+hull*.19+gun*.17+armour*.10+optics*.13+electrical*.07+readiness*.11+engine*.05+trans*.03);
+  const propulsion=base.propulsion==='steam'||base.propulsion==='submersible'?clamp(engine*.5+trans*.25+precision*.15+readiness*.10):clamp(readiness*.55+precision*.25+hull*.20);
+  return {quality,stats:{...base,combat:base.combat*(.92+quality*.20),durability:base.durability*(.94+(hull*.45+armour*.35+precision*.20)*.16),speed:base.speed*(.96+propulsion*.12),pursuit:base.pursuit*(.96+(propulsion*.60+optics*.20+readiness*.20)*.12),captureResistance:base.captureResistance*(.97+(hull*.45+armour*.35+readiness*.20)*.10),armour:base.armour*(.92+armour*.20),gunCapacity:base.gunCapacity}};
+}
+export function ensureCurrentNavalDesign(region,designId){
+  region.navalDesignCatalogue ||= {};const list=region.navalDesignCatalogue[designId] ||= [];const f=navalFrontier(region,designId),current=list[list.length-1];
+  if(!current||f.quality-(current.quality||0)>=.07){const sequence=(current?.sequence||0)+1;list.push({id:`${region.id}:${designId}:${sequence}`,designId,sequence,name:`${SHIP_DESIGNS[designId]?.label||designId} Mk ${romanMark(sequence)}`,quality:f.quality,stats:f.stats});}
+  return list[list.length-1];
+}
+function designOf(ship) { return ship?.designStats || SHIP_DESIGNS[ship?.designId] || SHIP_DESIGNS.basic_war_boat; }
 function isSubmarineFleet(fleet) { return (fleet?.ships?.length || 0) > 0 && fleet.ships.every((ship) => ship.designId === 'submarine'); }
 function fleetDestroyerCount(fleet) { return (fleet?.ships || []).filter((ship) => ship.designId === 'destroyer').length; }
 function shipLabel(ship) { return ship?.classLabel || designOf(ship).label; }
@@ -180,11 +195,14 @@ function actualClassCounts(fleets) {
   return counts;
 }
 
-function makeShip(designId, ownerRegionId, overrides = {}) {
+function makeShip(designId, ownerRegionOrId, overrides = {}) {
+  const region=typeof ownerRegionOrId==='object'?ownerRegionOrId:null,ownerRegionId=region?.id||ownerRegionOrId;
   const spec = SHIP_DESIGNS[designId] || SHIP_DESIGNS.basic_war_boat;
+  const generation=region?ensureCurrentNavalDesign(region,spec.id):null;
   return {
     id: `ship-${nextShipId++}`,
     designId: spec.id,
+    navalDesignId:generation?.id||null,modelSequence:generation?.sequence||1,modelName:generation?.name||spec.label,designStats:generation?.stats?{...generation.stats}:null,
     classLabel: spec.label,
     condition: 1,
     prize: false,
@@ -256,13 +274,15 @@ function moderniseOwnedFleet(region, fleets, weeks, events) {
     if (fleet.locationType !== 'port' || fleet.portRegionId !== region.id) continue;
     fleet.refitProgress = Math.max(0, fleet.refitProgress || 0) + Math.max(0, weeks) * (operationalInfrastructure(region, 'naval_base') ? 0.06 : 0.035);
     if (fleet.refitProgress < 1) continue;
+    const markCandidate=fleet.ships.map((ship,index)=>({ship,index,current:ensureCurrentNavalDesign(region,ship.designId)})).find(x=>(x.current?.sequence||1)>(x.ship.modelSequence||1));
+    if(markCandidate&&payRefitCost(region,markCandidate.ship.designId)){const oldLabel=markCandidate.ship.modelName||shipLabel(markCandidate.ship),replacement=makeShip(markCandidate.ship.designId,region,{id:markCandidate.ship.id,prize:false,capturedFromActorId:null});fleet.ships[markCandidate.index]=replacement;fleet.refitProgress-=1;if(events)events.push({type:'fleet_ship_mark_refit',ownerRegionId:region.id,fleetId:fleet.id,shipId:replacement.id,fromClassLabel:oldLabel,toClassLabel:replacement.modelName||replacement.classLabel});continue;}
     const candidates = fleet.ships.map((ship, index) => ({ ship, index, target: preferredWarshipDesign(region, index) }))
       .filter(({ ship, target }) => isAdvancedShip(ship) && (SHIP_DESIGNS[target]?.tier || 0) > shipTier(ship))
       .sort((a, b) => shipTier(a.ship) - shipTier(b.ship));
     const choice = candidates[0];
     if (!choice || !payRefitCost(region, choice.target)) continue;
     const oldLabel = shipLabel(choice.ship);
-    const replacement = makeShip(choice.target, region.id, { id: choice.ship.id, prize: false, capturedFromActorId: null });
+    const replacement = makeShip(choice.target, region, { id: choice.ship.id, prize: false, capturedFromActorId: null });
     fleet.ships[choice.index] = replacement;
     fleet.refitProgress -= 1;
     if (events) events.push({ type: 'fleet_ship_modernised', ownerRegionId: region.id, fleetId: fleet.id,
@@ -305,8 +325,8 @@ function createHomeFleet(region) {
   if (total <= 0 || !(region.adjacentSeaIds || []).length) return null;
   const advanced = Math.min(total, Math.max(0, Math.round(region.navy?.advancedBoats || 0)));
   const ships = [];
-  for (let i = 0; i < advanced; i++) ships.push(makeShip(preferredWarshipDesign(region, i), region.id));
-  for (let i = advanced; i < total; i++) ships.push(makeShip('basic_war_boat', region.id));
+  for (let i = 0; i < advanced; i++) ships.push(makeShip(preferredWarshipDesign(region, i), region));
+  for (let i = advanced; i < total; i++) ships.push(makeShip('basic_war_boat', region));
   const ownerActorId = actorId(region);
   return ensureFleetState({
     id: `fleet-${nextFleetId++}`,
@@ -408,7 +428,7 @@ export function reconcileFleetLedger(regions, fleets, events = null, weeks = 1) 
       for (const [designId, wanted] of Object.entries(procurement.targets)) {
         if (!SHIP_DESIGNS[designId]) continue;
         const actual = classCounts[designId] || 0;
-        for (let i = actual; i < Math.max(0, Math.round(wanted || 0)); i++) target.ships.push(makeShip(designId, region.id));
+        for (let i = actual; i < Math.max(0, Math.round(wanted || 0)); i++) target.ships.push(makeShip(designId, region));
       }
     } else {
       for (let i = actualAdvanced; i < wantedAdvanced; i++) target.ships.push(makeShip(preferredWarshipDesign(region, i), region.id));
