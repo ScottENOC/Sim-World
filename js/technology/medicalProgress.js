@@ -1,3 +1,6 @@
+import { tickPreservationAndEnvironmentalHealthBreakthroughs } from './foodPreservationEnvironmentalHealth.js?v=20260919-preservation1';
+import { tickWorldOzoneLayer, tickOzoneDiplomacy } from '../world/ozoneLayer.js?v=20260919-ozone1';
+
 export const PROFESSIONAL_MEDICINE_TECH_ID='professional_medicine';
 export const ANATOMY_TECH_ID='scientific_anatomy';
 export const NURSING_TECH_ID='professional_nursing';
@@ -35,6 +38,9 @@ export function tickMedicalBreakthroughs(regions,currentTick,rng=Math.random,ela
   const knownAtStart=new Map(regions.map(r=>[r.id,new Set(r.unlockedTechIds||[])])),discoveries=[];
   for(const d of DEFINITIONS)for(const region of regions){const p=medicalBreakthroughChance(region,regionsById,d,knownAtStart.get(region.id));const adjusted=1-Math.pow(1-clamp(p),weekScale);if(rng()<adjusted)discoveries.push({region,d});}
   const events=[];for(const {region,d} of discoveries){region.unlockedTechIds.add(d.id);events.push({type:'medical_breakthrough',techId:d.id,title:d.label,regionId:region.id,regionName:region.name,tick:currentTick,message:`${region.name} has developed ${d.label.toLowerCase()}.`});}
+  events.push(...tickPreservationAndEnvironmentalHealthBreakthroughs(regions,currentTick,rng,elapsedDays));
+  tickWorldOzoneLayer(regions,elapsedDays);
+  tickOzoneDiplomacy(regions,currentTick,elapsedDays);
   return events;
 }
 export function vaccinationProtection(region,pathogenId){const c=medicalCapabilities(region);if(!c.vaccination||pathogenId!=='smallpox')return 0;const admin=clamp(region.publicHealth?.publicHealthAdministration||0);const coverage=clamp(0.08+admin*0.62+stateCapacity(region)*0.18);const efficacy=c.germTheory?0.82:0.68;return clamp(coverage*efficacy,0,0.8);}
