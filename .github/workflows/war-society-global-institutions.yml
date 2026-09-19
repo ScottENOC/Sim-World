@@ -1,0 +1,44 @@
+name: War society and global institutions
+on:
+  pull_request:
+    paths:
+      - 'js/society/warSociety.js'
+      - 'js/society/postWarSociety.js'
+      - 'js/diplomacy/internationalOrganisations.js'
+      - 'js/ui/warSocietyUi.js'
+      - 'js/ui/internationalOrganisationsUi.js'
+      - 'js/world/climateChange.js'
+      - 'js/society/externalities.js'
+      - 'js/main.js'
+      - 'tools/test-war-society-global-institutions.mjs'
+      - '.github/workflows/war-society-global-institutions.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'js/society/warSociety.js'
+      - 'js/society/postWarSociety.js'
+      - 'js/diplomacy/internationalOrganisations.js'
+      - 'js/ui/warSocietyUi.js'
+      - 'js/ui/internationalOrganisationsUi.js'
+      - 'js/world/climateChange.js'
+      - 'js/society/externalities.js'
+      - 'js/main.js'
+      - 'tools/test-war-society-global-institutions.mjs'
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: |
+          node --check js/society/warSociety.js
+          node --check js/diplomacy/internationalOrganisations.js
+          node --check js/ui/warSocietyUi.js
+          node --check js/ui/internationalOrganisationsUi.js
+          node --check js/main.js
+          node tools/test-war-society-global-institutions.mjs
+          node tools/test-postwar-society.mjs
+          node tools/test-mass-politics.mjs
+          node tools/test-climate-change.mjs
+          git diff --check
