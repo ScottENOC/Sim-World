@@ -167,6 +167,13 @@ export const CONSTRUCTION_TYPES = Object.freeze({
     materials: { stone: 350, wood: 900, bronze: 20 }, wagePerWorkerWeek: 0.002,
     maintenanceRate: 0.03,
   },
+  large_drydock: {
+    id: 'large_drydock', name: 'Large naval dry dock', requiredTechId: 'steel_hull_shipbuilding', coastal: true, unique: false,
+    requiresInfrastructure: 'shipyard', minPopulation: 25000,
+    description: 'A very large graving dock with heavy cranes, pumps, workshops and deep-water access for building and repairing capital ships and aircraft carriers.',
+    workRequired: 90000, defaultWorkers: 760, minWorkers: 220, maxWorkers: 3200,
+    materials: { stone: 6500, steel: 1900, wood: 900 }, wagePerWorkerWeek: 0.0055, maintenanceRate: 0.095,
+  },
   airfield: {
     id: 'airfield', name: 'Airfield and aircraft workshops', requiredTechId: 'powered_flight', unique: false,
     minPopulation: 8000,

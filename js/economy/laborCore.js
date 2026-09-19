@@ -138,12 +138,15 @@ const WARSHIP_BUILD_COST = {
   destroyer: { steel: 150, coal: 42, machine: 46, gunpowder: 4 },
   submarine: { steel: 120, machine: 62, petrol: 30 },
   dreadnought: { steel: 700, coal: 120, machine: 105, gunpowder: 20 },
+  fleet_oiler: { steel: 260, coal: 45, machine: 58 },
+  aircraft_carrier: { steel: 980, coal: 150, machine: 165, aluminium: 55 },
 };
 const WARSHIP_BUILD_RATE = {
   basic_war_boat: 0.020, galley: 0.012, ocean_sailing_warship: 0.009,
   gunpowder_sailing_warship: 0.007, frigate: 0.0045, ship_of_line: 0.0025,
   paddle_steam_warship: 0.0040, steam_frigate: 0.0035, ironclad: 0.0025, steel_warship: 0.0022,
   fleet_tug: 0.0028, destroyer: 0.0018, submarine: 0.00155, dreadnought: 0.0007,
+  fleet_oiler: 0.00135, aircraft_carrier: 0.00042,
 };
 const BASIC_BOAT_ANNUAL_WEAR = 0.08;
 const ADVANCED_BOAT_ANNUAL_WEAR = 0.03;
@@ -246,6 +249,7 @@ function consumeShipbuildingInput(region, key, amount) {
 }
 
 export function buildWarshipClass(region, designId, gap, makersAvailable) {
+  if(designId==='aircraft_carrier'&&!operationalInfrastructure(region,'large_drydock'))return {built:0,makers:0,designId,reason:'requires_large_drydock'};
   const baseCost = WARSHIP_BUILD_COST[designId];
   const profile = baseCost ? navalConstructionProfile(region, designId) : null;
   const cost = baseCost ? {...baseCost} : null;

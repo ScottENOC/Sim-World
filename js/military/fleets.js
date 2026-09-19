@@ -9,6 +9,7 @@ import { MARINE_STEAM_TECH_ID, SCREW_PROPULSION_TECH_ID, IRON_HULL_TECH_ID, STEE
 import { DREADNOUGHT_TECH_ID, SUBMARINE_TECH_ID, tickLateIndustrialNavalWarfare } from './lateIndustrialNavy.js?v=20260918-navy1';
 import { initialiseShipDamage, applyShipHit, tickShipDamageAtSea, shipPropulsionMultiplier, shipCombatMultiplier, shipSensorMultiplier, repairShipDamage, attemptFleetSalvage, fleetTowSpeedMultiplier } from './navalDamage.js?v=20260919-damage1';
 import { assignShipCrew, tickNavalPersonnel, recordShipCrewPractice } from './qualifiedPersonnel.js?v=20260919-personnel1';
+import { AIRCRAFT_CARRIER_TECH_ID, ensureFleetAviationFuel, serviceFleetAviationFuel, tickCarrierAviation } from './carrierAviation.js?v=20260919-carriers1';
 
 export const FLEET_MISSIONS = Object.freeze({
   PORT: 'port',
@@ -102,6 +103,17 @@ export const SHIP_DESIGNS = Object.freeze({
     fallbackSpeed: 0.30, combat: 7.20, durability: 5.20, pursuit: 1.18, captureResistance: 1.55, gunCapacity: 30, armour: 2.45,
     coalCapacity: 70, coalPerWeek: 4.8, refitCost: { steel: 125, coal: 30, machine: 28, gunpowder: 4 },
   },
+  fleet_oiler: {
+    id:'fleet_oiler',label:'fleet oiler',tier:10,advanced:true,support:true,propulsion:'steam',crew:34,speed:1.46,
+    fallbackSpeed:.32,combat:.24,durability:2.35,pursuit:.72,captureResistance:.96,gunCapacity:2,armour:.16,
+    coalCapacity:44,coalPerWeek:2.2,aviationFuelCapacity:220,fuelTransferRate:48,refitCost:{steel:58,coal:16,machine:16},
+  },
+  aircraft_carrier: {
+    id:'aircraft_carrier',label:'aircraft carrier',tier:11,advanced:true,propulsion:'steam',crew:118,speed:1.72,
+    fallbackSpeed:.28,combat:2.10,durability:4.15,pursuit:1.12,captureResistance:1.34,gunCapacity:12,armour:1.05,
+    coalCapacity:105,coalPerWeek:6.2,aviationFuelCapacity:95,airCapacity:34,sortieRate:.62,flightDeckRating:.38,carrierMaintenance:.32,
+    refitCost:{steel:180,coal:40,machine:48,aluminium:12},
+  },
   // Save compatibility only. New construction no longer creates the old catch-all.
   advanced_warship: {
     id: 'advanced_warship', label: 'legacy advanced warship', tier: 1, advanced: true, propulsion: 'oar_sail', crew: 12, speed: 1.28,
@@ -142,13 +154,13 @@ function baseNavalFrontier(region,designId){
 export const NAVAL_SUPERSTRUCTURE_MATERIALS=Object.freeze({STEEL:'steel',ALUMINIUM:'aluminium'});
 export const NAVAL_SEAWATER_SYSTEMS=Object.freeze({CONVENTIONAL:'conventional',TITANIUM:'titanium'});
 export const SUBMARINE_PRESSURE_HULLS=Object.freeze({STEEL:'steel',TITANIUM:'titanium'});
-const NAVAL_SURFACE_LIGHT_METAL_CLASSES=new Set(['steel_warship','destroyer','dreadnought','fleet_tug']);
+const NAVAL_SURFACE_LIGHT_METAL_CLASSES=new Set(['steel_warship','destroyer','dreadnought','fleet_tug','fleet_oiler','aircraft_carrier']);
 const NAVAL_PRIORITY_DEFAULTS=Object.freeze({
   surface:{speed:1,endurance:1,firepower:1,protection:1,sensors:1,reliability:1},
   submarine:{speed:1,depth:1,stealth:1,endurance:1,firepower:1,reliability:1},
 });
-const NAVAL_ALUMINIUM_INPUT=Object.freeze({steel_warship:18,destroyer:12,dreadnought:42,fleet_tug:8});
-const NAVAL_TITANIUM_SYSTEM_INPUT=Object.freeze({steel_warship:4,destroyer:3,dreadnought:10,fleet_tug:2,submarine:5});
+const NAVAL_ALUMINIUM_INPUT=Object.freeze({steel_warship:18,destroyer:12,dreadnought:42,fleet_tug:8,fleet_oiler:12,aircraft_carrier:58});
+const NAVAL_TITANIUM_SYSTEM_INPUT=Object.freeze({steel_warship:4,destroyer:3,dreadnought:10,fleet_tug:2,submarine:5,fleet_oiler:4,aircraft_carrier:12});
 
 function mergeNavalInputs(base={},extra={}){const out={...base};for(const [k,v]of Object.entries(extra||{}))out[k]=(out[k]||0)+Math.max(0,Number(v)||0);return out;}
 function normaliseNavalPriorities(kind,raw={}){const defs=NAVAL_PRIORITY_DEFAULTS[kind],out={};let sum=0;for(const k of Object.keys(defs)){out[k]=clamp(raw[k]??1,.25,2.5);sum+=out[k];}const mean=sum/Object.keys(out).length;for(const k of Object.keys(out))out[k]/=Math.max(.01,mean);return out;}
@@ -159,9 +171,11 @@ function navalClassAvailable(region,designId){
   if(designId==='submarine')return hasNavalTech(region,SUBMARINE_TECH_ID);
   if(designId==='dreadnought')return hasNavalTech(region,DREADNOUGHT_TECH_ID);
   if(designId==='fleet_tug')return hasNavalTech(region,MARINE_STEAM_TECH_ID);
+  if(designId==='fleet_oiler')return hasNavalTech(region,AIRCRAFT_CARRIER_TECH_ID);
+  if(designId==='aircraft_carrier')return hasNavalTech(region,AIRCRAFT_CARRIER_TECH_ID);
   return false;
 }
-export function navalDesignClassOptions(region){return ['steel_warship','destroyer','submarine','dreadnought','fleet_tug'].filter(id=>navalClassAvailable(region,id)).map(id=>({id,label:SHIP_DESIGNS[id].label}));}
+export function navalDesignClassOptions(region){return ['steel_warship','destroyer','submarine','dreadnought','fleet_tug','fleet_oiler','aircraft_carrier'].filter(id=>navalClassAvailable(region,id)).map(id=>({id,label:SHIP_DESIGNS[id].label}));}
 export function navalDesignMaterialOptions(region,designId){
   const surface=NAVAL_SURFACE_LIGHT_METAL_CLASSES.has(designId),sub=designId==='submarine';
   const aluminiumAvailable=surface&&hasNavalTech(region,'aerospace_light_alloys');
@@ -221,7 +235,14 @@ function applyNavalMaterialsAndPriorities(region,designId,baseStats,choices){
   else{s.combat=scale(s.combat,p.firepower,.08);s.durability=scale(s.durability,p.protection,.10);s.armour=scale(s.armour,p.protection,.09);s.radarSearch=clamp(scale(s.radarSearch||0,p.sensors,.11));s.sonar=clamp(scale(s.sonar||0,p.sensors,.11));s.antiAir=clamp(scale(s.antiAir||0,p.sensors,.08));}
   return s;
 }
-function navalFrontier(region,designId,choices=null){const base=baseNavalFrontier(region,designId),selected=normaliseNavalChoices(region,designId,choices),stats=applyNavalMaterialsAndPriorities(region,designId,base.stats,selected);const materialGain=(selected.superstructure==='aluminium'?.018:0)+(selected.seawaterSystems==='titanium'?.018:0)+(selected.pressureHull==='titanium'?.025:0);return {quality:clamp(base.quality+materialGain),stats,designChoices:selected};}
+function applyCarrierSystems(region,designId,stats){
+  if(designId!=='aircraft_carrier')return stats;const c=region?.industrialPlants?.componentCapability||{},precision=clamp(region?.industrialSupply?.capability?.precision_machining||0),exp=clamp((region?.navalAviationExperience||0)/300);
+  const hull=clamp(c.hull_fabrication||0),engine=clamp(c.engine||0),trans=clamp(c.transmission||0),electrical=clamp(c.electronics||0),damage=clamp(c.damage_control||0),radar=clamp(c.radar_set||0);
+  const flightDeckRating=clamp(.22+hull*.18+precision*.28+damage*.12+exp*.20),arrestingGear=clamp(.14+trans*.22+precision*.36+exp*.28),aircraftElevators=clamp(.12+engine*.10+trans*.20+precision*.27+electrical*.15+exp*.16),deckHandling=clamp(.18+exp*.34+electrical*.14+damage*.13+precision*.21);
+  const jet=hasNavalTech(region,'jet_propulsion'),jetCompatibility=clamp((arrestingGear*.34+flightDeckRating*.28+aircraftElevators*.18+deckHandling*.20)*(jet?1:.72));
+  return {...stats,flightDeckRating,arrestingGear,aircraftElevators,deckHandling,jetDeckCompatibility:jetCompatibility,airCapacity:Math.max(18,Math.round((stats.airCapacity||34)*(.78+flightDeckRating*.22+aircraftElevators*.12))),sortieRate:(stats.sortieRate||.62)*(.66+deckHandling*.34)*(jet?(.78+jetCompatibility*.22):1),aviationFuelCapacity:(stats.aviationFuelCapacity||95)*(.90+damage*.10),carrierMaintenance:clamp(.18+precision*.28+damage*.28+electrical*.16+exp*.10),radarSearch:clamp((stats.radarSearch||0)+radar*.08),fabricationComplexity:(stats.fabricationComplexity||1)*(1.12+flightDeckRating*.10)};
+}
+function navalFrontier(region,designId,choices=null){const base=baseNavalFrontier(region,designId),selected=normaliseNavalChoices(region,designId,choices);let stats=applyNavalMaterialsAndPriorities(region,designId,base.stats,selected);stats=applyCarrierSystems(region,designId,stats);const materialGain=(selected.superstructure==='aluminium'?.018:0)+(selected.seawaterSystems==='titanium'?.018:0)+(selected.pressureHull==='titanium'?.025:0);const carrierGain=designId==='aircraft_carrier'?((stats.flightDeckRating||0)+(stats.deckHandling||0))*.018:0;return {quality:clamp(base.quality+materialGain+carrierGain),stats,designChoices:selected};}
 export function previewNavalDesign(region,designId,choices={}){const f=navalFrontier(region,designId,choices);return {...f.stats,quality:f.quality,designChoices:f.designChoices};}
 export function navalConstructionProfile(region,designId){const d=ensureCurrentNavalDesign(region,designId);return {steelMultiplier:d?.stats?.steelConstructionMultiplier??1,systemInputs:{...(d?.stats?.systemInputs||{})},designId:d?.id||null};}
 
@@ -306,6 +327,7 @@ export function desiredWarshipComposition(region, total = region?.targetNavySize
     targets[id] = (targets[id] || 0) + 1;
   }
   if (region?.unlockedTechIds?.has(MARINE_STEAM_TECH_ID) && count >= 4) targets.fleet_tug = Math.max(targets.fleet_tug || 0, Math.ceil(count / 8));
+  if(region?.unlockedTechIds?.has(AIRCRAFT_CARRIER_TECH_ID)&&count>=8){const carriers=Math.max(1,Math.floor(count/12));targets.aircraft_carrier=Math.max(targets.aircraft_carrier||0,carriers);targets.fleet_oiler=Math.max(targets.fleet_oiler||0,carriers);}
   return targets;
 }
 
@@ -426,7 +448,7 @@ function moderniseOwnedFleet(region, fleets, weeks, events) {
     if (fleet.locationType !== 'port' || fleet.portRegionId !== region.id) continue;
     fleet.refitProgress = Math.max(0, fleet.refitProgress || 0) + Math.max(0, weeks) * (operationalInfrastructure(region, 'naval_base') ? 0.06 : 0.035);
     if (fleet.refitProgress < 1) continue;
-    const markCandidate=fleet.ships.map((ship,index)=>({ship,index,current:currentNavalDesign(region,ship.designId)})).find(x=>(x.current?.sequence||1)>(x.ship.modelSequence||1));
+    const markCandidate=fleet.ships.map((ship,index)=>({ship,index,current:currentNavalDesign(region,ship.designId)})).find(x=>(x.current?.sequence||1)>(x.ship.modelSequence||1)&&(x.ship.designId!=='aircraft_carrier'||operationalInfrastructure(region,'large_drydock')));
     if(markCandidate&&payRefitCost(region,markCandidate.ship.designId,markCandidate.current)){const oldLabel=markCandidate.ship.modelName||shipLabel(markCandidate.ship),replacement=makeShip(markCandidate.ship.designId,region,{id:markCandidate.ship.id,prize:false,capturedFromActorId:null});fleet.ships[markCandidate.index]=replacement;fleet.refitProgress-=1;if(events)events.push({type:'fleet_ship_mark_refit',ownerRegionId:region.id,fleetId:fleet.id,shipId:replacement.id,fromClassLabel:oldLabel,toClassLabel:replacement.modelName||replacement.classLabel});continue;}
     const candidates = fleet.ships.map((ship, index) => ({ ship, index, target: preferredWarshipDesign(region, index) }))
       .filter(({ ship, target }) => !designOf(ship).support && isAdvancedShip(ship) && (SHIP_DESIGNS[target]?.tier || 0) > shipTier(ship))
@@ -717,7 +739,7 @@ function serviceInPort(fleet, regionsById, agreements, weeks) {
   }
   const before = fleet.condition;
   fleet.condition = clamp(fleet.condition + repairRate * weeks);
-  for (const ship of fleet.ships) repairShipDamage(ship, repairRate * weeks, { dockyard: access !== 'ally' && (operationalInfrastructure(port, 'shipyard') || operationalInfrastructure(port, 'naval_base')) });
+  for (const ship of fleet.ships) {const carrier=ship.designId==='aircraft_carrier',carrierDock=operationalInfrastructure(port,'large_drydock');const amount=carrier&&!carrierDock?Math.min(repairRate*weeks,.0015*weeks):repairRate*weeks;repairShipDamage(ship,amount,{dockyard:access!=='ally'&&(carrier?carrierDock:(operationalInfrastructure(port,'shipyard')||operationalInfrastructure(port,'naval_base')))});}
   const coalCapacity = fleetCoalCapacity(fleet);
   let coalLoaded = 0;
   if (coalCapacity > 0) {
@@ -744,8 +766,9 @@ function serviceInPort(fleet, regionsById, agreements, weeks) {
     }
     fleet.steamFuelFraction = coalCapacity > 0 ? clamp(fleet.coalBunker / Math.max(1, coalCapacity)) : 1;
   }
+  const aviationFuel=serviceFleetAviationFuel(fleet,access==='ally'?port:owner);
   const provisioning = serviceProvisioningInPort(fleet, port, owner, weeks, fleetCrewCount(fleet));
-  return { access, supplied, repaired: fleet.condition - before, provisioning, coalLoaded };
+  return { access, supplied, repaired: fleet.condition - before, provisioning, coalLoaded, aviationFuelLoaded:aviationFuel.loaded };
 }
 
 function wearAtSea(fleet, weeks) {
@@ -1300,7 +1323,7 @@ export function tickFleets(fleets, regions, seaRegions, agreements, currentTick,
   events.push(...tickLateIndustrialNavalWarfare(fleets, regions, seaRegions, currentTick, elapsedDays, rng));
 
   for (const fleet of fleets) {
-    ensureFleetState(fleet);
+    ensureFleetState(fleet);ensureFleetAviationFuel(fleet);
     if (!fleet.ships.length) continue;
     if (fleet.locationType === 'port') serviceInPort(fleet, regionsById, agreements, weeks);
     else {
@@ -1364,6 +1387,7 @@ export function tickFleets(fleets, regions, seaRegions, agreements, currentTick,
     }
   }
 
+  events.push(...tickCarrierAviation(regions,fleets,seaRegions,currentTick,elapsedDays,rng));
   events.push(...portAssaults(fleets, regionsById, currentTick, rng));
   for (let i = fleets.length - 1; i >= 0; i--) if (!fleets[i].ships.length) fleets.splice(i, 1);
   syncRegionalNavyLedger(regions, fleets);
