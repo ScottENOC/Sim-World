@@ -1,0 +1,62 @@
+name: Nuclear crisis bargaining
+
+on:
+  push:
+    branches: [feature/nuclear-crisis-bargaining]
+    paths:
+      - 'js/diplomacy/nuclearCrisisBargaining.js'
+      - 'js/diplomacy/nuclearDeterrence.js'
+      - 'tools/apply-nuclear-crisis-bargaining.py'
+      - 'tools/test-nuclear-crisis-bargaining.mjs'
+      - '.github/workflows/nuclear-crisis-bargaining.yml'
+  pull_request:
+    paths:
+      - 'js/diplomacy/nuclearCrisisBargaining.js'
+      - 'js/diplomacy/nuclearDeterrence.js'
+      - 'tools/test-nuclear-crisis-bargaining.mjs'
+      - '.github/workflows/nuclear-crisis-bargaining.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && 'feature/nuclear-crisis-bargaining' || github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply host-resolution integration on feature branch
+        if: github.event_name == 'push'
+        run: python tools/apply-nuclear-crisis-bargaining.py
+      - name: Syntax checks
+        run: |
+          node --check js/diplomacy/nuclearCrisisBargaining.js
+          node --check js/diplomacy/nuclearDeterrence.js
+      - name: Crisis bargaining and compatibility regressions
+        run: |
+          node tools/test-nuclear-crisis-bargaining.mjs
+          node tools/test-nuclear-diplomacy.mjs
+          node tools/test-nuclear-allied-deployments.mjs
+          node tools/test-nuclear-arms-control.mjs
+          node tools/test-nuclear-deterrence.mjs
+          node tools/test-strategic-delivery-second-strike.mjs
+          node tools/test-nuclear-weaponisation.mjs
+      - name: Commit integrated source
+        if: github.event_name == 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/diplomacy/nuclearCrisisBargaining.js
+          if ! git diff --cached --quiet; then
+            git commit -m "Integrate nuclear crisis bargaining host resolution"
+            git push origin HEAD:feature/nuclear-crisis-bargaining
+          fi
