@@ -15,8 +15,9 @@ function avg(rs,fn){let w=0,s=0;for(const r of rs){const p=Math.max(1,Number(r.p
 function smooth(current,target,days,rate=1){const years=Math.max(0,Number(days)||0)/DAYS_PER_YEAR;const k=1-Math.exp(-rate*years);return clamp((Number(current)||0)+(target-(Number(current)||0))*k);}
 function literacy(r){return clamp(r.massEducation?.literacy??r.publicEducation?.literacy??r.education?.literacy??r.educationLevel??0);}
 function printReach(r){return clamp(r.earlyModernReform?.printDensity??r.renaissance?.informationDensity??0);}
-function communications(r){return clamp((r.unlockedTechIds?.has?.('electrical_telegraphy')?.28:0)+(r.unlockedTechIds?.has?.('telephone_networks')?.18:0)+(r.unlockedTechIds?.has?.('printing_press')?.18:0)+printReach(r)*.20);}
-function visualMedia(r){return clamp((r.unlockedTechIds?.has?.('photography')?.34:0)+(r.unlockedTechIds?.has?.('motion_picture')?.22:0)+(r.unlockedTechIds?.has?.('radio_broadcasting')?.20:0));}
+function hasTech(r,id){return Boolean(r.unlockedTechIds?.has?.(id));}
+function communications(r){return clamp((hasTech(r,'electrical_telegraphy')?.28:0)+(hasTech(r,'telephone_networks')?.18:0)+(hasTech(r,'printing_press')?.18:0)+printReach(r)*.20);}
+function visualMedia(r){return clamp((hasTech(r,'photography')?.34:0)+(hasTech(r,'motion_picture')?.22:0)+(hasTech(r,'radio_broadcasting')?.20:0));}
 function underArms(r){return Math.max(0,Number(r.army?.personnel)||0)+Math.max(0,Number(r.navy?.personnel)||0);}
 function casualtySignal(r){return clamp((r.report?.conflict?.recentCasualties??r.report?.military?.recentCasualties??0)/Math.max(1,Number(r.population)||1)*60);}
 function hardship(r){return clamp(r.employment?.hardship??r.popularWellbeing?.grievance??0);}
@@ -57,7 +58,7 @@ export function assessWarSociety(polity,regions,activeWars=[]){
 export function tickWarSociety(polities,regions,activeWars,currentTick=0,elapsedDays=7,{playerPolityId=null}={}){
   const events=[];for(const polity of polities||[]){const s=ensureWarSociety(polity),a=assessWarSociety(polity,regions,activeWars);if(!Number.isFinite(a.weariness))continue;const info=WAR_INFORMATION_POLICIES[s.policy.information];
     s.warLegitimacy=smooth(s.warLegitimacy,a.legitimacy,elapsedDays,.9);s.publicWarKnowledge=smooth(s.publicWarKnowledge,a.visible,elapsedDays,1.4);s.combatTraumaBurden=smooth(s.combatTraumaBurden,a.traumaTarget,elapsedDays,a.traumaTarget>s.combatTraumaBurden?1.2:.18);s.mobilisationMemory=smooth(s.mobilisationMemory,a.mobilisation,elapsedDays,a.mobilisation>s.mobilisationMemory?.8:.14);
-    s.concealedReality=smooth(s.concealedReality,a.concealed,elapsedDays,1.1);s.censorshipPressure=clamp(info.control*a.mediaReach);const credibilityTarget=clamp(.86-info.credibilityRisk*s.concealedReality*.9);const prior=s.credibility;s.credibility=smooth(s.credibility,credibilityTarget,elapsedDays,.55);
+    s.concealedReality=smooth(s.concealedReality,a.concealed,elapsedDays,1.1);s.censorshipPressure=clamp(info.control*a.mediaReach);const credibilityTarget=clamp(.86-info.credibilityRisk*s.concealedReality*.9);s.credibility=smooth(s.credibility,credibilityTarget,elapsedDays,.55);
     const revelation=clamp(Math.max(0,s.publicWarKnowledge-s.concealedReality*.15)*Math.max(0,.62-s.credibility));s.publicShock=smooth(s.publicShock,revelation,elapsedDays,1.3);
     s.warWeariness=smooth(s.warWeariness,clamp(a.weariness+s.publicShock*.28),elapsedDays,1.1);
     if(s.warWeariness>.65&&currentTick-(s.lastWearinessEventTick||-1e9)>26){s.lastWearinessEventTick=currentTick;events.push({type:'war_weariness_crisis',polityId:polity.id,weariness:s.warWeariness,legitimacy:s.warLegitimacy,playerRelevant:polity.id===playerPolityId});}
