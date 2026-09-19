@@ -210,6 +210,27 @@ export const CONSTRUCTION_TYPES = Object.freeze({
     workRequired: 26000, defaultWorkers: 300, minWorkers: 100, maxWorkers: 1200,
     materials: { stone: 1200, iron: 180, steel: 180 }, wagePerWorkerWeek: 0.0038, maintenanceRate: 0.06,
   },
+  nuclear_fuel_plant: {
+    id: 'nuclear_fuel_plant', name: 'Nuclear fuel fabrication plant', requiredTechId: 'uranium_fuel_cycle', unique: false,
+    requiresInfrastructure: 'factory', minPopulation: 25000,
+    description: 'Shielded chemical and precision-engineering works concentrating uranium and fabricating controlled civilian reactor fuel. Imported uranium ore can feed the plant.',
+    workRequired: 72000, defaultWorkers: 720, minWorkers: 220, maxWorkers: 2400,
+    materials: { stone: 2400, steel: 950, copper: 180, aluminium: 80 }, wagePerWorkerWeek: 0.0055, maintenanceRate: 0.085,
+  },
+  nuclear_power_station: {
+    id: 'nuclear_power_station', name: 'Nuclear power station', requiredTechId: 'nuclear_power_generation', unique: false,
+    requiresInfrastructure: 'local_electric_grid', requiresCoolingWater: true, minPopulation: 50000,
+    description: 'A large civilian reactor complex with containment, steam plant, shielding, cooling systems and grid switchyard. It requires fabricated reactor fuel and dependable cooling water.',
+    workRequired: 450000, defaultWorkers: 1800, minWorkers: 550, maxWorkers: 5200,
+    materials: { stone: 9000, steel: 3600, copper: 650, aluminium: 180 }, wagePerWorkerWeek: 0.0065, maintenanceRate: 0.095,
+  },
+  spent_fuel_storage: {
+    id: 'spent_fuel_storage', name: 'Dedicated spent-fuel storage', requiredTechId: 'spent_fuel_management', unique: false,
+    requiresInfrastructure: 'nuclear_power_station', minPopulation: 15000,
+    description: 'Shielded pools, handling equipment and durable storage structures extending safe capacity for intensely radioactive spent reactor fuel.',
+    workRequired: 90000, defaultWorkers: 700, minWorkers: 220, maxWorkers: 2600,
+    materials: { stone: 4800, steel: 1200, copper: 100 }, wagePerWorkerWeek: 0.0055, maintenanceRate: 0.055,
+  },
   petroleum_refinery: {
     id: 'petroleum_refinery', name: 'Petroleum refinery', requiredTechId: 'petroleum_refining', unique: false,
     minPopulation: 8000,
@@ -331,6 +352,7 @@ export function availableConstructionTypes(region) {
     (!type.requiresInfrastructure || operationalInfrastructure(region, type.requiresInfrastructure)) &&
     (!type.requiresDeposit || Boolean(region.deposits?.[type.requiresDeposit])) &&
     (!type.requiresRiver || (region.hydrology?.riverIds || []).length > 0) &&
+    (!type.requiresCoolingWater || region.isCoastal || (region.hydrology?.riverIds || []).length > 0) &&
     (!type.minPopulation || (region.population || 0) >= type.minPopulation) &&
     (!type.unique || !state.assets.some((asset) => asset.typeId === type.id)) &&
     !state.projects.some((project) => project.typeId === type.id && project.status === 'active'));
@@ -343,6 +365,7 @@ export function startConstruction(region, typeId, requestedWorkers, currentTick)
       (type.requiresInfrastructure && !operationalInfrastructure(region, type.requiresInfrastructure)) ||
       (type.requiresDeposit && !region.deposits?.[type.requiresDeposit]) ||
       (type.requiresRiver && !(region.hydrology?.riverIds || []).length) ||
+      (type.requiresCoolingWater && !region.isCoastal && !(region.hydrology?.riverIds || []).length) ||
       (type.minPopulation && (region.population || 0) < type.minPopulation)) return null;
   const state = ensureConstruction(region);
   if (type.unique && state.assets.some((asset) => asset.typeId === type.id)) return null;
