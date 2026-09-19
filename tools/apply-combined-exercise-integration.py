@@ -12,7 +12,14 @@ patch('js/military/combinedExercises.js',[
 ("export function eligibleExerciseAllies(organiser,regions,agreements=[]){return (regions||[]).filter(r=>r.id!==organiser?.id&&areExerciseAllies(organiser,r,agreements));}",
  "export function eligibleExerciseAllies(organiser,regions,agreements=[]){const own=actorId(organiser);const seen=new Set();return (regions||[]).filter(r=>r.id!==organiser?.id&&actorId(r)!==own&&areExerciseAllies(organiser,r,agreements)).filter(r=>{const id=actorId(r);if(!id||seen.has(id))return false;seen.add(id);return true;});}"),
 ("  const id=`exercise-${nextExerciseId++}`,exercise={id,organiserRegionId:organiser.id,hostRegionId:host.id,missionType:mission.id,startTick:currentTick,durationWeeks:Math.max(2,Math.min(52,Number(durationWeeks)||12)),elapsedWeeks:0,scale:clamp(scale,.05,.5),active:true,participants:[],lastDiplomaticTick:null};",
- "  const existing=new Set([...(regions||[]),...(seaRegions||[])].flatMap(r=>(r.combinedExercises||[]).map(x=>x.id)));let id;do{id=`exercise-${currentTick}-${organiser.id}-${nextExerciseId++}`;}while(existing.has(id));const exercise={id,organiserRegionId:organiser.id,hostRegionId:host.id,missionType:mission.id,startTick:currentTick,durationWeeks:Math.max(2,Math.min(52,Number(durationWeeks)||12)),elapsedWeeks:0,scale:clamp(scale,.05,.5),active:true,participants:[],lastDiplomaticTick:null};")
+ "  const existing=new Set([...(regions||[]),...(seaRegions||[])].flatMap(r=>(r.combinedExercises||[]).map(x=>x.id)));let id;do{id=`exercise-${currentTick}-${organiser.id}-${nextExerciseId++}`;}while(existing.has(id));const exercise={id,organiserRegionId:organiser.id,hostRegionId:host.id,missionType:mission.id,startTick:currentTick,durationWeeks:Math.max(2,Math.min(52,Number(durationWeeks)||12)),elapsedWeeks:0,scale:clamp(scale,.05,.5),active:true,participants:[],lastDiplomaticTick:null};"),
+("  for(const r of participants)exercise.participants.push(participantCommitment(r,host,mission,exercise.scale,fleets,id));\n  host.combinedExercises ||= [];host.combinedExercises.push(exercise);\n  return{started:true,exercise};",
+ "  for(const r of participants){const p=participantCommitment(r,host,mission,exercise.scale,fleets,id);if(p.landPersonnel>0||(p.shipIds?.length||0)>0)exercise.participants.push(p);}\n  if(exercise.participants.length<2){for(const p of exercise.participants)releaseCommitment(byId.get(p.regionId),p,fleets);return{started:false,reason:'insufficient_deployable_forces'};}\n  host.combinedExercises ||= [];host.combinedExercises.push(exercise);\n  return{started:true,exercise};")
+])
+
+patch('js/military/navalDamage.js',[
+("export function shipCombatMultiplier(ship){\n  initialiseShipDamage(ship);if(ship.damageState.sinking)return 0;",
+ "export function shipCombatMultiplier(ship){\n  initialiseShipDamage(ship);if(ship.damageState.sinking||ship.exerciseDeploymentId)return 0;")
 ])
 
 patch('js/military/campaigns.js',[
