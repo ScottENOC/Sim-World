@@ -1,0 +1,65 @@
+name: Strategic delivery and second-strike
+
+on:
+  push:
+    branches: [feature/strategic-delivery-second-strike]
+    paths:
+      - 'js/military/strategicDelivery.js'
+      - 'js/diplomacy/nuclearDeterrence.js'
+      - 'js/technology/breakthroughs.js'
+      - 'tools/apply-strategic-delivery-second-strike.py'
+      - 'tools/test-strategic-delivery-second-strike.mjs'
+      - '.github/workflows/strategic-delivery-second-strike.yml'
+  pull_request:
+    paths:
+      - 'js/military/strategicDelivery.js'
+      - 'js/diplomacy/nuclearDeterrence.js'
+      - 'js/technology/breakthroughs.js'
+      - 'tools/test-strategic-delivery-second-strike.mjs'
+      - '.github/workflows/strategic-delivery-second-strike.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && 'feature/strategic-delivery-second-strike' || github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply integration on feature branch
+        if: github.event_name == 'push'
+        run: python tools/apply-strategic-delivery-second-strike.py
+      - name: Syntax checks
+        run: |
+          node --check js/military/strategicDelivery.js
+          node --check js/diplomacy/nuclearDeterrence.js
+          node --check js/technology/breakthroughs.js
+      - name: Strategic delivery regressions
+        run: |
+          node tools/test-strategic-delivery-second-strike.mjs
+          node tools/test-nuclear-deterrence.mjs
+          node tools/test-nuclear-weaponisation.mjs
+          node tools/test-strategic-nuclear.mjs
+          node tools/test-nuclear-power.mjs
+          node tools/test-aircraft-industry.mjs
+          node tools/test-late-industrial-navy.mjs
+      - name: Commit integrated source
+        if: github.event_name == 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/technology/breakthroughs.js
+          if ! git diff --cached --quiet; then
+            git commit -m "Integrate strategic delivery systems"
+            git push origin HEAD:feature/strategic-delivery-second-strike
+          fi
