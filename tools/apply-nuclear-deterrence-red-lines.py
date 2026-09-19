@@ -34,6 +34,11 @@ rep('js/military/aviation.js',
 "export function airDefenceRisk(region,aircraft=null){return airDefenceEngagementRisk(region,aircraft);}\n\n",
 "export function airDefenceRisk(region,aircraft=null){return airDefenceEngagementRisk(region,aircraft);}\n\n"+insert)
 
+# Tankers are transport-derived aircraft and need a full multi-person qualified crew.
+rep('js/military/qualifiedPersonnel.js',
+"  if(role==='transport')return{pilot:2,aircrew:2};",
+"  if(['transport','tanker'].includes(role))return{pilot:2,aircrew:2};")
+
 # Deterrence tick joins the normal weekly strategic systems.
 rep('js/technology/breakthroughs.js',
 "import { tickNuclearWeaponProgramme } from '../military/nuclearWeaponisation.js?v=20260920-nuclear-weaponisation1';",
