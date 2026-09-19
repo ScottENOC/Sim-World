@@ -74,7 +74,7 @@ import { tickReligiousInstitutions } from './society/religiousInstitutions.js?v=
 import { tickMedievalReligiousPolitics } from './society/medievalReligiousPolitics.js?v=20260912-medieval2';
 import { handleReligiousPoliticsEvent } from './ui/religiousPoliticsEventUi.js?v=20260913-religious-politics2';
 import { tickMaritimeExperience } from './technology/seamanship.js?v=20260906-maritime1';
-import { deployFleet, dockFleet, fleetEventInvolvesActor, formatShipOutcome, initialiseFleets, orderFleetHome, orderFleetToSea, resolveFleetContact, setFleetFlag, setFleetMission, syncNextFleetIds, syncRegionalNavyLedger, tickFleets } from './military/fleets.js?v=20260908-fleets1';
+import { authoriseNavalMark, currentNavalDesign, deployFleet, dockFleet, fleetEventInvolvesActor, formatShipOutcome, initialiseFleets, navalDesignClassOptions, navalDesignMaterialOptions, orderFleetHome, orderFleetToSea, previewNavalDesign, quoteNavalMarkUpgrade, resolveFleetContact, setFleetFlag, setFleetMission, syncNextFleetIds, syncRegionalNavyLedger, tickFleets } from './military/fleets.js?v=20260919-naval-light-metals1';
 import { tickTransitControl } from './economy/transitTolls.js?v=20260907-transit1';
 import { MILITARY_POSTURES, ensureMilitaryStrategy, reviewMilitaryStrategy, setMilitaryStrategy } from './military/strategicPlanning.js?v=20260908-strategy1';
 import { sendDeceptionJointOperationLetter, sendForgedJointOperationLetter, sendJointOperationProposal, sendWarInvitation, syncNextDiplomaticMessageId, tickDiplomaticCouriers } from './diplomacy/couriers.js?v=20260909-counterintel1';
@@ -718,7 +718,7 @@ async function main() {
     get activeWars() { return activeWars; },
     get fleets() { return fleets; },
     get activePlayerPolityId() { return activePlayerPolityId; },
-    fleetApi: { deployFleet, dockFleet, orderFleetHome, orderFleetToSea, setFleetFlag, setFleetMission, syncRegionalNavyLedger },
+    fleetApi: { deployFleet, dockFleet, orderFleetHome, orderFleetToSea, setFleetFlag, setFleetMission, syncRegionalNavyLedger, navalDesignClassOptions, navalDesignMaterialOptions, previewNavalDesign, quoteNavalMarkUpgrade, authoriseNavalMark, currentNavalDesign },
     aviationApi: { buildAircraft, assignAircraftMission, rebaseAircraft, aviationSummary },
     financialDiplomacyApi: { setBondPolicy, dumpSovereignBonds, setSettlementCurrencyPolicy },
     warSocietyApi: { setWarInformationPolicy, warSocietySummary },

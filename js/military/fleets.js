@@ -120,7 +120,7 @@ let nextShipId = 1;
 let nextEncounterId = 1;
 
 function romanMark(n){const t=[[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']];let x=Math.max(1,Math.floor(n)),o='';for(const[v,s]of t)while(x>=v){o+=s;x-=v;}return o;}
-function navalFrontier(region,designId){
+function baseNavalFrontier(region,designId){
   const base=SHIP_DESIGNS[designId]||SHIP_DESIGNS.basic_war_boat,c=region?.industrialPlants?.componentCapability||{};
   const precision=clamp(region?.industrialSupply?.capability?.precision_machining||0),readiness=clamp(region?.earlyModernMilitary?.naval?.readiness||0);
   const hull=clamp(c.hull_fabrication||precision*.45),gun=clamp(c.gun_system||precision*.35),armour=clamp(c.armour_plate||0),optics=clamp(c.optics||0),electrical=Math.min(.72,clamp(c.electronics||0));
@@ -137,32 +137,120 @@ function navalFrontier(region,designId){
   const signature=clamp((base.submersible?.28:.72)-hull*.05-radar*.01+(base.tier||0)*.012,.18,1);
   const combatBoost=gunEffect*.15+torpedoEffect*.12+fireControl*.10+radar*.035+readiness*.04;
   return {quality,stats:{...base,combat:base.combat*(.90+quality*.12+combatBoost),durability:base.durability*(.92+(hull*.32+armour*.25+precision*.13+damageControl*.30)*.22),speed:base.speed*(.94+propulsion*.16),pursuit:base.pursuit*(.94+(propulsion*.50+optics*.12+radar*.12+readiness*.16+fireControl*.10)*.16),captureResistance:base.captureResistance*(.96+(hull*.30+armour*.20+readiness*.20+damageControl*.30)*.12),armour:base.armour*(.90+armour*.24),gunCapacity:base.gunCapacity,fireControl,radarSearch:radar,sonar,torpedoEffect,damageControl,antiAir,signature,propulsionQuality:propulsion}};
+ }
+
+export const NAVAL_SUPERSTRUCTURE_MATERIALS=Object.freeze({STEEL:'steel',ALUMINIUM:'aluminium'});
+export const NAVAL_SEAWATER_SYSTEMS=Object.freeze({CONVENTIONAL:'conventional',TITANIUM:'titanium'});
+export const SUBMARINE_PRESSURE_HULLS=Object.freeze({STEEL:'steel',TITANIUM:'titanium'});
+const NAVAL_SURFACE_LIGHT_METAL_CLASSES=new Set(['steel_warship','destroyer','dreadnought','fleet_tug']);
+const NAVAL_PRIORITY_DEFAULTS=Object.freeze({
+  surface:{speed:1,endurance:1,firepower:1,protection:1,sensors:1,reliability:1},
+  submarine:{speed:1,depth:1,stealth:1,endurance:1,firepower:1,reliability:1},
+});
+const NAVAL_ALUMINIUM_INPUT=Object.freeze({steel_warship:18,destroyer:12,dreadnought:42,fleet_tug:8});
+const NAVAL_TITANIUM_SYSTEM_INPUT=Object.freeze({steel_warship:4,destroyer:3,dreadnought:10,fleet_tug:2,submarine:5});
+
+function mergeNavalInputs(base={},extra={}){const out={...base};for(const [k,v]of Object.entries(extra||{}))out[k]=(out[k]||0)+Math.max(0,Number(v)||0);return out;}
+function normaliseNavalPriorities(kind,raw={}){const defs=NAVAL_PRIORITY_DEFAULTS[kind],out={};let sum=0;for(const k of Object.keys(defs)){out[k]=clamp(raw[k]??1,.25,2.5);sum+=out[k];}const mean=sum/Object.keys(out).length;for(const k of Object.keys(out))out[k]/=Math.max(.01,mean);return out;}
+function hasNavalTech(region,id){return Boolean(region?.unlockedTechIds?.has?.(id));}
+function navalClassAvailable(region,designId){
+  if(designId==='steel_warship')return hasNavalTech(region,STEEL_HULL_TECH_ID);
+  if(designId==='destroyer')return hasNavalTech(region,STEEL_HULL_TECH_ID)&&hasNavalTech(region,'self_propelled_torpedo');
+  if(designId==='submarine')return hasNavalTech(region,SUBMARINE_TECH_ID);
+  if(designId==='dreadnought')return hasNavalTech(region,DREADNOUGHT_TECH_ID);
+  if(designId==='fleet_tug')return hasNavalTech(region,MARINE_STEAM_TECH_ID);
+  return false;
 }
+export function navalDesignClassOptions(region){return ['steel_warship','destroyer','submarine','dreadnought','fleet_tug'].filter(id=>navalClassAvailable(region,id)).map(id=>({id,label:SHIP_DESIGNS[id].label}));}
+export function navalDesignMaterialOptions(region,designId){
+  const surface=NAVAL_SURFACE_LIGHT_METAL_CLASSES.has(designId),sub=designId==='submarine';
+  const aluminiumAvailable=surface&&hasNavalTech(region,'aerospace_light_alloys');
+  const titaniumAvailable=(surface||sub)&&hasNavalTech(region,'kroll_titanium');
+  return {
+    superstructure:[
+      {id:NAVAL_SUPERSTRUCTURE_MATERIALS.STEEL,label:'Steel superstructure',available:true},
+      {id:NAVAL_SUPERSTRUCTURE_MATERIALS.ALUMINIUM,label:'Aluminium-alloy superstructure',available:aluminiumAvailable,reason:aluminiumAvailable?null:'Requires advanced aluminium-alloy metallurgy'},
+    ],
+    seawaterSystems:[
+      {id:NAVAL_SEAWATER_SYSTEMS.CONVENTIONAL,label:'Conventional seawater systems',available:true},
+      {id:NAVAL_SEAWATER_SYSTEMS.TITANIUM,label:'Titanium seawater & machinery systems',available:titaniumAvailable,reason:titaniumAvailable?null:'Requires commercial titanium metallurgy'},
+    ],
+    pressureHull:sub?[
+      {id:SUBMARINE_PRESSURE_HULLS.STEEL,label:'High-strength steel pressure hull',available:true},
+      {id:SUBMARINE_PRESSURE_HULLS.TITANIUM,label:'Titanium pressure hull',available:titaniumAvailable,reason:titaniumAvailable?null:'Requires commercial titanium metallurgy'},
+    ]:[],
+  };
+}
+function validNavalChoice(options,id,fallback){return options.find(o=>o.id===id&&o.available)?.id||fallback;}
+function defaultNavalDesignChoices(region,designId){
+  const opts=navalDesignMaterialOptions(region,designId),stock=region.stockpile||{},precision=clamp(region.industrialSupply?.capability?.precision_machining||0),sub=designId==='submarine';
+  return {
+    superstructure:validNavalChoice(opts.superstructure,(stock.aluminium||0)>60?NAVAL_SUPERSTRUCTURE_MATERIALS.ALUMINIUM:NAVAL_SUPERSTRUCTURE_MATERIALS.STEEL,NAVAL_SUPERSTRUCTURE_MATERIALS.STEEL),
+    seawaterSystems:validNavalChoice(opts.seawaterSystems,(stock.titanium||0)>18?NAVAL_SEAWATER_SYSTEMS.TITANIUM:NAVAL_SEAWATER_SYSTEMS.CONVENTIONAL,NAVAL_SEAWATER_SYSTEMS.CONVENTIONAL),
+    pressureHull:sub?validNavalChoice(opts.pressureHull,(stock.titanium||0)>90&&precision>.72?SUBMARINE_PRESSURE_HULLS.TITANIUM:SUBMARINE_PRESSURE_HULLS.STEEL,SUBMARINE_PRESSURE_HULLS.STEEL):null,
+    priorities:{},
+  };
+}
+function normaliseNavalChoices(region,designId,choices=null){
+  const source=choices||defaultNavalDesignChoices(region,designId),opts=navalDesignMaterialOptions(region,designId),sub=designId==='submarine';
+  return {
+    superstructure:validNavalChoice(opts.superstructure,source.superstructure,NAVAL_SUPERSTRUCTURE_MATERIALS.STEEL),
+    seawaterSystems:validNavalChoice(opts.seawaterSystems,source.seawaterSystems,NAVAL_SEAWATER_SYSTEMS.CONVENTIONAL),
+    pressureHull:sub?validNavalChoice(opts.pressureHull,source.pressureHull,SUBMARINE_PRESSURE_HULLS.STEEL):null,
+    priorities:normaliseNavalPriorities(sub?'submarine':'surface',source.priorities||{}),
+  };
+}
+function applyNavalMaterialsAndPriorities(region,designId,baseStats,choices){
+  const sub=designId==='submarine',p=choices.priorities;let s={...baseStats,systemInputs:{...(baseStats.systemInputs||{})},designPriorities:p,
+    superstructureMaterial:choices.superstructure,seawaterSystemsMaterial:choices.seawaterSystems,pressureHullMaterial:choices.pressureHull,
+    steelConstructionMultiplier:1,topweightMultiplier:1,corrosionResistance:.62,fireResistance:1,maintenanceMultiplier:1,enduranceMultiplier:1,testDepthMultiplier:sub?1:null,fabricationComplexity:1};
+  if(!sub&&choices.superstructure===NAVAL_SUPERSTRUCTURE_MATERIALS.ALUMINIUM&&NAVAL_SURFACE_LIGHT_METAL_CLASSES.has(designId)){
+    const amount=NAVAL_ALUMINIUM_INPUT[designId]||8;s.systemInputs=mergeNavalInputs(s.systemInputs,{aluminium:amount});s.steelConstructionMultiplier=.91;s.topweightMultiplier=.86;
+    s.speed*=1.026;s.pursuit*=1.036;s.antiAir=clamp((s.antiAir||0)*1.055);s.radarSearch=clamp((s.radarSearch||0)*1.035);s.durability*=.985;s.fireResistance=.88;s.maintenanceMultiplier*=1.06;
+  }
+  if(choices.seawaterSystems===NAVAL_SEAWATER_SYSTEMS.TITANIUM){
+    const amount=NAVAL_TITANIUM_SYSTEM_INPUT[designId]||3;s.systemInputs=mergeNavalInputs(s.systemInputs,{titanium:amount});s.corrosionResistance=.95;s.maintenanceMultiplier*=.86;s.damageControl=clamp((s.damageControl||0)*1.045);s.durability*=1.018;s.speed*=1.006;s.propulsionQuality=clamp((s.propulsionQuality||0)*1.018);s.fabricationComplexity*=1.08;
+  }
+  if(sub&&choices.pressureHull===SUBMARINE_PRESSURE_HULLS.TITANIUM){
+    const precision=clamp(region.industrialSupply?.capability?.precision_machining||0);s.systemInputs=mergeNavalInputs(s.systemInputs,{titanium:42});s.steelConstructionMultiplier=.55;s.topweightMultiplier=.82;s.testDepthMultiplier=1.55;
+    s.speed*=1.055;s.durability*=1.12;s.signature=clamp((s.signature||.3)*.93,.12,1);s.fabricationComplexity*=1.35;s.damageControl=clamp((s.damageControl||0)*(.94+precision*.06));
+  }
+  const scale=(value,priority,intensity)=>value*(1+(priority-1)*intensity);
+  s.speed=scale(s.speed,p.speed,.09);s.enduranceMultiplier=scale(s.enduranceMultiplier,p.endurance,.13);s.damageControl=clamp(scale(s.damageControl||0,p.reliability,.10));
+  if(sub){s.testDepthMultiplier=scale(s.testDepthMultiplier||1,p.depth,.16);s.signature=clamp(s.signature*(1-(p.stealth-1)*.10),.10,1);s.torpedoEffect=clamp(scale(s.torpedoEffect||0,p.firepower,.10));s.combat=scale(s.combat,p.firepower,.07);}
+  else{s.combat=scale(s.combat,p.firepower,.08);s.durability=scale(s.durability,p.protection,.10);s.armour=scale(s.armour,p.protection,.09);s.radarSearch=clamp(scale(s.radarSearch||0,p.sensors,.11));s.sonar=clamp(scale(s.sonar||0,p.sensors,.11));s.antiAir=clamp(scale(s.antiAir||0,p.sensors,.08));}
+  return s;
+}
+function navalFrontier(region,designId,choices=null){const base=baseNavalFrontier(region,designId),selected=normaliseNavalChoices(region,designId,choices),stats=applyNavalMaterialsAndPriorities(region,designId,base.stats,selected);const materialGain=(selected.superstructure==='aluminium'?.018:0)+(selected.seawaterSystems==='titanium'?.018:0)+(selected.pressureHull==='titanium'?.025:0);return {quality:clamp(base.quality+materialGain),stats,designChoices:selected};}
+export function previewNavalDesign(region,designId,choices={}){const f=navalFrontier(region,designId,choices);return {...f.stats,quality:f.quality,designChoices:f.designChoices};}
+export function navalConstructionProfile(region,designId){const d=ensureCurrentNavalDesign(region,designId);return {steelMultiplier:d?.stats?.steelConstructionMultiplier??1,systemInputs:{...(d?.stats?.systemInputs||{})},designId:d?.id||null};}
+
 export function currentNavalDesign(region,designId){
   const list=region?.navalDesignCatalogue?.[designId]||[];return [...list].reverse().find(d=>d.toolingReady!==false)||null;
 }
-function createNavalDesign(region,designId,{authorisedBy='initial_standard',toolingReady=true}={}){
-  region.navalDesignCatalogue ||= {};const list=region.navalDesignCatalogue[designId] ||= [],f=navalFrontier(region,designId),sequence=(list.at(-1)?.sequence||0)+1;
-  const design={id:`${region.id}:${designId}:${sequence}`,designId,sequence,name:`${SHIP_DESIGNS[designId]?.label||designId} Mk ${romanMark(sequence)}`,quality:f.quality,stats:f.stats,authorisedBy,toolingReady};list.push(design);return design;
+function createNavalDesign(region,designId,{authorisedBy='initial_standard',toolingReady=true,choices=null}={}){
+  region.navalDesignCatalogue ||= {};const list=region.navalDesignCatalogue[designId] ||= [],selected=normaliseNavalChoices(region,designId,choices),f=navalFrontier(region,designId,selected),sequence=(list.at(-1)?.sequence||0)+1;
+  const design={id:`${region.id}:${designId}:${sequence}`,designId,sequence,name:`${SHIP_DESIGNS[designId]?.label||designId} Mk ${romanMark(sequence)}`,quality:f.quality,stats:f.stats,designChoices:structuredClone(selected),authorisedBy,toolingReady};list.push(design);return design;
 }
 export function ensureCurrentNavalDesign(region,designId){return currentNavalDesign(region,designId)||createNavalDesign(region,designId,{authorisedBy:'initial_standard',toolingReady:true});}
-export function quoteNavalMarkUpgrade(region,designId){
+export function quoteNavalMarkUpgrade(region,designId,choices=null){
   const spec=SHIP_DESIGNS[designId];if(!spec)return {available:false,reason:'unknown_ship_class'};
   if(!operationalInfrastructure(region,'shipyard')&&!operationalInfrastructure(region,'naval_base'))return {available:false,reason:'no_operational_shipyard'};
   const procurement=ensureNavalProcurement(region);procurement.designTooling ||= {};
   if(procurement.designTooling[designId]?.pendingDesignId)return {available:false,reason:'tooling_already_in_progress'};
-  const nextSequence=((region.navalDesignCatalogue?.[designId]||[]).at(-1)?.sequence||0)+1,industrial=(spec.tier||0)>=5;
-  return {available:true,designId,nextSequence,machineComponents:industrial?5+nextSequence*3:0,steel:industrial?10+nextSequence*6:0,wood:industrial?0:35+nextSequence*18,treasury:10+nextSequence*7,downtimeWeeks:Math.min(30,6+nextSequence*2)};
+  const selected=normaliseNavalChoices(region,designId,choices),nextSequence=((region.navalDesignCatalogue?.[designId]||[]).at(-1)?.sequence||0)+1,industrial=(spec.tier||0)>=5;
+  const complexity=(selected.superstructure==='aluminium'?.12:0)+(selected.seawaterSystems==='titanium'?.18:0)+(selected.pressureHull==='titanium'?.55:0);
+  return {available:true,designId,nextSequence,designChoices:selected,machineComponents:(industrial?5+nextSequence*3:0)*(1+complexity),steel:industrial?10+nextSequence*6:0,wood:industrial?0:35+nextSequence*18,treasury:(10+nextSequence*7)*(1+complexity*.8),downtimeWeeks:Math.min(42,Math.ceil((6+nextSequence*2)*(1+complexity*.7)))};
 }
-export function authoriseNavalMark(region,designId,{authorisedBy='player'}={}){
-  const quote=quoteNavalMarkUpgrade(region,designId);if(!quote.available)return {authorised:false,...quote};
+export function authoriseNavalMark(region,designId,{authorisedBy='player',choices=null}={}){
+  const quote=quoteNavalMarkUpgrade(region,designId,choices);if(!quote.available)return {authorised:false,...quote};
   region.industrialSupply ||= {};region.industrialSupply.inventory ||= {};region.stockpile ||= {};const inv=region.industrialSupply.inventory;
   if((inv.machine_components||0)<quote.machineComponents)return {authorised:false,reason:'insufficient_machine_components',...quote};
   if((region.stockpile.steel||0)<quote.steel)return {authorised:false,reason:'insufficient_steel',...quote};
   if((region.stockpile.wood||0)<quote.wood)return {authorised:false,reason:'insufficient_wood',...quote};
   if((region.treasury||0)<quote.treasury)return {authorised:false,reason:'insufficient_treasury',...quote};
   inv.machine_components=(inv.machine_components||0)-quote.machineComponents;region.stockpile.steel=(region.stockpile.steel||0)-quote.steel;region.stockpile.wood=(region.stockpile.wood||0)-quote.wood;region.treasury-=quote.treasury;
-  const design=createNavalDesign(region,designId,{authorisedBy,toolingReady:false}),procurement=ensureNavalProcurement(region);procurement.designTooling ||= {};
+  const design=createNavalDesign(region,designId,{authorisedBy,toolingReady:false,choices:quote.designChoices}),procurement=ensureNavalProcurement(region);procurement.designTooling ||= {};
   procurement.designTooling[designId]={pendingDesignId:design.id,weeksRemaining:quote.downtimeWeeks,totalWeeks:quote.downtimeWeeks,cost:quote,authorisedBy};
   return {authorised:true,design,cost:quote,downtimeWeeks:quote.downtimeWeeks};
 }
@@ -301,8 +389,10 @@ function takeRefitMetal(region, amount, preferred = null) {
   return left <= 1e-9;
 }
 
-function payRefitCost(region, designId) {
-  const cost = SHIP_DESIGNS[designId]?.refitCost || {};
+function payRefitCost(region, designId, targetDesign = null) {
+  const baseCost = SHIP_DESIGNS[designId]?.refitCost || {};
+  const speciality=targetDesign?.stats?.systemInputs||{};const cost={...baseCost};
+  for(const key of ['aluminium','titanium'])if(speciality[key]>0)cost[key]=(cost[key]||0)+speciality[key]*.35;
   const stock = region.stockpile || {};
   const inventory = region.industrialSupply?.inventory || {};
   for (const [key, amount] of Object.entries(cost)) {
@@ -337,12 +427,12 @@ function moderniseOwnedFleet(region, fleets, weeks, events) {
     fleet.refitProgress = Math.max(0, fleet.refitProgress || 0) + Math.max(0, weeks) * (operationalInfrastructure(region, 'naval_base') ? 0.06 : 0.035);
     if (fleet.refitProgress < 1) continue;
     const markCandidate=fleet.ships.map((ship,index)=>({ship,index,current:currentNavalDesign(region,ship.designId)})).find(x=>(x.current?.sequence||1)>(x.ship.modelSequence||1));
-    if(markCandidate&&payRefitCost(region,markCandidate.ship.designId)){const oldLabel=markCandidate.ship.modelName||shipLabel(markCandidate.ship),replacement=makeShip(markCandidate.ship.designId,region,{id:markCandidate.ship.id,prize:false,capturedFromActorId:null});fleet.ships[markCandidate.index]=replacement;fleet.refitProgress-=1;if(events)events.push({type:'fleet_ship_mark_refit',ownerRegionId:region.id,fleetId:fleet.id,shipId:replacement.id,fromClassLabel:oldLabel,toClassLabel:replacement.modelName||replacement.classLabel});continue;}
+    if(markCandidate&&payRefitCost(region,markCandidate.ship.designId,markCandidate.current)){const oldLabel=markCandidate.ship.modelName||shipLabel(markCandidate.ship),replacement=makeShip(markCandidate.ship.designId,region,{id:markCandidate.ship.id,prize:false,capturedFromActorId:null});fleet.ships[markCandidate.index]=replacement;fleet.refitProgress-=1;if(events)events.push({type:'fleet_ship_mark_refit',ownerRegionId:region.id,fleetId:fleet.id,shipId:replacement.id,fromClassLabel:oldLabel,toClassLabel:replacement.modelName||replacement.classLabel});continue;}
     const candidates = fleet.ships.map((ship, index) => ({ ship, index, target: preferredWarshipDesign(region, index) }))
       .filter(({ ship, target }) => !designOf(ship).support && isAdvancedShip(ship) && (SHIP_DESIGNS[target]?.tier || 0) > shipTier(ship))
       .sort((a, b) => shipTier(a.ship) - shipTier(b.ship));
     const choice = candidates[0];
-    if (!choice || !payRefitCost(region, choice.target)) continue;
+    if (!choice || !payRefitCost(region, choice.target,currentNavalDesign(region,choice.target))) continue;
     const oldLabel = shipLabel(choice.ship);
     const replacement = makeShip(choice.target, region, { id: choice.ship.id, prize: false, capturedFromActorId: null });
     fleet.ships[choice.index] = replacement;

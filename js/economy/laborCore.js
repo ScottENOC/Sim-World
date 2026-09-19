@@ -14,7 +14,7 @@ import { maritimeSkillMultiplier, MARITIME_SKILLS } from '../technology/seamansh
 import { applyFoodPreservation, tickFoodLuxuries } from './foodLuxuries.js?v=20260913-food-luxuries1';
 import { agriculturalWaterProfile } from './agriculturalWater.js?v=20260914-water3';
 import { educationLaborReservation } from '../society/massEducation.js?v=20260914-mass-education1';
-import { ensureNavalProcurement, refreshNavalProcurementTargets, SHIP_DESIGNS } from '../military/fleets.js?v=20260916-procurement1';
+import { ensureNavalProcurement, refreshNavalProcurementTargets, SHIP_DESIGNS, navalConstructionProfile } from '../military/fleets.js?v=20260919-naval-light-metals1';
 
 // --- Tunable constants -----------------------------------------------------
 // All placeholders, calibrated so a "typical" region can just about feed
@@ -134,11 +134,16 @@ const WARSHIP_BUILD_COST = {
   steam_frigate: { wood: 600, iron: 70, coal: 35, machine: 16 },
   ironclad: { wood: 350, iron: 150, coal: 45, machine: 24 },
   steel_warship: { wood: 180, steel: 220, coal: 55, machine: 34 },
+  fleet_tug: { steel: 90, coal: 24, machine: 26 },
+  destroyer: { steel: 150, coal: 42, machine: 46, gunpowder: 4 },
+  submarine: { steel: 120, machine: 62, petrol: 30 },
+  dreadnought: { steel: 700, coal: 120, machine: 105, gunpowder: 20 },
 };
 const WARSHIP_BUILD_RATE = {
   basic_war_boat: 0.020, galley: 0.012, ocean_sailing_warship: 0.009,
   gunpowder_sailing_warship: 0.007, frigate: 0.0045, ship_of_line: 0.0025,
   paddle_steam_warship: 0.0040, steam_frigate: 0.0035, ironclad: 0.0025, steel_warship: 0.0022,
+  fleet_tug: 0.0028, destroyer: 0.0018, submarine: 0.00155, dreadnought: 0.0007,
 };
 const BASIC_BOAT_ANNUAL_WEAR = 0.08;
 const ADVANCED_BOAT_ANNUAL_WEAR = 0.03;
@@ -241,7 +246,11 @@ function consumeShipbuildingInput(region, key, amount) {
 }
 
 export function buildWarshipClass(region, designId, gap, makersAvailable) {
-  const cost = WARSHIP_BUILD_COST[designId];
+  const baseCost = WARSHIP_BUILD_COST[designId];
+  const profile = baseCost ? navalConstructionProfile(region, designId) : null;
+  const cost = baseCost ? {...baseCost} : null;
+  if(cost?.steel!=null)cost.steel*=profile?.steelMultiplier??1;
+  for(const [key,amount] of Object.entries(profile?.systemInputs||{}))cost[key]=(cost[key]||0)+Math.max(0,Number(amount)||0);
   const rate = WARSHIP_BUILD_RATE[designId] || 0;
   if (!cost || rate <= 0 || gap <= 0 || makersAvailable <= 0) return { built: 0, makers: 0, designId };
   let possible = Math.min(gap, makersAvailable * rate);
