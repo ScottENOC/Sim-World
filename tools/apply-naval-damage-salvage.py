@@ -9,7 +9,7 @@ def rep(old,new):
     text=text.replace(old,new,1)
 
 rep("import { DREADNOUGHT_TECH_ID, SUBMARINE_TECH_ID, tickLateIndustrialNavalWarfare } from './lateIndustrialNavy.js?v=20260918-navy1';\n",
-    "import { DREADNOUGHT_TECH_ID, SUBMARINE_TECH_ID, tickLateIndustrialNavalWarfare } from './lateIndustrialNavy.js?v=20260918-navy1';\nimport { initialiseShipDamage, applyShipHit, tickShipDamageAtSea, shipPropulsionMultiplier, shipCombatMultiplier, repairShipDamage, attemptFleetSalvage, fleetTowSpeedMultiplier } from './navalDamage.js?v=20260919-damage1';\n")
+    "import { DREADNOUGHT_TECH_ID, SUBMARINE_TECH_ID, tickLateIndustrialNavalWarfare } from './lateIndustrialNavy.js?v=20260918-navy1';\nimport { initialiseShipDamage, applyShipHit, tickShipDamageAtSea, shipPropulsionMultiplier, shipCombatMultiplier, shipSensorMultiplier, repairShipDamage, attemptFleetSalvage, fleetTowSpeedMultiplier } from './navalDamage.js?v=20260919-damage1';\n")
 
 rep("  submarine: {\n",
 "  fleet_tug: {\n    id: 'fleet_tug', label: 'fleet salvage tug', tier: 6, advanced: true, support: true, propulsion: 'steam', crew: 18, speed: 1.48,\n    fallbackSpeed: 0.34, combat: 0.18, durability: 1.65, pursuit: 0.70, captureResistance: 0.88, gunCapacity: 1, armour: 0.08,\n    coalCapacity: 20, coalPerWeek: 1.45, salvageCapacity: 1.0, towPower: 1.0, refitCost: { wood: 35, iron: 18, coal: 8, machine: 9 },\n  },\n  submarine: {\n")
@@ -58,6 +58,9 @@ rep("    if (roll < 0.38) {\n      const ship = removeRandomShip(fleet, rng);\n 
 
 rep("  fleet.morale = clamp(fleet.morale - Math.max(0, 0.55 - fleet.supply) * 0.015 * weeks);\n}",
 "  fleet.morale = clamp(fleet.morale - Math.max(0, 0.55 - fleet.supply) * 0.015 * weeks);\n  for (const ship of fleet.ships) tickShipDamageAtSea(ship, weeks);\n}\n")
+
+rep("  const radarSearch=observer.ships.length?observer.ships.reduce((s,ship)=>s+clamp(designOf(ship).radarSearch||0),0)/observer.ships.length:0;\n  const sonarSearch=observer.ships.length?observer.ships.reduce((s,ship)=>s+clamp(designOf(ship).sonar||0),0)/observer.ships.length:0;",
+"  const radarSearch=observer.ships.length?observer.ships.reduce((s,ship)=>s+clamp(designOf(ship).radarSearch||0)*shipSensorMultiplier(ship,'radar'),0)/observer.ships.length:0;\n  const sonarSearch=observer.ships.length?observer.ships.reduce((s,ship)=>s+clamp(designOf(ship).sonar||0)*shipSensorMultiplier(ship,'sonar'),0)/observer.ships.length:0;")
 
 p.write_text(text)
 print('naval damage and salvage integration applied')
