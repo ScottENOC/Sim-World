@@ -1,0 +1,38 @@
+name: Apply combined exercise integration
+on:
+  push:
+    branches: [feature/combined-allied-exercises-v1]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[generated exercises]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/combined-allied-exercises-v1
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Apply integration
+        run: python tools/apply-combined-exercise-integration.py
+      - name: Validate focused behaviour
+        run: |
+          node --check js/military/combinedExercises.js
+          node --check js/ui/combinedExercisesUi.js
+          node --check js/military/campaigns.js
+          node --check js/military/playerJointOperationAdvisor.js
+          node --check js/main.js
+          node tools/test-combined-exercises.mjs
+          node tools/test-machine-gun-tactical-revolution.mjs
+          node tools/test-fleet-ship-progression.mjs
+          git diff --check
+      - name: Commit generated source
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/military/combinedExercises.js js/military/campaigns.js js/military/playerJointOperationAdvisor.js js/main.js
+          git commit -m 'Integrate combined allied exercises [generated exercises]'
+          git push origin HEAD:feature/combined-allied-exercises-v1
