@@ -1,0 +1,38 @@
+name: Apply qualified personnel integration
+on:
+  push:
+    branches: [feature/qualified-air-naval-personnel-v1]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[generated personnel]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/qualified-air-naval-personnel-v1
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Apply personnel integration
+        run: python tools/apply-qualified-personnel-integration.py
+      - name: Syntax and focused regressions
+        run: |
+          node --check js/military/qualifiedPersonnel.js
+          node --check js/military/aviation.js
+          node --check js/military/fleets.js
+          node --check js/military/navalDamage.js
+          node tools/test-qualified-military-personnel.mjs
+          node tools/test-aircraft-industry.mjs
+          node tools/test-naval-damage-salvage.mjs
+          node tools/test-fleet-ship-progression.mjs
+          git diff --check
+      - name: Commit generated source
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/military/aviation.js js/military/fleets.js js/military/navalDamage.js
+          git commit -m 'Integrate qualified air and naval personnel [generated personnel]'
+          git push origin HEAD:feature/qualified-air-naval-personnel-v1
