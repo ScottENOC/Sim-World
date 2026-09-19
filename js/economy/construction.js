@@ -245,6 +245,20 @@ export const CONSTRUCTION_TYPES = Object.freeze({
     workRequired: 210000, defaultWorkers: 1300, minWorkers: 400, maxWorkers: 4200,
     materials: { stone: 6500, steel: 2300, copper: 520, aluminium: 130 }, wagePerWorkerWeek: 0.0060, maintenanceRate: 0.10,
   },
+  nuclear_weapons_research_establishment: {
+    id: 'nuclear_weapons_research_establishment', name: 'Strategic nuclear research establishment', requiredTechId: 'isotope_separation', unique: false,
+    requiresInfrastructure: 'factory', minPopulation: 50000,
+    description: 'A secure state research and engineering establishment able to pursue an experimental nuclear explosive programme. It creates a visible procurement and staffing footprint but contains no deployable weapon by itself.',
+    workRequired: 180000, defaultWorkers: 1100, minWorkers: 320, maxWorkers: 3600,
+    materials: { stone: 4200, steel: 1900, copper: 420, aluminium: 180 }, wagePerWorkerWeek: 0.0064, maintenanceRate: 0.095,
+  },
+  nuclear_test_range: {
+    id: 'nuclear_test_range', name: 'Nuclear test range', requiredTechId: 'nuclear_test_validation', unique: true,
+    minPopulation: 5000,
+    description: 'A controlled remote test infrastructure used to instrument and contain an experimental nuclear demonstration. The simulation deliberately abstracts all device engineering and yield details.',
+    workRequired: 120000, defaultWorkers: 700, minWorkers: 200, maxWorkers: 2400,
+    materials: { stone: 3200, steel: 950, copper: 180 }, wagePerWorkerWeek: 0.0058, maintenanceRate: 0.055,
+  },
   petroleum_refinery: {
     id: 'petroleum_refinery', name: 'Petroleum refinery', requiredTechId: 'petroleum_refining', unique: false,
     minPopulation: 8000,
