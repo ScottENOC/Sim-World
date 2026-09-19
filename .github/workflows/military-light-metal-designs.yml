@@ -1,0 +1,21 @@
+name: Military light-metal equipment designs
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  military-material-designs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check equipment design
+        run: node --check js/military/equipmentGenerations.js
+      - name: Military material design regression
+        run: node tools/test-military-light-metal-designs.mjs
+      - name: Whitespace check
+        run: git diff --check
