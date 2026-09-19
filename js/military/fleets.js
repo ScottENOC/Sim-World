@@ -8,6 +8,7 @@ import { ensureFleetProvisioning, provisioningCombatMultiplier, serviceProvision
 import { MARINE_STEAM_TECH_ID, SCREW_PROPULSION_TECH_ID, IRON_HULL_TECH_ID, STEEL_HULL_TECH_ID } from '../technology/industrialMarine.js?v=20260916-steam1';
 import { DREADNOUGHT_TECH_ID, SUBMARINE_TECH_ID, tickLateIndustrialNavalWarfare } from './lateIndustrialNavy.js?v=20260918-navy1';
 import { initialiseShipDamage, applyShipHit, tickShipDamageAtSea, shipPropulsionMultiplier, shipCombatMultiplier, shipSensorMultiplier, repairShipDamage, attemptFleetSalvage, fleetTowSpeedMultiplier } from './navalDamage.js?v=20260919-damage1';
+import { assignShipCrew, tickNavalPersonnel, recordShipCrewPractice } from './qualifiedPersonnel.js?v=20260919-personnel1';
 
 export const FLEET_MISSIONS = Object.freeze({
   PORT: 'port',
@@ -248,7 +249,7 @@ function makeShip(designId, ownerRegionOrId, overrides = {}) {
   const region=typeof ownerRegionOrId==='object'?ownerRegionOrId:null,ownerRegionId=region?.id||ownerRegionOrId;
   const spec = SHIP_DESIGNS[designId] || SHIP_DESIGNS.basic_war_boat;
   const generation=region?ensureCurrentNavalDesign(region,spec.id):null;
-  return initialiseShipDamage({
+  const ship=initialiseShipDamage({
     id: `ship-${nextShipId++}`,
     designId: spec.id,
     navalDesignId:generation?.id||null,modelSequence:generation?.sequence||1,modelName:generation?.name||spec.label,designStats:generation?.stats?{...generation.stats}:null,
@@ -260,8 +261,10 @@ function makeShip(designId, ownerRegionOrId, overrides = {}) {
     gunCapacity: spec.gunCapacity || 1,
     propulsion: spec.propulsion || 'oar_sail',
     armour: spec.armour || 0,
+    crewRequired:generation?.stats?.crew||spec.crew||12,
     ...overrides,
   });
+  if(region)assignShipCrew(region,ship);return ship;
 }
 
 function fleetCoalCapacity(fleet) {
@@ -412,6 +415,7 @@ function createHomeFleet(region) {
 export function initialiseFleets(regions, existing = []) {
   if (existing.length) {
     for (const fleet of existing) ensureFleetState(fleet);
+    for(const region of regions){const owned=existing.filter(f=>f.ownerRegionId===region.id);if(owned.length)tickNavalPersonnel(region,owned,0);}
     syncNextFleetIds(existing);
     return existing;
   }
@@ -444,7 +448,7 @@ export function reconcileFleetLedger(regions, fleets, events = null, weeks = 1) 
     if (!(region.adjacentSeaIds || []).length) continue;
     const owned = byOwner.get(region.id) || [];
     tickNavalDesignPrograms(region,weeks);considerNpcNavalDesignReview(region,weeks);
-    serviceNavalModelDiversity(region,owned,weeks);
+    serviceNavalModelDiversity(region,owned,weeks);tickNavalPersonnel(region,owned,weeks);
     const procurement = ensureNavalProcurement(region);
     const explicitTargets = Object.values(procurement.targets || {}).reduce((sum, value) => sum + Math.max(0, Math.round(value || 0)), 0);
     const wantedTotal = explicitTargets > 0 ? explicitTargets : Math.max(0, Math.round(region.navy?.boats || 0));
@@ -662,7 +666,7 @@ function wearAtSea(fleet, weeks) {
   fleet.fatigue = clamp(fleet.fatigue + 0.018 * weeks * missionUse);
   fleet.condition = clamp(fleet.condition - 0.0015 * weeks * missionUse);
   fleet.morale = clamp(fleet.morale - Math.max(0, 0.55 - fleet.supply) * 0.015 * weeks);
-  for (const ship of fleet.ships) tickShipDamageAtSea(ship, weeks);
+  for (const ship of fleet.ships){tickShipDamageAtSea(ship,weeks);recordShipCrewPractice(ship,weeks,{combat:false});}
 }
 
 
