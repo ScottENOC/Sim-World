@@ -1,0 +1,66 @@
+name: Strategic nuclear fuel cycle
+
+on:
+  push:
+    branches: [feature/strategic-nuclear-fuel-cycle]
+    paths:
+      - 'js/economy/strategicNuclear.js'
+      - 'js/technology/strategicNuclear.js'
+      - 'tools/apply-strategic-nuclear-fuel-cycle.py'
+      - 'tools/test-strategic-nuclear.mjs'
+      - '.github/workflows/strategic-nuclear-fuel-cycle.yml'
+  pull_request:
+    paths:
+      - 'js/economy/strategicNuclear.js'
+      - 'js/technology/strategicNuclear.js'
+      - 'js/economy/electricity.js'
+      - 'js/economy/construction.js'
+      - 'js/technology/breakthroughs.js'
+      - 'tools/test-strategic-nuclear.mjs'
+      - '.github/workflows/strategic-nuclear-fuel-cycle.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && 'feature/strategic-nuclear-fuel-cycle' || github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply integration on feature branch
+        if: github.event_name == 'push'
+        run: python tools/apply-strategic-nuclear-fuel-cycle.py
+      - name: Syntax checks
+        run: |
+          node --check js/economy/strategicNuclear.js
+          node --check js/technology/strategicNuclear.js
+          node --check js/economy/electricity.js
+          node --check js/economy/construction.js
+          node --check js/technology/breakthroughs.js
+      - name: Strategic nuclear and compatibility regressions
+        run: |
+          node tools/test-strategic-nuclear.mjs
+          node tools/test-nuclear-power.mjs
+          node tools/test-electricity.mjs
+          node tools/test-industrial-production.mjs
+          node tools/test-light-metals.mjs
+      - name: Commit integrated source
+        if: github.event_name == 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/economy/construction.js js/economy/electricity.js js/technology/breakthroughs.js
+          if ! git diff --cached --quiet; then
+            git commit -m "Integrate strategic nuclear fuel cycle"
+            git push origin HEAD:feature/strategic-nuclear-fuel-cycle
+          fi

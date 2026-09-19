@@ -1,5 +1,6 @@
 import { effectiveInfrastructureCount, operationalInfrastructure } from './construction.js?v=20260920-nuclear1';
 import { tickNuclearFuelCycle, nuclearGeneration } from './nuclearPower.js?v=20260920-nuclear1';
+import { tickStrategicNuclearFuelCycle, strategicNuclearElectricityDemand } from './strategicNuclear.js?v=20260920-strategic-nuclear1';
 
 const DAYS_PER_YEAR = 365.2425;
 const INDUSTRIAL_ELECTRIFICATION_TECH_ID = 'industrial_electrification';
@@ -33,8 +34,9 @@ export function electricityDemand(region, elapsedDays = 7) {
   // lightMetals.electricityLoad is already measured for the elapsed period, so it is not
   // multiplied by years a second time here.
   const lightMetalsDemand = nonNegative(region.lightMetals?.electricityLoad);
-  const industrialDemand = baseIndustrialDemand + lightMetalsDemand;
-  return { householdDemand, industrialDemand, total: householdDemand + industrialDemand, lightMetalsDemand };
+  const strategicNuclearDemand = nonNegative(region.strategicNuclear?.electricityLoad);
+  const industrialDemand = baseIndustrialDemand + lightMetalsDemand + strategicNuclearDemand;
+  return { householdDemand, industrialDemand, total: householdDemand + industrialDemand, lightMetalsDemand, strategicNuclearDemand };
 }
 
 export function dispatchElectricityPortfolio(outputs = {}, demand = Infinity) {
@@ -84,6 +86,10 @@ export function tickElectricity(region, elapsedDays = 7) {
   const windStations = effectiveInfrastructureCount(region, 'wind_power_station');
   const grids = effectiveInfrastructureCount(region, 'local_electric_grid');
   tickNuclearFuelCycle(region, elapsedDays);
+  tickStrategicNuclearFuelCycle(region, elapsedDays);
+  // Demand uses the fuel-cycle load computed above. The exported helper keeps this
+  // explicit for tests and future planning UI even though the tick stores it on state.
+  strategicNuclearElectricityDemand(region, elapsedDays);
   const nuclear = nuclearGeneration(region, elapsedDays);
 
   const coalPotential = coalStations * 5200 * years;
@@ -139,6 +145,7 @@ export function tickElectricity(region, elapsedDays = 7) {
   state.householdDemand = demand.householdDemand;
   state.industrialDemand = demand.industrialDemand;
   state.lightMetalsDemand = demand.lightMetalsDemand || 0;
+  state.strategicNuclearDemand = demand.strategicNuclearDemand || 0;
   return {
     ...state, coalOutput, hydroOutput, solarOutput, windOutput, nuclearOutput: nuclear.output || 0, nuclear, gridCapacity, networkReliability,
     copperNeed, balancingNeed: dispatch.balancingNeed, balancingAvailable: dispatch.balancingAvailable,
