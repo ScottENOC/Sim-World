@@ -28,6 +28,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Normalise current worldsim API marker
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('js/main.js')
+          text=p.read_text()
+          current="    fleetApi: { deployFleet, dockFleet, orderFleetHome, orderFleetToSea, setFleetFlag, setFleetMission, syncRegionalNavyLedger, navalDesignClassOptions, navalDesignMaterialOptions, previewNavalDesign, quoteNavalMarkUpgrade, authoriseNavalMark, currentNavalDesign },\n    aviationApi: { buildAircraft, assignAircraftMission, rebaseAircraft, aviationSummary },"
+          legacy="    fleetApi: { deployFleet, dockFleet, orderFleetHome, orderFleetToSea, setFleetFlag, setFleetMission, syncRegionalNavyLedger },\n    aviationApi: { buildAircraft, assignAircraftMission, rebaseAircraft, aviationSummary },"
+          if current in text:
+              p.write_text(text.replace(current,legacy,1))
+          elif legacy not in text:
+              raise SystemExit('Could not locate expected worldsim fleet/aviation API marker')
+          PY
       - name: Apply carrier integration
         run: python tools/apply-aircraft-carriers.py
       - name: Syntax checks
