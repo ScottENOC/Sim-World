@@ -1,0 +1,64 @@
+name: Nuclear allied deployments
+
+on:
+  push:
+    branches: [feature/nuclear-allied-deployments]
+    paths:
+      - 'js/diplomacy/nuclearAlliedDeployments.js'
+      - 'js/diplomacy/nuclearDeterrence.js'
+      - 'js/diplomacy/nuclearArmsControl.js'
+      - 'tools/apply-nuclear-allied-deployments.py'
+      - 'tools/test-nuclear-allied-deployments.mjs'
+      - '.github/workflows/nuclear-allied-deployments.yml'
+  pull_request:
+    paths:
+      - 'js/diplomacy/nuclearAlliedDeployments.js'
+      - 'js/diplomacy/nuclearDeterrence.js'
+      - 'js/diplomacy/nuclearArmsControl.js'
+      - 'tools/test-nuclear-allied-deployments.mjs'
+      - '.github/workflows/nuclear-allied-deployments.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && 'feature/nuclear-allied-deployments' || github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply allied nuclear integration on feature branch
+        if: github.event_name == 'push'
+        run: python tools/apply-nuclear-allied-deployments.py
+      - name: Syntax checks
+        run: |
+          node --check js/diplomacy/nuclearAlliedDeployments.js
+          node --check js/diplomacy/nuclearDeterrence.js
+          node --check js/diplomacy/nuclearArmsControl.js
+      - name: Allied deployment and compatibility regressions
+        run: |
+          node tools/test-nuclear-allied-deployments.mjs
+          node tools/test-nuclear-arms-control.mjs
+          node tools/test-nuclear-deterrence.mjs
+          node tools/test-strategic-delivery-second-strike.mjs
+          node tools/test-nuclear-weaponisation.mjs
+          node tools/test-strategic-nuclear.mjs
+      - name: Commit integrated source
+        if: github.event_name == 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/diplomacy/nuclearDeterrence.js js/diplomacy/nuclearArmsControl.js
+          if ! git diff --cached --quiet; then
+            git commit -m "Integrate allied nuclear deployments"
+            git push origin HEAD:feature/nuclear-allied-deployments
+          fi
