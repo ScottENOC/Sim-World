@@ -6,11 +6,13 @@ on:
     branches: [main]
     paths:
       - 'js/military/fleets.js'
+      - 'js/military/navalDamage.js'
       - 'js/military/earlyModernWarfare.js'
       - 'js/technology/industrialMarine.js'
       - 'tools/apply-fleet-ship-progression-v1.py'
       - 'tools/test-fleet-ship-progression.mjs'
       - 'tools/test-persistent-fleets.mjs'
+      - 'tools/test-naval-damage-salvage.mjs'
       - '.github/workflows/fleet-ship-progression.yml'
   workflow_dispatch:
 permissions:
@@ -32,12 +34,14 @@ jobs:
       - name: Syntax checks
         run: |
           node --check js/military/fleets.js
+          node --check js/military/navalDamage.js
           node --check js/military/earlyModernWarfare.js
       - name: Fleet progression regressions
         run: |
           node tools/test-fleet-ship-progression.mjs
           node tools/test-persistent-fleets.mjs
           node tools/test-industrial-marine.mjs
+          node tools/test-naval-damage-salvage.mjs
       - name: Existing military compatibility
         run: |
           node tools/test-gunpowder-firearms.mjs
