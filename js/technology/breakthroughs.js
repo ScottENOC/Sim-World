@@ -7,6 +7,7 @@ import { tickNuclearBreakthroughs } from './nuclear.js?v=20260920-nuclear1';
 import { tickStrategicNuclearBreakthroughs } from './strategicNuclear.js?v=20260920-strategic-nuclear1';
 import { tickNuclearWeaponisationBreakthroughs } from './nuclearWeaponisation.js?v=20260920-nuclear-weaponisation1';
 import { tickNuclearWeaponProgramme } from '../military/nuclearWeaponisation.js?v=20260920-nuclear-weaponisation1';
+import { tickNuclearDeterrence } from '../diplomacy/nuclearDeterrence.js?v=20260920-nuclear-deterrence1';
 import { tickTelegraphBreakthroughs } from './telegraphy.js?v=20260917-telegraph1';
 import { tickTelephoneBreakthroughs } from './telephone.js?v=20260918-telephone1';
 import { tickMedicalBreakthroughs } from './medicalProgress.js?v=20260918-medical1';
@@ -360,6 +361,7 @@ export function tickBreakthroughs(regions, currentTick, rng = Math.random, elaps
   events.push(...tickStrategicNuclearBreakthroughs(regions, currentTick, rng, elapsedDays));
   events.push(...tickNuclearWeaponisationBreakthroughs(regions, currentTick, rng, elapsedDays));
   for (const region of regions) events.push(...tickNuclearWeaponProgramme(region, currentTick, elapsedDays, rng));
+  events.push(...tickNuclearDeterrence(regions, currentTick, elapsedDays));
   events.push(...tickTelegraphBreakthroughs(regions, currentTick, rng, elapsedDays));
   events.push(...tickTelephoneBreakthroughs(regions, currentTick, rng, elapsedDays));
   events.push(...tickMedicalBreakthroughs(regions, currentTick, rng, elapsedDays));

@@ -17,6 +17,7 @@ export const AERIAL_BOMBING_TECH_ID='aerial_bombing';
 export const TRANSPORT_AIRCRAFT_TECH_ID='transport_aircraft';
 export const RADAR_TECH_ID='radar';
 export const JET_PROPULSION_TECH_ID='jet_propulsion';
+export const AERIAL_REFUELLING_TECH_ID='aerial_refuelling';
 
 export const AIR_MISSIONS=Object.freeze({IDLE:'idle',SCOUT:'scout',INTERCEPT:'intercept',ATTACK:'attack',COURIER:'courier',TRANSPORT:'transport',REBASE:'rebase'});
 
@@ -64,6 +65,10 @@ export function tickAviationBreakthroughs(regions,currentTick,rng=Math.random,el
       const annual=clamp(.003+electricity*.012+radio*.018+optics*.010+connectedSources(region,byId,RADAR_TECH_ID)*.025,0,.14);
       if(rng()<1-Math.pow(1-annual,years)){region.unlockedTechIds.add(RADAR_TECH_ID);events.push({type:'aviation_breakthrough',techId:RADAR_TECH_ID,regionId:region.id,title:'Radar detection'});}
     }
+    if(has(region,TRANSPORT_AIRCRAFT_TECH_ID)&&!has(region,AERIAL_REFUELLING_TECH_ID)&&aircraftEngine>.48&&radio>.22&&industry>.52&&a.flightExperience>90){
+      const annual=clamp(.002+aircraftEngine*.014+radio*.010+industry*.010+connectedSources(region,byId,AERIAL_REFUELLING_TECH_ID)*.018,0,.10);
+      if(rng()<1-Math.pow(1-annual,years)){region.unlockedTechIds.add(AERIAL_REFUELLING_TECH_ID);events.push({type:'aviation_breakthrough',techId:AERIAL_REFUELLING_TECH_ID,regionId:region.id,title:'Aerial refuelling'});}
+    }
     if(has(region,POWERED_FLIGHT_TECH_ID)&&!has(region,JET_PROPULSION_TECH_ID)&&aircraftEngine>.54&&industry>.58&&a.flightExperience>120){
       const annual=clamp(.002+aircraftEngine*.018+industry*.012+connectedSources(region,byId,JET_PROPULSION_TECH_ID)*.020,0,.12);
       if(rng()<1-Math.pow(1-annual,years)){region.unlockedTechIds.add(JET_PROPULSION_TECH_ID);events.push({type:'aviation_breakthrough',techId:JET_PROPULSION_TECH_ID,regionId:region.id,title:'Jet propulsion'});}
@@ -87,6 +92,7 @@ export function buildAircraft(region,{ownerType='civilian',role='recon'}={}){
   if(!canBuild(region))return null;
   if(ownerType==='military'&&!has(region,MILITARY_AVIATION_TECH_ID))return null;
   if(role==='transport'&&!has(region,TRANSPORT_AIRCRAFT_TECH_ID))return null;
+  if(role==='tanker'&&(!has(region,TRANSPORT_AIRCRAFT_TECH_ID)||!has(region,AERIAL_REFUELLING_TECH_ID)))return null;
   if(['fighter','interceptor'].includes(role)&&!has(region,AIRCRAFT_ARMAMENT_TECH_ID))return null;
   if(role==='bomber'&&!has(region,AERIAL_BOMBING_TECH_ID))return null;
   const family=ownerType==='military'?familyForRole(role):null,productId=productForRole(role),foundingMilitaryCadre=ownerType==='military'&&!region.qualifiedMilitaryPersonnel;
@@ -95,7 +101,7 @@ export function buildAircraft(region,{ownerType='civilian',role='recon'}={}){
     design=takeFinishedEquipment(region,productId,1);
     if(!design){region.industrialOrders ||= {};region.industrialOrders[productId]=Math.max(region.industrialOrders[productId]||0,1);return null;}
   } else {
-    const cost=role==='transport'?{wood:40,textiles:24,steel:18,machine:10,cash:22}:{wood:26,textiles:18,steel:10,machine:7,cash:14};
+    const cost=['transport','tanker'].includes(role)?{wood:40,textiles:24,steel:18,machine:10,cash:22}:{wood:26,textiles:18,steel:10,machine:7,cash:14};
     if(!spendBuildInputs(region,cost))return null;
     if(family)design=ensureCurrentAircraftDesign(region,family);
   }
@@ -127,6 +133,15 @@ export function rebaseAircraft(origin,target,aircraftId,agreements=[],regionsByI
 }
 
 export function airDefenceRisk(region,aircraft=null){return airDefenceEngagementRisk(region,aircraft);}
+
+
+export function aerialRefuellingSupport(region){
+  const aircraft=ensureAviation(region).aircraft||[];
+  const tankers=aircraft.filter(a=>a.ownerType==='military'&&a.role==='tanker'&&a.status!=='destroyed'&&(a.condition??1)>=.42&&aircraftCrewReadiness(a)>=.35).length;
+  const fuel=Math.max(0,region.stockpile?.aviation_fuel||0);
+  const enabled=has(region,AERIAL_REFUELLING_TECH_ID)&&tankers>0&&fuel>.25;
+  return {enabled,tankers,rangeSupport:enabled?clamp(1+Math.min(.75,tankers*.12)):1,fuelReserve:fuel};
+}
 
 function missionFuel(mission,a=null){
   const base=mission===AIR_MISSIONS.INTERCEPT?.12:mission===AIR_MISSIONS.SCOUT?.18:mission===AIR_MISSIONS.COURIER?.16:mission===AIR_MISSIONS.ATTACK?.22:.08;
