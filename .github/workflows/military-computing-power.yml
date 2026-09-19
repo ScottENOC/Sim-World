@@ -5,7 +5,9 @@ on:
     paths:
       - 'js/military/militaryElectronics.js'
       - 'js/military/equipmentGenerations.js'
+      - 'js/economy/industrialPlant.js'
       - 'tools/test-military-computing-power.mjs'
+      - 'tools/test-deployed-base-power-and-electronics-bom.mjs'
       - '.github/workflows/military-computing-power.yml'
 jobs:
   validate:
@@ -16,7 +18,10 @@ jobs:
         with: {node-version: '22'}
       - run: node --check js/military/militaryElectronics.js
       - run: node --check js/military/equipmentGenerations.js
+      - run: node --check js/economy/industrialPlant.js
       - run: node tools/test-military-computing-power.mjs
+      - run: node tools/test-deployed-base-power-and-electronics-bom.mjs
       - run: node tools/test-predigital-equipment-generations.mjs
       - run: node tools/test-aircraft-industry.mjs
+      - run: node tools/test-industrial-production.mjs
       - run: git diff --check
