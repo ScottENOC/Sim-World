@@ -5,10 +5,12 @@ import { tickIndustrialSupply } from './industrialSupply.js?v=20260915-industria
 import { enforceHousingEmployment, housingSummary, prepareHousingConstruction } from './housing.js?v=20260916-housing1';
 import { tickEmploymentAndHardship } from './employmentAndHardship.js?v=20260918-employment1';
 import { tickHouseholdFoodSecurity } from './householdFoodSecurity.js?v=20260919-household-food1';
+import { tickLightMetals } from './lightMetals.js?v=20260919-light-metals1';
 export * from './laborCore.js?v=20260905-merchant1';
 export * from './housing.js?v=20260916-housing1';
 export * from './employmentAndHardship.js?v=20260918-employment1';
 export * from './householdFoodSecurity.js?v=20260919-household-food1';
+export * from './lightMetals.js?v=20260919-light-metals1';
 
 function committedMerchantCount(region) {
   const workingAge = Math.max(0, Number(region.demographics?.workingAge) || 0);
@@ -24,7 +26,7 @@ function committedArtistCount(region, availableAfterMerchants) {
 }
 
 function normaliseReportMetadata(region) {
-  for (const key of ['conflict', 'structuralTransformation', 'industrialSupply', 'housing', 'employment']) {
+  for (const key of ['conflict', 'structuralTransformation', 'industrialSupply', 'lightMetals', 'housing', 'employment']) {
     if (region.report?.[key] && !Number.isFinite(region.report[key].workers)) region.report[key].workers = 0;
   }
 }
@@ -65,6 +67,7 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
       region.occupations.housingBuilder = housingBuilders;
       finalizeStructuralTransformation(region, elapsedDays);
       tickIndustrialSupply(region, elapsedDays);
+      tickLightMetals(region, elapsedDays);
       tickHouseholdFoodSecurity(region, elapsedDays);
 
       const housingEmployment = enforceHousingEmployment(region, previousOccupations);
