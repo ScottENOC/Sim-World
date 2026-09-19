@@ -7,7 +7,7 @@ import { navalGunCombatProfile } from './earlyModernWarfare.js?v=20260913-early-
 import { ensureFleetProvisioning, provisioningCombatMultiplier, serviceProvisioningInPort, shouldReturnForProvisioning, tickProvisioningAtSea } from './oceanicProvisioning.js?v=20260913-provisioning1';
 import { MARINE_STEAM_TECH_ID, SCREW_PROPULSION_TECH_ID, IRON_HULL_TECH_ID, STEEL_HULL_TECH_ID } from '../technology/industrialMarine.js?v=20260916-steam1';
 import { DREADNOUGHT_TECH_ID, SUBMARINE_TECH_ID, tickLateIndustrialNavalWarfare } from './lateIndustrialNavy.js?v=20260918-navy1';
-import { initialiseShipDamage, applyShipHit, tickShipDamageAtSea, shipPropulsionMultiplier, shipCombatMultiplier, repairShipDamage, attemptFleetSalvage, fleetTowSpeedMultiplier } from './navalDamage.js?v=20260919-damage1';
+import { initialiseShipDamage, applyShipHit, tickShipDamageAtSea, shipPropulsionMultiplier, shipCombatMultiplier, shipSensorMultiplier, repairShipDamage, attemptFleetSalvage, fleetTowSpeedMultiplier } from './navalDamage.js?v=20260919-damage1';
 
 export const FLEET_MISSIONS = Object.freeze({
   PORT: 'port',
@@ -769,8 +769,8 @@ function detectionChance(observer, target, regionsById, weeks) {
     : observer.mission === FLEET_MISSIONS.PATROL ? 0.16
       : observer.mission === FLEET_MISSIONS.BLOCKADE ? 0.13 : 0.08;
   const searchSize = Math.min(0.22, Math.log2(1 + observer.ships.length) * 0.045);
-  const radarSearch=observer.ships.length?observer.ships.reduce((s,ship)=>s+clamp(designOf(ship).radarSearch||0),0)/observer.ships.length:0;
-  const sonarSearch=observer.ships.length?observer.ships.reduce((s,ship)=>s+clamp(designOf(ship).sonar||0),0)/observer.ships.length:0;
+  const radarSearch=observer.ships.length?observer.ships.reduce((s,ship)=>s+clamp(designOf(ship).radarSearch||0)*shipSensorMultiplier(ship,'radar'),0)/observer.ships.length:0;
+  const sonarSearch=observer.ships.length?observer.ships.reduce((s,ship)=>s+clamp(designOf(ship).sonar||0)*shipSensorMultiplier(ship,'sonar'),0)/observer.ships.length:0;
   const antiSubmarineSearch = isSubmarineFleet(target) ? fleetDestroyerCount(observer) * (0.055+sonarSearch*.085) : 0;
   const perWeek = clamp(0.03 + searchMission + scouting * 0.2 + searchSize + radarSearch*.18 + antiSubmarineSearch - targetConcealment(target) * 0.22, 0.01, 0.82);
   return 1 - Math.pow(1 - perWeek, Math.max(0.1, weeks));
