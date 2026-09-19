@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { declareNuclearRedLine, estimateRedLineRisk, actualRedLineCrossing, recordRedLineProbe, beginOrUpdateNuclearCrisis, npcNuclearProbeDecision, nuclearTriadReadiness, RED_LINE_CATEGORIES } from '../js/diplomacy/nuclearDeterrence.js';
 import { ensureNuclearWeaponState } from '../js/military/nuclearWeaponisation.js';
 import { AERIAL_REFUELLING_TECH_ID, aerialRefuellingSupport } from '../js/military/aviation.js';
+import { STRATEGIC_BOMBER_DELIVERY_TECH_ID } from '../js/military/strategicDelivery.js';
 import { KnowledgeLedger, KNOWLEDGE_TOPICS, KNOWLEDGE_SOURCES } from '../js/core/knowledge.js';
 
 function region(id){return {id,name:id,population:100000,unlockedTechIds:new Set(),stockpile:{aviation_fuel:20,strategic_uranium_material:1,separated_plutonium:0},aviation:{aircraft:[]},knowledge:new KnowledgeLedger(id),governance:{administrativeControl:.8,administration:{recordKeeping:.8}},industrialSupply:{capability:{precision_machining:.8}},structuralTransformation:{capability:{manufacture:.8}},massEducation:{literacy:.8},strategicNuclear:{policy:{posture:'strategic',safeguards:.3,secrecy:.5,declared:false}}};}
@@ -20,6 +21,7 @@ const crisis=beginOrUpdateNuclearCrisis(defender,challenger,{category:RED_LINE_C
 const probe=npcNuclearProbeDecision(challenger,defender,{category:'border_incursion',severity:.15,deniability:.9,reversible:.9});assert(probe.salamiOpportunity>high.salamiOpportunity,'small deniable actions should offer greater salami opportunity');
 
 defender.unlockedTechIds.add(AERIAL_REFUELLING_TECH_ID);
+defender.unlockedTechIds.add(STRATEGIC_BOMBER_DELIVERY_TECH_ID);
 defender.aviation.aircraft.push(
   {ownerType:'military',role:'bomber',status:'serviceable',condition:1,fuel:1,crewAssignment:{pilots:1,pilotExperience:1,aircrew:4,aircrewExperience:1}},
   {ownerType:'military',role:'tanker',status:'serviceable',condition:1,fuel:1,crewAssignment:{pilots:2,pilotExperience:1,aircrew:2,aircrewExperience:1}}
