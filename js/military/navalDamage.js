@@ -86,7 +86,7 @@ export function shipPropulsionMultiplier(ship){
   return clamp((.08+prop*.68+steer*.24)*(.72+.28*shipTechnicalReadiness(ship)),.05,1);
 }
 export function shipCombatMultiplier(ship){
-  initialiseShipDamage(ship);if(ship.damageState.sinking)return 0;
+  initialiseShipDamage(ship);if(ship.damageState.sinking||ship.exerciseDeploymentId)return 0;
   const p=ship.subsystems.primary_weapons?.installed?ship.subsystems.primary_weapons.health:1,s=ship.subsystems.secondary_weapons?.installed?ship.subsystems.secondary_weapons.health:1;
   const fc=ship.subsystems.fire_control?.installed?ship.subsystems.fire_control.health:1,e=ship.subsystems.electrical?.installed?ship.subsystems.electrical.health:1;
   const radar=ship.subsystems.radar?.installed?ship.subsystems.radar.health:1;
