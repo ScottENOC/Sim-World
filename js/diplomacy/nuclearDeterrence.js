@@ -1,5 +1,6 @@
 import { estimateForeignNuclearWeaponCapability, nuclearDeterrentStatus } from '../military/nuclearWeaponisation.js?v=20260920-nuclear-deterrence1';
 import { secondStrikeAssessment, strategicForceReadiness } from '../military/strategicDelivery.js?v=20260920-strategic-delivery1';
+import { tickNuclearArmsControl } from './nuclearArmsControl.js?v=20260920-arms-control1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const actorId=(r)=>r?.governance?.sovereignPolityId||r?.controllingActorId||r?.id||null;
@@ -128,5 +129,6 @@ export function nuclearTriadReadiness(region,{fleets=[]}={}){
 export function tickNuclearDeterrence(regions,currentTick,elapsedDays=7){
   const events=[];
   for(const r of regions||[]){ensureNuclearDeterrence(r);coolNuclearCrises(r,elapsedDays);}
+  events.push(...tickNuclearArmsControl(regions,currentTick,elapsedDays));
   return events;
 }
