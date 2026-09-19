@@ -9,14 +9,14 @@ function tug(id='tug'){
 }
 
 const propulsionHit=warship('propulsion-hit');
-// Force the weighted choice into propulsion and suppress fire/flooding randoms.
 applyShipHit(propulsionHit,.35,{rng:()=>0});
 assert(propulsionHit.subsystems.propulsion.health<1,'a hit should be able to damage propulsion separately from the hull');
 assert(shipPropulsionMultiplier(propulsionHit)<1,'propulsion damage should reduce speed without requiring the ship to sink');
 assert(propulsionHit.condition>0,'a machinery hit should leave a damaged but extant hull');
 
 const weaponsHit=warship('weapons-hit');
-const seq=[.31,.9,.9,.9,.9];let i=0;applyShipHit(weaponsHit,.42,{rng:()=>seq[i++]??.9});
+const seq=[.9,.30,.9,.9,.9];let i=0;applyShipHit(weaponsHit,.42,{rng:()=>seq[i++]??.9});
+assert(weaponsHit.subsystems.primary_weapons.health<1,'the hit resolver should be able to knock out main armament');
 assert(shipCombatMultiplier(weaponsHit)<1,'subsystem damage should reduce fighting effectiveness independently of hull condition');
 
 const crippled=warship('crippled');
