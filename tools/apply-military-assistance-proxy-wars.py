@@ -17,9 +17,9 @@ if call_line not in s:
         raise SystemExit('military assistance tick anchor not found')
     s = s.replace(call_anchor, call_anchor + call_line, 1)
 
-# Fold the new strategic events into the common event stream beside foreign intervention.
-event_anchor = "      ...foreignInterventionEvents,\n"
-event_line = "      ...militaryAssistanceEvents,\n"
+# Surface only events involving the player; background patronage remains simulated silently.
+event_anchor = "      ...foreignInterventionEvents.filter((event) => event.playerRelevant),\n"
+event_line = "      ...militaryAssistanceEvents.filter((event) => event.donorPolityId === activePlayerPolityId || event.recipientPolityId === activePlayerPolityId || event.opponentPolityId === activePlayerPolityId || event.sides?.includes?.(activePlayerPolityId)),\n"
 if event_line not in s:
     if event_anchor not in s:
         raise SystemExit('event queue anchor not found')
