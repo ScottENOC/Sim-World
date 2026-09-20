@@ -1,5 +1,6 @@
 import { submitInternationalMotion, ORGANISATION_LEVELS } from './internationalOrganisations.js?v=20260920-intl-crisis1';
 import { relationToward } from './relations.js?v=20260920-intl-crisis1';
+import { tickPeaceConferences } from './peaceConferences.js?v=20260920-peace1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const actorId=(r)=>r?.governance?.sovereignPolityId||r?.polityId||r?.controllingActorId||r?.id||null;
@@ -74,5 +75,12 @@ export function tickInternationalCrisisBodies(world,currentTick=0,rng=Math.rando
       else events.push({type:'international_crisis_organisation_motion_failed',crisisId:crisis.id,organisationId:org.id,motionType:assessment.motionType,status:result.motion?.status||result.reason});
     }
   }
+
+  // Peace conferences are downstream of state/religious/organisation mediation.
+  // Reuse the live campaign list exposed by the simulation so accepted ceasefires
+  // order actual field campaigns home rather than merely closing a diplomatic flag.
+  world.activeCampaigns ||= globalThis.__worldsim?.activeCampaigns || [];
+  const playerPolityId=options.playerPolityId||globalThis.__worldsim?.activePlayerPolityId||null;
+  events.push(...tickPeaceConferences(world,currentTick,7,rng,{playerPolityId}));
   return events;
 }
