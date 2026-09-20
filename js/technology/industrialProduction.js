@@ -1,12 +1,14 @@
 import { PETROLEUM_REFINING_TECH_ID } from './petroleum.js?v=20260917-oil1';
 import { industrialFactoryCapacity } from '../economy/industrialPlant.js?v=20260919-components1';
 import { tickIndustrialInvestment } from '../economy/industrialInvestment.js?v=20260919-investment1';
+import { TRACTOR_TECH_ID, COMBINE_TECH_ID, tickAgriculturalMachinery } from '../economy/agriculturalMachinery.js?v=20260921-farm-machinery1';
 import '../ui/industrialInvestmentUi.js?v=20260919-investment1';
 import '../ui/militaryDesignUi.js?v=20260919-light-metal-designs1';
 
 export const AUTOMOBILE_TECH_ID = 'automobile';
 export const ASSEMBLY_LINE_TECH_ID = 'assembly_line_production';
 export const ADVANCED_FACTORY_TECH_ID = 'advanced_factories';
+export { TRACTOR_TECH_ID, COMBINE_TECH_ID };
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const weekly=(p,days)=>1-Math.pow(1-clamp(p),Math.max(0,Number(days)||0)/7);
@@ -30,7 +32,7 @@ function industrialReadiness(region){
 export function industrialProductionBreakthroughChances(region,byId){
   const tech=region.unlockedTechIds||new Set();
   const factoryCapacity=industrialFactoryCapacity(region);
-  if(factoryCapacity<=0)return {automobile:0,assembly:0,advanced:0};
+  if(factoryCapacity<=0)return {automobile:0,assembly:0,advanced:0,tractor:0,combine:0};
   const industry=industrialReadiness(region);
   const machining=clamp(region.industrialSupply?.capability?.precision_machining||0);
   const locomotive=clamp(region.industrialSupply?.capability?.locomotive_engineering||0);
@@ -38,6 +40,12 @@ export function industrialProductionBreakthroughChances(region,byId){
   const corporate=clamp(region.corporateCapital?.financialDepth||0);
   const standardisation=clamp(region.industrialProduction?.standardisationExperience||region.industrialSupply?.exposure?.precision_machining||0);
   const hasRefining=tech.has(PETROLEUM_REFINING_TECH_ID);
+  const components=region.industrialPlants?.componentCapability||{};
+  const engine=clamp(components.engine||0),transmission=clamp(components.transmission||0),chassis=clamp(components.wheeled_chassis||0);
+  const motorVehicleExperience=clamp(region.industrialPlants?.productExperience?.motor_vehicle||0);
+  const tractorExperience=clamp(region.agriculturalMachinery?.tractorExperience||0);
+  const farmerShare=clamp((region.occupations?.farmer||0)/Math.max(1,region.demographics?.workingAge||region.population||1));
+  const arableScale=clamp(Math.log1p(Math.max(0,region.agriculturalLand?.availableArableHa||0))/14);
 
   const automobile=tech.has(AUTOMOBILE_TECH_ID)||!hasRefining?0:
     industry*machining*(.35+.35*locomotive+.30*corporate)*0.000010+
@@ -49,7 +57,22 @@ export function industrialProductionBreakthroughChances(region,byId){
   const advanced=tech.has(ADVANCED_FACTORY_TECH_ID)||!advancedReady?0:
     industry*machining*(.30+.22*admin+.18*corporate+.30*clamp(region.electricity?.industrialCoverage||0))*0.000006+
     diffusion(region,byId,ADVANCED_FACTORY_TECH_ID,0.00018)*(.20+.80*industry);
-  return {automobile:clamp(automobile),assembly:clamp(assembly),advanced:clamp(advanced)};
+
+  // Tractors emerge where the road-vehicle powertrain can be adapted to a real
+  // agricultural labour problem. Actual engine/transmission/chassis practice
+  // therefore matters more than merely knowing an 'automobile' technology.
+  const tractorReady=hasRefining&&tech.has(AUTOMOBILE_TECH_ID)&&engine>.08&&transmission>.06;
+  const tractor=tech.has(TRACTOR_TECH_ID)||!tractorReady?0:
+    industry*(.26+.24*engine+.18*transmission+.12*chassis+.10*motorVehicleExperience+.10*Math.max(farmerShare,arableScale*.4))*0.000010+
+    diffusion(region,byId,TRACTOR_TECH_ID,0.00026)*(.30+.70*Math.max(engine,machining));
+
+  // A combine is not just another car: it follows successful farm
+  // mechanisation plus stronger standardised fabrication and field experience.
+  const combineReady=tech.has(TRACTOR_TECH_ID)&&engine>.14&&machining>.18;
+  const combine=tech.has(COMBINE_TECH_ID)||!combineReady?0:
+    industry*(.24+.18*engine+.16*transmission+.18*standardisation+.14*tractorExperience+.10*arableScale)*0.000007+
+    diffusion(region,byId,COMBINE_TECH_ID,0.00019)*(.25+.75*Math.max(machining,tractorExperience));
+  return {automobile:clamp(automobile),assembly:clamp(assembly),advanced:clamp(advanced),tractor:clamp(tractor),combine:clamp(combine)};
 }
 
 export function ensureIndustrialProduction(region){
@@ -82,6 +105,10 @@ export function tickIndustrialProduction(regions,elapsedDays=7){
     if(tech.has(ADVANCED_FACTORY_TECH_ID))s.factorySophistication=clamp(s.factorySophistication+years*(.025+industry*.075)*(1-s.factorySophistication));
     if(tech.has(AUTOMOBILE_TECH_ID))s.motorisationReadiness=clamp(s.motorisationReadiness+years*(.018+industry*.06)*(1-s.motorisationReadiness));
     tickIndustrialInvestment(region,elapsedDays);
+    // Agricultural machinery is assembled after this tick's industrial lines
+    // have produced shared vehicle components. Component shortages place orders
+    // that feed back into the same factory system on subsequent ticks.
+    tickAgriculturalMachinery(region,elapsedDays);
   }
 }
 
@@ -93,6 +120,8 @@ export function tickIndustrialProductionBreakthroughs(regions,currentTick,rng=Ma
     const c=industrialProductionBreakthroughChances(region,byId);
     const attempts=[
       ['automobile',AUTOMOBILE_TECH_ID,'automobile_breakthrough','Practical automobile','Engineers have developed a practical self-propelled road vehicle.'],
+      ['tractor',TRACTOR_TECH_ID,'tractor_breakthrough','Internal-combustion tractor','Vehicle engineers and farmers have adapted reliable engines, transmissions and heavy chassis to sustained field work.'],
+      ['combine',COMBINE_TECH_ID,'combine_harvester_breakthrough','Mechanised combine harvester','Manufacturers have integrated powered harvesting, threshing and mobile field machinery into a practical combine harvester.'],
       ['assembly',ASSEMBLY_LINE_TECH_ID,'assembly_line_breakthrough','Assembly-line production','Manufacturers have learned to organise sequential, standardised high-volume production.'],
       ['advanced',ADVANCED_FACTORY_TECH_ID,'advanced_factory_breakthrough','Advanced factory organisation','Factories can now combine specialised machine tools, powered layouts, quality control and more sophisticated production management.'],
     ];

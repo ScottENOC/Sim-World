@@ -1,0 +1,27 @@
+name: Agricultural machinery
+
+on:
+  pull_request:
+  push:
+    branches:
+      - feature/agricultural-mechanisation
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check agricultural machinery
+        run: |
+          node --check js/economy/agriculturalMachinery.js
+          node --check js/economy/agriculturalLand.js
+          node --check js/economy/agriculturalWater.js
+          node --check js/economy/horses.js
+          node --check js/technology/industrialProduction.js
+      - name: Run agricultural machinery regressions
+        run: |
+          node tools/test-agricultural-machinery.mjs
+          node tools/test-agricultural-machinery-tech.mjs

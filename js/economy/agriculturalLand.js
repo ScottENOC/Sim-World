@@ -94,19 +94,21 @@ export function agriculturalLandLaborFactor(region){
   const s=ensureAgriculturalLand(region);
   const arableKm2=s.availableArableHa/100;
   const totalKm2=Math.max(.01,Number(region?.areaSqKm)||0);
-  // This is exposed for the mechanisation tranche. The current farming engine
-  // still uses its legacy labour curve, while cultivated-area reporting uses
-  // the physically relevant arable area.
   return clamp(totalKm2/Math.max(.01,arableKm2),1,8);
 }
 
-export function updateCultivatedLand(region,{farmers=null}={}){
+export function updateCultivatedLand(region,{farmers=null,labourMultiplier=null}={}){
   const s=ensureAgriculturalLand(region);
   const workers=Math.max(0,Number(farmers??region?.occupations?.farmer)||0);
   const arableKm2=s.availableArableHa/100;
   if(arableKm2<=0||workers<=0){s.cultivatedHa=0;s.cultivationShare=0;return s;}
+  // Machinery changes hectares one worker can manage, not the physical stock of
+  // land. The multiplier is produced by the durable tractor/combine fleet and
+  // therefore collapses again when fuel or maintenance is unavailable.
+  const machinery=Math.max(1,Number(labourMultiplier??region?.agriculturalMachinery?.landWorkMultiplier)||1);
+  const effectiveWorkers=workers*machinery;
   const k=Math.max(.01,arableKm2*FARM_LABOR_SATURATION_PER_KM2);
-  const utilisation=clamp(1-Math.exp(-workers/k));
+  const utilisation=clamp(1-Math.exp(-effectiveWorkers/k));
   s.cultivatedHa=s.availableArableHa*utilisation;
   s.cultivationShare=utilisation;
   return s;
