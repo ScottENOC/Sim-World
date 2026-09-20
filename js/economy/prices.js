@@ -9,11 +9,6 @@ const DIET_GOODS=Object.freeze({
 });
 export const TRADABLE_RESOURCES=[...BASE_TRADABLE_RESOURCES,...DIET_FOOD_IDS];
 
-// No full market yet, so this isn't a cleared price — it's a scarcity proxy:
-// price falls smoothly as a region's own stock of something rises, and
-// never quite hits zero or blows up. Dietary baskets deliberately use the
-// same scarcity mechanism so two regions can profitably exchange different
-// foods even when both have enough generic calories.
 export function localPrice(region, resource) {
   const dietGood=DIET_GOODS[resource];
   const good = TRADE_GOODS[resource] || dietGood;
@@ -21,11 +16,10 @@ export function localPrice(region, resource) {
   const base = good.basePrice;
   const ref = good.referenceStock;
   const demand = Math.max(0, region.marketDemand?.[resource] || 0);
-  // Generic commodities keep the old half-year buffer. Fresh and varied foods
-  // are priced against a much shorter household/market horizon; otherwise any
-  // plausible local stock is swallowed by the 26-week reserve calculation and
-  // distinct regional crop mixes become invisible to merchants.
-  const reserveWeeks=dietGood?2:26;
+  // Generic commodities retain the legacy half-year strategic reserve. Diet
+  // baskets are weekly market availability signals, not duplicated calorie
+  // reserves, so only a token buffer is removed before scarcity is observed.
+  const reserveWeeks=dietGood?.25:26;
   const stock = Math.max(0, (region.stockpile?.[resource] || 0) - demand * reserveWeeks);
   const demandPremium = 1 + Math.min(9, demand / Math.max(1, ref * 0.01));
   return base * (ref / (stock + ref)) * demandPremium;
