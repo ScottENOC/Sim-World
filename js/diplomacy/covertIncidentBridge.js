@@ -1,5 +1,12 @@
 import { ensureCovertIncidentEscalation, registerCovertIncident } from './covertIncidentEscalation.js?v=20260920-covert-escalation1';
 
+function sameObservedIncident(existing, mission, tick, actorId) {
+  return existing.some((incident) =>
+    incident.mission === mission &&
+    incident.createdTick === tick &&
+    (!actorId || !incident.attributedActorId || incident.attributedActorId === actorId));
+}
+
 export function harvestCovertIncidents(regions, currentTick = 0) {
   const created = [];
   for (const region of regions || []) {
@@ -28,19 +35,28 @@ export function harvestCovertIncidents(regions, currentTick = 0) {
 
     const threat = region.militaryThreat || {};
     if (Number.isFinite(threat.lastCovertAttackTick) && threat.lastCovertAttackTick <= currentTick) {
-      const key = `threat:${region.id}:${threat.lastCovertAttackTick}:${threat.lastCovertAttackMission || 'unknown'}`;
+      const mission = threat.lastCovertAttackMission || 'unknown';
+      const key = `threat:${region.id}:${threat.lastCovertAttackTick}:${mission}`;
       if (!state.harvestedKeys[key]) {
-        const incident = registerCovertIncident(region, {
-          id: `covert-incident-${key}`,
-          mission: threat.lastCovertAttackMission || 'unknown',
-          sourceActorId: threat.lastCovertAttackActorId || null,
-          attributed: !!threat.lastCovertAttackAttributed,
-          attributionProbability: threat.lastCovertAttackAttributed ? .72 : .22,
-          detected: true,
-          success: true,
-        }, threat.lastCovertAttackTick);
+        const alreadyRepresented = sameObservedIncident(
+          state.incidents,
+          mission,
+          threat.lastCovertAttackTick,
+          threat.lastCovertAttackAttributed ? threat.lastCovertAttackActorId : null,
+        );
         state.harvestedKeys[key] = true;
-        created.push(incident);
+        if (!alreadyRepresented) {
+          const incident = registerCovertIncident(region, {
+            id: `covert-incident-${key}`,
+            mission,
+            sourceActorId: threat.lastCovertAttackActorId || null,
+            attributed: !!threat.lastCovertAttackAttributed,
+            attributionProbability: threat.lastCovertAttackAttributed ? .72 : .22,
+            detected: true,
+            success: true,
+          }, threat.lastCovertAttackTick);
+          created.push(incident);
+        }
       }
     }
   }
