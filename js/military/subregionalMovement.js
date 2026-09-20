@@ -1,5 +1,6 @@
 import { ensureSubregionalControl, occupationSummary } from './subregionalControl.js?v=20260908-subregion1';
 import { stanceBetween, WAR_STANCES, warForCampaign } from './warTheatres.js?v=20260908-war1';
+import { airAssaultOccupationCandidate, consumeCampaignAirMobility, markAirAssaultOccupationResolved } from './airMobility.js?v=20260920-airmobility1';
 
 export const SUBREGIONAL_OBJECTIVES = Object.freeze({
   port: { label: 'Seize a port', preferred: ['port', 'town', 'city', 'principal_settlement'] },
@@ -99,6 +100,7 @@ export function initialiseCampaignMovement(campaign, region, currentTick) {
   campaign.subregional.lastMoveTick = currentTick;
   campaign.subregional.previousNodeId = null;
   campaign.subregional.blockedByCampaignId = null;
+  campaign.subregional.airMobilityOrders ||= [];
   return campaign.subregional;
 }
 
@@ -118,8 +120,9 @@ export function tickCampaignMovement(campaign, region, currentTick, mobility = 1
   const control = ensureSubregionalControl(region);
   if (!campaign.subregional?.currentNodeId) initialiseCampaignMovement(campaign, region, currentTick);
   const state = campaign.subregional;
-  if (state.blockedByCampaignId) return { moved: false, blocked: true, state, summary: occupationSummary(region) };
-  if (state.objectivePolicy === 'hold') return { moved: false, holding: true, state, summary: occupationSummary(region) };
+  const airMobility = consumeCampaignAirMobility(campaign, region, currentTick);
+  if (state.blockedByCampaignId) return { moved: false, blocked: true, state, airMobility, summary: occupationSummary(region) };
+  if (state.objectivePolicy === 'hold') return { moved: false, holding: true, state, airMobility, summary: occupationSummary(region) };
   let target = control.places.find((n) => n.id === state.targetNodeId && n.controllerActorId !== campaign.occupationActorId);
   if (!target) {
     target = chooseSubregionalObjective(region, campaign.occupationActorId, state.objectivePolicy);
@@ -129,8 +132,8 @@ export function tickCampaignMovement(campaign, region, currentTick, mobility = 1
     state.routeIndex = 0;
     state.edgeProgress = 0;
   }
-  if (!target) return { moved: false, complete: true, state, summary: occupationSummary(region) };
-  const speed = clamp(0.7 + mobility * 0.65, 0.45, 1.6);
+  if (!target) return { moved: false, complete: true, state, airMobility, summary: occupationSummary(region) };
+  const speed = clamp((0.7 + mobility * 0.65) * (airMobility.mobilityMultiplier || 1), 0.45, 2.75);
   let budget = speed;
   while (budget > 0 && state.routeIndex < state.route.length - 1) {
     const from = control.places.find((n) => n.id === state.route[state.routeIndex]);
@@ -146,11 +149,25 @@ export function tickCampaignMovement(campaign, region, currentTick, mobility = 1
   }
   state.lastMoveTick = currentTick;
   const arrived = state.currentNodeId === state.targetNodeId;
-  return { moved: true, arrived, targetNodeId: state.targetNodeId, currentNodeId: state.currentNodeId, state, summary: occupationSummary(region) };
+  return { moved: true, arrived, targetNodeId: state.targetNodeId, currentNodeId: state.currentNodeId, state, airMobility, summary: occupationSummary(region) };
 }
 
 export function attemptPhysicalOccupation(campaign, region, currentTick, pressure = 0) {
   const control = ensureSubregionalControl(region);
+  const airAssault = airAssaultOccupationCandidate(campaign, region, pressure);
+  if (airAssault) {
+    const threshold = CAPTURE_PRESSURE[airAssault.node.kind] ?? 0.45;
+    if (airAssault.effectivePressure >= threshold) {
+      airAssault.node.controllerActorId = campaign.occupationActorId;
+      airAssault.node.occupationMode = 'air_assault';
+      airAssault.node.garrisonActorId = campaign.occupationActorId;
+      airAssault.node.garrisonPersonnel = airAssault.detachment.personnel;
+      airAssault.node.capturedTick = currentTick;
+      markAirAssaultOccupationResolved(campaign, true, currentTick);
+      return { captured: true, viaAirAssault: true, node: airAssault.node, detachment: airAssault.detachment, summary: occupationSummary(region) };
+    }
+    markAirAssaultOccupationResolved(campaign, false, currentTick);
+  }
   const node = control.places.find((n) => n.id === campaign.subregional?.currentNodeId);
   if (!node || node.controllerActorId === campaign.occupationActorId) return { captured: false, reason: 'already_controlled', node };
   const threshold = CAPTURE_PRESSURE[node.kind] ?? 0.45;
@@ -214,6 +231,7 @@ export function raceStatus(campaigns, defenderRegionId) {
     targetNodeId: campaign.subregional?.targetNodeId || null,
     objectivePolicy: campaign.subregional?.objectivePolicy || null,
     blockedByCampaignId: campaign.subregional?.blockedByCampaignId || null,
+    airMobileDetachment: campaign.subregional?.airMobileDetachment || null,
     phase: campaign.phase,
   }));
 }
