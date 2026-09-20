@@ -1,4 +1,5 @@
 import { effectiveInfrastructureCount } from './construction.js?v=20260914-water3';
+import { agriculturalLandYieldFactor } from './agriculturalLand.js?v=20260921-arable1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
@@ -30,8 +31,13 @@ export function agriculturalWaterProfile(region,{weatherMultiplier=1}={}){
   const localBuffer=clamp(wells*0.18,0,0.3);
   const drought=Math.max(0,1-clamp(weatherMultiplier,0,2));
   const droughtProtection=1+drought*clamp(localBuffer+effectiveIrrigation*0.5,0,0.68);
-  const yieldMultiplier=1+effectiveIrrigation*0.30;
+  const irrigationYieldMultiplier=1+effectiveIrrigation*0.30;
+  // The farming engine historically multiplied yield by whole regional area.
+  // Land accounting converts that coefficient to the physically available
+  // arable area while preserving the old calibration for a typical region.
+  const landYieldFactor=agriculturalLandYieldFactor(region);
+  const yieldMultiplier=irrigationYieldMultiplier*landYieldFactor;
 
   return {riverCount,flowAvailability,surfaceReliability,effectiveIrrigation,droughtProtection,yieldMultiplier,
-    surfaceInflow:inflow,surfaceWithdrawal:withdrawal,groundwaterUsed:0};
+    irrigationYieldMultiplier,landYieldFactor,surfaceInflow:inflow,surfaceWithdrawal:withdrawal,groundwaterUsed:0};
 }

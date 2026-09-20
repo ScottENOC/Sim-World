@@ -1,0 +1,23 @@
+name: Arable land accounting
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check land modules
+        run: |
+          node --check js/economy/agriculturalLand.js
+          node --check js/economy/agriculturalWater.js
+          node --check js/economy/labor.js
+          node --check js/ui/localRegionView.js
+      - name: Run arable land regression
+        run: node tools/test-arable-land.mjs
