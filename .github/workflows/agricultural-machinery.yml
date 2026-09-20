@@ -21,5 +21,7 @@ jobs:
           node --check js/economy/agriculturalWater.js
           node --check js/economy/horses.js
           node --check js/technology/industrialProduction.js
-      - name: Run agricultural machinery regression
-        run: node tools/test-agricultural-machinery.mjs
+      - name: Run agricultural machinery regressions
+        run: |
+          node tools/test-agricultural-machinery.mjs
+          node tools/test-agricultural-machinery-tech.mjs
