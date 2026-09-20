@@ -54,6 +54,10 @@ assert.ok(events.some(e=>e.type==='helicopter_air_assault'),'air assault should 
 assert.ok(target.rotaryWingEffects.troopLift>0,'air assault should create tactical troop-lift effect');
 assert.ok(home.aviation.rotorcraft.operationalExperience>beforeOps,'operations should create learn-by-doing experience');
 
+// The second military airframe should not magically gain a crew: seed one trained pilot
+// so this regression tests the attack helicopter itself rather than bypassing personnel constraints.
+home.qualifiedMilitaryPersonnel.pools.pilot.available += 1;
+home.qualifiedMilitaryPersonnel.pools.pilot.experienceMass += .12;
 const attack = buildHelicopter(home,{role:HELICOPTER_ROLES.ATTACK,tick:102});
 assert.ok(attack,'attack helicopter should build after the dedicated breakthrough');
 assert.ok(attack.designStats.firepower>transport.designStats.firepower,'attack design should trade troop lift for battlefield firepower');
