@@ -60,6 +60,18 @@ function normaliseCaptiveOrigins(world){
     }
   }
 }
+function applyConferenceCooldowns(world,currentTick){
+  const muted=[];
+  for(const crisis of world.internationalCrises||[]){
+    const latest=[...(crisis.peaceConferences||[])].reverse().find((proposal)=>['rejected','expired'].includes(proposal.status));
+    if(latest&&!crisis.peaceConferenceCooldownUntilTick)crisis.peaceConferenceCooldownUntilTick=(latest.rejectedTick||latest.expiresTick||latest.offeredTick||currentTick)+8;
+    if((crisis.peaceConferenceCooldownUntilTick||0)>currentTick){
+      muted.push({crisis,mediation:crisis.mediation,restraint:crisis.restraint});
+      crisis.mediation=0; crisis.restraint=0;
+    }else if(crisis.peaceConferenceCooldownUntilTick)delete crisis.peaceConferenceCooldownUntilTick;
+  }
+  return()=>{for(const item of muted){item.crisis.mediation=item.mediation;item.crisis.restraint=item.restraint;}};
+}
 
 export function internationalOrganisationCrisisAssessment(org,crisis){
   const proposal=crisisMotion(org,crisis);
@@ -87,21 +99,20 @@ export function tickInternationalCrisisBodies(world,currentTick=0,rng=Math.rando
     }
   }
 
-  // Peace conferences are downstream of state/religious/organisation mediation.
-  // Reuse the live campaign list exposed by the simulation so accepted ceasefires
-  // order actual field campaigns home rather than merely closing a diplomatic flag.
   world.activeCampaigns ||= globalThis.__worldsim?.activeCampaigns || [];
   normaliseCaptiveOrigins(world);
+  const restoreMediation=applyConferenceCooldowns(world,currentTick);
   const playerPolityId=options.playerPolityId||globalThis.__worldsim?.activePlayerPolityId||null;
   const peaceEvents=tickPeaceConferences(world,currentTick,7,rng,{playerPolityId});
+  restoreMediation();
+
   for(const event of peaceEvents){
     if(event.type!=='peace_conference_proposal_available')continue;
-    event.resolveDecision=(choice)=>{
-      const crisis=(world.internationalCrises||[]).find((candidate)=>candidate.id===event.crisisId);
-      const proposal=crisis?.peaceConferences?.find((candidate)=>candidate.id===event.proposalId);
-      return respondPeaceConferenceProposal(proposal,crisis,world,event.actorId,choice,currentTick);
-    };
+    const crisis=(world.internationalCrises||[]).find((candidate)=>candidate.id===event.crisisId);
+    const proposal=crisis?.peaceConferences?.find((candidate)=>candidate.id===event.proposalId);
+    if(!proposal||!['offered','awaiting_player'].includes(proposal.status)){event.stale=true;continue;}
+    event.resolveDecision=(choice)=>respondPeaceConferenceProposal(proposal,crisis,world,event.actorId,choice,currentTick);
   }
-  events.push(...peaceEvents);
+  events.push(...peaceEvents.filter((event)=>!event.stale));
   return events;
 }
