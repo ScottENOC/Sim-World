@@ -1,6 +1,6 @@
 import { submitInternationalMotion, ORGANISATION_LEVELS } from './internationalOrganisations.js?v=20260920-intl-crisis1';
 import { relationToward } from './relations.js?v=20260920-intl-crisis1';
-import { tickPeaceConferences } from './peaceConferences.js?v=20260920-peace1';
+import { respondPeaceConferenceProposal, tickPeaceConferences } from './peaceConferences.js?v=20260920-peace1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const actorId=(r)=>r?.governance?.sovereignPolityId||r?.polityId||r?.controllingActorId||r?.id||null;
@@ -49,6 +49,17 @@ function applyPassedMotion(org,crisis,motion,world,currentTick){
     crisis.restraint=clamp(crisis.restraint+.04*compliance);
   }
 }
+function normaliseCaptiveOrigins(world){
+  const byRegion=new Map((world.regions||[]).map((region)=>[region.id,region]));
+  for(const region of world.regions||[]){
+    for(const captive of region.specialForces?.captives||[]){
+      if(captive.homeActorId)continue;
+      const source=byRegion.get(captive.capturedFromRegionId);
+      const home=actorId(source);
+      if(home)captive.homeActorId=home;
+    }
+  }
+}
 
 export function internationalOrganisationCrisisAssessment(org,crisis){
   const proposal=crisisMotion(org,crisis);
@@ -80,7 +91,17 @@ export function tickInternationalCrisisBodies(world,currentTick=0,rng=Math.rando
   // Reuse the live campaign list exposed by the simulation so accepted ceasefires
   // order actual field campaigns home rather than merely closing a diplomatic flag.
   world.activeCampaigns ||= globalThis.__worldsim?.activeCampaigns || [];
+  normaliseCaptiveOrigins(world);
   const playerPolityId=options.playerPolityId||globalThis.__worldsim?.activePlayerPolityId||null;
-  events.push(...tickPeaceConferences(world,currentTick,7,rng,{playerPolityId}));
+  const peaceEvents=tickPeaceConferences(world,currentTick,7,rng,{playerPolityId});
+  for(const event of peaceEvents){
+    if(event.type!=='peace_conference_proposal_available')continue;
+    event.resolveDecision=(choice)=>{
+      const crisis=(world.internationalCrises||[]).find((candidate)=>candidate.id===event.crisisId);
+      const proposal=crisis?.peaceConferences?.find((candidate)=>candidate.id===event.proposalId);
+      return respondPeaceConferenceProposal(proposal,crisis,world,event.actorId,choice,currentTick);
+    };
+  }
+  events.push(...peaceEvents);
   return events;
 }
