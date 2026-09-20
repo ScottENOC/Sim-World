@@ -1,0 +1,55 @@
+name: Nuclear use and consequences
+
+on:
+  push:
+    branches:
+      - feature/nuclear-use-consequences
+  pull_request:
+    paths:
+      - 'js/military/nuclearUse.js'
+      - 'js/diplomacy/nuclearDeterrence.js'
+      - 'tools/apply-nuclear-use-consequences.py'
+      - 'tools/test-nuclear-use.mjs'
+      - '.github/workflows/nuclear-use-consequences.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply nuclear-use integration on feature branch
+        if: github.event_name == 'push'
+        run: python tools/apply-nuclear-use-consequences.py
+      - name: Syntax checks
+        run: |
+          node --check js/military/nuclearUse.js
+          node --check js/diplomacy/nuclearDeterrence.js
+      - name: Nuclear-use and compatibility regressions
+        run: |
+          node tools/test-nuclear-use.mjs
+          node tools/test-nuclear-crisis-bargaining.mjs
+          node tools/test-nuclear-diplomacy.mjs
+          node tools/test-nuclear-deterrence.mjs
+          node tools/test-strategic-delivery-second-strike.mjs
+          node tools/test-nuclear-weaponisation.mjs
+      - name: Commit integrated source
+        if: github.event_name == 'push'
+        run: |
+          if ! git diff --quiet; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add js/diplomacy/nuclearDeterrence.js
+            git commit -m 'Integrate nuclear use consequences'
+            git push
+          fi
