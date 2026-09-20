@@ -17,27 +17,23 @@ export function agriculturalWaterProfile(region,{weatherMultiplier=1}={}){
   const withdrawal=Math.max(0,Number(report.surfaceWithdrawal)||0);
   const managedRelease=Math.max(0,Number(report.managedRelease)||0);
 
-  // Relative to a modest per-river reference flow. This is dimensionless and
-  // intentionally independent of absolute real-world litres; later climate and
-  // river calibration can change flow units without rewriting agriculture.
   const flowAvailability=riverCount>0?clamp(inflow/Math.max(0.12,riverCount*0.65),0,1.35):0;
   const delivered=hasManagedSurfaceWater?clamp((withdrawal+managedRelease*0.35)/Math.max(0.025,riverCount*0.035),0,1):0;
   const infrastructurePotential=clamp(irrigation*0.68+canal*0.42,0,1);
   const surfaceReliability=hasManagedSurfaceWater?clamp(Math.min(1,flowAvailability)*0.55+delivered*0.45,0,1):0;
   const effectiveIrrigation=infrastructurePotential*surfaceReliability;
 
-  // Cisterns/wells provide limited buffering against bad weather but do not
-  // substitute for river irrigation or groundwater pumping at regional scale.
   const localBuffer=clamp(wells*0.18,0,0.3);
   const drought=Math.max(0,1-clamp(weatherMultiplier,0,2));
   const droughtProtection=1+drought*clamp(localBuffer+effectiveIrrigation*0.5,0,0.68);
   const irrigationYieldMultiplier=1+effectiveIrrigation*0.30;
-  // The farming engine historically multiplied yield by whole regional area.
-  // Land accounting converts that coefficient to the physically available
-  // arable area while preserving the old calibration for a typical region.
   const landYieldFactor=agriculturalLandYieldFactor(region);
-  const yieldMultiplier=irrigationYieldMultiplier*landYieldFactor;
+  // Combines do not make plants grow more. They reduce losses from slow or
+  // incomplete harvesting; keeping this as a named factor makes that distinction
+  // visible even though laborCore consumes one combined realised-yield value.
+  const harvestRetention=Math.max(1,Number(region?.agriculturalMachinery?.harvestRetention)||1);
+  const yieldMultiplier=irrigationYieldMultiplier*landYieldFactor*harvestRetention;
 
   return {riverCount,flowAvailability,surfaceReliability,effectiveIrrigation,droughtProtection,yieldMultiplier,
-    irrigationYieldMultiplier,landYieldFactor,surfaceInflow:inflow,surfaceWithdrawal:withdrawal,groundwaterUsed:0};
+    irrigationYieldMultiplier,landYieldFactor,harvestRetention,surfaceInflow:inflow,surfaceWithdrawal:withdrawal,groundwaterUsed:0};
 }
