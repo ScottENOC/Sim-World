@@ -1,6 +1,6 @@
 import { submitInternationalMotion, ORGANISATION_LEVELS } from './internationalOrganisations.js?v=20260920-intl-crisis1';
 import { relationToward } from './relations.js?v=20260920-intl-crisis1';
-import { respondPeaceConferenceProposal, tickPeaceConferences } from './peaceConferences.js?v=20260920-peace1';
+import { tickPeaceNegotiations, respondPeaceNegotiation, resolveImplementationAction } from './peaceNegotiations.js?v=20260920-peace3';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const actorId=(r)=>r?.governance?.sovereignPolityId||r?.polityId||r?.controllingActorId||r?.id||null;
@@ -103,16 +103,20 @@ export function tickInternationalCrisisBodies(world,currentTick=0,rng=Math.rando
   normaliseCaptiveOrigins(world);
   const restoreMediation=applyConferenceCooldowns(world,currentTick);
   const playerPolityId=options.playerPolityId||globalThis.__worldsim?.activePlayerPolityId||null;
-  const peaceEvents=tickPeaceConferences(world,currentTick,7,rng,{playerPolityId});
+  const peaceEvents=tickPeaceNegotiations(world,currentTick,7,rng,{playerPolityId});
   restoreMediation();
 
   for(const event of peaceEvents){
-    if(event.type!=='peace_conference_proposal_available')continue;
     const crisis=(world.internationalCrises||[]).find((candidate)=>candidate.id===event.crisisId);
     const proposal=crisis?.peaceConferences?.find((candidate)=>candidate.id===event.proposalId);
-    if(!proposal||!['offered','awaiting_player'].includes(proposal.status)){event.stale=true;continue;}
-    event.resolveDecision=(choice)=>respondPeaceConferenceProposal(proposal,crisis,world,event.actorId,choice,currentTick);
+    if(event.type==='peace_negotiation_action_required'&&proposal){
+      event.resolveDecision=(choice,changes={})=>respondPeaceNegotiation(proposal,crisis,world,event.actorId,choice,currentTick,changes);
+    }
+    if(event.type==='peace_implementation_action_required'&&proposal){
+      const obligation=proposal.implementation?.obligations?.find((candidate)=>candidate.id===event.obligation.id);
+      event.resolveDecision=(choice)=>resolveImplementationAction(event.actorId,obligation,proposal,crisis,world,choice,currentTick,rng);
+    }
   }
-  events.push(...peaceEvents.filter((event)=>!event.stale));
+  events.push(...peaceEvents);
   return events;
 }
