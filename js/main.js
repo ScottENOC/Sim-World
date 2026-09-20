@@ -66,6 +66,7 @@ import { tickOrganisationInteractions } from './politics/nonStateInteractions.js
 import { SETTLEMENT_TYPES, acceptSettlementOffer, createConquestSettlementOffer, grantRegionalAutonomy, initialisePoliticalContinuity, lobbyForRestoration, plausibleGovernedRegions, rejectSettlementOffer, restorationBacking, resolveNpcSettlement, tickPoliticalContinuity, transferRegion } from './politics/continuity.js?v=20260907-continuity1';
 import { tickRegimeCivilWars } from './politics/regimeCivilWar.js?v=20260917-regime-war1';
 import { tickForeignPoliticalIntervention } from './politics/foreignPoliticalIntervention.js?v=20260917-intervention1';
+import { createMilitaryAssistanceProgramme, dispatchMilitaryAid, proxyConflictAssessment, tickMilitaryAssistance } from './diplomacy/militaryAssistance.js?v=20260920-aid1';
 import { createGameSnapshot, readSave, restoreGameSnapshot, saveSummary, writeSave } from './core/saveGame.js?v=20260904-war1';
 import { syncNextCampaignId, tickCampaigns } from './military/campaigns.js?v=20260912-medieval1';
 import { prepareConstructionLabor, syncNextProjectId, tickConstruction, tickInfrastructureMaintenance } from './economy/construction.js?v=20260905-projects1';
@@ -485,6 +486,8 @@ async function main() {
     }
     const foreignInterventionEvents = profiler.measure('Foreign political intervention', () =>
       tickForeignPoliticalIntervention(polities, regions, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));
+    const militaryAssistanceEvents = profiler.measure('Military assistance and proxy wars', () =>
+      tickMilitaryAssistance(polities, regions, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));
     for (const interventionEvent of foreignInterventionEvents) {
       if (interventionEvent.type !== 'foreign_backed_restoration_uprising' || interventionEvent.exilePolityId !== activePlayerPolityId || !interventionEvent.targetRegionId) continue;
       if (regionsById.has(interventionEvent.targetRegionId)) {
@@ -641,6 +644,7 @@ async function main() {
       ...sovereignBondEvents.filter((event) => event.polityId === activePlayerPolityId || event.issuerPolityId === activePlayerPolityId || event.holderPolityId === activePlayerPolityId),
       ...continuityEvents.filter((event) => event.polityId === activePlayerPolityId),
       ...foreignInterventionEvents.filter((event) => event.playerRelevant),
+      ...militaryAssistanceEvents.filter((event) => event.donorPolityId === activePlayerPolityId || event.recipientPolityId === activePlayerPolityId || event.opponentPolityId === activePlayerPolityId || event.sides?.includes?.(activePlayerPolityId)),
       ...regimeCivilWarEvents.filter((event) => event.playerRelevant),
       ...medievalPoliticalEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId || event.rebelPolityId === activePlayerPolityId),
       ...medievalStateEvents.filter((event) => event.regionId === playerRegionId || event.polityId === activePlayerPolityId || event.claimantPolityId === activePlayerPolityId),
@@ -724,6 +728,7 @@ async function main() {
     fleetApi: { deployFleet, dockFleet, orderFleetHome, orderFleetToSea, setFleetFlag, setFleetMission, syncRegionalNavyLedger, navalDesignClassOptions, navalDesignMaterialOptions, previewNavalDesign, quoteNavalMarkUpgrade, authoriseNavalMark, currentNavalDesign },
     aviationApi: { buildAircraft, assignAircraftMission, rebaseAircraft, aviationSummary },
     financialDiplomacyApi: { setBondPolicy, dumpSovereignBonds, setSettlementCurrencyPolicy },
+    militaryAssistanceApi: { createMilitaryAssistanceProgramme, dispatchMilitaryAid, proxyConflictAssessment },
     warSocietyApi: { setWarInformationPolicy, warSocietySummary },
     internationalOrganisationApi: { proposeInternationalOrganisation, submitInternationalMotion, internationalOrganisationSummary, worldInstitutionReadiness },
     internationalOrganisations,
