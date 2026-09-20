@@ -1,0 +1,21 @@
+name: Carrier aviation
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check carrier aviation
+        run: |
+          node --check js/military/carrierAviation.js
+          node --check js/military/airborneEarlyWarning.js
+          node --check js/technology/modernEnergy.js
+      - name: Run carrier regressions
+        run: node tools/test-carrier-aviation.mjs
