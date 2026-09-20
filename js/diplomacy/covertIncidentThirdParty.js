@@ -43,6 +43,12 @@ function coolNuclearCrisis(region, opponentId, amount, currentTick, reason) {
   if (crisis.history.length > 20) crisis.history.shift();
 }
 
+function adjustBargainingSignals(incident, outrageDelta = 0, powerDelta = 0) {
+  incident.responseAssessment ||= {};
+  incident.responseAssessment.outrage = clamp((incident.responseAssessment.outrage || 0) + outrageDelta);
+  incident.responseAssessment.powerRatio = clamp((incident.responseAssessment.powerRatio ?? .5) + powerDelta);
+}
+
 function interventionAlreadyMade(incident, actorIdValue) {
   return (incident.thirdPartyInterventions || []).some((entry) => entry.actorId === actorIdValue && entry.active !== false);
 }
@@ -96,16 +102,21 @@ export function applyThirdPartyCovertAction(thirdPolity, victimPolity, culpritPo
   const record = { actorId: thirdPolity.id, action: selected, tick: currentTick, assessment, active: true };
 
   if (selected === COVERT_THIRD_PARTY_ACTIONS.BACK_VICTIM) {
-    incident.thirdPartyPressure = clamp(incident.thirdPartyPressure + .12 + assessment.victimAffinity * .08);
+    const leverage = .12 + assessment.victimAffinity * .08;
+    incident.thirdPartyPressure = clamp(incident.thirdPartyPressure + leverage);
+    adjustBargainingSignals(incident, leverage * .18, leverage * .22);
     changeAttitude(victimRegion, thirdRegion.id, .07, 'third_party_backing', currentTick);
     changeAttitude(culpritRegion, thirdRegion.id, -.05, 'third_party_backing_opponent', currentTick);
   } else if (selected === COVERT_THIRD_PARTY_ACTIONS.CONDEMN_CULPRIT) {
-    incident.thirdPartyPressure = clamp(incident.thirdPartyPressure + .10 + assessment.attribution * .08);
+    const leverage = .10 + assessment.attribution * .08;
+    incident.thirdPartyPressure = clamp(incident.thirdPartyPressure + leverage);
+    adjustBargainingSignals(incident, leverage * .22, leverage * .08);
     changeAttitude(culpritRegion, thirdRegion.id, -.08, 'third_party_condemnation', currentTick);
   } else if (selected === COVERT_THIRD_PARTY_ACTIONS.MEDIATE) {
     const strength = clamp(.10 + assessment.neutralAccess * .14 + assessment.nuclearDanger * .08);
     incident.mediationSupport = clamp(incident.mediationSupport + strength);
     incident.escalationPressure = clamp((incident.escalationPressure || 0) - strength * .45);
+    adjustBargainingSignals(incident, -strength * .12, -strength * .05);
     ensureInstitutionalCrisisState(victimPolity).pressure = clamp(ensureInstitutionalCrisisState(victimPolity).pressure - strength * .15);
     ensureInstitutionalCrisisState(culpritPolity).pressure = clamp(ensureInstitutionalCrisisState(culpritPolity).pressure - strength * .10);
     coolNuclearCrisis(victimRegion, culpritPolity.id, strength * .45, currentTick, 'mediation');
@@ -114,6 +125,7 @@ export function applyThirdPartyCovertAction(thirdPolity, victimPolity, culpritPo
     const strength = clamp(.08 + assessment.nuclearDanger * .16 + assessment.neutralAccess * .08);
     incident.restraintPressure = clamp(incident.restraintPressure + strength);
     incident.escalationPressure = clamp((incident.escalationPressure || 0) - strength * .35);
+    adjustBargainingSignals(incident, -strength * .10, -strength * .04);
     coolNuclearCrisis(victimRegion, culpritPolity.id, strength * .35, currentTick, 'restraint');
     coolNuclearCrisis(culpritRegion, victimPolity.id, strength * .35, currentTick, 'restraint');
   } else if (selected === COVERT_THIRD_PARTY_ACTIONS.SANCTION_CULPRIT) {
@@ -126,11 +138,13 @@ export function applyThirdPartyCovertAction(thirdPolity, victimPolity, culpritPo
       }
     }
     incident.thirdPartyPressure = clamp(incident.thirdPartyPressure + severity * .28);
+    adjustBargainingSignals(incident, severity * .06, severity * .10);
     record.sanctionSeverity = severity;
     changeAttitude(culpritRegion, thirdRegion.id, -.12, 'covert_incident_sanctions', currentTick);
   } else if (selected === COVERT_THIRD_PARTY_ACTIONS.BACK_CULPRIT) {
     incident.thirdPartyPressure = clamp(incident.thirdPartyPressure - .10);
     incident.restraintPressure = clamp(incident.restraintPressure + .05);
+    adjustBargainingSignals(incident, -.03, -.05);
     changeAttitude(culpritRegion, thirdRegion.id, .06, 'third_party_backing', currentTick);
     changeAttitude(victimRegion, thirdRegion.id, -.05, 'third_party_backing_opponent', currentTick);
   }
@@ -156,7 +170,11 @@ export function tickCovertThirdPartyDiplomacy(polities, regions, currentTick, el
         const strongest = assessment.scores[assessment.action] || 0;
         if (strongest < .56) continue;
         if (options.playerPolityId === thirdPolity.id) {
-          events.push({ type: 'covert_incident_third_party_action_available', actorId: thirdPolity.id, incidentId: incident.id, victimActorId: victimPolity.id, culpritActorId: culpritPolity.id, assessment });
+          if (!incident.thirdPartyPlayerPrompts) incident.thirdPartyPlayerPrompts = {};
+          if (!incident.thirdPartyPlayerPrompts[thirdPolity.id]) {
+            incident.thirdPartyPlayerPrompts[thirdPolity.id] = currentTick;
+            events.push({ type: 'covert_incident_third_party_action_available', actorId: thirdPolity.id, incidentId: incident.id, victimActorId: victimPolity.id, culpritActorId: culpritPolity.id, assessment });
+          }
           continue;
         }
         if (rng() > clamp(.30 + strongest * .55)) continue;
