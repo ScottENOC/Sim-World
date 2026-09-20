@@ -19,6 +19,7 @@ import { medievalTradeFrictionMultiplier } from './medievalCommercialInstitution
 import { recordCommodityTrade } from './foodLuxuries.js?v=20260913-food-luxuries1';
 import { corporateVentureCapacityMultiplier } from './corporateCapital.js?v=20260913-capital2';
 import { warTradeDisruptionMultiplier } from './industrialWarEconomy.js?v=20260918-industrial-war1';
+import { idleLngCarrier, lngCarrierCargoCapacity, lngRouteCompatible } from './lngSolarEnergy.js?v=20260920-modern-energy1';
 
 const LAND_ADJACENT_COST = 0.02;
 const SEA_COST_PER_KM = 0.0002;
@@ -605,7 +606,11 @@ function launchVentures(region, opportunities, currentTick, time, regionsById) {
   const ventureCap = Math.max(1, Math.round(MAX_NEW_VENTURES_PER_WEEK * corporateVentureCapacityMultiplier(region)));
   for (const opp of opportunities) {
     if (idle < 1 || launched >= ventureCap) break;
-    const capacityPerMerchant = Math.max(0.01, (opp.route.capacityKgPerMerchant / cargoKgPerUnit(opp.resource)) * opp.route.reliability);
+    const lngCarrier = opp.resource === 'lng' ? idleLngCarrier(region) : null;
+    if (opp.resource === 'lng' && (opp.route.mode !== 'sea' || !lngCarrier || !lngRouteCompatible(region, opp.dest))) continue;
+    const capacityPerMerchant = opp.resource === 'lng'
+      ? lngCarrierCargoCapacity(lngCarrier) * opp.route.reliability
+      : Math.max(0.01, (opp.route.capacityKgPerMerchant / cargoKgPerUnit(opp.resource)) * opp.route.reliability);
     const availableCargo = Math.min(
       Math.max(0, region.stockpile[opp.resource] || 0),
       Math.max(0, exportRemaining[opp.resource] || 0),
@@ -625,6 +630,7 @@ function launchVentures(region, opportunities, currentTick, time, regionsById) {
       resource: opp.resource,
       cargo,
       merchants,
+      lngCarrierId: lngCarrier?.id || null,
       originPrice: opp.originPrice,
       expectedPrice: opp.expectedPrice,
       routeCost: opp.route.cost,

@@ -3,6 +3,7 @@ import { tickClassicalBreakthroughs } from './classicalTransition.js?v=20260907-
 import { tickMedievalBreakthroughs } from './medievalTransition.js?v=20260912-medieval1';
 import { tickPetroleumBreakthroughs } from './petroleum.js?v=20260917-oil1';
 import { tickElectrificationBreakthroughs } from './electrification.js?v=20260917-electric1';
+import { tickModernEnergyBreakthroughs } from './modernEnergy.js?v=20260920-modern-energy1';
 import { tickNuclearBreakthroughs } from './nuclear.js?v=20260920-nuclear1';
 import { tickStrategicNuclearBreakthroughs } from './strategicNuclear.js?v=20260920-strategic-nuclear1';
 import { tickNuclearWeaponisationBreakthroughs } from './nuclearWeaponisation.js?v=20260920-nuclear-weaponisation1';
@@ -358,6 +359,7 @@ export function tickBreakthroughs(regions, currentTick, rng = Math.random, elaps
   events.push(...tickMedievalBreakthroughs(regions, currentTick, rng, elapsedDays));
   events.push(...tickPetroleumBreakthroughs(regions, currentTick, rng, elapsedDays));
   events.push(...tickElectrificationBreakthroughs(regions, currentTick, rng, elapsedDays));
+  events.push(...tickModernEnergyBreakthroughs(regions, currentTick, rng, elapsedDays));
   events.push(...tickNuclearBreakthroughs(regions, currentTick, rng, elapsedDays));
   events.push(...tickStrategicNuclearBreakthroughs(regions, currentTick, rng, elapsedDays));
   events.push(...tickNuclearWeaponisationBreakthroughs(regions, currentTick, rng, elapsedDays));
