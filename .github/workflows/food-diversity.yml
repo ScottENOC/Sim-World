@@ -1,0 +1,23 @@
+name: Food diversity
+
+on:
+  pull_request:
+  push:
+    branches:
+      - feature/crop-diversity
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check food diversity integration
+        run: |
+          node --check js/economy/foodDiversity.js
+          node --check js/economy/prices.js
+          node --check js/economy/householdFoodSecurity.js
+      - name: Run food diversity regression
+        run: node tools/test-food-diversity.mjs
