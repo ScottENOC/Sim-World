@@ -60,6 +60,7 @@ import { tickModernTactics } from './military/modernTactics.js?v=20260919-mg-tac
 import { tickArtilleryFireControl } from './military/artilleryFireControl.js?v=20260919-artillery1';
 import { combinedExerciseSummary, eligibleExerciseAllies, startCombinedExercise, tickCombinedExercises } from './military/combinedExercises.js?v=20260919-exercises1';
 import { renderCombinedExerciseControls } from './ui/combinedExercisesUi.js?v=20260919-exercises1';
+import { renderMilitaryAssistanceControls } from './ui/militaryAssistanceUi.js?v=20260920-aid-ui1';
 import { tickNonStateOrganisations } from './politics/nonStateOrganisations.js?v=20260912-organisations1';
 import { tickPrivateMilitaryActors } from './politics/privateMilitaryActors.js?v=20260912-pmc1';
 import { tickOrganisationInteractions } from './politics/nonStateInteractions.js?v=20260912-organisations2';
@@ -1472,6 +1473,7 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
     renderPostWarSocietyControls(document.getElementById('region-controls'), playerPolity, () => council?.refresh());
   }
   if (region.id === playerRegionId) renderCombinedExerciseControls(document.getElementById('region-controls'),region,{regions,seaRegions:window.__worldsim?.seaRegions||[],agreements,fleets:window.__worldsim?.fleets||[],currentTick:calendarWeekIndex(clock.elapsedDays||0),onAction:()=>council?.refresh()});
+  if (region.id === playerRegionId && playerPolity) renderMilitaryAssistanceControls(document.getElementById('region-controls'),playerPolity,{regions,polities,visiblePolityIds:[...new Set(regions.filter((candidate)=>fogOfWar.isVisible(candidate)).map((candidate)=>candidate.governance?.sovereignPolityId).filter(Boolean))],currentTick:calendarWeekIndex(clock.elapsedDays||0),onAction:()=>council?.refresh()});
   if (region.id === playerRegionId) {
     const polity = polityById(polities, activePlayerPolityId);
     renderWarSocietyControls(document.getElementById('region-controls'), polity, { onAction: () => council?.refresh() });
