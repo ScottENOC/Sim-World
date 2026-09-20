@@ -6,11 +6,13 @@ import { enforceHousingEmployment, housingSummary, prepareHousingConstruction } 
 import { tickEmploymentAndHardship } from './employmentAndHardship.js?v=20260918-employment1';
 import { tickHouseholdFoodSecurity } from './householdFoodSecurity.js?v=20260919-household-food1';
 import { tickLightMetals } from './lightMetals.js?v=20260919-light-metals1';
+import { prepareAgriculturalLand, tickLandUse, worldLandCapacity } from './landUse.js?v=20260921-land1';
 export * from './laborCore.js?v=20260905-merchant1';
 export * from './housing.js?v=20260916-housing1';
 export * from './employmentAndHardship.js?v=20260918-employment1';
 export * from './householdFoodSecurity.js?v=20260919-household-food1';
 export * from './lightMetals.js?v=20260919-light-metals1';
+export * from './landUse.js?v=20260921-land1';
 
 function committedMerchantCount(region) {
   const workingAge = Math.max(0, Number(region.demographics?.workingAge) || 0);
@@ -34,6 +36,7 @@ function normaliseReportMetadata(region) {
 export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, currentTick = null, elapsedDays = 7, endDay = null) {
   const reservations = [];
   for (const region of regions) {
+    prepareAgriculturalLand(region);
     const previousOccupations = { ...(region.occupations || {}) };
     const housingConstruction = prepareHousingConstruction(region, elapsedDays);
     const fullWorkingAge = Math.max(0, Number(region.demographics?.workingAge) || 0);
@@ -69,6 +72,7 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
       tickIndustrialSupply(region, elapsedDays);
       tickLightMetals(region, elapsedDays);
       tickHouseholdFoodSecurity(region, elapsedDays);
+      tickLandUse(region, elapsedDays);
 
       const housingEmployment = enforceHousingEmployment(region, previousOccupations);
       region.report ||= {};
@@ -83,6 +87,10 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
       region.report.industrialSupply = { workers: 0, capability: { ...region.industrialSupply.capability }, outputCapacity: { ...region.industrialSupply.outputCapacity } };
       normaliseReportMetadata(region);
     }
+  }
+  if (regions?.length) {
+    regions[0].report ||= {};
+    regions[0].report.worldLandCapacity = worldLandCapacity(regions);
   }
   return tickEmploymentAndHardship(regions, currentTick ?? 0, elapsedDays, { playerPolityId: globalThis.__worldsim?.activePlayerPolityId || null });
 }
