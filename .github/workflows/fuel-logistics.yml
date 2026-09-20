@@ -1,0 +1,53 @@
+name: Fuel logistics and pipelines
+on:
+  push:
+    branches: ['feature/fuel-logistics-pipelines']
+  pull_request:
+    paths:
+      - 'js/economy/fuelLogistics.js'
+      - 'js/economy/trade.js'
+      - 'js/economy/tradeGoods.js'
+      - 'js/economy/railways.js'
+      - 'js/economy/lngSolarEnergy.js'
+      - 'js/economy/petroleumRefining.js'
+      - 'tools/test-fuel-logistics.mjs'
+      - 'tools/apply-fuel-logistics.py'
+      - '.github/workflows/fuel-logistics.yml'
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.ref_name || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply fuel logistics integration
+        run: python tools/apply-fuel-logistics.py
+      - name: Syntax checks
+        run: |
+          node --check js/economy/fuelLogistics.js
+          node --check js/economy/trade.js
+          node --check js/economy/tradeGoods.js
+      - name: Fuel logistics and compatibility regressions
+        run: |
+          node tools/test-fuel-logistics.mjs
+          node tools/test-lng-solar-energy.mjs
+          node tools/test-oil-resource.mjs
+          node tools/test-industrial-railways.mjs
+      - name: Commit integrated source
+        if: github.event_name == 'push'
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/economy/fuelLogistics.js js/economy/trade.js js/economy/tradeGoods.js
+          git commit -m 'Integrate dedicated fuel logistics'
+          git push origin HEAD:feature/fuel-logistics-pipelines
