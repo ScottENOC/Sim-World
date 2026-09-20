@@ -173,7 +173,7 @@ function maintainAssets(region, elapsedDays){
     a.condition=clamp((a.condition??1)-years*(key==='petroleumTankers'?.025:.04));
     if(a.condition<.25)a.status='retired';
   }
-  for(const links of Object.values(s.pipelineConnections))for(const p of Object.values(links||{}))if(p.ownerRegionId===region.id){p.condition=clamp((p.condition??1)-years*.018);}
+  for(const links of Object.values(s.pipelineConnections))for(const p of Object.values(links||{})){p.condition=clamp((p.condition??1)-years*.018);}
 }
 
 export function tickFuelLogistics(regions,currentTick=null,elapsedDays=7){
