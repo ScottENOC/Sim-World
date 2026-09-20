@@ -1,0 +1,22 @@
+name: Space crisis escalation
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check space crisis modules
+        run: |
+          node --check js/diplomacy/spaceCrisisResponses.js
+          node --check js/military/spaceWarfare.js
+          node --check js/technology/orbitalSatellites.js
+      - name: Run space crisis regression
+        run: node tools/test-space-crisis.mjs
