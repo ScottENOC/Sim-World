@@ -92,6 +92,20 @@ export function fitOrbitalWeapon(region,satellite,weaponType){
   region.treasury-=cash;region.stockpile.steel-=steel;satellite.weaponSystems||=[];if(!satellite.weaponSystems.includes(weaponType))satellite.weaponSystems.push(weaponType);satellite.use='military';satellite.designLifeDays*=.88;satellite.remainingLifeDays=Math.min(satellite.remainingLifeDays,satellite.designLifeDays);return{fitted:true,cost:{cash,steel}};
 }
 
+function applySuppressedOrbitalSupport(regions){
+  const groups=new Map();for(const r of regions||[]){const id=polityId(r);if(!groups.has(id))groups.set(id,[]);groups.get(id).push(r);}
+  for(const [actor,members] of groups){
+    const satellites=satellitesFor(regions,actor).filter(s=>s.operational);if(!satellites.length)continue;
+    const roleSuppression={communications:0,reconnaissance:0,navigation:0,weather:0,scientific:0};
+    for(const s of satellites){const jam=clamp(s.jammedFraction||0),dazzle=clamp(s.dazzledFraction||0);const suppression=clamp(1-(1-jam)*(1-dazzle));roleSuppression[s.role]=Math.max(roleSuppression[s.role]||0,suppression);}
+    for(const r of members){const o=r.orbitalSupport;if(!o)continue;
+      const comm=1-(roleSuppression.communications||0),recon=1-(roleSuppression.reconnaissance||0),nav=1-(roleSuppression.navigation||0),weather=1-(roleSuppression.weather||0),science=1-(roleSuppression.scientific||0);
+      o.civilianCommunications*=comm;o.remoteControl*=comm;o.droneBeyondLineOfSightControl*=comm;o.militaryCommand*=Math.min(comm,Math.max(.35,recon));
+      o.militaryReconnaissance*=recon;o.navigation*=nav;o.weatherObservation*=weather;o.scienceObservation*=science;
+    }
+  }
+}
+
 export function tickSpaceWarfare(regions,currentTick,rng=Math.random,elapsedDays=7){
   const events=[],days=Math.max(0,Number(elapsedDays)||0),density=Math.max(...(regions||[]).map(r=>r.orbitalEnvironment?.debrisDensity||0),0);
   for(const r of regions||[]){if(r.orbitalEnvironment)r.orbitalEnvironment.debrisDensity=Math.max(0,density-days/DAYS_PER_YEAR*.0025);}
@@ -104,5 +118,6 @@ export function tickSpaceWarfare(regions,currentTick,rng=Math.random,elapsedDays
     const collisionChance=clamp(density*.00045*Math.max(.05,days/7),0,.08);
     if(rng()<collisionChance){const damage=.08+rng()*.32;sat.condition=clamp((sat.condition??1)-damage);if(sat.condition<.10){sat.operational=false;addDebris(regions,.025+rng()*.05,currentTick,'debris_collision');}events.push({type:'orbital_debris_collision',tick:currentTick,satelliteId:sat.id,damage,operational:sat.operational,debrisDensity:density});}
   }
+  applySuppressedOrbitalSupport(regions);
   return events;
 }
