@@ -60,7 +60,7 @@ import { tickModernTactics } from './military/modernTactics.js?v=20260919-mg-tac
 import { tickArtilleryFireControl } from './military/artilleryFireControl.js?v=20260919-artillery1';
 import { combinedExerciseSummary, eligibleExerciseAllies, startCombinedExercise, tickCombinedExercises } from './military/combinedExercises.js?v=20260919-exercises1';
 import { renderCombinedExerciseControls } from './ui/combinedExercisesUi.js?v=20260919-exercises1';
-import { renderMilitaryAssistanceControls } from './ui/militaryAssistanceUi.js?v=20260920-aid-ui1';
+import { renderMilitaryAssistanceControls } from './ui/militaryAssistanceUi.js?v=20260920-aid-ui2';
 import { tickNonStateOrganisations } from './politics/nonStateOrganisations.js?v=20260912-organisations1';
 import { tickPrivateMilitaryActors } from './politics/privateMilitaryActors.js?v=20260912-pmc1';
 import { tickOrganisationInteractions } from './politics/nonStateInteractions.js?v=20260912-organisations2';
@@ -68,7 +68,7 @@ import { SETTLEMENT_TYPES, acceptSettlementOffer, createConquestSettlementOffer,
 import { tickRegimeCivilWars } from './politics/regimeCivilWar.js?v=20260917-regime-war1';
 import { tickForeignPoliticalIntervention } from './politics/foreignPoliticalIntervention.js?v=20260917-intervention1';
 import { createMilitaryAssistanceProgramme, dispatchMilitaryAid, proxyConflictAssessment, tickMilitaryAssistance } from './diplomacy/militaryAssistance.js?v=20260920-aid1';
-import { requestMilitaryAid, proposeMilitaryAid, counterMilitaryAidOffer, respondMilitaryAidOffer, setMilitaryAidExportControl, militaryAidExportAssessment, dispatchMilitaryAidDiplomatically, suspendMilitaryAidProgramme, resumeMilitaryAidProgramme, tickMilitaryAidDiplomacy } from './diplomacy/militaryAidDiplomacy.js?v=20260920-aid-diplomacy1';
+import { requestMilitaryAid, proposeMilitaryAid, counterMilitaryAidOffer, respondMilitaryAidOffer, setMilitaryAidExportControl, militaryAidExportAssessment, dispatchMilitaryAidDiplomatically, suspendMilitaryAidProgramme, resumeMilitaryAidProgramme, tickMilitaryAidDiplomacy } from './diplomacy/militaryAidDiplomacy.js?v=20260920-aid-diplomacy2';
 import { createGameSnapshot, readSave, restoreGameSnapshot, saveSummary, writeSave } from './core/saveGame.js?v=20260904-war1';
 import { syncNextCampaignId, tickCampaigns } from './military/campaigns.js?v=20260912-medieval1';
 import { prepareConstructionLabor, syncNextProjectId, tickConstruction, tickInfrastructureMaintenance } from './economy/construction.js?v=20260905-projects1';
