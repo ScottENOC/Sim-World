@@ -1,5 +1,6 @@
 import { spatialFeaturesForRegion, syncRegionSpatialSites } from '../world/spatialGraph.js?v=20260913-infrastructure1';
 import { ensureSubregionalControl } from '../military/subregionalControl.js?v=20260908-subregion1';
+import { agriculturalLandSummary } from '../economy/agriculturalLand.js?v=20260921-arable1';
 
 const MODES = Object.freeze(['overview','economy','control','military']);
 
@@ -39,11 +40,12 @@ export function buildLocalRegionScene(graph, region, { campaigns=[], fleets=[] }
   const localFleets=fleets.filter(f=>f.regionId===region.id||f.homeRegionId===region.id&&['docked','in_port'].includes(f.status)).map(f=>({id:f.id,name:f.name||'Fleet',status:f.status,boats:f.boats||f.ships?.length||0}));
   return {regionId:region.id,name:region.name,bounds:boundsFor(region),polygon:region.feature?.geometry||null,sites,corridors,anchors:features.anchors,
     ruralControl:{...(control.ruralControl||{})},sovereignActorId:control.sovereignActorId,operationalControllerActorId:control.operationalControllerActorId,
-    contested:control.contested,armies,fleets:localFleets};
+    contested:control.contested,armies,fleets:localFleets,landUse:agriculturalLandSummary(region)};
 }
 
 function esc(x=''){return String(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function siteLabel(s){return (s.type||'site').replaceAll('_',' ');}
+function landArea(ha){const n=Math.max(0,Number(ha)||0);return n>=1000000?`${(n/1000000).toFixed(2)}m ha`:n>=1000?`${Math.round(n/1000).toLocaleString()}k ha`:`${Math.round(n).toLocaleString()} ha`;}
 
 export class LocalRegionView{
   constructor({graph,regions,getCampaigns=()=>[],getFleets=()=>[]}={}){
@@ -80,7 +82,9 @@ export class LocalRegionView{
   _tap(event){if(!this.scene)return;const rect=this.canvas.getBoundingClientRect();const x=event.clientX-rect.left,y=event.clientY-rect.top;let best=null,dist=18;for(const s of this.scene.sites){const p=this._project([s.lon,s.lat]);const d=Math.hypot(p[0]-x,p[1]-y);if(d<dist){dist=d;best=s;}}this.selectedSiteId=best?.id||null;this.draw();}
   _renderDetail(){if(!this.detail||!this.scene)return;const s=this.scene.sites.find(x=>x.id===this.selectedSiteId);if(s){this.detail.innerHTML=`<strong>${esc(s.name)}</strong><span>${esc(siteLabel(s))}</span>${s.infrastructureType?`<span>${esc(s.infrastructureType.replaceAll('_',' '))}</span>`:''}${Number.isFinite(s.condition)?`<span>Condition: ${Math.round(s.condition*100)}%</span>`:''}${s.resource?`<span>Resource: ${esc(s.resource)}</span>`:''}${s.controllerActorId?`<span>Controlled by: ${esc(s.controllerActorId)}</span>`:''}${s.garrisonPersonnel?`<span>Garrison: ${Math.round(s.garrisonPersonnel).toLocaleString()}</span>`:''}`;return;}
     const rivers=this.scene.corridors.filter(c=>c.type==='river').length,routes=this.scene.corridors.filter(c=>c.type==='land_route').length;
-    this.detail.innerHTML=`<strong>${esc(this.scene.name)}</strong><span>${rivers} major river system${rivers===1?'':'s'} · ${routes} cross-border route${routes===1?'':'s'}</span><span>${this.scene.contested?'Control is contested.':`Operational control: ${esc(this.scene.operationalControllerActorId||this.scene.sovereignActorId)}`}</span>`;}
+    const l=this.scene.landUse||{};
+    const land=this.mode==='economy'?`<span>Arable: ${landArea(l.potentiallyArableHa)} potential · ${landArea(l.cultivatedHa)} cultivated (${Math.round((l.cultivationShare||0)*100)}%)</span><span>Pasture: ${landArea(l.pastureHa)} · Forest: ${landArea(l.forestHa)} · Urban footprint: ${landArea(l.urbanHa)}</span>`:'';
+    this.detail.innerHTML=`<strong>${esc(this.scene.name)}</strong><span>${rivers} major river system${rivers===1?'':'s'} · ${routes} cross-border route${routes===1?'':'s'}</span>${land}<span>${this.scene.contested?'Control is contested.':`Operational control: ${esc(this.scene.operationalControllerActorId||this.scene.sovereignActorId)}`}</span>`;}
 }
 
 export function createLocalRegionView(options){return new LocalRegionView(options);}
