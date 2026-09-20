@@ -25,6 +25,39 @@ function verificationStrength(mode) {
   return .18;
 }
 
+function freezeCampaign(campaign, armistice, currentTick) {
+  if (campaign.phase === 'returning' || campaign.completed) return false;
+  campaign.ceasefireHold = {
+    active: true,
+    armisticeId: armistice.id,
+    sinceTick: currentTick,
+    dmzWidthKm: armistice.dmzWidthKm,
+    verification: armistice.verification,
+    frozenPhase: campaign.phase,
+    frozenStage: campaign.stage,
+  };
+  campaign.phase = 'ceasefire_hold';
+  campaign.stage = 'armistice_line';
+  return true;
+}
+
+export function restoreCampaignFromArmistice(campaign, currentTick = 0, reason = 'released') {
+  const hold = campaign?.ceasefireHold;
+  if (!hold?.active) return false;
+  campaign.phase = hold.frozenPhase || 'engaged';
+  campaign.stage = hold.frozenStage || 'skirmishing';
+  if (campaign.phase === 'engaged') campaign.lastProcessedTick = currentTick;
+  if (campaign.phase === 'travelling') {
+    const remaining = Math.max(1, Number(campaign.arriveTick || currentTick + 1) - Number(hold.sinceTick || currentTick));
+    campaign.departTick = currentTick;
+    campaign.arriveTick = currentTick + remaining;
+  }
+  hold.active = false;
+  hold.endedTick = currentTick;
+  hold.endReason = reason;
+  return true;
+}
+
 export function establishArmistice(proposal, crisis, world, currentTick = 0) {
   world.activeArmistices ||= [];
   if (proposal.armisticeId) return world.activeArmistices.find((armistice) => armistice.id === proposal.armisticeId) || null;
@@ -63,15 +96,7 @@ export function establishArmistice(proposal, crisis, world, currentTick = 0) {
       status: 'holding',
     };
     armistice.fronts.push(front);
-    campaign.ceasefireHold = {
-      active: true,
-      armisticeId: armistice.id,
-      sinceTick: currentTick,
-      dmzWidthKm,
-      verification,
-      frozenPhase: campaign.phase,
-      frozenStage: campaign.stage,
-    };
+    freezeCampaign(campaign, armistice, currentTick);
   }
   world.activeArmistices.push(armistice);
   proposal.armisticeId = armistice.id;
@@ -87,20 +112,18 @@ export function releaseArmistice(world, armistice, currentTick = 0, reason = 'en
   armistice.endReason = reason;
   for (const campaign of world.activeCampaigns || []) {
     if (campaign.ceasefireHold?.armisticeId !== armistice.id) continue;
-    campaign.ceasefireHold.active = false;
-    campaign.ceasefireHold.endedTick = currentTick;
-    campaign.ceasefireHold.endReason = reason;
+    restoreCampaignFromArmistice(campaign, currentTick, reason);
   }
   return true;
 }
 
 export function armisticeForCampaign(world, campaign) {
   const id = campaign?.ceasefireHold?.armisticeId;
-  return id ? (world.activeArmistices || []).find((armistice) => armistice.id === id && armistice.status === 'active') || null : null;
+  return id ? (world.activeArmistices || []).find((armistice) => armistice.id === id && ['active', 'strained'].includes(armistice.status)) || null : null;
 }
 
 export function recordArmisticeViolation(world, armistice, actor, type, currentTick = 0, options = {}, rng = Math.random) {
-  if (!armistice || armistice.status !== 'active') return { recorded: false, reason: 'inactive_armistice' };
+  if (!armistice || !['active', 'strained'].includes(armistice.status)) return { recorded: false, reason: 'inactive_armistice' };
   const severity = clamp(options.severity ?? ({
     [ARMISTICE_VIOLATIONS.SMALL_ARMS]: .12,
     [ARMISTICE_VIOLATIONS.ARTILLERY]: .38,
@@ -130,7 +153,7 @@ export function resumeCampaignAfterArmisticeViolation(world, campaign, actor, cu
   const armistice = armisticeForCampaign(world, campaign);
   if (!armistice) return { resumed: false, reason: 'no_active_armistice' };
   const result = recordArmisticeViolation(world, armistice, actor, type, currentTick, { campaignId: campaign.id, public: type === ARMISTICE_VIOLATIONS.ADVANCE }, rng);
-  campaign.ceasefireHold.active = false;
+  restoreCampaignFromArmistice(campaign, currentTick, 'violation');
   campaign.ceasefireHold.breachedTick = currentTick;
   campaign.ceasefireHold.breachedByActorId = actor;
   if (type === ARMISTICE_VIOLATIONS.ADVANCE) {
@@ -139,6 +162,12 @@ export function resumeCampaignAfterArmisticeViolation(world, campaign, actor, cu
     armistice.breachedByActorId = actor;
   }
   return { resumed: true, ...result };
+}
+
+export function prepareCampaignWithdrawalFromArmistice(campaign, currentTick = 0) {
+  if (campaign?.ceasefireHold?.active) restoreCampaignFromArmistice(campaign, currentTick, 'withdrawal_phase');
+  campaign.withdrawRequested = true;
+  return true;
 }
 
 export function tickArmistices(world, currentTick = 0, rng = Math.random) {
