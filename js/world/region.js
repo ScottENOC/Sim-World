@@ -152,6 +152,21 @@ export async function loadWorld() {
         region.deposits.oil = { tiers };
       }
     }
+    if (!region.deposits.natural_gas) {
+      let gh = 2166136261;
+      for (const c of `${region.id}:natural-gas`) gh = Math.imul(gh ^ c.charCodeAt(0), 16777619);
+      const gasSignal = (gh >>> 0) / 4294967295;
+      const basinChance = 0.18 + (region.isCoastal ? 0.05 : 0) + Math.min(0.07, Math.max(0, 1 - Math.abs(region.centroid?.[1] || 0) / 90) * 0.05);
+      if (gasSignal < basinChance) {
+        const scale = Math.max(1, region.areaSqKm);
+        const conventional = Math.round(scale * (55 + gasSignal * 105));
+        const deep = Math.round(scale * (120 + gasSignal * 210));
+        region.deposits.natural_gas = { tiers: [
+          { id: 'conventional', label: 'Conventional natural-gas reservoir', initialStock: conventional, remainingStock: conventional, difficulty: 0.38, requiredTechId: 'natural_gas_extraction', maxWorkers: Math.max(18, Math.round(scale * 0.025)) },
+          { id: 'deep', label: 'Deep natural-gas reservoir', initialStock: deep, remainingStock: deep, difficulty: 0.56, requiredTechId: 'natural_gas_extraction', maxWorkers: Math.max(35, Math.round(scale * 0.05)) },
+        ] };
+      }
+    }
     if (!region.deposits.clay) {
       const clayStock = Math.max(50_000, Math.round(region.areaSqKm * 2_000));
       region.deposits.clay = { tiers: [{

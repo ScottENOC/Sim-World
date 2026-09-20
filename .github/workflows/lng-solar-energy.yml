@@ -1,0 +1,78 @@
+name: LNG and solar energy
+
+on:
+  push:
+    branches: [feature/lng-solar-energy]
+    paths:
+      - 'js/economy/lngSolarEnergy.js'
+      - 'js/technology/modernEnergy.js'
+      - 'js/economy/electricity.js'
+      - 'js/economy/trade.js'
+      - 'js/economy/tradeGoods.js'
+      - 'js/economy/construction.js'
+      - 'js/world/region.js'
+      - 'js/technology/breakthroughs.js'
+      - 'js/main.js'
+      - 'tools/apply-lng-solar-energy.py'
+      - 'tools/test-lng-solar-energy.mjs'
+      - '.github/workflows/lng-solar-energy.yml'
+  pull_request:
+    paths:
+      - 'js/economy/lngSolarEnergy.js'
+      - 'js/technology/modernEnergy.js'
+      - 'js/economy/electricity.js'
+      - 'js/economy/trade.js'
+      - 'js/economy/tradeGoods.js'
+      - 'js/economy/construction.js'
+      - 'js/world/region.js'
+      - 'js/technology/breakthroughs.js'
+      - 'js/main.js'
+      - 'tools/test-lng-solar-energy.mjs'
+      - '.github/workflows/lng-solar-energy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && 'feature/lng-solar-energy' || github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply LNG and solar integration on feature branch
+        if: github.event_name == 'push'
+        run: python tools/apply-lng-solar-energy.py
+      - name: Syntax checks
+        run: |
+          node --check js/economy/lngSolarEnergy.js
+          node --check js/technology/modernEnergy.js
+          node --check js/economy/electricity.js
+          node --check js/economy/trade.js
+          node --check js/economy/construction.js
+          node --check js/world/region.js
+          node --check js/technology/breakthroughs.js
+          node --check js/main.js
+      - name: Modern energy and compatibility regressions
+        run: |
+          node tools/test-lng-solar-energy.mjs
+          node tools/test-electricity.mjs
+          node tools/test-oil-resource.mjs
+      - name: Commit integrated source
+        if: github.event_name == 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/economy/tradeGoods.js js/economy/construction.js js/world/region.js js/economy/electricity.js js/economy/trade.js js/main.js js/technology/breakthroughs.js
+          if ! git diff --cached --quiet; then
+            git commit -m "Integrate LNG and solar energy"
+            git push origin HEAD:feature/lng-solar-energy
+          fi

@@ -17,6 +17,7 @@ export const TRADE_GOODS = {
   stone:      { label: 'Stone', basePrice: 0.3, referenceStock: 20000, category: 'bulk', cargoKgPerUnit: 8 },
   coal:       { label: 'Coal', basePrice: 0.9, referenceStock: 12000, category: 'bulk_fuel', cargoKgPerUnit: 2.5 },
   oil:        { label: 'Crude oil', basePrice: 1.5, referenceStock: 9000, category: 'bulk_fuel', cargoKgPerUnit: 1.6 },
+  lng:        { label: 'Liquefied natural gas', basePrice: 2.6, referenceStock: 4200, category: 'bulk_fuel', cargoKgPerUnit: 1.25 },
   lamp_fuel:  { label: 'Lamp & heating fuel', basePrice: 2.8, referenceStock: 3200, category: 'refined_fuel', cargoKgPerUnit: 1.2 },
   petrol:     { label: 'Petrol', basePrice: 3.4, referenceStock: 2600, category: 'refined_fuel', cargoKgPerUnit: 1.0 },
   diesel:     { label: 'Diesel & distillate', basePrice: 3.1, referenceStock: 3000, category: 'refined_fuel', cargoKgPerUnit: 1.05 },

@@ -1,6 +1,7 @@
 import { effectiveInfrastructureCount, operationalInfrastructure } from './construction.js?v=20260920-nuclear1';
 import { tickNuclearFuelCycle, nuclearGeneration } from './nuclearPower.js?v=20260920-nuclear1';
 import { tickStrategicNuclearFuelCycle, strategicNuclearElectricityDemand } from './strategicNuclear.js?v=20260920-strategic-nuclear1';
+import { modernEnergyElectricityDemand, gasPowerPotential, consumeGasForGeneration, solarGenerationMultiplier } from './lngSolarEnergy.js?v=20260920-modern-energy1';
 
 const DAYS_PER_YEAR = 365.2425;
 const INDUSTRIAL_ELECTRIFICATION_TECH_ID = 'industrial_electrification';
@@ -35,8 +36,9 @@ export function electricityDemand(region, elapsedDays = 7) {
   // multiplied by years a second time here.
   const lightMetalsDemand = nonNegative(region.lightMetals?.electricityLoad);
   const strategicNuclearDemand = nonNegative(region.strategicNuclear?.electricityLoad);
-  const industrialDemand = baseIndustrialDemand + lightMetalsDemand + strategicNuclearDemand;
-  return { householdDemand, industrialDemand, total: householdDemand + industrialDemand, lightMetalsDemand, strategicNuclearDemand };
+  const modernEnergyDemand = modernEnergyElectricityDemand(region);
+  const industrialDemand = baseIndustrialDemand + lightMetalsDemand + strategicNuclearDemand + modernEnergyDemand;
+  return { householdDemand, industrialDemand, total: householdDemand + industrialDemand, lightMetalsDemand, strategicNuclearDemand, modernEnergyDemand };
 }
 
 export function dispatchElectricityPortfolio(outputs = {}, demand = Infinity) {
@@ -105,11 +107,16 @@ export function tickElectricity(region, elapsedDays = 7) {
   const hydroOutput = hydroStations * 4300 * years * hydroReliability;
   const solarAvailability = clamp01(region.weather?.solarAvailability ?? region.climate?.solarPotential ?? 0.72);
   const windAvailability = clamp01(region.weather?.windAvailability ?? region.climate?.windPotential ?? 0.62);
-  const solarOutput = solarStations * 3900 * years * solarAvailability;
+  const solarOutput = solarStations * 3900 * years * solarAvailability * solarGenerationMultiplier(region, elapsedDays);
   const windOutput = windStations * 4500 * years * windAvailability;
 
   const demand = electricityDemand(region, elapsedDays);
-  const dispatch = dispatchElectricityPortfolio({ coal: coalOutput, hydro: hydroOutput, solar: solarOutput, wind: windOutput, nuclear: nuclear.output }, demand.total);
+  const preliminary = dispatchElectricityPortfolio({ coal: coalOutput, hydro: hydroOutput, solar: solarOutput, wind: windOutput, nuclear: nuclear.output }, demand.total);
+  const gasPotential = gasPowerPotential(region, elapsedDays);
+  const gasWanted = Math.max(0, demand.total - preliminary.usableGeneration) + preliminary.balancingShortfall;
+  const gasOutput = Math.min(gasPotential.outputPotential, gasWanted);
+  const gasConsumed = consumeGasForGeneration(region, gasOutput, gasPotential);
+  const dispatch = dispatchElectricityPortfolio({ coal: coalOutput, hydro: hydroOutput, solar: solarOutput, wind: windOutput, peaking: gasOutput, nuclear: nuclear.output }, demand.total);
   const generated = dispatch.usableGeneration;
 
   const nuclearStations = effectiveInfrastructureCount(region, 'nuclear_power_station');
@@ -146,8 +153,10 @@ export function tickElectricity(region, elapsedDays = 7) {
   state.industrialDemand = demand.industrialDemand;
   state.lightMetalsDemand = demand.lightMetalsDemand || 0;
   state.strategicNuclearDemand = demand.strategicNuclearDemand || 0;
+  state.modernEnergyDemand = demand.modernEnergyDemand || 0;
+  state.gasConsumed = gasConsumed;
   return {
-    ...state, coalOutput, hydroOutput, solarOutput, windOutput, nuclearOutput: nuclear.output || 0, nuclear, gridCapacity, networkReliability,
+    ...state, coalOutput, hydroOutput, solarOutput, windOutput, gasOutput, nuclearOutput: nuclear.output || 0, nuclear, gridCapacity, networkReliability,
     copperNeed, balancingNeed: dispatch.balancingNeed, balancingAvailable: dispatch.balancingAvailable,
     balancingCoverage: dispatch.balancingCoverage, variableComplementarity: dispatch.variableComplementarity,
     grossGenerationPotential: dispatch.grossPotential,

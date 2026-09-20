@@ -10,6 +10,7 @@ import { tickEconomy } from './economy/labor.js?v=20260912-silkroad1';
 import { tickTrade } from './economy/trade.js?v=20260912-medieval1';
 import { tickHouseholdEnergy } from './economy/householdEnergy.js?v=20260917-oil1';
 import { tickPetroleumRefining } from './economy/petroleumRefining.js?v=20260917-oil2';
+import { tickModernEnergy, tickLngCarrierProcurement, syncNextLngCarrierId } from './economy/lngSolarEnergy.js?v=20260920-modern-energy1';
 import { tickElectricity } from './economy/electricity.js?v=20260917-electric1';
 import { tickLocalCommunications } from './economy/localCommunications.js?v=20260918-telephone1';
 import { tickStateFinance } from './economy/stateFinance.js?v=20260912-currency2';
@@ -129,6 +130,7 @@ async function main() {
   const profiler = createPerformanceProfiler();
   profiler.mount();
   const regions = await loadWorld();
+  syncNextLngCarrierId(regions);
   clock.setWorldTempo(assessWorldTempo(regions));
   console.log(`Simulation map loaded: ${regions.length} permanent land regions`);
   seedCensus(regions);
@@ -390,6 +392,7 @@ async function main() {
     }
     profiler.measure('Transit control', () => tickTransitControl(regions, time.elapsedDays));
     for (const region of regions) tickPetroleumRefining(region, time.elapsedDays);
+    for (const region of regions) { tickModernEnergy(region, time.elapsedDays); tickLngCarrierProcurement(region); }
     for (const region of regions) tickElectricity(region, time.elapsedDays);
     for (const region of regions) tickLocalCommunications(region, time.elapsedDays);
     for (const region of regions) tickHouseholdEnergy(region, time.elapsedDays);
