@@ -41,7 +41,7 @@ jobs:
           node tools/test-nuclear-crisis-bargaining.mjs
           node tools/test-nuclear-diplomacy.mjs
           node tools/test-nuclear-deterrence.mjs
-          node tools/test-strategic-delivery.mjs
+          node tools/test-strategic-delivery-second-strike.mjs
           node tools/test-nuclear-weaponisation.mjs
       - name: Commit integrated source
         if: github.event_name == 'push'
