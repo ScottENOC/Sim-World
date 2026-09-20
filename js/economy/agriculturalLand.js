@@ -79,6 +79,11 @@ export function ensureAgriculturalLand(region){
 }
 
 export function agriculturalLandYieldFactor(region){
+  // Standalone hydrology tests and old lightweight save fixtures often omit
+  // geometry entirely. For those, preserve the exact pre-land-accounting
+  // multiplier. Loaded gameplay regions always have area + terrain and use the
+  // explicit land constraint below.
+  if(!(Number(region?.areaSqKm)>0)||!region?.terrain)return 1;
   const s=ensureAgriculturalLand(region);
   // Converts the old whole-region yield coefficient into an explicit
   // per-arable-area coefficient while preserving a typical region's output.
