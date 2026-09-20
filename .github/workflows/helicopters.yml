@@ -15,4 +15,9 @@ jobs:
           node-version: 22
       - run: node --check js/military/helicopters.js
       - run: node --check js/military/aviation.js
+      - run: node --check js/military/airMobility.js
+      - run: node --check js/military/specialOperations.js
+      - run: node --check js/military/navalRotaryWing.js
+      - run: node --check js/military/subregionalMovement.js
       - run: node tools/test-helicopters.mjs
+      - run: node tools/test-rotary-special-ops.mjs
