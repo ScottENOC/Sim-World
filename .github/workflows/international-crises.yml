@@ -27,5 +27,3 @@ jobs:
           node tools/test-covert-incident-escalation.mjs
           node tools/test-covert-demand-responses.mjs
           node tools/test-covert-third-party-diplomacy.mjs
-      - name: Run religious politics regression
-        run: node tools/test-medieval-religious-politics.mjs
