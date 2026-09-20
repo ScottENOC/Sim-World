@@ -1,4 +1,5 @@
 import { FOOD_CANNING_TECH_ID, MECHANICAL_REFRIGERATION_TECH_ID, CFC_REFRIGERATION_TECH_ID, recordRefrigerationUse } from '../technology/foodPreservationEnvironmentalHealth.js?v=20260919-preservation1';
+import { tickFoodDiversity } from './foodDiversity.js?v=20260921-food-diversity1';
 
 const DAYS_PER_YEAR = 365.2425;
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
@@ -41,6 +42,8 @@ export function ensureHouseholdFoodSecurity(region) {
   s.spoilageLastTick = Math.max(0, Number(s.spoilageLastTick) || 0);
   s.releasedLastTick = Math.max(0, Number(s.releasedLastTick) || 0);
   s.storedLastTick = Math.max(0, Number(s.storedLastTick) || 0);
+  s.dietDiversity = clamp(s.dietDiversity || 0);
+  s.dietHealthSupport = Number.isFinite(s.dietHealthSupport) ? s.dietHealthSupport : 0.94;
   return s;
 }
 
@@ -51,8 +54,6 @@ export function householdFoodSecurityProfile(region) {
 
 export function refrigeratedLandFoodTransportMultiplier(region) {
   const s = ensureHouseholdFoodSecurity(region);
-  // The current trade model does not distinguish individual truck cargoes. This
-  // represents the extra usable food throughput from motorised cold-chain fleets.
   return 1 + s.refrigeratedRoadShare * 0.75;
 }
 
@@ -79,11 +80,6 @@ export function tickHouseholdFoodSecurity(region, elapsedDays = 7) {
     : 0;
   s.refrigeratedRoadShare = clamp(approach(s.refrigeratedRoadShare, coldRoadTarget, 0.10, elapsedDays));
 
-  // Private household reserves are deliberately distinct from public granaries.
-  // A subsistence household can normally hold only a few days of ordinary food;
-  // canned food, refrigeration and disposable income progressively deepen that
-  // buffer. A mature affluent region can exceed a month without implying that
-  // every household has a perfectly balanced diet for that whole period.
   s.targetReserveWeeks = clamp(
     0.45 + wealth * 0.65 + s.cannedPantryUptake * 3.8 + s.refrigeratorUptake * 1.55,
     0.25,
@@ -91,7 +87,6 @@ export function tickHouseholdFoodSecurity(region, elapsedDays = 7) {
   );
 
   const weeklyNeed = Math.max(1, (Number(region?._foodNeeded) || Number(region?.population) || 1) / weeks);
-
   const baseWeeklySpoilage = 0.032;
   const shelfStableProtection = s.cannedPantryUptake * 0.78;
   const chilledProtection = s.refrigeratorUptake * 0.18;
@@ -118,14 +113,18 @@ export function tickHouseholdFoodSecurity(region, elapsedDays = 7) {
     s.privateReserve += s.storedLastTick;
   }
 
-  // Households and the food distribution chain create a much larger refrigeration
-  // load than a handful of warships. Scale keeps this in the same abstract units
-  // as the environmental-health model without making refrigerator ownership itself
-  // a population-sized emissions number.
   const households = Math.max(1, (Number(region.population) || 1) / 2.5);
   const refrigerationLoad = households * s.refrigeratorUptake * 0.00008 +
     Math.max(1, Number(region.population) || 1) * s.refrigeratedRoadShare * 0.000015;
   if (refrigerationLoad > 0) recordRefrigerationUse(region, refrigerationLoad, weeks);
+
+  const diet=tickFoodDiversity(region,elapsedDays);
+  s.dietDiversity=diet.diversityIndex;
+  s.dietHealthSupport=diet.healthSupport;
+  // Expose this as a small multiplicative health input for demographic/health
+  // systems. Calories still dominate survival; diversity shifts resilience
+  // and chronic nutritional health rather than preventing starvation.
+  region.dietaryHealthMultiplier=s.dietHealthSupport;
 
   s.reserveWeeks = s.privateReserve / weeklyNeed;
   region.marketDemand ||= {};
@@ -141,6 +140,8 @@ export function tickHouseholdFoodSecurity(region, elapsedDays = 7) {
     spoilage: s.spoilageLastTick,
     released: s.releasedLastTick,
     stored: s.storedLastTick,
+    dietDiversity:s.dietDiversity,
+    dietHealthSupport:s.dietHealthSupport,
     refrigeratedLandFoodTransportMultiplier: refrigeratedLandFoodTransportMultiplier(region),
   };
   return region.report.householdFoodSecurity;
