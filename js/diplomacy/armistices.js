@@ -14,17 +14,23 @@ function campaignActor(campaign, world) {
   const origin = (world.regions || []).find((region) => region.id === campaign.attackerId);
   return actorId(origin);
 }
-
 function relevantCampaigns(world, crisis) {
   return (world.activeCampaigns || []).filter((campaign) => !campaign.completed && campaign.warId === crisis.sourceId);
 }
-
 function verificationStrength(mode) {
   if (mode === 'inspections') return .9;
   if (mode === 'observers') return .72;
   return .18;
 }
-
+function crisisFor(world, armistice) {
+  return (world.internationalCrises || []).find((crisis) => crisis.id === armistice.crisisId) || null;
+}
+function damageReliability(world, actor, amount) {
+  const polity = (world.polities || []).find((candidate) => candidate.id === actor);
+  if (!polity) return;
+  const current = Number.isFinite(polity.diplomaticReliability) ? polity.diplomaticReliability : .58;
+  polity.diplomaticReliability = clamp(current - amount);
+}
 function freezeCampaign(campaign, armistice, currentTick) {
   if (campaign.phase === 'returning' || campaign.completed) return false;
   campaign.ceasefireHold = {
@@ -64,9 +70,10 @@ export function establishArmistice(proposal, crisis, world, currentTick = 0) {
   const withdrawal = proposal.terms?.find((term) => term.type === 'withdrawal');
   const implementation = withdrawal?.implementation || {};
   const trust = clamp(proposal.negotiation?.trustAtOpening ?? .5);
-  const verification = implementation.verification || (trust < .62 ? 'observers' : 'trust');
+  const verification = proposal.armisticePlan?.verification || implementation.verification || (trust < .62 ? 'observers' : 'trust');
   const monitored = verification !== 'trust';
-  const dmzWidthKm = monitored ? (trust < .42 ? 12 : 6) : (trust < .5 ? 3 : 0);
+  const defaultDmz = monitored ? (trust < .42 ? 12 : 6) : (trust < .5 ? 3 : 0);
+  const dmzWidthKm = Math.max(0, Math.min(50, Number(proposal.armisticePlan?.dmzWidthKm ?? defaultDmz) || 0));
   const armistice = {
     id: `armistice-${nextArmisticeId++}`,
     crisisId: crisis.id,
@@ -122,6 +129,17 @@ export function armisticeForCampaign(world, campaign) {
   return id ? (world.activeArmistices || []).find((armistice) => armistice.id === id && ['active', 'strained'].includes(armistice.status)) || null : null;
 }
 
+function applyDetectedViolation(world, armistice, violation) {
+  const crisis = crisisFor(world, armistice);
+  if (crisis) {
+    crisis.severity = clamp(crisis.severity + violation.severity * .14);
+    crisis.nuclearRisk = clamp(crisis.nuclearRisk + violation.severity * .06);
+    crisis.history ||= [];
+    crisis.history.push({ type: 'armistice_violation_detected', armisticeId: armistice.id, actorId: violation.actorId, violationType: violation.type, severity: violation.severity, tick: violation.detectedTick || violation.tick });
+  }
+  if (violation.actorId) damageReliability(world, violation.actorId, .025 + violation.severity * .08);
+}
+
 export function recordArmisticeViolation(world, armistice, actor, type, currentTick = 0, options = {}, rng = Math.random) {
   if (!armistice || !['active', 'strained'].includes(armistice.status)) return { recorded: false, reason: 'inactive_armistice' };
   const severity = clamp(options.severity ?? ({
@@ -143,8 +161,10 @@ export function recordArmisticeViolation(world, armistice, actor, type, currentT
     detectionChance,
     campaignId: options.campaignId || null,
   };
+  if (detected) violation.detectedTick = currentTick;
   armistice.violations.push(violation);
   armistice.tension = clamp(armistice.tension + severity * (detected ? .34 : .12));
+  if (detected) applyDetectedViolation(world, armistice, violation);
   if (detected && severity >= .3) armistice.status = severity >= .7 ? 'breached' : 'strained';
   return { recorded: true, violation };
 }
@@ -182,9 +202,17 @@ export function tickArmistices(world, currentTick = 0, rng = Math.random) {
         violation.detected = true;
         violation.detectedTick = currentTick;
         armistice.tension = clamp(armistice.tension + violation.severity * .28);
+        applyDetectedViolation(world, armistice, violation);
         if (violation.severity >= .3) armistice.status = violation.severity >= .7 ? 'breached' : 'strained';
         events.push({ type: 'armistice_violation_discovered', armisticeId: armistice.id, violation });
       }
+    }
+    if (armistice.fronts.length && rng() < .008 + armistice.tension * .025) {
+      const front = armistice.fronts[Math.floor(rng() * armistice.fronts.length) % armistice.fronts.length];
+      const actor = rng() < .5 ? armistice.sideAActorId : armistice.sideBActorId;
+      const incidentType = armistice.dmzWidthKm > 0 && rng() < .55 ? ARMISTICE_VIOLATIONS.INCURSION : ARMISTICE_VIOLATIONS.SMALL_ARMS;
+      const incident = recordArmisticeViolation(world, armistice, actor, incidentType, currentTick, { campaignId: front.campaignId }, rng);
+      if (incident.recorded) events.push({ type: 'armistice_front_incident', armisticeId: armistice.id, violation: incident.violation });
     }
   }
   return events;
