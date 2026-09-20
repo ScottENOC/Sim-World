@@ -1,6 +1,8 @@
 import { submitInternationalMotion, ORGANISATION_LEVELS } from './internationalOrganisations.js?v=20260920-intl-crisis1';
+import { relationToward } from './relations.js?v=20260920-intl-crisis1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
+const actorId=(r)=>r?.governance?.sovereignPolityId||r?.polityId||r?.controllingActorId||r?.id||null;
 
 function alreadyConsidered(org,crisis){return (crisis.bodyPositions||[]).some(p=>p.bodyType==='international_organisation'&&p.bodyId===org.id);}
 function crisisMotion(org,crisis){
@@ -15,7 +17,17 @@ function crisisMotion(org,crisis){
   if(crisis.allegedAggressorActorId&&sanction>.62&&['global','collective_security','treaty'].includes(org.level))return{type:'sanctions',score:sanction};
   return{type:'condemn_war',score:condemn};
 }
-function applyPassedMotion(org,crisis,motion,currentTick){
+function applyMemberSanctions(org,targetActorId,world,currentTick,severity){
+  const targets=(world.regions||[]).filter(r=>actorId(r)===targetActorId);
+  for(const memberId of org.memberPolityIds||[]){
+    for(const from of (world.regions||[]).filter(r=>actorId(r)===memberId)) for(const target of targets){
+      const rel=relationToward(from,target.id);
+      rel.tradeSanctionSeverity=Math.max(Number(rel.tradeSanctionSeverity)||0,severity);
+      rel.tradeSanctionUntilTick=Math.max(Number(rel.tradeSanctionUntilTick)||0,currentTick+52);
+    }
+  }
+}
+function applyPassedMotion(org,crisis,motion,world,currentTick){
   const compliance=clamp(motion.compliance??(org.metrics?.legitimacy||0)*.6);
   if(motion.type==='mediate_peace'){
     crisis.mediation=clamp(crisis.mediation+.12+.18*compliance);
@@ -26,8 +38,10 @@ function applyPassedMotion(org,crisis,motion,currentTick){
     const target=crisis.allegedAggressorActorId;
     if(target===crisis.sideAActorId)crisis.pressureA=clamp(crisis.pressureA+.12+.14*compliance);
     if(target===crisis.sideBActorId)crisis.pressureB=clamp(crisis.pressureB+.12+.14*compliance);
+    const strength=.25+.35*compliance;
+    applyMemberSanctions(org,target,world,currentTick,strength);
     crisis.organisationSanctions||=[];
-    crisis.organisationSanctions.push({organisationId:org.id,targetActorId:target,strength:.25+.35*compliance,untilTick:currentTick+52});
+    crisis.organisationSanctions.push({organisationId:org.id,targetActorId:target,strength,untilTick:currentTick+52});
   }else if(motion.type==='condemn_war'){
     if(crisis.allegedAggressorActorId===crisis.sideAActorId)crisis.pressureA=clamp(crisis.pressureA+.08+.10*compliance);
     if(crisis.allegedAggressorActorId===crisis.sideBActorId)crisis.pressureB=clamp(crisis.pressureB+.08+.10*compliance);
@@ -56,7 +70,7 @@ export function tickInternationalCrisisBodies(world,currentTick=0,rng=Math.rando
       const record={bodyType:'international_organisation',bodyId:org.id,organisationName:org.name,motionType:assessment.motionType,tick:currentTick,passed:Boolean(result.passed),status:result.motion?.status||'not_submitted'};
       crisis.bodyPositions.push(record);
       crisis.history.push({...record,type:'international_organisation_motion'});
-      if(result.passed){applyPassedMotion(org,crisis,result.motion,currentTick);events.push({type:'international_crisis_organisation_action',crisisId:crisis.id,organisationId:org.id,motionType:assessment.motionType,motionId:result.motion.id});}
+      if(result.passed){applyPassedMotion(org,crisis,result.motion,world,currentTick);events.push({type:'international_crisis_organisation_action',crisisId:crisis.id,organisationId:org.id,motionType:assessment.motionType,motionId:result.motion.id});}
       else events.push({type:'international_crisis_organisation_motion_failed',crisisId:crisis.id,organisationId:org.id,motionType:assessment.motionType,status:result.motion?.status||result.reason});
     }
   }
