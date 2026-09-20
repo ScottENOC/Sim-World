@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - feature/covert-escalation-management
+      - feature/covert-demand-responses
 
 jobs:
   test:
@@ -18,9 +19,12 @@ jobs:
         run: |
           node --check js/diplomacy/covertIncidentEscalation.js
           node --check js/diplomacy/covertIncidentBridge.js
+          node --check js/diplomacy/covertIncidentResponses.js
           node --check js/politics/continuity.js
       - name: Run covert incident escalation regression
         run: node tools/test-covert-incident-escalation.mjs
+      - name: Run covert demand response regression
+        run: node tools/test-covert-demand-responses.mjs
       - name: Run leadership shock regression
         run: node tools/test-covert-leadership-shocks.mjs
       - name: Run regime change regression
