@@ -1,0 +1,27 @@
+name: Orbital satellites
+
+on:
+  pull_request:
+    paths:
+      - 'js/technology/orbitalSatellites.js'
+      - 'js/technology/modernEnergy.js'
+      - 'js/economy/localCommunications.js'
+      - 'tools/test-orbital-satellites.mjs'
+      - '.github/workflows/orbital-satellites.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check orbital integration
+        run: |
+          node --check js/technology/orbitalSatellites.js
+          node --check js/technology/modernEnergy.js
+          node --check js/economy/localCommunications.js
+      - name: Run orbital satellite regressions
+        run: node tools/test-orbital-satellites.mjs
