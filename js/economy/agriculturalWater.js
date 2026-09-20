@@ -1,5 +1,6 @@
 import { effectiveInfrastructureCount } from './construction.js?v=20260914-water3';
 import { agriculturalLandYieldFactor } from './agriculturalLand.js?v=20260921-arable1';
+import { fertiliserYieldMultiplier } from './agriculturalFertiliser.js?v=20260921-fertiliser1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
@@ -28,12 +29,13 @@ export function agriculturalWaterProfile(region,{weatherMultiplier=1}={}){
   const droughtProtection=1+drought*clamp(localBuffer+effectiveIrrigation*0.5,0,0.68);
   const irrigationYieldMultiplier=1+effectiveIrrigation*0.30;
   const landYieldFactor=agriculturalLandYieldFactor(region);
-  // Combines do not make plants grow more. They reduce losses from slow or
-  // incomplete harvesting; keeping this as a named factor makes that distinction
-  // visible even though laborCore consumes one combined realised-yield value.
-  const harvestRetention=Math.max(1,Number(region?.agriculturalMachinery?.harvestRetention)||1);
-  const yieldMultiplier=irrigationYieldMultiplier*landYieldFactor*harvestRetention;
+  const harvestRetention=Math.max(1,Number(region.agriculturalMachinery?.harvestRetention)||1);
+  const fertiliserMultiplier=fertiliserYieldMultiplier(region);
+  // These are deliberately distinct channels: irrigation changes water supply,
+  // combines reduce harvest losses, and fertiliser changes biological yield per
+  // hectare. None of them creates additional arable land.
+  const yieldMultiplier=irrigationYieldMultiplier*landYieldFactor*harvestRetention*fertiliserMultiplier;
 
   return {riverCount,flowAvailability,surfaceReliability,effectiveIrrigation,droughtProtection,yieldMultiplier,
-    irrigationYieldMultiplier,landYieldFactor,harvestRetention,surfaceInflow:inflow,surfaceWithdrawal:withdrawal,groundwaterUsed:0};
+    irrigationYieldMultiplier,landYieldFactor,harvestRetention,fertiliserMultiplier,surfaceInflow:inflow,surfaceWithdrawal:withdrawal,groundwaterUsed:0};
 }
