@@ -1,0 +1,92 @@
+import { computationalCapability, onboardElectricalCapability, MILITARY_PLATFORM } from './militaryElectronics.js?v=20260921-ew1';
+import { GUIDED_WEAPON_TECH_ID, RADAR_GUIDED_SAM_TECH_ID, ensureGuidedAirDefence } from './guidedAirDefence.js?v=20260921-ew1';
+
+const DAYS_PER_YEAR=365.2425;
+const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
+const nonNegative=v=>Math.max(0,Number(v)||0);
+const has=(r,id)=>Boolean(r?.unlockedTechIds?.has?.(id));
+const annual=(rate,days)=>1-Math.pow(1-clamp(rate,0,.95),Math.max(0,Number(days)||0)/DAYS_PER_YEAR);
+
+export const EW_TECH_IDS=Object.freeze({
+  RWR:'radar_warning_receivers',
+  COUNTERMEASURES:'aircraft_countermeasure_dispensers',
+  ECM:'airborne_electronic_countermeasures',
+  ARM:'anti_radiation_missiles',
+  DIGITAL_EW:'digital_electronic_warfare_suites',
+});
+
+function components(region){return region?.industrialPlants?.componentCapability||{};}
+function electronics(region){const c=components(region);return clamp(Math.max(c.electronics||0,c.radio_navigation||0,c.radar_set||0));}
+function radar(region){return clamp(components(region).radar_set||0);}
+function precision(region){return clamp(region?.industrialSupply?.capability?.precision_machining||0);}
+function manufacture(region){return clamp(region?.structuralTransformation?.capability?.manufacture||0);}
+
+export function ensureElectronicWarfare(region){
+  region.electronicWarfare||={experience:0,rwrExperience:0,jammingExperience:0,seadExperience:0,chaffFlares:0,antiRadiationMissiles:0,totalArmShots:0,totalRadarsDestroyed:0};
+  return region.electronicWarfare;
+}
+
+export function tickElectronicWarfareBreakthroughs(regions,currentTick,rng=Math.random,elapsedDays=7){
+  const events=[];
+  for(const r of regions||[]){
+    r.unlockedTechIds||=new Set();const e=electronics(r),rad=radar(r),p=precision(r),m=manufacture(r),compute=computationalCapability(r),xp=ensureElectronicWarfare(r).experience;
+    if(!has(r,EW_TECH_IDS.RWR)&&has(r,'radar')&&e>.38&&rad>.24){if(rng()<annual(.003+e*.014+rad*.010+xp*.006,elapsedDays)){r.unlockedTechIds.add(EW_TECH_IDS.RWR);events.push({type:'electronic_warfare_breakthrough',techId:EW_TECH_IDS.RWR,regionId:r.id,tick:currentTick,title:'Radar-warning receivers'});continue;}}
+    if(!has(r,EW_TECH_IDS.COUNTERMEASURES)&&has(r,EW_TECH_IDS.RWR)&&has(r,'military_aviation')&&m>.42){if(rng()<annual(.0025+e*.010+p*.008+m*.008,elapsedDays)){r.unlockedTechIds.add(EW_TECH_IDS.COUNTERMEASURES);events.push({type:'electronic_warfare_breakthrough',techId:EW_TECH_IDS.COUNTERMEASURES,regionId:r.id,tick:currentTick,title:'Aircraft countermeasure dispensers'});continue;}}
+    if(!has(r,EW_TECH_IDS.ECM)&&has(r,EW_TECH_IDS.RWR)&&e>.55&&onboardElectricalCapability(r,MILITARY_PLATFORM.AIRCRAFT)>.40){if(rng()<annual(.0018+e*.012+rad*.008+xp*.008,elapsedDays)){r.unlockedTechIds.add(EW_TECH_IDS.ECM);events.push({type:'electronic_warfare_breakthrough',techId:EW_TECH_IDS.ECM,regionId:r.id,tick:currentTick,title:'Airborne electronic countermeasures'});continue;}}
+    if(!has(r,EW_TECH_IDS.ARM)&&has(r,EW_TECH_IDS.RWR)&&has(r,GUIDED_WEAPON_TECH_ID)&&e>.58&&p>.58){if(rng()<annual(.0015+e*.010+p*.010+ensureElectronicWarfare(r).seadExperience*.008,elapsedDays)){r.unlockedTechIds.add(EW_TECH_IDS.ARM);events.push({type:'electronic_warfare_breakthrough',techId:EW_TECH_IDS.ARM,regionId:r.id,tick:currentTick,title:'Anti-radiation missiles'});continue;}}
+    if(!has(r,EW_TECH_IDS.DIGITAL_EW)&&has(r,EW_TECH_IDS.ECM)&&compute>.42&&e>.68){if(rng()<annual(.0008+compute*.008+e*.006+xp*.010,elapsedDays)){r.unlockedTechIds.add(EW_TECH_IDS.DIGITAL_EW);events.push({type:'electronic_warfare_breakthrough',techId:EW_TECH_IDS.DIGITAL_EW,regionId:r.id,tick:currentTick,title:'Digital electronic-warfare suites'});}}
+  }
+  return events;
+}
+
+export function buildAircraftCountermeasures(region,{count=1}={}){
+  const s=ensureElectronicWarfare(region),n=Math.max(1,Math.floor(count));if(!has(region,EW_TECH_IDS.COUNTERMEASURES))return{built:false,reason:'technology_not_ready'};
+  const inv=region.industrialSupply?.inventory||{};region.stockpile||={};const cash=2.2*n,electronicsNeed=.08*n,polymers=.12*n;
+  if(nonNegative(region.treasury)<cash||nonNegative(inv.electronics)<electronicsNeed||nonNegative(region.stockpile.industrial_polymers)<polymers)return{built:false,reason:'insufficient_inputs'};
+  region.treasury-=cash;inv.electronics-=electronicsNeed;region.stockpile.industrial_polymers-=polymers;s.chaffFlares+=n;return{built:true,count:n};
+}
+
+export function buildAntiRadiationMissile(region,{count=1}={}){
+  const s=ensureElectronicWarfare(region),n=Math.max(1,Math.floor(count));if(!has(region,EW_TECH_IDS.ARM))return{built:false,reason:'technology_not_ready'};
+  const inv=region.industrialSupply?.inventory||{};region.stockpile||={};const cash=46*n,steel=1.4*n,machine=1.2*n,electronicsNeed=.9*n,fuel=.06*n;
+  if(nonNegative(region.treasury)<cash||nonNegative(region.stockpile.steel)<steel||nonNegative(inv.machine_components)<machine||nonNegative(inv.electronics)<electronicsNeed||nonNegative(region.stockpile.aviation_fuel)<fuel)return{built:false,reason:'insufficient_inputs'};
+  region.treasury-=cash;region.stockpile.steel-=steel;inv.machine_components-=machine;inv.electronics-=electronicsNeed;region.stockpile.aviation_fuel-=fuel;s.antiRadiationMissiles+=n;return{built:true,count:n};
+}
+
+export function aircraftEwProfile(region){
+  const s=ensureElectronicWarfare(region),e=electronics(region),compute=computationalCapability(region),power=onboardElectricalCapability(region,MILITARY_PLATFORM.AIRCRAFT),digital=has(region,EW_TECH_IDS.DIGITAL_EW);
+  const rwr=has(region,EW_TECH_IDS.RWR)?clamp(.36+e*.34+radar(region)*.16+(digital?compute*.12:0)+s.rwrExperience*.08):0;
+  const jammer=has(region,EW_TECH_IDS.ECM)?clamp(.18+e*.32+power*.20+(digital?compute*.22:0)+s.jammingExperience*.08):0;
+  const countermeasures=has(region,EW_TECH_IDS.COUNTERMEASURES)?clamp(.26+e*.12+(digital?compute*.12:0)):0;
+  return{rwr,jammer,countermeasures,digital,power,inventory:s.chaffFlares};
+}
+
+export function electronicProtectionAgainstAirDefence(region,{consumeCountermeasure=false}={}){
+  const s=ensureElectronicWarfare(region),p=aircraftEwProfile(region);let expendable=0;
+  if(consumeCountermeasure&&p.countermeasures>0&&s.chaffFlares>0){s.chaffFlares--;expendable=p.countermeasures;}
+  const radarTrackingPenalty=clamp(p.jammer*.42+expendable*.24+p.rwr*.10,0,.62);
+  const infraredPenalty=clamp(expendable*.28,0,.30);
+  const survivabilityBonus=clamp(p.rwr*.08+p.jammer*.10+expendable*.08,0,.22);
+  return{...p,expendable,radarTrackingPenalty,infraredPenalty,survivabilityBonus};
+}
+
+export function conductSeadStrike(attacker,target,{rng=Math.random,currentTick=0}={}){
+  const a=ensureElectronicWarfare(attacker),def=ensureGuidedAirDefence(target);if(!has(attacker,EW_TECH_IDS.ARM))return{launched:false,reason:'technology_not_ready'};if(a.antiRadiationMissiles<1)return{launched:false,reason:'no_anti_radiation_missiles'};
+  const emitting=has(target,RADAR_GUIDED_SAM_TECH_ID)&&(def.radarSamInventory>0||radar(target)>.08)&&((def.radarCondition??1)>.08);if(!emitting)return{launched:false,reason:'no_emitting_radar'};
+  a.antiRadiationMissiles--;a.totalArmShots++;const attack=aircraftEwProfile(attacker),targetRadar=radar(target),home=clamp(.28+electronics(attacker)*.20+precision(attacker)*.16+attack.rwr*.16+attack.digital*.08-targetRadar*.04);
+  const hit=rng()<home;let damage=0,destroyed=false;if(hit){def.radarCondition=clamp((def.radarCondition??1)-(.24+.34*rng()));damage=1-def.radarCondition;destroyed=def.radarCondition<=.12;if(destroyed)a.totalRadarsDestroyed++;}
+  a.seadExperience=clamp(a.seadExperience+.012);a.experience=clamp(a.experience+.006);return{launched:true,hit,damage,destroyed,tick:currentTick,radarCondition:def.radarCondition??1};
+}
+
+export function airDefenceSuppressionFactor(region){const s=ensureGuidedAirDefence(region);return clamp((s.radarCondition??1)*(1-(s.temporarySuppression||0)));}
+
+export function applyElectronicSuppression(attacker,target,{intensity=1}={}){
+  const p=aircraftEwProfile(attacker),def=ensureGuidedAirDefence(target),amount=clamp(p.jammer*.38*Math.max(0,intensity),0,.55);def.temporarySuppression=clamp(Math.max(def.temporarySuppression||0,amount));ensureElectronicWarfare(attacker).jammingExperience=clamp(ensureElectronicWarfare(attacker).jammingExperience+.004*intensity);return{suppression:amount};
+}
+
+export function tickElectronicWarfare(regions,currentTick,rng=Math.random,elapsedDays=7){
+  const events=[],years=Math.max(.001,elapsedDays/DAYS_PER_YEAR);
+  for(const r of regions||[]){const ew=ensureElectronicWarfare(r),def=ensureGuidedAirDefence(r);def.radarCondition=clamp(def.radarCondition??1);def.temporarySuppression=clamp((def.temporarySuppression||0)*Math.pow(.28,Math.max(0,elapsedDays)/7));if(def.radarCondition<1&&rng()<years*(.25+manufacture(r)*.5)){const repair=Math.min(1-def.radarCondition,.04+manufacture(r)*.08);if(nonNegative(r.treasury)>=repair*18){r.treasury-=repair*18;def.radarCondition=clamp(def.radarCondition+repair);}}
+    const pressure=clamp((r.conflictPressure||0)+(r.militaryStrategy?.spendingPriority||0)*.4);if(has(r,EW_TECH_IDS.COUNTERMEASURES)&&ew.chaffFlares<6&&rng()<years*(.20+pressure*.45)){const b=buildAircraftCountermeasures(r,{count:2});if(b.built)events.push({type:'countermeasures_produced',regionId:r.id,tick:currentTick,count:b.count});}if(has(r,EW_TECH_IDS.ARM)&&ew.antiRadiationMissiles<3&&rng()<years*(.12+pressure*.38)){const b=buildAntiRadiationMissile(r,{count:1});if(b.built)events.push({type:'anti_radiation_missile_produced',regionId:r.id,tick:currentTick,count:1});}}
+  return events;
+}
