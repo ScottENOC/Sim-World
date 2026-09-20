@@ -10,6 +10,7 @@ export const SPECIAL_OPERATION_MISSIONS = Object.freeze({
   RECONNAISSANCE: 'special_reconnaissance',
   SABOTAGE: 'special_sabotage',
   VIP_CAPTURE: 'vip_capture',
+  VIP_ASSASSINATION: 'vip_assassination',
   VIP_RESCUE: 'vip_rescue',
   STRATEGIC_SITE_RAID: 'strategic_site_raid',
 });
@@ -161,6 +162,7 @@ export function specialOperationAssessment(origin, target, mission, { insertion 
     [SPECIAL_OPERATION_MISSIONS.RECONNAISSANCE]: .16,
     [SPECIAL_OPERATION_MISSIONS.SABOTAGE]: .30,
     [SPECIAL_OPERATION_MISSIONS.VIP_CAPTURE]: .42,
+    [SPECIAL_OPERATION_MISSIONS.VIP_ASSASSINATION]: .46,
     [SPECIAL_OPERATION_MISSIONS.VIP_RESCUE]: .46,
     [SPECIAL_OPERATION_MISSIONS.STRATEGIC_SITE_RAID]: .50,
   })[mission] ?? .35;
@@ -182,6 +184,7 @@ export function launchSpecialOperation(origin, target, mission, currentTick, opt
   const teamSize = Math.min(state.available, assessment.teamSize);
   if (teamSize < Math.min(4, assessment.teamSize)) return { launched: false, reason: 'insufficient_available_operators' };
   state.available -= teamSize;
+  const targetsVip = [SPECIAL_OPERATION_MISSIONS.VIP_CAPTURE, SPECIAL_OPERATION_MISSIONS.VIP_ASSASSINATION].includes(mission);
   const operation = {
     id: `specop-${origin.id || 'region'}-${state.nextOperationId++}`,
     mission,
@@ -193,7 +196,7 @@ export function launchSpecialOperation(origin, target, mission, currentTick, opt
     teamSize,
     helicopterId: options.helicopter?.id || options.helicopterId || null,
     fleetId: options.fleet?.id || options.fleetId || null,
-    targetVip: options.targetVip || (mission === SPECIAL_OPERATION_MISSIONS.VIP_CAPTURE ? defaultVip(target) : null),
+    targetVip: options.targetVip || (targetsVip ? defaultVip(target) : null),
     strategicSiteId: options.strategicSiteId || null,
     launchedTick: currentTick,
     resolveTick: currentTick + Math.max(1, Number(options.durationWeeks) || (mission === SPECIAL_OPERATION_MISSIONS.RECONNAISSANCE ? 1 : 2)),
@@ -209,7 +212,21 @@ function recordMissionExperience(state, mission, amount) {
   state.missionExperience[mission] = clamp((state.missionExperience[mission] || 0) + amount * (1 - (state.missionExperience[mission] || 0)));
 }
 
-function applySuccess(origin, target, op, currentTick) {
+function queueLeadershipShock(target, op, vip, removedBy, currentTick, attributed) {
+  target.governance ||= {};
+  target.governance.pendingLeadershipShocks ||= [];
+  target.governance.pendingLeadershipShocks.push({
+    tick: currentTick,
+    vip,
+    removedBy,
+    sourceActorId: op.ownerActorId,
+    operationId: op.id,
+    detected: !!op.detected,
+    attributed: !!attributed,
+  });
+}
+
+function applySuccess(origin, target, op, currentTick, attributed = false) {
   const state = ensureSpecialForces(origin);
   if (op.mission === SPECIAL_OPERATION_MISSIONS.RECONNAISSANCE) {
     origin.specialOperationsIntel ||= {};
@@ -229,8 +246,20 @@ function applySuccess(origin, target, op, currentTick) {
     target.governance ||= {};
     target.governance.vipStatus ||= {};
     target.governance.vipStatus[vip.id] = { status: 'captured', heldByActorId: op.ownerActorId, sinceTick: currentTick };
+    if (target.governance.governor?.id === vip.id) target.governance.governor.status = 'captured';
     target.stability = clamp((target.stability ?? .5) - .035);
+    queueLeadershipShock(target, op, vip, 'capture', currentTick, attributed);
     return { effect: 'vip_captured', vip };
+  }
+  if (op.mission === SPECIAL_OPERATION_MISSIONS.VIP_ASSASSINATION) {
+    const vip = op.targetVip || defaultVip(target);
+    target.governance ||= {};
+    target.governance.vipStatus ||= {};
+    target.governance.vipStatus[vip.id] = { status: 'killed', killedByActorId: attributed ? op.ownerActorId : null, sinceTick: currentTick };
+    if (target.governance.governor?.id === vip.id) target.governance.governor.status = 'killed';
+    target.stability = clamp((target.stability ?? .5) - .055);
+    queueLeadershipShock(target, op, vip, 'assassination', currentTick, attributed);
+    return { effect: 'vip_assassinated', vip };
   }
   if (op.mission === SPECIAL_OPERATION_MISSIONS.VIP_RESCUE) {
     const hostileState = ensureSpecialForces(target);
@@ -250,6 +279,24 @@ function applySuccess(origin, target, op, currentTick) {
     return { effect: 'strategic_site_disrupted', strategicSiteId: site };
   }
   return { effect: 'none' };
+}
+
+function attributionChance(op, casualties) {
+  if (!op.detected) return 0;
+  const insertionSignal = op.insertion === SPECIAL_OPERATION_INSERTION.NAVAL_HELICOPTER ? .82
+    : op.insertion === SPECIAL_OPERATION_INSERTION.HELICOPTER ? .66 : .38;
+  const losses = clamp(casualties / Math.max(1, op.teamSize));
+  return clamp(.18 + insertionSignal * .46 + op.assessment.targetSecurity * .18 + losses * .16 - op.assessment.readiness * .12, .08, .96);
+}
+
+function recordDetectedAttack(target, op, currentTick, attributed) {
+  if (!op.detected) return;
+  target.militaryThreat ||= {};
+  target.militaryThreat.lastCovertAttackTick = currentTick;
+  target.militaryThreat.lastCovertAttackActorId = attributed ? op.ownerActorId : null;
+  target.militaryThreat.lastCovertAttackMission = op.mission;
+  target.militaryThreat.lastCovertAttackAttributed = !!attributed;
+  target.militaryThreat.recentCovertAttacks = (target.militaryThreat.recentCovertAttacks || 0) + 1;
 }
 
 export function tickSpecialOperations(regions, currentTick, elapsedDays = 7, rng = Math.random) {
@@ -278,8 +325,13 @@ export function tickSpecialOperations(regions, currentTick, elapsedDays = 7, rng
       op.resolvedTick = currentTick;
       op.detected = detected;
       op.casualties = casualties;
+      const attributionProbability = attributionChance(op, casualties);
+      const attributed = detected && rng() < attributionProbability;
+      op.attributed = attributed;
+      op.attributionProbability = attributionProbability;
+      recordDetectedAttack(target, op, currentTick, attributed);
       let effect = { effect: 'none' };
-      if (success) effect = applySuccess(origin, target, op, currentTick);
+      if (success) effect = applySuccess(origin, target, op, currentTick, attributed);
       recordMissionExperience(state, op.mission, success ? .022 : .009);
       if (detected) {
         target.specialOperationsSecurity ||= { detectedOperations: 0, experience: 0 };
@@ -293,6 +345,8 @@ export function tickSpecialOperations(regions, currentTick, elapsedDays = 7, rng
         originRegionId: origin.id,
         targetRegionId: target.id,
         detected,
+        attributed,
+        attributionProbability,
         casualties,
         ...effect,
       });

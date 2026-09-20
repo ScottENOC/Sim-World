@@ -15,10 +15,11 @@ function actorId(region) {
 
 export function isRecentReprisal(attacker, defender, currentTick, windowWeeks = REPRISAL_WINDOW_WEEKS) {
   const threat = attacker?.militaryThreat || {};
-  if (!Number.isFinite(threat.lastRaidedTick) || !Number.isFinite(currentTick)) return false;
-  if (currentTick - threat.lastRaidedTick > windowWeeks) return false;
-  const lastRaiderActorId = threat.lastRaiderActorId || null;
-  return Boolean(lastRaiderActorId && lastRaiderActorId === actorId(defender));
+  const defenderActor = actorId(defender);
+  const raidRecent = Number.isFinite(threat.lastRaidedTick) && currentTick - threat.lastRaidedTick <= windowWeeks && threat.lastRaiderActorId === defenderActor;
+  const covertRecent = Number.isFinite(threat.lastCovertAttackTick) && currentTick - threat.lastCovertAttackTick <= windowWeeks &&
+    threat.lastCovertAttackAttributed === true && threat.lastCovertAttackActorId === defenderActor;
+  return Boolean(raidRecent || covertRecent);
 }
 
 export function classifyRaidUseOfForce(attacker, defender, currentTick) {
