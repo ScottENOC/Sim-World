@@ -1,5 +1,4 @@
 from pathlib import Path
-import re
 
 path=Path('js/main.js')
 text=path.read_text()
@@ -10,12 +9,10 @@ if imp not in text:
     text=text.replace(anchor,anchor+imp)
 
 if 'const militaryAidDiplomacyEvents = profiler.measure(' not in text:
-    pattern=r'^(\s*const militaryAssistanceEvents\s*=\s*profiler\.measure\([^\n]+\);)'
-    match=re.search(pattern,text,re.M)
-    if not match: raise SystemExit('military assistance tick anchor not found')
-    indent=re.match(r'\s*',match.group(1)).group(0)
-    addition=match.group(1)+"\n"+indent+"const militaryAidDiplomacyEvents = profiler.measure('Military aid diplomacy', () => tickMilitaryAidDiplomacy(polities, regions, calendarWeek, Math.random, { playerPolityId: activePlayerPolityId }));"
-    text=text[:match.start()]+addition+text[match.end():]
+    anchor="    const militaryAssistanceEvents = profiler.measure('Military assistance and proxy wars', () =>\n      tickMilitaryAssistance(polities, regions, calendarWeek, time.elapsedDays, Math.random, { playerPolityId: activePlayerPolityId }));\n"
+    if anchor not in text: raise SystemExit('military assistance tick anchor not found')
+    addition=anchor+"    const militaryAidDiplomacyEvents = profiler.measure('Military aid diplomacy', () =>\n      tickMilitaryAidDiplomacy(polities, regions, calendarWeek, Math.random, { playerPolityId: activePlayerPolityId }));\n"
+    text=text.replace(anchor,addition)
 
 if '...militaryAidDiplomacyEvents.filter(' not in text:
     anchor="      ...militaryAssistanceEvents.filter((event) => event.donorPolityId === activePlayerPolityId || event.recipientPolityId === activePlayerPolityId || event.opponentPolityId === activePlayerPolityId || event.sides?.includes?.(activePlayerPolityId)),\n"
