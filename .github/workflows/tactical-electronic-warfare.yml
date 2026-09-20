@@ -1,0 +1,27 @@
+name: Tactical electronic warfare
+
+on:
+  pull_request:
+    paths:
+      - 'js/military/tacticalElectronicWarfare.js'
+      - 'js/military/guidedAirDefence.js'
+      - 'js/technology/modernEnergy.js'
+      - 'tools/test-tactical-electronic-warfare.mjs'
+      - '.github/workflows/tactical-electronic-warfare.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check EW modules
+        run: |
+          node --check js/military/tacticalElectronicWarfare.js
+          node --check js/military/guidedAirDefence.js
+          node --check js/technology/modernEnergy.js
+      - name: Run tactical EW regressions
+        run: node tools/test-tactical-electronic-warfare.mjs
