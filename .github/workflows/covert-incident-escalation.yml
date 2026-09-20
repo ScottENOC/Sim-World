@@ -6,6 +6,7 @@ on:
     branches:
       - feature/covert-escalation-management
       - feature/covert-demand-responses
+      - feature/covert-third-party-diplomacy
 
 jobs:
   test:
@@ -20,11 +21,15 @@ jobs:
           node --check js/diplomacy/covertIncidentEscalation.js
           node --check js/diplomacy/covertIncidentBridge.js
           node --check js/diplomacy/covertIncidentResponses.js
+          node --check js/diplomacy/covertIncidentThirdParty.js
+          node --check js/diplomacy/relations.js
           node --check js/politics/continuity.js
       - name: Run covert incident escalation regression
         run: node tools/test-covert-incident-escalation.mjs
       - name: Run covert demand response regression
         run: node tools/test-covert-demand-responses.mjs
+      - name: Run covert third-party diplomacy regression
+        run: node tools/test-covert-third-party-diplomacy.mjs
       - name: Run leadership shock regression
         run: node tools/test-covert-leadership-shocks.mjs
       - name: Run regime change regression
