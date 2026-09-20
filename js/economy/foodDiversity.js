@@ -20,7 +20,7 @@ export function regionalFoodProductionMix(region){
 export function ensureFoodDiversity(region){
   region.foodDiversity||={};const s=region.foodDiversity;
   s.productionMix={...regionalFoodProductionMix(region),...(s.productionMix||{})};
-  s.availability||={};s.consumption||={};
+  s.availability||={};s.consumption||={};s.shortage||={};
   if(!Number.isFinite(s.diversityIndex))s.diversityIndex=0;
   if(!Number.isFinite(s.healthSupport))s.healthSupport=.9;
   return s;
@@ -39,19 +39,23 @@ export function tickFoodDiversity(region,elapsedDays=7){
   for(const id of DIET_FOOD_IDS){
     const local=categorySupply*(s.productionMix[id]||0);
     region.stockpile[id]=Math.max(0,Number(region.stockpile[id])||0)+local;
-    const desired=pop*.0065*weeks; // enough demand to reward imports of underrepresented foods
-    region.marketDemand[id]=desired/weeks;
+    const desired=pop*.0065*weeks;
     const available=Math.max(0,Number(region.stockpile[id])||0);
     const consumed=Math.min(available,desired);
     region.stockpile[id]=Math.max(0,available-consumed);
-    s.availability[id]=clamp(consumed/Math.max(.0001,desired));
-    s.consumption[id]=consumed;
+    const availability=clamp(consumed/Math.max(.0001,desired));
+    const shortage=1-availability;
+    s.availability[id]=availability;s.shortage[id]=shortage;s.consumption[id]=consumed;
+    // The generic trade price model uses demand as its shortage signal. A
+    // missing dietary category therefore bids more strongly for imports while
+    // a locally abundant category remains cheap enough to export.
+    region.marketDemand[id]=(desired/weeks)*(1+shortage*5);
   }
   const values=DIET_FOOD_IDS.map(id=>clamp(s.availability[id]||0));
   const minimum=Math.min(...values),mean=values.reduce((a,b)=>a+b,0)/values.length;
   // Health cares about both breadth and bottlenecks: four adequate categories beat one huge staple surplus.
   s.diversityIndex=clamp(mean*.65+minimum*.35);
-  s.healthSupport=.94+s.diversityIndex*.08; // deliberately modest; famine/calories remain dominant
-  region.report||={};region.report.foodDiversity={workers:0,productionMix:{...s.productionMix},availability:{...s.availability},diversityIndex:s.diversityIndex,healthSupport:s.healthSupport};
+  s.healthSupport=.94+s.diversityIndex*.08;
+  region.report||={};region.report.foodDiversity={workers:0,productionMix:{...s.productionMix},availability:{...s.availability},shortage:{...s.shortage},diversityIndex:s.diversityIndex,healthSupport:s.healthSupport};
   return region.report.foodDiversity;
 }
