@@ -18,7 +18,10 @@ function precision(region){return clamp(region.industrialSupply?.capability?.pre
 function electric(region){return clamp(region.electricity?.industrialService||region.electricity?.service||0);}
 function manufacture(region){return clamp(region.structuralTransformation?.capability?.manufacture||0);}
 function annual(rate,days){return 1-Math.pow(1-clamp(rate,0,.95),Math.max(0,Number(days)||0)/DAYS_PER_YEAR);}
-function experience(region){return clamp(region.droneThreatExperience||0);}
+function experience(region){
+  const air=region.guidedAirDefence||{};
+  return clamp(Math.max(region.droneThreatExperience||0,(air.gunEngagements||0)/45,(air.samShots||0)/28,(air.samKills||0)/18));
+}
 
 export function ensureDirectedEnergyDefence(region){
   region.directedEnergyDefence||={groundSystems:0,capacitorCharge:0,shots:0,kills:0,experience:0,shipFits:0,vehicleFits:0,aircraftFits:0};
@@ -55,6 +58,26 @@ export function buildGroundLaserDefence(region,{count=1}={}){
   if(nonNegative(region.treasury)<cash||nonNegative(region.stockpile.steel)<steel||nonNegative(inv.machine_components)<machine)return{built:false,reason:'insufficient_inputs'};
   region.treasury-=cash;region.stockpile.steel-=steel;inv.machine_components-=machine;state.groundSystems+=n;state.capacitorCharge=Math.max(state.capacitorCharge,n);
   return{built:true,count:n,cost:{cash,steel,machine}};
+}
+
+export function fitShipLaser(region,ship){
+  if(!ship||!has(region,DIRECTED_ENERGY_TECH_IDS.SHIPBORNE_LASER))return{fitted:false,reason:'technology_or_ship_missing'};
+  const tier=Number(ship.designStats?.tier??ship.tier??0);if(tier<9||ship.designStats?.submersible)return{fitted:false,reason:'platform_too_small'};
+  const inv=region.industrialSupply?.inventory||{};region.stockpile||={};const cash=90,steel=5,machine=4;
+  if(nonNegative(region.treasury)<cash||nonNegative(region.stockpile.steel)<steel||nonNegative(inv.machine_components)<machine)return{fitted:false,reason:'insufficient_inputs'};
+  region.treasury-=cash;region.stockpile.steel-=steel;inv.machine_components-=machine;ship.directedEnergyDefence={type:'laser',platform:'ship',powerReserve:1,thermalState:0};ensureDirectedEnergyDefence(region).shipFits++;return{fitted:true};
+}
+
+export function fitVehicleLaser(region,design){
+  if(!design||!has(region,DIRECTED_ENERGY_TECH_IDS.VEHICLE_LASER))return{fitted:false,reason:'technology_or_platform_missing'};
+  const onboard=clamp(design.stats?.onboardPower||0),integration=clamp(design.stats?.integration||0);if(onboard<.42||integration<.36)return{fitted:false,reason:'insufficient_power_or_integration'};
+  design.stats.directedEnergyDefence={type:'laser',platform:'vehicle',powerBurden:.34,thermalBurden:.38};ensureDirectedEnergyDefence(region).vehicleFits++;return{fitted:true};
+}
+
+export function fitAircraftLaser(region,design){
+  if(!design||!has(region,DIRECTED_ENERGY_TECH_IDS.AIRBORNE_LASER))return{fitted:false,reason:'technology_or_platform_missing'};
+  const onboard=clamp(design.stats?.onboardPower||0),reliability=clamp(design.stats?.reliability||0);if(onboard<.58||reliability<.55)return{fitted:false,reason:'insufficient_airborne_power_or_reliability'};
+  design.stats.directedEnergyDefence={type:'laser',platform:'aircraft',powerBurden:.42,thermalBurden:.48,payloadPenalty:.12};ensureDirectedEnergyDefence(region).aircraftFits++;return{fitted:true};
 }
 
 export function tickDirectedEnergyDefence(region,elapsedDays=7){
