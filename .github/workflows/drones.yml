@@ -15,6 +15,9 @@ jobs:
       - name: Syntax check drone integration
         run: |
           node --check js/military/drones.js
+          node --check js/military/guidedAirDefence.js
           node --check js/technology/modernEnergy.js
       - name: Run drone regressions
-        run: node tools/test-drones.mjs
+        run: |
+          node tools/test-drones.mjs
+          node tools/test-guided-air-defence.mjs
