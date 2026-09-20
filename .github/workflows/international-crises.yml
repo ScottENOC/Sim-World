@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - feature/international-crisis-system
+      - feature/peace-conferences
 
 jobs:
   test:
@@ -20,8 +21,11 @@ jobs:
           node --check js/diplomacy/internationalCrisisBridge.js
           node --check js/diplomacy/internationalCrisisBodies.js
           node --check js/diplomacy/internationalOrganisations.js
+          node --check js/diplomacy/peaceConferences.js
       - name: Run international crisis regressions
         run: node tools/test-international-crises.mjs
+      - name: Run peace conference regressions
+        run: node tools/test-peace-conferences.mjs
       - name: Run covert crisis regressions
         run: |
           node tools/test-covert-incident-escalation.mjs
