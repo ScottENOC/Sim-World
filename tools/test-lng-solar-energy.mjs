@@ -71,7 +71,7 @@ const solarOnly=withAssets(region({id:'solar',weather:{solarAvailability:.9},ele
 solarOnly.unlockedTechIds.add(PHOTOVOLTAIC_GENERATION_TECH_ID);
 const solarResult=tickElectricity(solarOnly,365.2425);
 assert(solarResult.solarOutput>0,'a photovoltaic station should generate electricity');
-assert(solarResult.dispatch.balancingShortfall>0,'standalone solar should retain an intermittency/balancing cost');
+assert(solarResult.balancingShortfall>0,'standalone solar should retain an intermittency/balancing cost');
 
 const solarGas=withAssets(region({id:'solar-gas',weather:{solarAvailability:.9},stockpile:{coal:0,copper:3000,steel:0,diesel:0,natural_gas:5000,lng:0},electricity:{industrialService:0,householdService:0}}),'local_electric_grid','solar_power_station','gas_power_station');
 solarGas.unlockedTechIds.add(PHOTOVOLTAIC_GENERATION_TECH_ID);solarGas.unlockedTechIds.add(GAS_TURBINE_GENERATION_TECH_ID);
@@ -80,7 +80,7 @@ const gasStart=solarGas.stockpile.natural_gas;
 const mixed=tickElectricity(solarGas,365.2425);
 assert(mixed.gasOutput>0,'gas generation should respond when the grid needs firm energy or balancing');
 assert(solarGas.stockpile.natural_gas<gasStart,'gas-fired output should consume physical natural gas');
-assert(mixed.dispatch.balancingShortfall<solarResult.dispatch.balancingShortfall,'flexible gas generation should improve solar balancing');
+assert(mixed.balancingShortfall<solarResult.balancingShortfall,'flexible gas generation should improve solar balancing');
 
 const tradeSrc=fs.readFileSync(new URL('../js/economy/trade.js',import.meta.url),'utf8');
 assert(tradeSrc.includes("opp.resource === 'lng'") && tradeSrc.includes('lngCarrierId'),'trade runtime should enforce LNG-specific carrier logistics');
@@ -89,7 +89,6 @@ assert(regionSrc.includes('deposits.natural_gas'),'world generation should seed 
 const mainSrc=fs.readFileSync(new URL('../js/main.js',import.meta.url),'utf8');
 assert(mainSrc.includes('tickModernEnergy(region, time.elapsedDays)'),'modern energy runtime should run before grid dispatch');
 
-// Procurement should not be able to build without the specialised shipbuilding base.
 const noYard=withAssets(region({id:'no-yard'}),'harbour','lng_liquefaction_terminal');noYard.unlockedTechIds.add(LNG_CARRIER_TECH_ID);
 assert.equal(tickLngCarrierProcurement(noYard,365.2425),null);
 
