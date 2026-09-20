@@ -7,21 +7,24 @@ import { tickRegimeChange } from './regimeChange.js?v=20260916-regime1';
 import { processPendingLeadershipShocks } from './leadershipShocks.js?v=20260920-leadership-shock1';
 import { harvestCovertIncidents } from '../diplomacy/covertIncidentBridge.js?v=20260920-covert-escalation1';
 import { tickCovertIncidentEscalation } from '../diplomacy/covertIncidentEscalation.js?v=20260920-covert-escalation1';
+import { tickCovertThirdPartyDiplomacy } from '../diplomacy/covertIncidentThirdParty.js?v=20260920-covert-third-party1';
 import { tickCovertDemandResponses } from '../diplomacy/covertIncidentResponses.js?v=20260920-covert-demand-response1';
 
 /**
  * Live political pass used by main.js. Popular wellbeing feeds institutional
  * pressure; detected covert attacks become diplomatic incidents before their
  * leadership shocks alter elite legitimacy/coup conditions. Victim states choose
- * their initial response first, then accused states answer any resulting demands
- * on a later tick. Institutional pressure can then produce coups or revolutions;
- * the existing continuity/exile pass runs last against the resulting sovereignty.
+ * their initial response first; third parties may then back, condemn, mediate,
+ * urge restraint or sanction; accused states answer any resulting demands on a
+ * later tick. Institutional pressure can then produce coups or revolutions; the
+ * existing continuity/exile pass runs last against the resulting sovereignty.
  */
 export function tickPoliticalContinuity(polities, regions, elapsedYears = 0, currentTick = 0, options = {}) {
   const elapsedDays = Math.max(0, Number(elapsedYears) || 0) * 365.2425;
   const popularEvents = tickPopularWellbeing(regions, polities, elapsedDays, options);
   const harvested = harvestCovertIncidents(regions, currentTick);
   const covertEvents = tickCovertIncidentEscalation(polities, regions, currentTick, elapsedDays, options.rng || Math.random, options);
+  const thirdPartyEvents = tickCovertThirdPartyDiplomacy(polities, regions, currentTick, elapsedDays, options.rng || Math.random, options);
   const demandResponseEvents = tickCovertDemandResponses(polities, regions, currentTick, elapsedDays, options.rng || Math.random, options);
   const leadershipEvents = processPendingLeadershipShocks(polities, regions, currentTick, elapsedDays);
   const institutionalEvents = tickInstitutionalPolitics(polities, regions, currentTick, elapsedDays, options);
@@ -36,5 +39,5 @@ export function tickPoliticalContinuity(polities, regions, elapsedYears = 0, cur
     attributionConfidence: incident.attributionConfidence,
     mission: incident.mission,
   }));
-  return [...popularEvents, ...harvestEvents, ...covertEvents, ...demandResponseEvents, ...leadershipEvents, ...institutionalEvents, ...regimeEvents, ...continuityEvents];
+  return [...popularEvents, ...harvestEvents, ...covertEvents, ...thirdPartyEvents, ...demandResponseEvents, ...leadershipEvents, ...institutionalEvents, ...regimeEvents, ...continuityEvents];
 }
