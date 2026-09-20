@@ -107,11 +107,37 @@ export function tickLeadershipShock(polity, elapsedDays = 30) {
   const state = polity?.leadershipShock;
   if (!state) return null;
   const years = Math.max(0, Number(elapsedDays) || 0) / DAYS_PER_YEAR;
-  const decay = Math.exp(-years / 1.25);
-  state.coupOpening = clamp((state.coupOpening || 0) * decay);
+  state.coupOpening = clamp((state.coupOpening || 0) * Math.exp(-years / 1.25));
   state.martyrBacklash = clamp((state.martyrBacklash || 0) * Math.exp(-years / 1.8));
   state.pressure = clamp((state.pressure || 0) * Math.exp(-years / 1.1));
   return state;
+}
+
+export function processPendingLeadershipShocks(polities, regions, currentTick, elapsedDays = 30) {
+  const events = [];
+  for (const polity of polities || []) tickLeadershipShock(polity, elapsedDays);
+  for (const region of regions || []) {
+    const pending = region.governance?.pendingLeadershipShocks;
+    if (!Array.isArray(pending) || !pending.length) continue;
+    const polity = (polities || []).find(candidate => candidate.id === region.governance?.sovereignPolityId);
+    if (!polity) continue;
+    for (const shock of pending.splice(0)) {
+      const assessment = registerLeadershipShock(polity, regions, shock, shock.tick ?? currentTick);
+      if (!assessment) continue;
+      events.push({
+        type: 'leadership_shock',
+        polityId: polity.id,
+        regionId: region.id,
+        removedBy: shock.removedBy,
+        vip: shock.vip || null,
+        sourceActorId: shock.sourceActorId || null,
+        attributed: !!shock.attributed,
+        outcome: assessment.outcome,
+        assessment,
+      });
+    }
+  }
+  return events;
 }
 
 export function leadershipShockModifiers(polity) {
