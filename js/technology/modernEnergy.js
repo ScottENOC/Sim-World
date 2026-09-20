@@ -5,6 +5,7 @@ import { tickSpaceRace } from './spaceRace.js?v=20260920-space-race1';
 import { tickOrbitalSatellites } from './orbitalSatellites.js?v=20260920-orbital-satellites1';
 import { tickDroneBreakthroughs, tickDrones } from '../military/drones.js?v=20260920-drones2';
 import { tickGuidedAirDefenceBreakthroughs, tickGuidedAirDefenceIndustry } from '../military/guidedAirDefence.js?v=20260920-guided-air-defence1';
+import { tickDirectedEnergyBreakthroughs, tickDirectedEnergyDefence } from '../military/directedEnergy.js?v=20260920-directed-energy1';
 
 export const NATURAL_GAS_EXTRACTION_TECH_ID = 'natural_gas_extraction';
 export const GAS_TURBINE_GENERATION_TECH_ID = 'gas_turbine_generation';
@@ -68,11 +69,13 @@ export function tickModernEnergyBreakthroughs(regions,currentTick,rng=Math.rando
       if(region.unlockedTechIds.has(id)||rng()>=weekly(chances[key]||0,elapsedDays))continue;
       region.unlockedTechIds.add(id); events.push({type,regionId:region.id,regionName:region.name,tick:currentTick,title,message:`${region.name}: ${message}`}); break;
     }
+    tickDirectedEnergyDefence(region,elapsedDays);
   }
   events.push(...tickSpaceRace(regions,currentTick,rng,elapsedDays));
   events.push(...tickOrbitalSatellites(regions,currentTick,rng,elapsedDays));
   events.push(...tickGuidedAirDefenceBreakthroughs(regions,currentTick,rng,elapsedDays));
   events.push(...tickGuidedAirDefenceIndustry(regions,currentTick,rng,elapsedDays));
+  events.push(...tickDirectedEnergyBreakthroughs(regions,currentTick,rng,elapsedDays));
   events.push(...tickDroneBreakthroughs(regions,currentTick,rng,elapsedDays));
   events.push(...tickDrones(regions,currentTick,elapsedDays,rng));
   return events;
