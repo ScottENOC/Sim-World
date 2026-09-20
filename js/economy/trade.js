@@ -20,6 +20,7 @@ import { recordCommodityTrade } from './foodLuxuries.js?v=20260913-food-luxuries
 import { corporateVentureCapacityMultiplier } from './corporateCapital.js?v=20260913-capital2';
 import { warTradeDisruptionMultiplier } from './industrialWarEconomy.js?v=20260918-industrial-war1';
 import { idleLngCarrier, lngCarrierCargoCapacity, lngRouteCompatible } from './lngSolarEnergy.js?v=20260920-modern-energy1';
+import { tickFuelLogistics, fuelTransportProfile, isDedicatedFuel } from './fuelLogistics.js?v=20260920-fuel-logistics1';
 
 const LAND_ADJACENT_COST = 0.02;
 const SEA_COST_PER_KM = 0.0002;
@@ -607,10 +608,15 @@ function launchVentures(region, opportunities, currentTick, time, regionsById) {
   for (const opp of opportunities) {
     if (idle < 1 || launched >= ventureCap) break;
     const lngCarrier = opp.resource === 'lng' ? idleLngCarrier(region) : null;
+    const dedicatedFuel = isDedicatedFuel(opp.resource);
+    const fuelTransport = dedicatedFuel ? fuelTransportProfile(region, opp.dest, opp.resource, opp.route, regionsById) : null;
     if (opp.resource === 'lng' && (opp.route.mode !== 'sea' || !lngCarrier || !lngRouteCompatible(region, opp.dest))) continue;
+    if (dedicatedFuel && !fuelTransport) continue;
     const capacityPerMerchant = opp.resource === 'lng'
       ? lngCarrierCargoCapacity(lngCarrier) * opp.route.reliability
-      : Math.max(0.01, (opp.route.capacityKgPerMerchant / cargoKgPerUnit(opp.resource)) * opp.route.reliability);
+      : fuelTransport
+        ? fuelTransport.capacityUnits * opp.route.reliability * fuelTransport.reliabilityMultiplier
+        : Math.max(0.01, (opp.route.capacityKgPerMerchant / cargoKgPerUnit(opp.resource)) * opp.route.reliability);
     const availableCargo = Math.min(
       Math.max(0, region.stockpile[opp.resource] || 0),
       Math.max(0, exportRemaining[opp.resource] || 0),
@@ -631,19 +637,21 @@ function launchVentures(region, opportunities, currentTick, time, regionsById) {
       cargo,
       merchants,
       lngCarrierId: lngCarrier?.id || null,
+      fuelAssetId: fuelTransport?.assetId || null,
+      fuelTransportMode: fuelTransport?.mode || null,
       originPrice: opp.originPrice,
       expectedPrice: opp.expectedPrice,
-      routeCost: opp.route.cost,
+      routeCost: opp.route.cost * (fuelTransport?.costMultiplier ?? 1),
       tollsPaid,
-      reliability: opp.route.reliability,
-      transportMode: opp.route.mode,
+      reliability: opp.route.reliability * (fuelTransport?.reliabilityMultiplier ?? 1),
+      transportMode: fuelTransport?.mode || opp.route.mode,
       pathIds: opp.route.pathIds || null,
       seaIds: opp.route.seaIds || null,
       passageIds: opp.route.passageIds || null,
       departureTick: currentTick,
       departureDay,
-      arrivalDay: departureDay + opp.route.oneWayDays,
-      returnDay: departureDay + opp.route.roundTripDays,
+      arrivalDay: departureDay + opp.route.oneWayDays * (fuelTransport?.timeMultiplier ?? 1),
+      returnDay: departureDay + (opp.route.oneWayDays * 2 * (fuelTransport?.timeMultiplier ?? 1) + MARKET_TURNAROUND_DAYS),
       arrived: false,
       payment: 0,
       soldVolume: 0,
@@ -772,6 +780,7 @@ function candidateMarketIds(region, regionsById, knownIds, hubIds, currentTick) 
 }
 
 export function tickTrade(regions, currentTick = null, time = null, agreements = [], profiler = null) {
+  tickFuelLogistics(regions, currentTick, time?.elapsedDays ?? 7);
   if (Number.isFinite(currentTick)) tickTradePolicyCommunications(regions, currentTick);
   const measureDetail = (label, fn) => profiler?.measureDetail ? profiler.measureDetail(label, fn) : fn();
   const metric = (label, value) => profiler?.metric?.(label, value);

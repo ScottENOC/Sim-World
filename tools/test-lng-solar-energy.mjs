@@ -33,7 +33,7 @@ for(const id of ['natural_gas_field','gas_power_station','lng_liquefaction_termi
   assert(CONSTRUCTION_TYPES[id],`${id} should be a buildable infrastructure type`);
 }
 assert(TRADE_GOODS.lng,'LNG should be a priced/tradable commodity');
-assert(!TRADE_GOODS.natural_gas,'pipeline gas should not silently travel in ordinary merchant cargo');
+assert(TRADE_GOODS.natural_gas,'pipeline natural gas should have a market price once pipeline trade exists');
 
 const tech=region({id:'tech'});
 for(const id of ['petroleum_well_drilling','petroleum_refining','electrical_generation','industrial_electrification'])tech.unlockedTechIds.add(id);
@@ -84,6 +84,7 @@ assert(mixed.balancingShortfall<solarResult.balancingShortfall,'flexible gas gen
 
 const tradeSrc=fs.readFileSync(new URL('../js/economy/trade.js',import.meta.url),'utf8');
 assert(tradeSrc.includes("opp.resource === 'lng'") && tradeSrc.includes('lngCarrierId'),'trade runtime should enforce LNG-specific carrier logistics');
+assert(tradeSrc.includes('isDedicatedFuel') && tradeSrc.includes('fuelTransportProfile'),'pipeline gas should be market-priced but blocked from generic merchant transport');
 const regionSrc=fs.readFileSync(new URL('../js/world/region.js',import.meta.url),'utf8');
 assert(regionSrc.includes('deposits.natural_gas'),'world generation should seed latent natural-gas geology');
 const mainSrc=fs.readFileSync(new URL('../js/main.js',import.meta.url),'utf8');
