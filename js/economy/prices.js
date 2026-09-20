@@ -15,12 +15,18 @@ export const TRADABLE_RESOURCES=[...BASE_TRADABLE_RESOURCES,...DIET_FOOD_IDS];
 // same scarcity mechanism so two regions can profitably exchange different
 // foods even when both have enough generic calories.
 export function localPrice(region, resource) {
-  const good = TRADE_GOODS[resource] || DIET_GOODS[resource];
+  const dietGood=DIET_GOODS[resource];
+  const good = TRADE_GOODS[resource] || dietGood;
   if (!good) return 0;
   const base = good.basePrice;
   const ref = good.referenceStock;
   const demand = Math.max(0, region.marketDemand?.[resource] || 0);
-  const stock = Math.max(0, (region.stockpile?.[resource] || 0) - demand * 26);
+  // Generic commodities keep the old half-year buffer. Fresh and varied foods
+  // are priced against a much shorter household/market horizon; otherwise any
+  // plausible local stock is swallowed by the 26-week reserve calculation and
+  // distinct regional crop mixes become invisible to merchants.
+  const reserveWeeks=dietGood?2:26;
+  const stock = Math.max(0, (region.stockpile?.[resource] || 0) - demand * reserveWeeks);
   const demandPremium = 1 + Math.min(9, demand / Math.max(1, ref * 0.01));
   return base * (ref / (stock + ref)) * demandPremium;
 }
