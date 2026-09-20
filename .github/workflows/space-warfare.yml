@@ -1,0 +1,31 @@
+name: Space warfare
+
+on:
+  pull_request:
+    paths:
+      - 'js/military/spaceWarfare.js'
+      - 'js/technology/modernEnergy.js'
+      - 'tools/test-space-warfare.mjs'
+      - '.github/workflows/space-warfare.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'js/military/spaceWarfare.js'
+      - 'js/technology/modernEnergy.js'
+      - 'tools/test-space-warfare.mjs'
+      - '.github/workflows/space-warfare.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check space warfare
+        run: |
+          node --check js/military/spaceWarfare.js
+          node --check js/technology/modernEnergy.js
+      - name: Run space warfare regressions
+        run: node tools/test-space-warfare.mjs
