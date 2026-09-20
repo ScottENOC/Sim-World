@@ -45,7 +45,7 @@ jobs:
         run: |
           node tools/test-military-assistance-ui.mjs
           node tools/test-military-assistance-proxy-wars.mjs
-          node tools/test-ui-responsiveness.mjs
+          node tools/test-ui-priority.mjs
       - name: Commit integrated source
         if: github.event_name == 'push'
         run: |
