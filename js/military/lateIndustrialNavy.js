@@ -1,3 +1,5 @@
+import { tickSubmarineBreakthroughs, tickSubmarineFleet, submarineCanAmbush, submarineDetectionSignature } from './submarineOperations.js?v=20260920-submarine1';
+
 const DAYS_PER_YEAR=365.2425;
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const has=(r,id)=>Boolean(r?.unlockedTechIds?.has?.(id));
@@ -41,6 +43,7 @@ export function tickLateIndustrialNavalBreakthroughs(regions,currentTick,rng=Mat
    events.push({type:'late_industrial_naval_breakthrough',techId:tech.id,regionId:region.id,regionName:region.name,tick:currentTick,title:`${tech.label} developed`});
   }
  }
+ events.push(...tickSubmarineBreakthroughs(regions,currentTick,rng,elapsedDays));
  return events;
 }
 
@@ -89,26 +92,34 @@ function resolveMineRisk(fleet,sea,rng){
  const ship=damageRandomShip(fleet,.18+clamp(rng())*.35,rng);return ship?{type:'fleet_mine_strike',fleetId:fleet.id,shipId:ship.id,seaRegionId:sea.id,damage:1-(ship.condition??1)}:null;
 }
 function submarineAmbush(subFleet,target,ownerRegion,rng){
- const subs=subFleet.ships?.length||0;if(!subs||!target?.ships?.length)return null;
+ const subs=subFleet.ships?.length||0;if(!subs||!target?.ships?.length||!submarineCanAmbush(subFleet))return null;
  const torpedoes=Math.max(0,ownerRegion.stockpile?.torpedoes||0);if(torpedoes<1)return null;
  const escorts=destroyerCount(target),capitals=capitalShipCount(target);
  const targetVisibility=clamp(.35+Math.log1p(target.ships.length)*.08+capitals*.09);
- const attackChance=clamp(.16+subs*.055+targetVisibility*.35,.08,.72);
+ const stealth=1-submarineDetectionSignature(subFleet);
+ const attackChance=clamp(.12+subs*.055+targetVisibility*.35+stealth*.08,.06,.74);
  if(rng()>=attackChance)return null;
  const shots=Math.min(torpedoes,Math.max(1,Math.ceil(subs*.65)));ownerRegion.stockpile.torpedoes-=shots;
  const hitChance=clamp(.28+capitals*.045-escorts*.035,.08,.62);
  let hits=0,ship=null;for(let i=0;i<shots;i++){if(rng()<hitChance){hits++;ship=damageRandomShip(target,.32+clamp(rng())*.42,rng);}}
- const counterDetect=clamp(.04+escorts*.095+Math.log1p(target.ships.length)*.015,.03,.55);
+ const signature=submarineDetectionSignature(subFleet);
+ const counterDetect=clamp((.025+escorts*.095+Math.log1p(target.ships.length)*.015)*(.55+signature*1.55),.01,.72);
  let subLost=false;if(rng()<counterDetect){const victim=damageRandomShip(subFleet,.45+clamp(rng())*.45,rng);subLost=Boolean(victim);}
- return{type:'submarine_ambush',submarineFleetId:subFleet.id,targetFleetId:target.id,seaRegionId:subFleet.seaRegionId,shots,hits,targetShipId:ship?.id||null,counterDetected:subLost};
+ return{type:'submarine_ambush',submarineFleetId:subFleet.id,targetFleetId:target.id,seaRegionId:subFleet.seaRegionId,shots,hits,targetShipId:ship?.id||null,counterDetected:subLost,submarineSignature:signature,submarineMode:subFleet.submarineStatus?.mode||null};
 }
 
 export function tickLateIndustrialNavalWarfare(fleets,regions,seaRegions,currentTick,elapsedDays=7,rng=Math.random){
  const events=[],regionsById=new Map(regions.map(r=>[r.id,r])),seasById=new Map(seaRegions.map(s=>[s.id,s]));
  for(const sea of seaRegions)for(const field of ensureNavalMineState(sea)){field.condition=clamp(field.condition-Math.max(0,elapsedDays)/DAYS_PER_YEAR*.18);field.density=clamp(field.density*field.condition);}
  for(const fleet of fleets){
+  const owner=regionsById.get(fleet.ownerRegionId);
+  if(owner&&isSubmarineFleet(fleet)){
+   const before=fleet.submarineStatus?.mode||null;
+   const status=tickSubmarineFleet(fleet,owner,{elapsedDays});
+   if(status&&status.mode!==before&&(status.recharging||status.surfaced))events.push({type:'submarine_endurance_transition',fleetId:fleet.id,seaRegionId:fleet.seaRegionId||null,mode:status.mode,batteryCharge:status.batteryCharge,atmosphereReserve:status.atmosphereReserve,signature:status.signature,tick:currentTick});
+  }
   if(fleet.locationType!=='sea'||!fleet.seaRegionId||fleet.routeSeaIds?.length)continue;
-  const sea=seasById.get(fleet.seaRegionId),owner=regionsById.get(fleet.ownerRegionId);if(!sea||!owner)continue;
+  const sea=seasById.get(fleet.seaRegionId);if(!sea||!owner)continue;
   if(fleet.mission==='lay_mines'){const r=layNavalMines(fleet,sea,owner,{currentTick,rng});if(r.laid)events.push({type:'naval_mines_laid',fleetId:fleet.id,seaRegionId:sea.id,...r});continue;}
   if(fleet.mission==='sweep_mines'){const r=sweepNavalMines(fleet,sea,owner,{elapsedDays,rng});if(r.swept&&r.cleared>0)events.push({type:'naval_mines_swept',fleetId:fleet.id,seaRegionId:sea.id,...r});continue;}
   const mineEvent=resolveMineRisk(fleet,sea,rng);if(mineEvent)events.push(mineEvent);

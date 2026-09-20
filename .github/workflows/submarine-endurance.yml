@@ -1,0 +1,22 @@
+name: Submarine propulsion and endurance
+
+on:
+  pull_request:
+  push:
+    branches:
+      - feature/submarine-propulsion-endurance
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check submarine integration
+        run: |
+          node --check js/military/submarineOperations.js
+          node --check js/military/lateIndustrialNavy.js
+      - name: Run submarine endurance regressions
+        run: node tools/test-submarine-endurance.mjs
