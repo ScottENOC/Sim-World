@@ -1,6 +1,7 @@
 import { tickSubmarineBreakthroughs, tickSubmarineFleet, submarineCanAmbush, submarineDetectionSignature } from './submarineOperations.js?v=20260920-submarine1';
 import { attitudeToward } from '../diplomacy/relations.js?v=20260904-save1';
 import { carrierAirGroupSummary, resolveCarrierAirExchange } from './carrierAirGroupCombat.js?v=20260920-carrier-combat1';
+import { conductAntiShipMissileStrike, ensurePrecisionStrike, PRECISION_MUNITION_TYPES, PRECISION_STRIKE_TECH_IDS } from './precisionStrike.js?v=20260921-precision-strike1';
 
 const DAYS_PER_YEAR=365.2425;
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
@@ -20,145 +21,26 @@ const TECHS=[
  {id:DREADNOUGHT_TECH_ID,label:'All-big-gun battleship',prereq:['steel_hull_shipbuilding','breech_loading_artillery','marine_steam_engine'],base:.007},
 ];
 
-function industrialReadiness(region){
- const c=region.industrialSupply?.capability||{};
- return clamp((c.precision_machining||0)*.42+(c.steelmaking||0)*.30+(region.industrialMarine?.marineEngineering||0)*.28);
-}
-function contacts(region,byId){
- const ids=new Set(region.neighbors||[]);
- if(region.recentTradePartners?.keys)for(const id of region.recentTradePartners.keys())ids.add(id);
- else for(const id of region.tradePartnerIds||[])ids.add(id);
- return [...ids].map(id=>byId.get(id)).filter(Boolean);
-}
-export function tickLateIndustrialNavalBreakthroughs(regions,currentTick,rng=Math.random,elapsedDays=7){
- const years=Math.max(.001,elapsedDays/DAYS_PER_YEAR),byId=new Map(regions.map(r=>[r.id,r])),events=[];
- for(const region of regions){
-  if(!region.isCoastal)continue;
-  const readiness=industrialReadiness(region);
-  for(const tech of TECHS){
-   if(has(region,tech.id)||!tech.prereq.every(id=>has(region,id)))continue;
-   const sources=contacts(region,byId).filter(r=>has(r,tech.id)).length;
-   const annual=clamp(tech.base*(.2+readiness*1.8)+sources*.035,0,.45);
-   const chance=1-Math.pow(1-annual,years);
-   if(rng()>=chance)continue;
-   region.unlockedTechIds.add(tech.id);
-   events.push({type:'late_industrial_naval_breakthrough',techId:tech.id,regionId:region.id,regionName:region.name,tick:currentTick,title:`${tech.label} developed`});
-  }
- }
- events.push(...tickSubmarineBreakthroughs(regions,currentTick,rng,elapsedDays));
- return events;
-}
+function industrialReadiness(region){const c=region.industrialSupply?.capability||{};return clamp((c.precision_machining||0)*.42+(c.steelmaking||0)*.30+(region.industrialMarine?.marineEngineering||0)*.28);}
+function contacts(region,byId){const ids=new Set(region.neighbors||[]);if(region.recentTradePartners?.keys)for(const id of region.recentTradePartners.keys())ids.add(id);else for(const id of region.tradePartnerIds||[])ids.add(id);return [...ids].map(id=>byId.get(id)).filter(Boolean);}
+export function tickLateIndustrialNavalBreakthroughs(regions,currentTick,rng=Math.random,elapsedDays=7){const years=Math.max(.001,elapsedDays/DAYS_PER_YEAR),byId=new Map(regions.map(r=>[r.id,r])),events=[];for(const region of regions){if(!region.isCoastal)continue;const readiness=industrialReadiness(region);for(const tech of TECHS){if(has(region,tech.id)||!tech.prereq.every(id=>has(region,id)))continue;const sources=contacts(region,byId).filter(r=>has(r,tech.id)).length,annual=clamp(tech.base*(.2+readiness*1.8)+sources*.035,0,.45),chance=1-Math.pow(1-annual,years);if(rng()>=chance)continue;region.unlockedTechIds.add(tech.id);events.push({type:'late_industrial_naval_breakthrough',techId:tech.id,regionId:region.id,regionName:region.name,tick:currentTick,title:`${tech.label} developed`});}}events.push(...tickSubmarineBreakthroughs(regions,currentTick,rng,elapsedDays));return events;}
 
-export function ensureNavalMineState(sea){
- sea.minefields ||= [];
- if(!Array.isArray(sea.minefields))sea.minefields=[];
- return sea.minefields;
-}
-export function layNavalMines(fleet,sea,ownerRegion,{currentTick=0,rng=Math.random}={}){
- if(!fleet||!sea||!ownerRegion||!has(ownerRegion,NAVAL_MINES_TECH_ID))return{laid:false,reason:'technology'};
- const stock=Math.max(0,ownerRegion.stockpile?.naval_mines||0);
- if(stock<1)return{laid:false,reason:'no_mines'};
- const used=Math.min(stock,Math.max(1,Math.ceil((fleet.ships?.length||1)*.75)));
- ownerRegion.stockpile.naval_mines-=used;
- const fields=ensureNavalMineState(sea);
- let field=fields.find(f=>f.ownerActorId===fleet.ownerActorId);
- if(!field){field={id:`mine:${sea.id}:${fleet.ownerActorId}`,ownerActorId:fleet.ownerActorId,density:0,condition:1,laidTick:currentTick,knownByActorIds:[fleet.ownerActorId]};fields.push(field);}
- field.density=clamp(field.density+used*.055*(.85+rng()*.3));field.condition=1;field.laidTick=currentTick;
- return{laid:true,used,density:field.density};
-}
-export function sweepNavalMines(fleet,sea,ownerRegion,{elapsedDays=7,rng=Math.random}={}){
- if(!fleet||!sea||!ownerRegion||!has(ownerRegion,MINESWEEPING_TECH_ID))return{swept:false,reason:'technology'};
- const fields=ensureNavalMineState(sea).filter(f=>f.ownerActorId!==fleet.ownerActorId&&f.density>0);
- if(!fields.length)return{swept:true,cleared:0};
- const destroyers=(fleet.ships||[]).filter(s=>s.designId==='destroyer').length;
- const effort=(fleet.ships?.length||0)*.006*(1+destroyers*.45)*Math.max(.1,elapsedDays/7)*(.75+rng()*.5);
- let cleared=0;
- for(const field of fields){const amount=Math.min(field.density,effort);field.density-=amount;cleared+=amount;if(field.density<.01)field.density=0;}
- return{swept:true,cleared};
-}
+export function ensureNavalMineState(sea){sea.minefields ||= [];if(!Array.isArray(sea.minefields))sea.minefields=[];return sea.minefields;}
+export function layNavalMines(fleet,sea,ownerRegion,{currentTick=0,rng=Math.random}={}){if(!fleet||!sea||!ownerRegion||!has(ownerRegion,NAVAL_MINES_TECH_ID))return{laid:false,reason:'technology'};const stock=Math.max(0,ownerRegion.stockpile?.naval_mines||0);if(stock<1)return{laid:false,reason:'no_mines'};const used=Math.min(stock,Math.max(1,Math.ceil((fleet.ships?.length||1)*.75)));ownerRegion.stockpile.naval_mines-=used;const fields=ensureNavalMineState(sea);let field=fields.find(f=>f.ownerActorId===fleet.ownerActorId);if(!field){field={id:`mine:${sea.id}:${fleet.ownerActorId}`,ownerActorId:fleet.ownerActorId,density:0,condition:1,laidTick:currentTick,knownByActorIds:[fleet.ownerActorId]};fields.push(field);}field.density=clamp(field.density+used*.055*(.85+rng()*.3));field.condition=1;field.laidTick=currentTick;return{laid:true,used,density:field.density};}
+export function sweepNavalMines(fleet,sea,ownerRegion,{elapsedDays=7,rng=Math.random}={}){if(!fleet||!sea||!ownerRegion||!has(ownerRegion,MINESWEEPING_TECH_ID))return{swept:false,reason:'technology'};const fields=ensureNavalMineState(sea).filter(f=>f.ownerActorId!==fleet.ownerActorId&&f.density>0);if(!fields.length)return{swept:true,cleared:0};const destroyers=(fleet.ships||[]).filter(s=>s.designId==='destroyer').length,effort=(fleet.ships?.length||0)*.006*(1+destroyers*.45)*Math.max(.1,elapsedDays/7)*(.75+rng()*.5);let cleared=0;for(const field of fields){const amount=Math.min(field.density,effort);field.density-=amount;cleared+=amount;if(field.density<.01)field.density=0;}return{swept:true,cleared};}
 
-function isSubmarineFleet(fleet){return (fleet?.ships?.length||0)>0&&fleet.ships.every(s=>s.designId==='submarine');}
-function destroyerCount(fleet){return (fleet?.ships||[]).filter(s=>s.designId==='destroyer').length;}
-function capitalShipCount(fleet){return (fleet?.ships||[]).filter(s=>['dreadnought','steel_warship','ironclad','ship_of_line'].includes(s.designId)).length;}
-function damageRandomShip(fleet,damage,rng){
- const ships=(fleet?.ships||[]).filter(s=>(s.condition??1)>0.02);if(!ships.length)return null;
- const ship=ships[Math.floor(clamp(rng())*ships.length)%ships.length];ship.condition=clamp((ship.condition??1)-damage);
- return ship;
-}
-function resolveMineRisk(fleet,sea,rng){
- let total=0;for(const field of ensureNavalMineState(sea)){if(field.ownerActorId===fleet.ownerActorId||field.density<=0)continue;total+=field.density*field.condition;}
- if(total<=0)return null;
- const sweepProtection=destroyerCount(fleet)*.04;
- const chance=clamp(total*.16-sweepProtection,.005,.45);
- if(rng()>=chance)return null;
- const ship=damageRandomShip(fleet,.18+clamp(rng())*.35,rng);return ship?{type:'fleet_mine_strike',fleetId:fleet.id,shipId:ship.id,seaRegionId:sea.id,damage:1-(ship.condition??1)}:null;
-}
-function submarineAmbush(subFleet,target,ownerRegion,rng){
- const subs=subFleet.ships?.length||0;if(!subs||!target?.ships?.length||!submarineCanAmbush(subFleet))return null;
- const torpedoes=Math.max(0,ownerRegion.stockpile?.torpedoes||0);if(torpedoes<1)return null;
- const escorts=destroyerCount(target),capitals=capitalShipCount(target);
- const targetVisibility=clamp(.35+Math.log1p(target.ships.length)*.08+capitals*.09);
- const stealth=1-submarineDetectionSignature(subFleet);
- const attackChance=clamp(.12+subs*.055+targetVisibility*.35+stealth*.08,.06,.74);
- if(rng()>=attackChance)return null;
- const shots=Math.min(torpedoes,Math.max(1,Math.ceil(subs*.65)));ownerRegion.stockpile.torpedoes-=shots;
- const hitChance=clamp(.28+capitals*.045-escorts*.035,.08,.62);
- let hits=0,ship=null;for(let i=0;i<shots;i++){if(rng()<hitChance){hits++;ship=damageRandomShip(target,.32+clamp(rng())*.42,rng);}}
- const signature=submarineDetectionSignature(subFleet);
- const counterDetect=clamp((.025+escorts*.095+Math.log1p(target.ships.length)*.015)*(.55+signature*1.55),.01,.72);
- let subLost=false;if(rng()<counterDetect){const victim=damageRandomShip(subFleet,.45+clamp(rng())*.45,rng);subLost=Boolean(victim);}
- return{type:'submarine_ambush',submarineFleetId:subFleet.id,targetFleetId:target.id,seaRegionId:subFleet.seaRegionId,shots,hits,targetShipId:ship?.id||null,counterDetected:subLost,submarineSignature:signature,submarineMode:subFleet.submarineStatus?.mode||null};
-}
+function isSubmarineFleet(fleet){return(fleet?.ships?.length||0)>0&&fleet.ships.every(s=>s.designId==='submarine');}
+function destroyerCount(fleet){return(fleet?.ships||[]).filter(s=>s.designId==='destroyer').length;}
+function capitalShipCount(fleet){return(fleet?.ships||[]).filter(s=>['dreadnought','steel_warship','ironclad','ship_of_line'].includes(s.designId)).length;}
+function damageRandomShip(fleet,damage,rng){const ships=(fleet?.ships||[]).filter(s=>(s.condition??1)>0.02);if(!ships.length)return null;const ship=ships[Math.floor(clamp(rng())*ships.length)%ships.length];ship.condition=clamp((ship.condition??1)-damage);return ship;}
+function resolveMineRisk(fleet,sea,rng){let total=0;for(const field of ensureNavalMineState(sea)){if(field.ownerActorId===fleet.ownerActorId||field.density<=0)continue;total+=field.density*field.condition;}if(total<=0)return null;const sweepProtection=destroyerCount(fleet)*.04,chance=clamp(total*.16-sweepProtection,.005,.45);if(rng()>=chance)return null;const ship=damageRandomShip(fleet,.18+clamp(rng())*.35,rng);return ship?{type:'fleet_mine_strike',fleetId:fleet.id,shipId:ship.id,seaRegionId:sea.id,damage:1-(ship.condition??1)}:null;}
+function submarineAmbush(subFleet,target,ownerRegion,rng){const subs=subFleet.ships?.length||0;if(!subs||!target?.ships?.length||!submarineCanAmbush(subFleet))return null;const torpedoes=Math.max(0,ownerRegion.stockpile?.torpedoes||0);if(torpedoes<1)return null;const escorts=destroyerCount(target),capitals=capitalShipCount(target),targetVisibility=clamp(.35+Math.log1p(target.ships.length)*.08+capitals*.09),stealth=1-submarineDetectionSignature(subFleet),attackChance=clamp(.12+subs*.055+targetVisibility*.35+stealth*.08,.06,.74);if(rng()>=attackChance)return null;const shots=Math.min(torpedoes,Math.max(1,Math.ceil(subs*.65)));ownerRegion.stockpile.torpedoes-=shots;const hitChance=clamp(.28+capitals*.045-escorts*.035,.08,.62);let hits=0,ship=null;for(let i=0;i<shots;i++){if(rng()<hitChance){hits++;ship=damageRandomShip(target,.32+clamp(rng())*.42,rng);}}const signature=submarineDetectionSignature(subFleet),counterDetect=clamp((.025+escorts*.095+Math.log1p(target.ships.length)*.015)*(.55+signature*1.55),.01,.72);let subLost=false;if(rng()<counterDetect){const victim=damageRandomShip(subFleet,.45+clamp(rng())*.45,rng);subLost=Boolean(victim);}return{type:'submarine_ambush',submarineFleetId:subFleet.id,targetFleetId:target.id,seaRegionId:subFleet.seaRegionId,shots,hits,targetShipId:ship?.id||null,counterDetected:subLost,submarineSignature:signature,submarineMode:subFleet.submarineStatus?.mode||null};}
 
 function carrierHostile(owner,targetRegion){return Boolean(owner&&targetRegion&&attitudeToward(owner,targetRegion.id)<=-.45);}
-function carrierSearchChance(owner,fleet,target,summary){
- const mission=fleet.mission==='intercept'?.20:fleet.mission==='patrol'?.13:fleet.mission==='blockade'?.16:.06;
- const targetSize=Math.min(.18,Math.log1p(target.ships?.length||0)*.055);
- return clamp(.05+mission+summary.detectionBonus+targetSize,0,.92);
-}
-function resolveCarrierAirWarfare(fleets,regionsById,currentTick,rng){
- const events=[],handled=new Set();
- for(const fleet of fleets){
-  if(fleet.locationType!=='sea'||!fleet.seaRegionId||fleet.routeSeaIds?.length||isSubmarineFleet(fleet))continue;
-  const owner=regionsById.get(fleet.ownerRegionId);if(!owner)continue;
-  const ownSummary=carrierAirGroupSummary(owner,fleet);if(ownSummary.aircraft<=0)continue;
-  const targets=fleets.filter(t=>t!==fleet&&t.locationType==='sea'&&t.seaRegionId===fleet.seaRegionId&&!t.routeSeaIds?.length&&t.ownerActorId!==fleet.ownerActorId&&!isSubmarineFleet(t));
-  for(const target of targets){
-   const targetRegion=regionsById.get(target.ownerRegionId);if(!carrierHostile(owner,targetRegion))continue;
-   const key=[fleet.id,target.id].sort().join('|');if(handled.has(key))continue;
-   const targetSummary=targetRegion?carrierAirGroupSummary(targetRegion,target):{aircraft:0,detectionBonus:0};
-   const foundByA=rng()<carrierSearchChance(owner,fleet,target,ownSummary);
-   const foundByB=targetRegion&&targetSummary.aircraft>0&&rng()<carrierSearchChance(targetRegion,target,fleet,targetSummary);
-   if(!foundByA&&!foundByB)continue;
-   handled.add(key);
-   const exchange=resolveCarrierAirExchange(fleet,target,regionsById,rng);
-   events.push({type:'carrier_air_engagement',tick:currentTick,seaRegionId:fleet.seaRegionId,attackerFleetId:fleet.id,defenderFleetId:target.id,detectedByAttacker:foundByA,detectedByDefender:Boolean(foundByB),attackerAew:ownSummary.aew,defenderAew:targetSummary.aew||null,exchange});
-  }
- }
- return events;
-}
+function carrierSearchChance(owner,fleet,target,summary){const mission=fleet.mission==='intercept'?.20:fleet.mission==='patrol'?.13:fleet.mission==='blockade'?.16:.06,targetSize=Math.min(.18,Math.log1p(target.ships?.length||0)*.055);return clamp(.05+mission+summary.detectionBonus+targetSize,0,.92);}
 
-export function tickLateIndustrialNavalWarfare(fleets,regions,seaRegions,currentTick,elapsedDays=7,rng=Math.random){
- const events=[],regionsById=new Map(regions.map(r=>[r.id,r])),seasById=new Map(seaRegions.map(s=>[s.id,s]));
- for(const sea of seaRegions)for(const field of ensureNavalMineState(sea)){field.condition=clamp(field.condition-Math.max(0,elapsedDays)/DAYS_PER_YEAR*.18);field.density=clamp(field.density*field.condition);}
- for(const fleet of fleets){
-  const owner=regionsById.get(fleet.ownerRegionId);
-  if(owner&&isSubmarineFleet(fleet)){
-   const before=fleet.submarineStatus?.mode||null;
-   const status=tickSubmarineFleet(fleet,owner,{elapsedDays});
-   if(status&&status.mode!==before&&(status.recharging||status.surfaced))events.push({type:'submarine_endurance_transition',fleetId:fleet.id,seaRegionId:fleet.seaRegionId||null,mode:status.mode,batteryCharge:status.batteryCharge,atmosphereReserve:status.atmosphereReserve,signature:status.signature,tick:currentTick});
-  }
-  if(fleet.locationType!=='sea'||!fleet.seaRegionId||fleet.routeSeaIds?.length)continue;
-  const sea=seasById.get(fleet.seaRegionId);if(!sea||!owner)continue;
-  if(fleet.mission==='lay_mines'){const r=layNavalMines(fleet,sea,owner,{currentTick,rng});if(r.laid)events.push({type:'naval_mines_laid',fleetId:fleet.id,seaRegionId:sea.id,...r});continue;}
-  if(fleet.mission==='sweep_mines'){const r=sweepNavalMines(fleet,sea,owner,{elapsedDays,rng});if(r.swept&&r.cleared>0)events.push({type:'naval_mines_swept',fleetId:fleet.id,seaRegionId:sea.id,...r});continue;}
-  const mineEvent=resolveMineRisk(fleet,sea,rng);if(mineEvent)events.push(mineEvent);
-  if(!isSubmarineFleet(fleet)||!['submarine_patrol','submarine_raid_shipping'].includes(fleet.mission))continue;
-  const targets=fleets.filter(t=>t!==fleet&&t.locationType==='sea'&&t.seaRegionId===fleet.seaRegionId&&t.ownerActorId!==fleet.ownerActorId&&!isSubmarineFleet(t));
-  if(!targets.length)continue;
-  const weighted=[...targets].sort((a,b)=>(capitalShipCount(b)*4+b.ships.length)-(capitalShipCount(a)*4+a.ships.length));
-  const event=submarineAmbush(fleet,weighted[0],owner,rng);if(event)events.push(event);
- }
- events.push(...resolveCarrierAirWarfare(fleets,regionsById,currentTick,rng));
- return events;
-}
+function resolveAntiShipMissileWarfare(fleets,regionsById,currentTick,rng){const events=[],handled=new Set();for(const fleet of fleets){if(fleet.locationType!=='sea'||!fleet.seaRegionId||fleet.routeSeaIds?.length||isSubmarineFleet(fleet))continue;const owner=regionsById.get(fleet.ownerRegionId);if(!owner||!has(owner,PRECISION_STRIKE_TECH_IDS.ANTI_SHIP))continue;const stock=ensurePrecisionStrike(owner).inventory[PRECISION_MUNITION_TYPES.ANTI_SHIP]||0;if(stock<=0)continue;const targets=fleets.filter(t=>t!==fleet&&t.locationType==='sea'&&t.seaRegionId===fleet.seaRegionId&&!t.routeSeaIds?.length&&t.ownerActorId!==fleet.ownerActorId&&!isSubmarineFleet(t));for(const target of targets){const targetRegion=regionsById.get(target.ownerRegionId);if(!carrierHostile(owner,targetRegion))continue;const key=[fleet.id,target.id].sort().join('|');if(handled.has(key))continue;handled.add(key);const salvo=Math.min(stock,Math.max(1,Math.ceil((fleet.ships?.length||1)*.35)));const result=conductAntiShipMissileStrike(owner,targetRegion,target,{count:salvo,rng,currentTick});if(result.launched)events.push({type:'anti_ship_missile_engagement',tick:currentTick,seaRegionId:fleet.seaRegionId,attackerFleetId:fleet.id,defenderFleetId:target.id,...result});}}return events;}
+
+function resolveCarrierAirWarfare(fleets,regionsById,currentTick,rng){const events=[],handled=new Set();for(const fleet of fleets){if(fleet.locationType!=='sea'||!fleet.seaRegionId||fleet.routeSeaIds?.length||isSubmarineFleet(fleet))continue;const owner=regionsById.get(fleet.ownerRegionId);if(!owner)continue;const ownSummary=carrierAirGroupSummary(owner,fleet);if(ownSummary.aircraft<=0)continue;const targets=fleets.filter(t=>t!==fleet&&t.locationType==='sea'&&t.seaRegionId===fleet.seaRegionId&&!t.routeSeaIds?.length&&t.ownerActorId!==fleet.ownerActorId&&!isSubmarineFleet(t));for(const target of targets){const targetRegion=regionsById.get(target.ownerRegionId);if(!carrierHostile(owner,targetRegion))continue;const key=[fleet.id,target.id].sort().join('|');if(handled.has(key))continue;const targetSummary=targetRegion?carrierAirGroupSummary(targetRegion,target):{aircraft:0,detectionBonus:0};const foundByA=rng()<carrierSearchChance(owner,fleet,target,ownSummary),foundByB=targetRegion&&targetSummary.aircraft>0&&rng()<carrierSearchChance(targetRegion,target,fleet,targetSummary);if(!foundByA&&!foundByB)continue;handled.add(key);const exchange=resolveCarrierAirExchange(fleet,target,regionsById,rng);events.push({type:'carrier_air_engagement',tick:currentTick,seaRegionId:fleet.seaRegionId,attackerFleetId:fleet.id,defenderFleetId:target.id,detectedByAttacker:foundByA,detectedByDefender:Boolean(foundByB),attackerAew:ownSummary.aew,defenderAew:targetSummary.aew||null,exchange});}}return events;}
+
+export function tickLateIndustrialNavalWarfare(fleets,regions,seaRegions,currentTick,elapsedDays=7,rng=Math.random){const events=[],regionsById=new Map(regions.map(r=>[r.id,r])),seasById=new Map(seaRegions.map(s=>[s.id,s]));for(const sea of seaRegions)for(const field of ensureNavalMineState(sea)){field.condition=clamp(field.condition-Math.max(0,elapsedDays)/DAYS_PER_YEAR*.18);field.density=clamp(field.density*field.condition);}for(const fleet of fleets){const owner=regionsById.get(fleet.ownerRegionId);if(owner&&isSubmarineFleet(fleet)){const before=fleet.submarineStatus?.mode||null,status=tickSubmarineFleet(fleet,owner,{elapsedDays});if(status&&status.mode!==before&&(status.recharging||status.surfaced))events.push({type:'submarine_endurance_transition',fleetId:fleet.id,seaRegionId:fleet.seaRegionId||null,mode:status.mode,batteryCharge:status.batteryCharge,atmosphereReserve:status.atmosphereReserve,signature:status.signature,tick:currentTick});}if(fleet.locationType!=='sea'||!fleet.seaRegionId||fleet.routeSeaIds?.length)continue;const sea=seasById.get(fleet.seaRegionId);if(!sea||!owner)continue;if(fleet.mission==='lay_mines'){const r=layNavalMines(fleet,sea,owner,{currentTick,rng});if(r.laid)events.push({type:'naval_mines_laid',fleetId:fleet.id,seaRegionId:sea.id,...r});continue;}if(fleet.mission==='sweep_mines'){const r=sweepNavalMines(fleet,sea,owner,{elapsedDays,rng});if(r.swept&&r.cleared>0)events.push({type:'naval_mines_swept',fleetId:fleet.id,seaRegionId:sea.id,...r});continue;}const mineEvent=resolveMineRisk(fleet,sea,rng);if(mineEvent)events.push(mineEvent);if(!isSubmarineFleet(fleet)||!['submarine_patrol','submarine_raid_shipping'].includes(fleet.mission))continue;const targets=fleets.filter(t=>t!==fleet&&t.locationType==='sea'&&t.seaRegionId===fleet.seaRegionId&&t.ownerActorId!==fleet.ownerActorId&&!isSubmarineFleet(t));if(!targets.length)continue;const weighted=[...targets].sort((a,b)=>(capitalShipCount(b)*4+b.ships.length)-(capitalShipCount(a)*4+a.ships.length)),event=submarineAmbush(fleet,weighted[0],owner,rng);if(event)events.push(event);}events.push(...resolveAntiShipMissileWarfare(fleets,regionsById,currentTick,rng));events.push(...resolveCarrierAirWarfare(fleets,regionsById,currentTick,rng));return events;}
