@@ -68,6 +68,17 @@ function addDebris(regions,amount,currentTick,cause){
   for(const r of regions||[])r.orbitalEnvironment={...(r.orbitalEnvironment||{}),debrisDensity:density,lastDebrisTick:currentTick,lastDebrisCause:cause};
   return density;
 }
+function attackDiplomaticProfile(attackType,success){
+  const base=attackType===SPACE_ATTACK_TYPES.JAM?{severity:.34,evidence:.68,nuclearRisk:.01,title:'Satellite jamming incident'}:attackType===SPACE_ATTACK_TYPES.DAZZLE?{severity:.44,evidence:.76,nuclearRisk:.02,title:'Satellite dazzling incident'}:attackType===SPACE_ATTACK_TYPES.ORBITAL_LASER?{severity:.67,evidence:.88,nuclearRisk:.08,title:'Orbital laser attack'}:{severity:.82,evidence:.96,nuclearRisk:.12,title:'Anti-satellite destruction'};
+  return{...base,severity:clamp(base.severity+(success?.08:0)),evidence:clamp(base.evidence+(success?.03:0))};
+}
+function recordSpaceCrisisSignal(regions,attackerRegion,attackerActorId,targetActorId,attackType,targetSatelliteId,success,currentTick){
+  if(!attackerRegion)return null;attackerRegion.internationalCrisisSignals||=[];
+  const prior=attackerRegion.internationalCrisisSignals.filter(s=>s.type==='space_attack'&&s.sideAActorId===attackerActorId&&s.sideBActorId===targetActorId).length;
+  const profile=attackDiplomaticProfile(attackType,success),id=`space-attack-${attackerActorId}-${targetActorId}-${currentTick}-${attackerRegion.internationalCrisisSignals.length+1}`;
+  const signal={id,type:'space_attack',title:profile.title,sideAActorId:attackerActorId,sideBActorId:targetActorId,allegedAggressorActorId:attackerActorId,affectedActorId:targetActorId,severity:profile.severity,evidence:profile.evidence,nuclearRisk:profile.nuclearRisk,spaceIncident:{attackType,targetSatelliteId,success:Boolean(success),priorIncidents:prior},consumed:false};
+  attackerRegion.internationalCrisisSignals.push(signal);return signal;
+}
 
 export function conductSpaceAttack(regions,attackerActorId,targetActorId,attackType,{targetSatelliteId=null,currentTick=0,rng=Math.random}={}){
   const a=spaceAttackAssessment(regions,attackerActorId,targetActorId,attackType,targetSatelliteId);if(!a.possible)return{attacked:false,reason:a.reason};
@@ -80,7 +91,8 @@ export function conductSpaceAttack(regions,attackerActorId,targetActorId,attackT
     else if(attackType===SPACE_ATTACK_TYPES.ORBITAL_LASER){target.condition=clamp((target.condition??1)-(.18+rng()*.28));target.dazzledFraction=Math.max(target.dazzledFraction||0,.48);target.dazzledDaysRemaining=Math.max(target.dazzledDaysRemaining||0,45);if(target.condition<.14)target.operational=false;}
     else if(attackType===SPACE_ATTACK_TYPES.KINETIC){target.condition=0;target.operational=false;target.destroyedBy={actorId:attackerActorId,attackType,tick:currentTick};debrisDensity=addDebris(regions,.12+rng()*.16,currentTick,'kinetic_asat');}
   }
-  return{attacked:true,success,attackType,attackerActorId,targetActorId,targetSatelliteId:target.id,cost:{cash:a.cash},debrisDensity,chance:a.chance,event:{type:'space_attack',tick:currentTick,attackType,attackerActorId,targetActorId,targetSatelliteId:target.id,success,debrisDensity}};
+  const signal=recordSpaceCrisisSignal(regions,a.attacker,attackerActorId,targetActorId,attackType,target.id,success,currentTick);
+  return{attacked:true,success,attackType,attackerActorId,targetActorId,targetSatelliteId:target.id,cost:{cash:a.cash},debrisDensity,chance:a.chance,crisisSignalId:signal?.id||null,event:{type:'space_attack',tick:currentTick,attackType,attackerActorId,targetActorId,targetSatelliteId:target.id,success,debrisDensity,crisisSignalId:signal?.id||null}};
 }
 
 export function fitOrbitalWeapon(region,satellite,weaponType){
