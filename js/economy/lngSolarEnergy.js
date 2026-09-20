@@ -15,6 +15,7 @@ export function ensureModernEnergy(region){
   s.gas||={lastExtraction:0,lastLiquefied:0,lastRegasified:0,electricityLoad:0};
   s.solar||={experience:0,lastOutput:0};
   s.lngCarriers||=[];
+  s.lngCarrierConstruction||=null;
   if(!Array.isArray(s.lngCarriers))s.lngCarriers=[];
   return s;
 }
@@ -108,22 +109,42 @@ export function idleLngCarrier(region){
 
 export function lngCarrierCargoCapacity(carrier){return carrier?Math.max(500,Number(carrier.capacityUnits)||4200):0;}
 
+function carrierBuildInputsAvailable(region){
+  region.stockpile||={}; region.industrialSupply||={}; region.industrialSupply.inventory||={};
+  return nonNegative(region.stockpile.steel)>=190&&nonNegative(region.industrialSupply.inventory.machine_components)>=58&&nonNegative(region.stockpile.diesel)>=24&&nonNegative(region.treasury)>=90;
+}
+function reserveCarrierBuildInputs(region){
+  region.stockpile.steel-=190; region.industrialSupply.inventory.machine_components-=58; region.stockpile.diesel-=24; region.treasury-=90;
+}
+function completeLngCarrier(region){
+  const s=ensureModernEnergy(region),carrier={id:`lng-carrier-${nextCarrierId++}`,type:'lng_carrier',status:'serviceable',condition:1,capacityUnits:4200};
+  s.lngCarriers.push(carrier); s.lngCarrierConstruction=null; return carrier;
+}
+
 export function buildLngCarrier(region){
-  const s=ensureModernEnergy(region); region.stockpile||={}; region.industrialSupply||={}; region.industrialSupply.inventory||={};
+  const s=ensureModernEnergy(region);
   if(!region.unlockedTechIds?.has?.(LNG_CARRIER_TECH_ID))return {built:false,reason:'technology_not_ready'};
   if(!region.isCoastal||!operationalInfrastructure(region,'harbour')||!operationalInfrastructure(region,'large_drydock'))return {built:false,reason:'specialised_shipyard_required'};
-  const machine=region.industrialSupply.inventory.machine_components||0;
-  if(nonNegative(region.stockpile.steel)<190||machine<58||nonNegative(region.stockpile.diesel)<24||nonNegative(region.treasury)<90)return {built:false,reason:'insufficient_inputs'};
-  region.stockpile.steel-=190; region.industrialSupply.inventory.machine_components-=58; region.stockpile.diesel-=24; region.treasury-=90;
-  const carrier={id:`lng-carrier-${nextCarrierId++}`,type:'lng_carrier',status:'serviceable',condition:1,capacityUnits:4200}; s.lngCarriers.push(carrier);
+  if(!carrierBuildInputsAvailable(region))return {built:false,reason:'insufficient_inputs'};
+  reserveCarrierBuildInputs(region);
+  const carrier=completeLngCarrier(region);
   return {built:true,carrier};
 }
 
-export function tickLngCarrierProcurement(region){
+export function tickLngCarrierProcurement(region,elapsedDays=7){
   const s=ensureModernEnergy(region), terminals=effectiveInfrastructureCount(region,'lng_liquefaction_terminal')+effectiveInfrastructureCount(region,'lng_regasification_terminal');
   if(terminals<=0||!region.unlockedTechIds?.has?.(LNG_CARRIER_TECH_ID))return null;
+  if(!region.isCoastal||!operationalInfrastructure(region,'harbour')||!operationalInfrastructure(region,'large_drydock'))return null;
   const target=Math.min(4,Math.max(1,Math.ceil(terminals*.75)));
-  if(s.lngCarriers.filter(c=>c.status!=='retired').length>=target)return null;
-  if(nonNegative(region.treasury)<180)return null;
-  return buildLngCarrier(region);
+  if(s.lngCarriers.filter(c=>c.status!=='retired').length>=target&&!s.lngCarrierConstruction)return null;
+  if(!s.lngCarrierConstruction){
+    if(nonNegative(region.treasury)<180||!carrierBuildInputsAvailable(region))return null;
+    reserveCarrierBuildInputs(region);
+    s.lngCarrierConstruction={progress:0,started:true};
+  }
+  const years=Math.max(0,Number(elapsedDays)||0)/DAYS_PER_YEAR;
+  const shipbuilding=clamp(.45+(region.electricity?.industrialService||0)*.20+(region.structuralTransformation?.capability?.manufacture||0)*.25+(region.industrialSupply?.capability?.precision_machining||0)*.10,.35,1);
+  s.lngCarrierConstruction.progress=clamp(s.lngCarrierConstruction.progress+years*.72*shipbuilding,0,1);
+  if(s.lngCarrierConstruction.progress<1)return {building:true,progress:s.lngCarrierConstruction.progress};
+  return {building:false,built:true,carrier:completeLngCarrier(region)};
 }
