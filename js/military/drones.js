@@ -1,14 +1,15 @@
 import { batteryMobilityCapability, BATTERY_TECH_IDS } from '../economy/batteryStorage.js?v=20260920-battery1';
-import { orbitalSupport } from '../technology/orbitalSatellites.js?v=20260920-orbital1';
 import { INDUSTRIAL_ELECTRIFICATION_TECH_ID } from '../technology/electrification.js?v=20260917-electric1';
 import { airDefenceEngagementRisk } from './preDigitalAirNaval.js?v=20260919-aa-naval1';
-import { POWERED_FLIGHT_TECH_ID, MILITARY_AVIATION_TECH_ID, AERIAL_BOMBING_TECH_ID } from './aviation.js?v=20260920-drones1';
 import { ROCKET_STABILISATION_TECH_ID } from './earlyRocketry.js?v=20260920-drones1';
 
 const DAYS_PER_YEAR=365.2425;
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const nonNegative=v=>Math.max(0,Number(v)||0);
 const has=(r,id)=>Boolean(r?.unlockedTechIds?.has?.(id));
+const POWERED_FLIGHT_TECH_ID='powered_flight';
+const MILITARY_AVIATION_TECH_ID='military_aviation';
+const AERIAL_BOMBING_TECH_ID='aerial_bombing';
 let nextDroneId=1;
 
 export const DRONE_TECH_IDS=Object.freeze({
@@ -40,6 +41,7 @@ function precision(region){return clamp(region.industrialSupply?.capability?.pre
 function manufacture(region){return clamp(region.structuralTransformation?.capability?.manufacture||0);}
 function optics(region){return clamp(region.industrialPlants?.componentCapability?.optics||0);}
 function radio(region){return clamp(region.industrialPlants?.componentCapability?.radio_navigation||electronics(region));}
+function orbital(region){return region?.orbitalSupport||{};}
 function annual(rate,days){return 1-Math.pow(1-clamp(rate,0,.95),Math.max(0,Number(days)||0)/DAYS_PER_YEAR);}
 
 export function ensureDrones(region){
@@ -80,7 +82,7 @@ function spend(region,spec){
 export function buildDrone(region,type){
   const spec=TYPE_SPEC[type];if(!spec||!has(region,spec.tech))return null;if(!spend(region,spec))return null;
   const battery=batteryMobilityCapability(region);
-  const drone={id:`drone-${nextDroneId++}`,type,mission:DRONE_MISSIONS.IDLE,targetRegionId:null,status:'serviceable',condition:1,fuel:spec.battery?0:1,batteryCharge:spec.battery?1:null,endurance:spec.battery?clamp(.35+(battery.endurance||0)*.65):1,controlMode:DRONE_CONTROL.LOCAL,totalMissions:0};
+  const drone={id:`drone-${nextDroneId++}`,type,mission:DRONE_MISSIONS.IDLE,targetRegionId:null,status:'serviceable',condition:1,fuel:spec.battery?null:1,batteryCharge:spec.battery?1:null,endurance:spec.battery?clamp(.35+(battery.endurance||0)*.65):1,controlMode:DRONE_CONTROL.LOCAL,totalMissions:0};
   ensureDrones(region).inventory.push(drone);region.droneForces.totalBuilt++;return drone;
 }
 
@@ -94,8 +96,8 @@ export function droneControlAssessment(origin,target,drone,regionsById=new Map()
   const distance=neighbourDistance(origin,target,regionsById),rad=radio(origin);
   if(distance<=1)return{available:true,mode:DRONE_CONTROL.LOCAL,quality:clamp(.55+rad*.42)};
   if(distance<=2&&rad>.42)return{available:true,mode:DRONE_CONTROL.RELAY,quality:clamp(.34+rad*.48)};
-  const orbit=orbitalSupport(origin);
-  if(TYPE_SPEC[drone.type]?.satellite&&orbit.droneBeyondLineOfSightControl>.10)return{available:true,mode:DRONE_CONTROL.SATELLITE,quality:clamp(.38+orbit.droneBeyondLineOfSightControl*.58)};
+  const orbit=orbital(origin);
+  if(TYPE_SPEC[drone.type]?.satellite&&(orbit.droneBeyondLineOfSightControl||0)>.10)return{available:true,mode:DRONE_CONTROL.SATELLITE,quality:clamp(.38+(orbit.droneBeyondLineOfSightControl||0)*.58)};
   const autonomy=clamp(origin.appliedAI?.droneAutonomy||0);
   if(autonomy>.58)return{available:true,mode:DRONE_CONTROL.AUTONOMOUS,quality:clamp(.30+autonomy*.55)};
   return{available:false,mode:DRONE_CONTROL.NONE,quality:0};
@@ -156,5 +158,5 @@ export function tickDrones(regions,currentTick,elapsedDays=7,rng=Math.random){
 export function droneForceSummary(region){
   const force=ensureDrones(region),live=force.inventory.filter(d=>d.status!=='destroyed');
   const byType={};for(const d of live)byType[d.type]=(byType[d.type]||0)+1;
-  return{total:live.length,destroyed:force.inventory.length-live.length,byType,experience:force.experience,totalStrikes:force.totalStrikes,totalReconMissions:force.totalReconMissions,satelliteControl:orbitalSupport(region).droneBeyondLineOfSightControl||0};
+  return{total:live.length,destroyed:force.inventory.length-live.length,byType,experience:force.experience,totalStrikes:force.totalStrikes,totalReconMissions:force.totalReconMissions,satelliteControl:orbital(region).droneBeyondLineOfSightControl||0};
 }
