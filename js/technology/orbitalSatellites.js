@@ -2,7 +2,8 @@ import { batteryMobilityCapability, BATTERY_TECH_IDS } from '../economy/batteryS
 import { TELEPHONE_TECH_ID } from '../economy/localCommunications.js?v=20260918-telephone1';
 import { RADAR_TECH_ID } from '../military/aviation.js?v=20260918-aviation1';
 import { SPACE_TECH_IDS } from './spaceRace.js?v=20260920-space-race1';
-import { nationalSatelliteResilience, SATELLITE_RESILIENCE_TECH_IDS } from './satelliteResilience.js?v=20260921-resilience1';
+import { nationalSatelliteResilience } from './satelliteResilience.js?v=20260921-resilience1';
+import { SATELLITE_NAVIGATION_TECH_IDS } from './satelliteNavigation.js?v=20260921-satnav1';
 
 const DAYS_PER_YEAR=365.2425;
 const PHOTOVOLTAIC_GENERATION_TECH_ID='photovoltaic_generation';
@@ -19,7 +20,7 @@ export const SATELLITE_TYPES=Object.freeze({
   weather:{use:SATELLITE_USE.CIVILIAN,cash:130,steel:5,fuel:6,requires:[SPACE_TECH_IDS.ORBITAL_SYSTEMS,RADAR_TECH_ID],weights:{weatherObservation:1,scienceObservation:.25}},
   communications:{use:SATELLITE_USE.DUAL_USE,cash:160,steel:6,fuel:7,requires:[SPACE_TECH_IDS.ORBITAL_SYSTEMS,TELEPHONE_TECH_ID],weights:{civilianCommunications:.9,militaryCommand:.45,remoteControl:.75}},
   reconnaissance:{use:SATELLITE_USE.MILITARY,cash:185,steel:7,fuel:8,requires:[SPACE_TECH_IDS.ORBITAL_SYSTEMS,RADAR_TECH_ID],weights:{militaryReconnaissance:1,militaryCommand:.15}},
-  navigation:{use:SATELLITE_USE.DUAL_USE,cash:220,steel:8,fuel:9,requires:[SPACE_TECH_IDS.ORBITAL_SYSTEMS,'satellite_navigation_systems'],weights:{navigation:1,civilianCommunications:.15,militaryCommand:.2,remoteControl:.35}},
+  navigation:{use:SATELLITE_USE.DUAL_USE,cash:220,steel:8,fuel:9,requires:[SPACE_TECH_IDS.ORBITAL_SYSTEMS,SATELLITE_NAVIGATION_TECH_IDS.SYSTEM],weights:{navigation:1,civilianCommunications:.15,militaryCommand:.2,remoteControl:.35}},
 });
 
 function groupedPolities(regions){const groups=new Map();for(const r of regions||[]){const id=polityId(r);if(!groups.has(id))groups.set(id,[]);groups.get(id).push(r);}return groups;}

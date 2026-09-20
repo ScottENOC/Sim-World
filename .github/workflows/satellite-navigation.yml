@@ -1,0 +1,31 @@
+name: Satellite navigation
+
+on:
+  pull_request:
+    paths:
+      - 'js/technology/satelliteNavigation.js'
+      - 'js/technology/orbitalSatellites.js'
+      - 'js/technology/modernEnergy.js'
+      - 'js/military/drones.js'
+      - 'js/military/carrierAirGroupCombat.js'
+      - 'tools/test-satellite-navigation.mjs'
+      - '.github/workflows/satellite-navigation.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check satellite navigation modules
+        run: |
+          node --check js/technology/satelliteNavigation.js
+          node --check js/technology/orbitalSatellites.js
+          node --check js/technology/modernEnergy.js
+          node --check js/military/drones.js
+          node --check js/military/carrierAirGroupCombat.js
+      - name: Run satellite navigation regressions
+        run: node tools/test-satellite-navigation.mjs
