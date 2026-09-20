@@ -2,6 +2,7 @@ import { effectiveInfrastructureCount, operationalInfrastructure } from './const
 import { tickNuclearFuelCycle, nuclearGeneration } from './nuclearPower.js?v=20260920-nuclear1';
 import { tickStrategicNuclearFuelCycle, strategicNuclearElectricityDemand } from './strategicNuclear.js?v=20260920-strategic-nuclear1';
 import { modernEnergyElectricityDemand, gasPowerPotential, consumeGasForGeneration, solarGenerationMultiplier } from './lngSolarEnergy.js?v=20260920-modern-energy1';
+import { batteryCapability, dispatchBatteryStorage, ensureBatteryStorage } from './batteryStorage.js?v=20260920-battery1';
 
 const DAYS_PER_YEAR = 365.2425;
 const INDUSTRIAL_ELECTRIFICATION_TECH_ID = 'industrial_electrification';
@@ -14,6 +15,7 @@ export function ensureElectricityState(region) {
     coalConsumed: 0, copperConsumed: 0, demand: 0, householdDemand: 0, industrialDemand: 0,
     curtailed: 0, coalCyclingLoss: 0, nuclearCyclingLoss: 0, balancingShortfall: 0, dispatchEfficiency: 1,
     reactorFuelConsumed: 0, spentFuelGenerated: 0,
+    storageCharge: 0, storageDischarge: 0, storageEnergy: 0, storageCapacity: 0,
   };
   return region.electricity;
 }
@@ -31,9 +33,6 @@ export function electricityDemand(region, elapsedDays = 7) {
   const urban = clamp01(region.medievalSociety?.urban?.urbanisation || region.settlements?.urbanShare || 0);
   const householdDemand = Math.pow(population / 1000, 0.68) * (0.4 + urban * 0.8) * Math.max(0.0001, years);
   const baseIndustrialDemand = industrialDemandSignal(region) * Math.max(0.0001, years);
-  // Primary aluminium smelting is deliberately a very large industrial electricity load.
-  // lightMetals.electricityLoad is already measured for the elapsed period, so it is not
-  // multiplied by years a second time here.
   const lightMetalsDemand = nonNegative(region.lightMetals?.electricityLoad);
   const strategicNuclearDemand = nonNegative(region.strategicNuclear?.electricityLoad);
   const modernEnergyDemand = modernEnergyElectricityDemand(region);
@@ -64,8 +63,6 @@ export function dispatchElectricityPortfolio(outputs = {}, demand = Infinity) {
   const variableOutput = solar + wind;
   const curtailed = Math.min(variableOutput, balancingShortfall * 0.55);
   const coalCyclingLoss = Math.min(coal * 0.18, balancingShortfall * 0.45);
-  // Early large reactors are excellent steady generators but poor peakers. A system
-  // with insufficient flexible plant therefore cannot treat them as balancing supply.
   const nuclearCyclingLoss = Math.min(nuclear * 0.08, balancingShortfall * 0.18);
   const usableGeneration = Math.max(0, grossPotential - curtailed - coalCyclingLoss - nuclearCyclingLoss);
   const dispatchEfficiency = grossPotential > 0 ? clamp01(usableGeneration / grossPotential) : 1;
@@ -76,6 +73,24 @@ export function dispatchElectricityPortfolio(outputs = {}, demand = Infinity) {
     balancingNeed, balancingAvailable, balancingShortfall, balancingCoverage,
     dispatchEfficiency, variableComplementarity,
   };
+}
+
+function syncDistributedGridStorage(region, grids) {
+  const capability = batteryCapability(region);
+  const storage = ensureBatteryStorage(region);
+  if (!capability || grids <= 0) return storage;
+  // This first battery tranche treats storage as retrofits attached to existing grids.
+  // Dedicated utility-scale battery projects can later add to installedCapacity through
+  // installBatteryStorage without changing dispatch semantics.
+  const retrofitCapacityPerGrid = 260 * (0.35 + capability.energyDensity * 0.65);
+  const floorCapacity = grids * retrofitCapacityPerGrid;
+  if (storage.installedCapacity < floorCapacity) {
+    storage.installedCapacity = floorCapacity;
+    storage.maxChargeRate = storage.installedCapacity * (0.25 + capability.powerDensity * 0.22);
+    storage.maxDischargeRate = storage.installedCapacity * (0.30 + capability.powerDensity * 0.28);
+    storage.storedEnergy = Math.min(storage.storedEnergy, storage.installedCapacity);
+  }
+  return storage;
 }
 
 export function tickElectricity(region, elapsedDays = 7) {
@@ -89,8 +104,6 @@ export function tickElectricity(region, elapsedDays = 7) {
   const grids = effectiveInfrastructureCount(region, 'local_electric_grid');
   tickNuclearFuelCycle(region, elapsedDays);
   tickStrategicNuclearFuelCycle(region, elapsedDays);
-  // Demand uses the fuel-cycle load computed above. The exported helper keeps this
-  // explicit for tests and future planning UI even though the tick stores it on state.
   strategicNuclearElectricityDemand(region, elapsedDays);
   const nuclear = nuclearGeneration(region, elapsedDays);
 
@@ -128,7 +141,14 @@ export function tickElectricity(region, elapsedDays = 7) {
   const networkReliability = 0.80 + copperUpkeepRatio * 0.20;
 
   const gridCapacity = grids * 6200 * years * networkReliability;
-  const delivered = Math.min(generated, gridCapacity, demand.total);
+  syncDistributedGridStorage(region, grids);
+  const directAvailable = Math.min(generated, gridCapacity);
+  const storageDispatch = dispatchBatteryStorage(region, {
+    surplus: Math.max(0, directAvailable - demand.total),
+    shortfall: Math.max(0, demand.total - directAvailable),
+    elapsedDays,
+  });
+  const delivered = Math.min(demand.total, directAvailable + storageDispatch.discharged);
   const householdShare = demand.total > 0 ? demand.householdDemand / demand.total : 0;
   const householdDelivered = delivered * householdShare;
   const industrialDelivered = Math.max(0, delivered - householdDelivered);
@@ -155,11 +175,16 @@ export function tickElectricity(region, elapsedDays = 7) {
   state.strategicNuclearDemand = demand.strategicNuclearDemand || 0;
   state.modernEnergyDemand = demand.modernEnergyDemand || 0;
   state.gasConsumed = gasConsumed;
+  state.storageCharge = storageDispatch.chargeInput;
+  state.storageDischarge = storageDispatch.discharged;
+  state.storageEnergy = region.batteryStorage?.storedEnergy || 0;
+  state.storageCapacity = region.batteryStorage?.installedCapacity || 0;
+  state.storageChemistry = storageDispatch.chemistry;
   return {
     ...state, coalOutput, hydroOutput, solarOutput, windOutput, gasOutput, nuclearOutput: nuclear.output || 0, nuclear, gridCapacity, networkReliability,
     copperNeed, balancingNeed: dispatch.balancingNeed, balancingAvailable: dispatch.balancingAvailable,
     balancingCoverage: dispatch.balancingCoverage, variableComplementarity: dispatch.variableComplementarity,
-    grossGenerationPotential: dispatch.grossPotential,
+    grossGenerationPotential: dispatch.grossPotential, storageDispatch,
   };
 }
 

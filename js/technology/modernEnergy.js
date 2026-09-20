@@ -1,5 +1,6 @@
 import { PETROLEUM_REFINING_TECH_ID, SHALLOW_OIL_DRILLING_TECH_ID } from './petroleum.js?v=20260920-modern-energy1';
 import { ELECTRICAL_GENERATION_TECH_ID, INDUSTRIAL_ELECTRIFICATION_TECH_ID } from './electrification.js?v=20260920-modern-energy1';
+import { BATTERY_TECH_IDS } from '../economy/batteryStorage.js?v=20260920-battery1';
 
 export const NATURAL_GAS_EXTRACTION_TECH_ID = 'natural_gas_extraction';
 export const GAS_TURBINE_GENERATION_TECH_ID = 'gas_turbine_generation';
@@ -36,7 +37,13 @@ export function modernEnergyBreakthroughChances(region,byId){
     r.overall*(.35+r.machining*.30+r.manufacture*.35)*0.0000035+diffusion(region,byId,LNG_CARRIER_TECH_ID,0.00010);
   const solar=t.has(PHOTOVOLTAIC_GENERATION_TECH_ID)||!t.has(ELECTRICAL_GENERATION_TECH_ID)?0:
     r.overall*(.25+r.electronics*.45+r.machining*.30)*0.0000038+diffusion(region,byId,PHOTOVOLTAIC_GENERATION_TECH_ID,0.00014);
-  return {gas:clamp(gas),turbine:clamp(turbine),lng:clamp(lng),carrier:clamp(carrier),solar:clamp(solar)};
+  const leadAcid=t.has(BATTERY_TECH_IDS.LEAD_ACID)||!t.has(ELECTRICAL_GENERATION_TECH_ID)?0:
+    r.overall*(.30+r.machining*.35+r.manufacture*.35)*0.000007+diffusion(region,byId,BATTERY_TECH_IDS.LEAD_ACID,0.00020);
+  const advancedBattery=t.has(BATTERY_TECH_IDS.ADVANCED)||!t.has(BATTERY_TECH_IDS.LEAD_ACID)||!t.has(INDUSTRIAL_ELECTRIFICATION_TECH_ID)?0:
+    r.overall*(.24+r.electronics*.28+r.machining*.20+r.manufacture*.28)*0.000004+diffusion(region,byId,BATTERY_TECH_IDS.ADVANCED,0.00014);
+  const lithiumIon=t.has(BATTERY_TECH_IDS.LITHIUM_ION)||!t.has(BATTERY_TECH_IDS.ADVANCED)?0:
+    r.overall*r.overall*(.22+r.electronics*.48+r.manufacture*.30)*0.0000025+diffusion(region,byId,BATTERY_TECH_IDS.LITHIUM_ION,0.00010);
+  return {gas:clamp(gas),turbine:clamp(turbine),lng:clamp(lng),carrier:clamp(carrier),solar:clamp(solar),leadAcid:clamp(leadAcid),advancedBattery:clamp(advancedBattery),lithiumIon:clamp(lithiumIon)};
 }
 
 export function tickModernEnergyBreakthroughs(regions,currentTick,rng=Math.random,elapsedDays=7){
@@ -47,6 +54,9 @@ export function tickModernEnergyBreakthroughs(regions,currentTick,rng=Math.rando
     ['lng',LNG_PROCESSING_TECH_ID,'lng_processing_breakthrough','Liquefied natural gas','Industrial refrigeration and gas handling make bulk LNG export and import practical.'],
     ['carrier',LNG_CARRIER_TECH_ID,'lng_carrier_breakthrough','LNG carrier design','Specialised insulated merchant ships can now carry LNG between equipped terminals.'],
     ['solar',PHOTOVOLTAIC_GENERATION_TECH_ID,'photovoltaic_breakthrough','Photovoltaic generation','Semiconductor manufacturing has matured enough for practical grid-connected solar generation.'],
+    ['leadAcid',BATTERY_TECH_IDS.LEAD_ACID,'lead_acid_battery_breakthrough','Rechargeable batteries','Practical rechargeable lead-acid cells make stored electrical power useful for stationary and mobile applications.'],
+    ['advancedBattery',BATTERY_TECH_IDS.ADVANCED,'advanced_battery_breakthrough','Advanced rechargeable batteries','Improved rechargeable chemistries provide better endurance, cycle life and portable power.'],
+    ['lithiumIon',BATTERY_TECH_IDS.LITHIUM_ION,'lithium_ion_battery_breakthrough','Lithium-ion batteries','Advanced materials and electronics make high-energy rechargeable cells practical at industrial scale.'],
   ];
   for(const region of regions||[]){
     region.unlockedTechIds||=new Set(); const chances=modernEnergyBreakthroughChances(region,byId);
