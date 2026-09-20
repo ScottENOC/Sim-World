@@ -6,11 +6,13 @@ import { enforceHousingEmployment, housingSummary, prepareHousingConstruction } 
 import { tickEmploymentAndHardship } from './employmentAndHardship.js?v=20260918-employment1';
 import { tickHouseholdFoodSecurity } from './householdFoodSecurity.js?v=20260919-household-food1';
 import { tickLightMetals } from './lightMetals.js?v=20260919-light-metals1';
+import { tickAgriculturalLand, agriculturalLandSummary } from './agriculturalLand.js?v=20260921-arable1';
 export * from './laborCore.js?v=20260905-merchant1';
 export * from './housing.js?v=20260916-housing1';
 export * from './employmentAndHardship.js?v=20260918-employment1';
 export * from './householdFoodSecurity.js?v=20260919-household-food1';
 export * from './lightMetals.js?v=20260919-light-metals1';
+export * from './agriculturalLand.js?v=20260921-arable1';
 
 function committedMerchantCount(region) {
   const workingAge = Math.max(0, Number(region.demographics?.workingAge) || 0);
@@ -26,7 +28,7 @@ function committedArtistCount(region, availableAfterMerchants) {
 }
 
 function normaliseReportMetadata(region) {
-  for (const key of ['conflict', 'structuralTransformation', 'industrialSupply', 'lightMetals', 'housing', 'employment']) {
+  for (const key of ['conflict', 'structuralTransformation', 'industrialSupply', 'lightMetals', 'housing', 'employment', 'landUse']) {
     if (region.report?.[key] && !Number.isFinite(region.report[key].workers)) region.report[key].workers = 0;
   }
 }
@@ -34,6 +36,9 @@ function normaliseReportMetadata(region) {
 export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, currentTick = null, elapsedDays = 7, endDay = null) {
   const reservations = [];
   for (const region of regions) {
+    // Land allocation is persistent state, but refresh it before farming so
+    // current forest, pasture and urbanisation feed the production ceiling.
+    tickAgriculturalLand(region);
     const previousOccupations = { ...(region.occupations || {}) };
     const housingConstruction = prepareHousingConstruction(region, elapsedDays);
     const fullWorkingAge = Math.max(0, Number(region.demographics?.workingAge) || 0);
@@ -81,6 +86,11 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
         ...housingSummary(region),
       };
       region.report.industrialSupply = { workers: 0, capability: { ...region.industrialSupply.capability }, outputCapacity: { ...region.industrialSupply.outputCapacity } };
+      // Refresh after the core tick because horse pasture and farmer employment
+      // can both change during it. This is the player-facing land monitor.
+      tickAgriculturalLand(region);
+      region.report.landUse = { workers: 0, ...agriculturalLandSummary(region) };
+      if (region.report.farming) region.report.farming.land = { ...region.report.landUse };
       normaliseReportMetadata(region);
     }
   }
