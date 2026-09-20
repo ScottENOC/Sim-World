@@ -1,4 +1,5 @@
 import { registerInternationalCrisis } from './internationalCrises.js?v=20260920-intl-crisis1';
+import { tickSpaceCrisisResponses } from './spaceCrisisResponses.js?v=20260920-space-crisis1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const actorId=(r)=>r?.governance?.sovereignPolityId||r?.polityId||r?.controllingActorId||r?.id||null;
@@ -33,11 +34,8 @@ function harvestLiveWars(world,currentTick,created){
   }
 }
 
-export function harvestInternationalCrisisSignals(world,currentTick=0){
+export function harvestInternationalCrisisSignals(world,currentTick=0,rng=Math.random){
   const created=[];
-  // Register wars here before the general crisis tick. The war theatre stores
-  // participants as objects, while older crisis code also accepts simple IDs;
-  // normalising them here ensures the durable crisis always carries actor IDs.
   harvestLiveWars(world,currentTick,created);
   for(const region of world.regions||[]){
     for(const signal of region.internationalCrisisSignals||[]){
@@ -50,6 +48,7 @@ export function harvestInternationalCrisisSignals(world,currentTick=0){
         nuclearRisk:clamp(signal.nuclearRisk||0),humanitarianRisk:clamp(signal.humanitarianRisk||0),
       },currentTick);
       if(signal.disputedRegionIds)crisis.disputedRegionIds=[...signal.disputedRegionIds];
+      if(signal.spaceIncident)crisis.spaceIncident={...signal.spaceIncident};
       signal.consumed=true; signal.crisisId=crisis.id; created.push(crisis);
     }
   }
@@ -63,5 +62,6 @@ export function harvestInternationalCrisisSignals(world,currentTick=0){
       created.push(crisis);
     }
   }
+  world.spaceCrisisResponseEvents=tickSpaceCrisisResponses(world,currentTick,rng);
   return created;
 }
