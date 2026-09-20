@@ -1,0 +1,58 @@
+name: Military assistance UI
+
+on:
+  push:
+    branches: [feature/military-assistance-ui]
+    paths:
+      - 'js/ui/militaryAssistanceUi.js'
+      - 'js/main.js'
+      - 'tools/apply-military-assistance-ui.py'
+      - 'tools/test-military-assistance-ui.mjs'
+      - '.github/workflows/military-assistance-ui.yml'
+  pull_request:
+    paths:
+      - 'js/ui/militaryAssistanceUi.js'
+      - 'js/main.js'
+      - 'tools/test-military-assistance-ui.mjs'
+      - '.github/workflows/military-assistance-ui.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && 'feature/military-assistance-ui' || github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply military assistance UI integration on feature branch
+        if: github.event_name == 'push'
+        run: python tools/apply-military-assistance-ui.py
+      - name: Syntax checks
+        run: |
+          node --check js/ui/militaryAssistanceUi.js
+          node --check js/main.js
+      - name: Military assistance UI and compatibility regressions
+        run: |
+          node tools/test-military-assistance-ui.mjs
+          node tools/test-military-assistance-proxy-wars.mjs
+          node tools/test-ui-priority.mjs
+      - name: Commit integrated source
+        if: github.event_name == 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/main.js
+          if ! git diff --cached --quiet; then
+            git commit -m "Integrate military assistance UI"
+            git push origin HEAD:feature/military-assistance-ui
+          fi
