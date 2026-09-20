@@ -1,0 +1,57 @@
+name: Military aid diplomacy
+
+on:
+  push:
+    branches: [feature/military-aid-diplomacy]
+    paths:
+      - 'js/diplomacy/militaryAidDiplomacy.js'
+      - 'js/main.js'
+      - 'tools/apply-military-aid-diplomacy.py'
+      - 'tools/test-military-aid-diplomacy.mjs'
+      - '.github/workflows/military-aid-diplomacy.yml'
+  pull_request:
+    paths:
+      - 'js/diplomacy/militaryAidDiplomacy.js'
+      - 'js/main.js'
+      - 'tools/test-military-aid-diplomacy.mjs'
+      - '.github/workflows/military-aid-diplomacy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && 'feature/military-aid-diplomacy' || github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply military aid diplomacy integration on feature branch
+        if: github.event_name == 'push'
+        run: python tools/apply-military-aid-diplomacy.py
+      - name: Syntax checks
+        run: |
+          node --check js/diplomacy/militaryAidDiplomacy.js
+          node --check js/main.js
+      - name: Aid diplomacy and compatibility regressions
+        run: |
+          node tools/test-military-aid-diplomacy.mjs
+          node tools/test-military-assistance-proxy-wars.mjs
+      - name: Commit integrated source
+        if: github.event_name == 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/main.js
+          if ! git diff --cached --quiet; then
+            git commit -m "Integrate military aid diplomacy"
+            git push origin HEAD:feature/military-aid-diplomacy
+          fi
