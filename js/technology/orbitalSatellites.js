@@ -1,10 +1,10 @@
 import { batteryMobilityCapability, BATTERY_TECH_IDS } from '../economy/batteryStorage.js?v=20260920-battery1';
 import { TELEPHONE_TECH_ID } from '../economy/localCommunications.js?v=20260918-telephone1';
 import { RADAR_TECH_ID } from '../military/aviation.js?v=20260918-aviation1';
-import { PHOTOVOLTAIC_GENERATION_TECH_ID } from './modernEnergy.js?v=20260920-space-race1';
 import { SPACE_TECH_IDS } from './spaceRace.js?v=20260920-space-race1';
 
 const DAYS_PER_YEAR=365.2425;
+const PHOTOVOLTAIC_GENERATION_TECH_ID='photovoltaic_generation';
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const nonNegative=(v)=>Math.max(0,Number(v)||0);
 const has=(r,id)=>Boolean(r?.unlockedTechIds?.has?.(id));
