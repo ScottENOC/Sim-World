@@ -33,21 +33,11 @@ export function tickSatelliteResilienceBreakthroughs(regions,currentTick,rng=Mat
   const events=[];
   for(const region of regions||[]){
     region.unlockedTechIds||=new Set();const e=electronics(region),p=precision(region),m=manufacture(region),xp=spaceExperience(region),lessons=ensureSatelliteResilience(region).lessons;
-    if(!has(region,SATELLITE_RESILIENCE_TECH_IDS.FREQUENCY_AGILE_LINKS)&&has(region,SPACE_TECH_IDS.ORBITAL_SYSTEMS)&&e>.58&&xp>.14){
-      if(rng()<annual(.001+e*.006+xp*.006+lessons*.008,elapsedDays)){region.unlockedTechIds.add(SATELLITE_RESILIENCE_TECH_IDS.FREQUENCY_AGILE_LINKS);events.push({type:'space_resilience_breakthrough',techId:SATELLITE_RESILIENCE_TECH_IDS.FREQUENCY_AGILE_LINKS,regionId:region.id,tick:currentTick,title:'Frequency-agile satellite links'});continue;}
-    }
-    if(!has(region,SATELLITE_RESILIENCE_TECH_IDS.MANOEUVRABLE_SPACECRAFT)&&has(region,SPACE_TECH_IDS.ORBITAL_SYSTEMS)&&p>.62&&e>.60&&xp>.18){
-      if(rng()<annual(.00075+p*.005+e*.004+xp*.006,elapsedDays)){region.unlockedTechIds.add(SATELLITE_RESILIENCE_TECH_IDS.MANOEUVRABLE_SPACECRAFT);events.push({type:'space_resilience_breakthrough',techId:SATELLITE_RESILIENCE_TECH_IDS.MANOEUVRABLE_SPACECRAFT,regionId:region.id,tick:currentTick,title:'Manoeuvrable satellite buses'});continue;}
-    }
-    if(!has(region,SATELLITE_RESILIENCE_TECH_IDS.REDUNDANT_GROUND_CONTROL)&&has(region,SATELLITE_RESILIENCE_TECH_IDS.FREQUENCY_AGILE_LINKS)&&e>.66&&m>.58&&xp>.20){
-      if(rng()<annual(.0006+e*.0045+m*.004+lessons*.009,elapsedDays)){region.unlockedTechIds.add(SATELLITE_RESILIENCE_TECH_IDS.REDUNDANT_GROUND_CONTROL);events.push({type:'space_resilience_breakthrough',techId:SATELLITE_RESILIENCE_TECH_IDS.REDUNDANT_GROUND_CONTROL,regionId:region.id,tick:currentTick,title:'Redundant orbital ground control'});continue;}
-    }
-    if(!has(region,SATELLITE_RESILIENCE_TECH_IDS.RAPID_REPLACEMENT_LAUNCH)&&has(region,SATELLITE_RESILIENCE_TECH_IDS.MANOEUVRABLE_SPACECRAFT)&&m>.70&&p>.68&&xp>.28){
-      if(rng()<annual(.0004+m*.004+p*.004+lessons*.010,elapsedDays)){region.unlockedTechIds.add(SATELLITE_RESILIENCE_TECH_IDS.RAPID_REPLACEMENT_LAUNCH);events.push({type:'space_resilience_breakthrough',techId:SATELLITE_RESILIENCE_TECH_IDS.RAPID_REPLACEMENT_LAUNCH,regionId:region.id,tick:currentTick,title:'Rapid replacement launch'});continue;}
-    }
-    if(!has(region,SATELLITE_RESILIENCE_TECH_IDS.PROLIFERATED_LEO)&&has(region,SATELLITE_RESILIENCE_TECH_IDS.RAPID_REPLACEMENT_LAUNCH)&&has(region,SATELLITE_RESILIENCE_TECH_IDS.FREQUENCY_AGILE_LINKS)&&e>.78&&m>.76&&p>.72&&xp>.36){
-      if(rng()<annual(.00018+e*.003+m*.003+p*.0025+lessons*.010,elapsedDays)){region.unlockedTechIds.add(SATELLITE_RESILIENCE_TECH_IDS.PROLIFERATED_LEO);events.push({type:'space_resilience_breakthrough',techId:SATELLITE_RESILIENCE_TECH_IDS.PROLIFERATED_LEO,regionId:region.id,tick:currentTick,title:'Proliferated low-Earth-orbit constellations'});}
-    }
+    if(!has(region,SATELLITE_RESILIENCE_TECH_IDS.FREQUENCY_AGILE_LINKS)&&has(region,SPACE_TECH_IDS.ORBITAL_SYSTEMS)&&e>.58&&xp>.14){if(rng()<annual(.001+e*.006+xp*.006+lessons*.008,elapsedDays)){region.unlockedTechIds.add(SATELLITE_RESILIENCE_TECH_IDS.FREQUENCY_AGILE_LINKS);events.push({type:'space_resilience_breakthrough',techId:SATELLITE_RESILIENCE_TECH_IDS.FREQUENCY_AGILE_LINKS,regionId:region.id,tick:currentTick,title:'Frequency-agile satellite links'});continue;}}
+    if(!has(region,SATELLITE_RESILIENCE_TECH_IDS.MANOEUVRABLE_SPACECRAFT)&&has(region,SPACE_TECH_IDS.ORBITAL_SYSTEMS)&&p>.62&&e>.60&&xp>.18){if(rng()<annual(.00075+p*.005+e*.004+xp*.006,elapsedDays)){region.unlockedTechIds.add(SATELLITE_RESILIENCE_TECH_IDS.MANOEUVRABLE_SPACECRAFT);events.push({type:'space_resilience_breakthrough',techId:SATELLITE_RESILIENCE_TECH_IDS.MANOEUVRABLE_SPACECRAFT,regionId:region.id,tick:currentTick,title:'Manoeuvrable satellite buses'});continue;}}
+    if(!has(region,SATELLITE_RESILIENCE_TECH_IDS.REDUNDANT_GROUND_CONTROL)&&has(region,SATELLITE_RESILIENCE_TECH_IDS.FREQUENCY_AGILE_LINKS)&&e>.66&&m>.58&&xp>.20){if(rng()<annual(.0006+e*.0045+m*.004+lessons*.009,elapsedDays)){region.unlockedTechIds.add(SATELLITE_RESILIENCE_TECH_IDS.REDUNDANT_GROUND_CONTROL);events.push({type:'space_resilience_breakthrough',techId:SATELLITE_RESILIENCE_TECH_IDS.REDUNDANT_GROUND_CONTROL,regionId:region.id,tick:currentTick,title:'Redundant orbital ground control'});continue;}}
+    if(!has(region,SATELLITE_RESILIENCE_TECH_IDS.RAPID_REPLACEMENT_LAUNCH)&&has(region,SATELLITE_RESILIENCE_TECH_IDS.MANOEUVRABLE_SPACECRAFT)&&m>.70&&p>.68&&xp>.28){if(rng()<annual(.0004+m*.004+p*.004+lessons*.010,elapsedDays)){region.unlockedTechIds.add(SATELLITE_RESILIENCE_TECH_IDS.RAPID_REPLACEMENT_LAUNCH);events.push({type:'space_resilience_breakthrough',techId:SATELLITE_RESILIENCE_TECH_IDS.RAPID_REPLACEMENT_LAUNCH,regionId:region.id,tick:currentTick,title:'Rapid replacement launch'});continue;}}
+    if(!has(region,SATELLITE_RESILIENCE_TECH_IDS.PROLIFERATED_LEO)&&has(region,SATELLITE_RESILIENCE_TECH_IDS.RAPID_REPLACEMENT_LAUNCH)&&has(region,SATELLITE_RESILIENCE_TECH_IDS.FREQUENCY_AGILE_LINKS)&&e>.78&&m>.76&&p>.72&&xp>.36){if(rng()<annual(.00018+e*.003+m*.003+p*.0025+lessons*.010,elapsedDays)){region.unlockedTechIds.add(SATELLITE_RESILIENCE_TECH_IDS.PROLIFERATED_LEO);events.push({type:'space_resilience_breakthrough',techId:SATELLITE_RESILIENCE_TECH_IDS.PROLIFERATED_LEO,regionId:region.id,tick:currentTick,title:'Proliferated low-Earth-orbit constellations'});}}
   }
   return events;
 }
@@ -60,13 +50,13 @@ export function nationalSatelliteResilience(members=[]){
   const proliferated=members.some(r=>has(r,SATELLITE_RESILIENCE_TECH_IDS.PROLIFERATED_LEO));
   const state=members.map(ensureSatelliteResilience).sort((a,b)=>(b.groundStations+b.mobileGroundStations)-(a.groundStations+a.mobileGroundStations))[0]||{groundStations:1,mobileGroundStations:0,replacementReserve:0};
   return {
-    frequencyAgility:frequency?.58:0,
-    manoeuvreEvasion:manoeuvre?.28:0,
-    debrisAvoidance:manoeuvre?.38:0,
-    groundControlRedundancy:redundant?clamp(.28+Math.min(.42,(state.groundStations-1)*.10+state.mobileGroundStations*.14)):0,
-    rapidReplacement:rapid?.52:0,
+    frequencyAgility:frequency ? .58 : 0,
+    manoeuvreEvasion:manoeuvre ? .28 : 0,
+    debrisAvoidance:manoeuvre ? .38 : 0,
+    groundControlRedundancy:redundant ? clamp(.28+Math.min(.42,(state.groundStations-1)*.10+state.mobileGroundStations*.14)) : 0,
+    rapidReplacement:rapid ? .52 : 0,
     proliferatedLeo:proliferated,
-    constellationDilution:proliferated?.68:0,
+    constellationDilution:proliferated ? .68 : 0,
     groundStations:state.groundStations,
     mobileGroundStations:state.mobileGroundStations,
     replacementReserve:state.replacementReserve,
