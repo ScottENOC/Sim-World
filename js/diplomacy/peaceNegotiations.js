@@ -5,6 +5,12 @@ import {
   enactPeaceConferenceProposal,
 } from './peaceConferences.js?v=20260920-peace2';
 import { attitudeToward } from './relations.js?v=20260920-intl-crisis1';
+import {
+  establishArmistice,
+  prepareCampaignWithdrawalFromArmistice,
+  releaseArmistice,
+  tickArmistices,
+} from './armistices.js?v=20260920-armistice1';
 
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
 const actorId = (r) => r?.governance?.sovereignPolityId || r?.polityId || r?.controllingActorId || r?.id || null;
@@ -60,6 +66,11 @@ export function configureImplementationTerms(proposal, crisis, world) {
       intervalTicks: 2,
     };
   }
+  proposal.armisticePlan ||= {
+    verification: withdrawal?.implementation?.verification || (trust >= .62 ? VERIFICATION_MODES.TRUST : VERIFICATION_MODES.OBSERVERS),
+    freezeFronts: true,
+    dmzWidthKm: trust < .42 ? 12 : trust < .62 ? 6 : 0,
+  };
   proposal.negotiation ||= { round: 1, maxRounds: 5, counteroffers: [], trustAtOpening: trust };
   return proposal;
 }
@@ -86,6 +97,8 @@ export function counterPeaceConferenceProposal(proposal, crisis, world, actor, c
     }
   }
   proposal.terms = revised;
+  if (changes.verification) proposal.armisticePlan.verification = changes.verification;
+  if (Number.isFinite(changes.dmzWidthKm)) proposal.armisticePlan.dmzWidthKm = Math.max(0, Math.min(50, changes.dmzWidthKm));
   proposal.responses = {};
   proposal.status = 'negotiating';
   proposal.negotiation.round += 1;
@@ -105,6 +118,7 @@ function npcCounter(actor, proposal, crisis, world) {
     changes.verification = VERIFICATION_MODES.OBSERVERS;
     changes.withdrawalSequence = WITHDRAWAL_SEQUENCES.RECIPROCAL_STEPS;
     changes.phases = 2;
+    changes.dmzWidthKm = trust < .42 ? 12 : 6;
   }
   if (withdrawal && assessment.ownPressure + .16 < assessment.otherPressure) {
     changes.withdrawalSequence = actor === crisis.sideAActorId ? WITHDRAWAL_SEQUENCES.SIDE_B_FIRST : WITHDRAWAL_SEQUENCES.SIDE_A_FIRST;
@@ -159,13 +173,15 @@ export function signPeaceFramework(proposal, crisis, world, currentTick = 0) {
   configureImplementationTerms(proposal, crisis, world);
   proposal.status = 'implementing';
   proposal.signedTick = currentTick;
+  const armistice = establishArmistice(proposal, crisis, world, currentTick);
   proposal.implementation = {
     status: 'active',
+    armisticeId: armistice?.id || null,
     obligations: createWithdrawalObligations(proposal, crisis, currentTick),
     breaches: [],
     reports: [],
   };
-  crisis.history.push({ type: 'peace_framework_signed', proposalId: proposal.id, tick: currentTick, trust: proposal.negotiation.trustAtOpening });
+  crisis.history.push({ type: 'peace_framework_signed', proposalId: proposal.id, tick: currentTick, trust: proposal.negotiation.trustAtOpening, armisticeId: armistice?.id || null });
   return proposal.implementation;
 }
 
@@ -176,12 +192,12 @@ function campaignActor(campaign, world) {
 function activeCampaignsFor(world, crisis, actor) {
   return (world.activeCampaigns || []).filter(c => !c.completed && c.warId === crisis.sourceId && campaignActor(c, world) === actor);
 }
-function fulfilWithdrawalPhase(obligation, proposal, crisis, world) {
+function fulfilWithdrawalPhase(obligation, proposal, crisis, world, currentTick) {
   const campaigns = activeCampaignsFor(world, crisis, obligation.actorId);
   const fraction = obligation.phase / Math.max(1, obligation.phases);
   const count = Math.ceil(campaigns.length * fraction);
   for (const campaign of campaigns.slice(0, count)) {
-    campaign.withdrawRequested = true;
+    prepareCampaignWithdrawalFromArmistice(campaign, currentTick);
     campaign.peaceFrameworkId = proposal.id;
   }
   obligation.actualCompliance = fraction;
@@ -217,7 +233,7 @@ export function resolveImplementationAction(actor, obligation, proposal, crisis,
   if (!obligation || obligation.actorId !== actor || !['pending', 'stalled'].includes(obligation.status)) return { changed: false, reason: 'invalid_obligation' };
   if (!dependencySatisfied(obligation, proposal.implementation)) return { changed: false, reason: 'dependency_not_satisfied' };
   if (action === 'comply') {
-    const affected = fulfilWithdrawalPhase(obligation, proposal, crisis, world);
+    const affected = fulfilWithdrawalPhase(obligation, proposal, crisis, world, currentTick);
     obligation.status = 'fulfilled';
     obligation.reportedStatus = 'fulfilled';
     obligation.fulfilledTick = currentTick;
@@ -309,7 +325,7 @@ export function respondPeaceNegotiation(proposal, crisis, world, actor, response
 }
 
 export function tickPeaceNegotiations(world, currentTick = 0, elapsedDays = 7, rng = Math.random, options = {}) {
-  const events = [];
+  const events = [...tickArmistices(world, currentTick, rng)];
   for (const crisis of world.internationalCrises || []) {
     crisis.peaceConferences ||= [];
     let proposal = [...crisis.peaceConferences].reverse().find(p => ['offered', 'awaiting_player', 'negotiating', 'implementing'].includes(p.status));
@@ -337,6 +353,8 @@ export function tickPeaceNegotiations(world, currentTick = 0, elapsedDays = 7, r
         events.push({ type: 'peace_implementation_action', crisisId: crisis.id, proposalId: proposal.id, actorId: obligation.actorId, obligationId: obligation.id, action, result });
       }
       if (impl.status !== 'breached' && allActuallyFulfilled(impl)) {
+        const armistice = (world.activeArmistices || []).find(a => a.id === impl.armisticeId);
+        if (armistice) releaseArmistice(world, armistice, currentTick, 'settlement_completed');
         const result = enactPeaceConferenceProposal(proposal, crisis, world, currentTick);
         impl.status = 'completed';
         events.push({ type: 'peace_implementation_completed', crisisId: crisis.id, proposalId: proposal.id, effects: result.effects });
