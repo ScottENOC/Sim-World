@@ -1,0 +1,23 @@
+name: Space race and historical firsts
+
+on:
+  pull_request:
+  push:
+    branches:
+      - feature/space-race-firsts
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check space race integration
+        run: |
+          node --check js/technology/spaceRace.js
+          node --check js/technology/modernEnergy.js
+          node --check js/society/migration.js
+      - name: Run space race regressions
+        run: node tools/test-space-race.mjs

@@ -1,6 +1,7 @@
 import { PETROLEUM_REFINING_TECH_ID, SHALLOW_OIL_DRILLING_TECH_ID } from './petroleum.js?v=20260920-modern-energy1';
 import { ELECTRICAL_GENERATION_TECH_ID, INDUSTRIAL_ELECTRIFICATION_TECH_ID } from './electrification.js?v=20260920-modern-energy1';
 import { BATTERY_TECH_IDS } from '../economy/batteryStorage.js?v=20260920-battery1';
+import { tickSpaceRace } from './spaceRace.js?v=20260920-space-race1';
 
 export const NATURAL_GAS_EXTRACTION_TECH_ID = 'natural_gas_extraction';
 export const GAS_TURBINE_GENERATION_TECH_ID = 'gas_turbine_generation';
@@ -65,5 +66,6 @@ export function tickModernEnergyBreakthroughs(regions,currentTick,rng=Math.rando
       region.unlockedTechIds.add(id); events.push({type,regionId:region.id,regionName:region.name,tick:currentTick,title,message:`${region.name}: ${message}`}); break;
     }
   }
+  events.push(...tickSpaceRace(regions,currentTick,rng,elapsedDays));
   return events;
 }
