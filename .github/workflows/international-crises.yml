@@ -7,6 +7,7 @@ on:
       - feature/international-crisis-system
       - feature/peace-conferences
       - feature/iterative-peace-bargaining
+      - feature/armistice-frozen-fronts
 
 jobs:
   test:
@@ -24,12 +25,14 @@ jobs:
           node --check js/diplomacy/internationalOrganisations.js
           node --check js/diplomacy/peaceConferences.js
           node --check js/diplomacy/peaceNegotiations.js
+          node --check js/diplomacy/armistices.js
       - name: Run international crisis regressions
         run: node tools/test-international-crises.mjs
       - name: Run peace conference regressions
         run: |
           node tools/test-peace-conferences.mjs
           node tools/test-peace-negotiation-trust.mjs
+          node tools/test-armistice-frozen-fronts.mjs
       - name: Run covert crisis regressions
         run: |
           node tools/test-covert-incident-escalation.mjs
