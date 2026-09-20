@@ -11,8 +11,34 @@ export function recordInternationalCrisisSignal(region, signal={}){
   return entry;
 }
 
+function liveCampaigns(world){return world.activeCampaigns||globalThis.__worldsim?.activeCampaigns||[];}
+function harvestLiveWars(world,currentTick,created){
+  for(const war of world.activeWars||[]){
+    if(!war||war.active===false)continue;
+    const participants=(war.participants||war.participantPolityIds||[])
+      .map((participant)=>typeof participant==='string'?participant:participant?.actorId)
+      .filter(Boolean);
+    const sideA=war.attackerPolityId||war.attackerActorId||participants[0]||null;
+    const sideB=war.defenderPolityId||war.defenderActorId||participants.find((id)=>id!==sideA)||null;
+    if(!sideA||!sideB)continue;
+    const campaigns=liveCampaigns(world).filter((campaign)=>!campaign.completed&&campaign.warId===war.id);
+    const crisis=registerInternationalCrisis(world,{
+      key:`war:${war.id}`,type:'war',sourceId:war.id,sideAActorId:sideA,sideBActorId:sideB,
+      allegedAggressorActorId:sideA,affectedActorId:sideB,
+      severity:clamp(.58+(war.theatres?.length||0)*.06+Math.min(.18,campaigns.length*.03)),
+      humanitarianRisk:clamp((war.casualties||0)/100000+campaigns.reduce((sum,campaign)=>sum+(campaign.civilianDeaths||0),0)/100000),
+    },currentTick);
+    crisis.disputedRegionIds=[...new Set(campaigns.map((campaign)=>campaign.defenderId).filter(Boolean))];
+    created.push(crisis);
+  }
+}
+
 export function harvestInternationalCrisisSignals(world,currentTick=0){
   const created=[];
+  // Register wars here before the general crisis tick. The war theatre stores
+  // participants as objects, while older crisis code also accepts simple IDs;
+  // normalising them here ensures the durable crisis always carries actor IDs.
+  harvestLiveWars(world,currentTick,created);
   for(const region of world.regions||[]){
     for(const signal of region.internationalCrisisSignals||[]){
       if(signal.consumed)continue;
@@ -23,6 +49,7 @@ export function harvestInternationalCrisisSignals(world,currentTick=0){
         title:signal.title||null,severity:clamp(signal.severity??.5),evidence:clamp(signal.evidence??.75),
         nuclearRisk:clamp(signal.nuclearRisk||0),humanitarianRisk:clamp(signal.humanitarianRisk||0),
       },currentTick);
+      if(signal.disputedRegionIds)crisis.disputedRegionIds=[...signal.disputedRegionIds];
       signal.consumed=true; signal.crisisId=crisis.id; created.push(crisis);
     }
   }

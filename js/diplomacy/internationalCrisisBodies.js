@@ -1,5 +1,6 @@
 import { submitInternationalMotion, ORGANISATION_LEVELS } from './internationalOrganisations.js?v=20260920-intl-crisis1';
 import { relationToward } from './relations.js?v=20260920-intl-crisis1';
+import { respondPeaceConferenceProposal, tickPeaceConferences } from './peaceConferences.js?v=20260920-peace1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const actorId=(r)=>r?.governance?.sovereignPolityId||r?.polityId||r?.controllingActorId||r?.id||null;
@@ -48,6 +49,29 @@ function applyPassedMotion(org,crisis,motion,world,currentTick){
     crisis.restraint=clamp(crisis.restraint+.04*compliance);
   }
 }
+function normaliseCaptiveOrigins(world){
+  const byRegion=new Map((world.regions||[]).map((region)=>[region.id,region]));
+  for(const region of world.regions||[]){
+    for(const captive of region.specialForces?.captives||[]){
+      if(captive.homeActorId)continue;
+      const source=byRegion.get(captive.capturedFromRegionId);
+      const home=actorId(source);
+      if(home)captive.homeActorId=home;
+    }
+  }
+}
+function applyConferenceCooldowns(world,currentTick){
+  const muted=[];
+  for(const crisis of world.internationalCrises||[]){
+    const latest=[...(crisis.peaceConferences||[])].reverse().find((proposal)=>['rejected','expired'].includes(proposal.status));
+    if(latest&&!crisis.peaceConferenceCooldownUntilTick)crisis.peaceConferenceCooldownUntilTick=(latest.rejectedTick||latest.expiresTick||latest.offeredTick||currentTick)+8;
+    if((crisis.peaceConferenceCooldownUntilTick||0)>currentTick){
+      muted.push({crisis,mediation:crisis.mediation,restraint:crisis.restraint});
+      crisis.mediation=0; crisis.restraint=0;
+    }else if(crisis.peaceConferenceCooldownUntilTick)delete crisis.peaceConferenceCooldownUntilTick;
+  }
+  return()=>{for(const item of muted){item.crisis.mediation=item.mediation;item.crisis.restraint=item.restraint;}};
+}
 
 export function internationalOrganisationCrisisAssessment(org,crisis){
   const proposal=crisisMotion(org,crisis);
@@ -74,5 +98,21 @@ export function tickInternationalCrisisBodies(world,currentTick=0,rng=Math.rando
       else events.push({type:'international_crisis_organisation_motion_failed',crisisId:crisis.id,organisationId:org.id,motionType:assessment.motionType,status:result.motion?.status||result.reason});
     }
   }
+
+  world.activeCampaigns ||= globalThis.__worldsim?.activeCampaigns || [];
+  normaliseCaptiveOrigins(world);
+  const restoreMediation=applyConferenceCooldowns(world,currentTick);
+  const playerPolityId=options.playerPolityId||globalThis.__worldsim?.activePlayerPolityId||null;
+  const peaceEvents=tickPeaceConferences(world,currentTick,7,rng,{playerPolityId});
+  restoreMediation();
+
+  for(const event of peaceEvents){
+    if(event.type!=='peace_conference_proposal_available')continue;
+    const crisis=(world.internationalCrises||[]).find((candidate)=>candidate.id===event.crisisId);
+    const proposal=crisis?.peaceConferences?.find((candidate)=>candidate.id===event.proposalId);
+    if(!proposal||!['offered','awaiting_player'].includes(proposal.status)){event.stale=true;continue;}
+    event.resolveDecision=(choice)=>respondPeaceConferenceProposal(proposal,crisis,world,event.actorId,choice,currentTick);
+  }
+  events.push(...peaceEvents.filter((event)=>!event.stale));
   return events;
 }
