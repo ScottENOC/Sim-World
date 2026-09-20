@@ -3,6 +3,8 @@ import { EQUIPMENT_FAMILIES, ensureCurrentAircraftDesign } from './equipmentGene
 import { takeFinishedEquipment } from '../economy/industrialPlant.js?v=20260919-aircraft-industry2';
 import { airDefenceEngagementRisk, tickAirDefenceIndustry, tickAntiAircraftBreakthrough } from './preDigitalAirNaval.js?v=20260919-aa-naval1';
 import { assignAircraftCrew, aircraftCrewReadiness, recordAircraftCrewPractice, resolveAircraftCrewLoss, tickAirPersonnel, qualifiedPersonnelSummary } from './qualifiedPersonnel.js?v=20260919-personnel1';
+import { helicopterSummary, tickHelicopterBreakthroughs, tickHelicopters } from './helicopters.js?v=20260920-helicopters1';
+export { AIR_ASSAULT_TECH_ID, ATTACK_HELICOPTER_TECH_ID, HELICOPTER_MISSIONS, HELICOPTER_ROLES, ROTARY_WING_FLIGHT_TECH_ID, assignHelicopterMission, authoriseHelicopterGeneration, buildHelicopter, helicopterBattlefieldSupport, helicopterDesignFrontier, helicopterDesignImprovement } from './helicopters.js?v=20260920-helicopters1';
 
 const DAYS_PER_YEAR=365.2425;
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
@@ -33,7 +35,7 @@ export function ensureAviation(region){
 }
 
 export function serviceableAircraft(region,{ownerType=null,mission=null}={}){
-  return ensureAviation(region).aircraft.filter(a=>a.status!=='destroyed'&&(a.condition??1)>=0.42&&(a.fuel??0)>0.08&&(a.ownerType!=='military'||aircraftCrewReadiness(a)>=.35)&&(!ownerType||a.ownerType===ownerType)&&(!mission||a.mission===mission));
+  return ensureAviation(region).aircraft.filter(a=>a.aircraftType!=='helicopter'&&a.status!=='destroyed'&&(a.condition??1)>=0.42&&(a.fuel??0)>0.08&&(a.ownerType!=='military'||aircraftCrewReadiness(a)>=.35)&&(!ownerType||a.ownerType===ownerType)&&(!mission||a.mission===mission));
 }
 
 function industrialReadiness(region){
@@ -75,6 +77,7 @@ export function tickAviationBreakthroughs(regions,currentTick,rng=Math.random,el
     }
     for(const event of tickAntiAircraftBreakthrough(region,rng,elapsedDays))events.push({...event,regionId:region.id});
   }
+  events.push(...tickHelicopterBreakthroughs(regions,currentTick,rng,elapsedDays));
   return events;
 }
 
@@ -124,7 +127,7 @@ export function aviationBasingRelationship(aircraft,hostRegion,agreements=[],reg
 }
 
 export function rebaseAircraft(origin,target,aircraftId,agreements=[],regionsById=new Map([[origin?.id,origin],[target?.id,target]])){
-  const a=ensureAviation(origin).aircraft.find(x=>x.id===aircraftId);if(!a||a.status==='destroyed'||a.condition<.42)return{rebased:false,reason:'unserviceable'};
+  const a=ensureAviation(origin).aircraft.find(x=>x.id===aircraftId&&x.aircraftType!=='helicopter');if(!a||a.status==='destroyed'||a.condition<.42)return{rebased:false,reason:'unserviceable'};
   const rights=aviationBasingRelationship(a,target,agreements,regionsById);if(!rights.allowed)return{rebased:false,reason:rights.reason};
   const fuelNeed=.14;if((origin.stockpile?.aviation_fuel||0)<fuelNeed)return{rebased:false,reason:'insufficient_fuel'};
   origin.stockpile.aviation_fuel-=fuelNeed;a.fuel=clamp((a.fuel??1)-fuelNeed*.2);a.totalFlights++;a.mission=AIR_MISSIONS.IDLE;a.status='serviceable';a.targetRegionId=null;
@@ -134,10 +137,9 @@ export function rebaseAircraft(origin,target,aircraftId,agreements=[],regionsByI
 
 export function airDefenceRisk(region,aircraft=null){return airDefenceEngagementRisk(region,aircraft);}
 
-
 export function aerialRefuellingSupport(region){
   const aircraft=ensureAviation(region).aircraft||[];
-  const tankers=aircraft.filter(a=>a.ownerType==='military'&&a.role==='tanker'&&a.status!=='destroyed'&&(a.condition??1)>=.42&&aircraftCrewReadiness(a)>=.35).length;
+  const tankers=aircraft.filter(a=>a.aircraftType!=='helicopter'&&a.ownerType==='military'&&a.role==='tanker'&&a.status!=='destroyed'&&(a.condition??1)>=.42&&aircraftCrewReadiness(a)>=.35).length;
   const fuel=Math.max(0,region.stockpile?.aviation_fuel||0);
   const enabled=has(region,AERIAL_REFUELLING_TECH_ID)&&tankers>0&&fuel>.25;
   return {enabled,tankers,rangeSupport:enabled?clamp(1+Math.min(.75,tankers*.12)):1,fuelReserve:fuel};
@@ -151,7 +153,7 @@ function missionFuel(mission,a=null){
 function damageAircraft(a,amount){a.condition=clamp((a.condition??1)-Math.max(0,amount));a.repairNeed=Math.max(a.repairNeed||0,1-a.condition);if(a.condition<=.12){a.status='destroyed';a.mission=AIR_MISSIONS.IDLE;}else if(a.condition<.42){a.status='damaged';a.mission=AIR_MISSIONS.IDLE;}return a.status;}
 
 export function assignAircraftMission(region,aircraftId,mission,targetRegionId=null){
-  const a=ensureAviation(region).aircraft.find(x=>x.id===aircraftId); if(!a||a.status==='destroyed'||a.condition<.42)return{assigned:false,reason:'unserviceable'};
+  const a=ensureAviation(region).aircraft.find(x=>x.id===aircraftId&&x.aircraftType!=='helicopter'); if(!a||a.status==='destroyed'||a.condition<.42)return{assigned:false,reason:'unserviceable'};
   if(a.ownerType==='military'&&aircraftCrewReadiness(a)<.35)return{assigned:false,reason:'no_qualified_aircrew'};
   if(mission===AIR_MISSIONS.ATTACK&&!has(region,AERIAL_BOMBING_TECH_ID))return{assigned:false,reason:'no_air_attack_capability'};
   if(mission===AIR_MISSIONS.TRANSPORT&&!has(region,TRANSPORT_AIRCRAFT_TECH_ID))return{assigned:false,reason:'no_transport_aircraft'};
@@ -172,6 +174,7 @@ export function tickAviation(regions,currentTick,elapsedDays=7,rng=Math.random,o
     tickAirDefenceIndustry(region,elapsedDays);
     const av=ensureAviation(region);tickAirPersonnel(region,av.aircraft,elapsedDays);
     for(const a of av.aircraft){
+      if(a.aircraftType==='helicopter')continue;
       repairAtBase(region,a,elapsedDays,agreements,byId);
       if(a.status!=='destroyed'&&a.baseRegionId===region.id&&aviationBasingRelationship(a,region,agreements,byId).allowed&&(a.fuel??0)<1){
         const need=Math.max(0,1-(a.fuel||0)); const available=Math.max(0,region.stockpile?.aviation_fuel||0); const take=Math.min(need,available);
@@ -186,17 +189,19 @@ export function tickAviation(regions,currentTick,elapsedDays=7,rng=Math.random,o
       if(a.status!=='destroyed'&&a.mission===AIR_MISSIONS.ATTACK&&has(region,AERIAL_BOMBING_TECH_ID)){const payload=clamp(a.designStats?.payload??.18),firepower=clamp(a.designStats?.firepower??.15),crew=aircraftCrewReadiness(a);target.warDamage ||= {infrastructureDamage:0,bombardmentWeeks:0};target.warDamage.infrastructureDamage+=.006*a.condition*(.45+payload*1.6+firepower*.35)*(.68+.32*crew);events.push({type:'aerial_attack',aircraftId:a.id,targetRegionId:target.id,payload});}
       if(a.status!=='destroyed'&&a.mission!==AIR_MISSIONS.INTERCEPT){a.mission=AIR_MISSIONS.IDLE;a.status=a.condition<.42?'damaged':'serviceable';a.targetRegionId=null;}
     }
-    const civil=av.aircraft.filter(a=>a.ownerType==='civilian'&&a.status!=='destroyed').length;
+    const fixedWing=av.aircraft.filter(a=>a.aircraftType!=='helicopter');
+    const civil=fixedWing.filter(a=>a.ownerType==='civilian'&&a.status!=='destroyed').length;
     if(canBuild(region)&&civil<Math.max(1,Math.floor(Math.log10(Math.max(10,region.population||0))-3))){
       const wealth=clamp(Math.log1p(Math.max(0,region.wallet||0))/12),industry=industrialReadiness(region); if(rng()<elapsedDays/DAYS_PER_YEAR*.08*wealth*industry)buildAircraft(region,{ownerType:'civilian',role:'mail'});
     }
-    const military=av.aircraft.filter(a=>a.ownerType==='military'&&a.status!=='destroyed').length;
+    const military=fixedWing.filter(a=>a.ownerType==='military'&&a.status!=='destroyed').length;
     const militaryCap=Math.max(1,Math.floor(Math.max(0,region.population||0)/250000));
     if(canBuild(region)&&has(region,MILITARY_AVIATION_TECH_ID)&&military<militaryCap){
       const urgency=clamp(.2+(region.conflictPressure||0)*1.5+(region.militaryStrategy?.spendingPriority||0)*.35),industry=industrialReadiness(region);
       if(rng()<elapsedDays/DAYS_PER_YEAR*.12*urgency*industry)buildAircraft(region,{ownerType:'military',role:'recon'});
     }
   }
+  events.push(...tickHelicopters(regions,currentTick,elapsedDays,rng));
   return events;
 }
 
@@ -214,7 +219,7 @@ export function reserveAircraftCourier(origin,target){
 
 export function completeAircraftCourier(route,regionsById,{lost=false,rng=Math.random}={}){
   const origin=regionsById.get(route?.fromRegionId),target=regionsById.get(route?.toRegionId);if(!origin||!route?.aircraftId)return;
-  const a=ensureAviation(origin).aircraft.find(x=>x.id===route.aircraftId);if(!a)return;
+  const a=ensureAviation(origin).aircraft.find(x=>x.id===route.aircraftId&&x.aircraftType!=='helicopter');if(!a)return;
   if(lost){const status=damageAircraft(a,.55+rng()*.55);if(status==='destroyed')resolveAircraftCrewLoss(origin,a,{rng});return;}
   a.mission=AIR_MISSIONS.IDLE;a.status=a.condition<.42?'damaged':'serviceable';a.targetRegionId=null;
   if(target&&a.status!=='destroyed'){
@@ -223,7 +228,7 @@ export function completeAircraftCourier(route,regionsById,{lost=false,rng=Math.r
 }
 
 export function aviationSummary(region){
-  const a=ensureAviation(region).aircraft;
+  const all=ensureAviation(region).aircraft,a=all.filter(x=>x.aircraftType!=='helicopter');
   const models=new Map();for(const x of a){if(x.status==='destroyed'||!x.designId)continue;const row=models.get(x.designId)||{designId:x.designId,name:x.modelName||'Unknown model',count:0,stats:x.designStats||{}};row.count++;models.set(x.designId,row);}
-  return{total:a.filter(x=>x.status!=='destroyed').length,civilian:a.filter(x=>x.ownerType==='civilian'&&x.status!=='destroyed').length,military:a.filter(x=>x.ownerType==='military'&&x.status!=='destroyed').length,destroyed:a.filter(x=>x.status==='destroyed').length,models:[...models.values()],personnel:qualifiedPersonnelSummary(region,a,[])};
+  return{total:a.filter(x=>x.status!=='destroyed').length,civilian:a.filter(x=>x.ownerType==='civilian'&&x.status!=='destroyed').length,military:a.filter(x=>x.ownerType==='military'&&x.status!=='destroyed').length,destroyed:a.filter(x=>x.status==='destroyed').length,models:[...models.values()],personnel:qualifiedPersonnelSummary(region,all,[]),helicopters:helicopterSummary(region)};
 }
