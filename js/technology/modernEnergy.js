@@ -7,6 +7,7 @@ import { tickDroneBreakthroughs, tickDrones } from '../military/drones.js?v=2026
 import { tickGuidedAirDefenceBreakthroughs, tickGuidedAirDefenceIndustry } from '../military/guidedAirDefence.js?v=20260920-guided-air-defence1';
 import { tickDirectedEnergyBreakthroughs, tickDirectedEnergyDefence } from '../military/directedEnergy.js?v=20260920-directed-energy1';
 import { tickCarrierBreakthroughs } from '../military/carrierAviation.js?v=20260920-carriers1';
+import { tickAirborneEarlyWarningBreakthroughs } from '../military/airborneEarlyWarning.js?v=20260920-aew1';
 
 export const NATURAL_GAS_EXTRACTION_TECH_ID = 'natural_gas_extraction';
 export const GAS_TURBINE_GENERATION_TECH_ID = 'gas_turbine_generation';
@@ -78,6 +79,7 @@ export function tickModernEnergyBreakthroughs(regions,currentTick,rng=Math.rando
   events.push(...tickGuidedAirDefenceIndustry(regions,currentTick,rng,elapsedDays));
   events.push(...tickDirectedEnergyBreakthroughs(regions,currentTick,rng,elapsedDays));
   events.push(...tickCarrierBreakthroughs(regions,currentTick,rng,elapsedDays));
+  events.push(...tickAirborneEarlyWarningBreakthroughs(regions,currentTick,rng,elapsedDays));
   events.push(...tickDroneBreakthroughs(regions,currentTick,rng,elapsedDays));
   events.push(...tickDrones(regions,currentTick,elapsedDays,rng));
   return events;
