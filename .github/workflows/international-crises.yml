@@ -1,0 +1,29 @@
+name: International crises
+
+on:
+  pull_request:
+  push:
+    branches:
+      - feature/international-crisis-system
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check crisis systems
+        run: |
+          node --check js/diplomacy/internationalCrises.js
+          node --check js/diplomacy/internationalCrisisBridge.js
+          node --check js/diplomacy/internationalCrisisBodies.js
+          node --check js/diplomacy/internationalOrganisations.js
+      - name: Run international crisis regressions
+        run: node tools/test-international-crises.mjs
+      - name: Run covert crisis regressions
+        run: |
+          node tools/test-covert-incident-escalation.mjs
+          node tools/test-covert-demand-responses.mjs
+          node tools/test-covert-third-party-diplomacy.mjs
