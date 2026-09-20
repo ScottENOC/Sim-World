@@ -27,7 +27,13 @@ function urbanFootprintShare(region){
 }
 
 function physicalArableShare(region){
+  // Old tests, old saves and deliberately tiny fixture regions may not carry
+  // terrain data. They inherit the historical average rather than being
+  // interpreted as nearly barren land.
+  if(!region?.terrain)return REFERENCE_ARABLE_SHARE;
   const t=terrainFractions(region);
+  const terrainTotal=t.plains+t.hills+t.mountains+t.forest+t.wetland;
+  if(terrainTotal<.05)return REFERENCE_ARABLE_SHARE;
   // "Potential" means physically capable of cropping after ordinary clearing
   // or drainage, not that it is currently a field. Forest therefore has some
   // agricultural potential, mountains very little, and wetlands only limited
@@ -83,9 +89,9 @@ export function agriculturalLandLaborFactor(region){
   const s=ensureAgriculturalLand(region);
   const arableKm2=s.availableArableHa/100;
   const totalKm2=Math.max(.01,Number(region?.areaSqKm)||0);
-  // laborCore's historical saturation curve is parameterised by total region
-  // area. Correct it to the area that can actually be cultivated. Cap extreme
-  // values for tiny islands/mountain pockets until the mechanisation rewrite.
+  // This is exposed for the mechanisation tranche. The current farming engine
+  // still uses its legacy labour curve, while cultivated-area reporting uses
+  // the physically relevant arable area.
   return clamp(totalKm2/Math.max(.01,arableKm2),1,8);
 }
 
@@ -94,10 +100,8 @@ export function updateCultivatedLand(region,{farmers=null}={}){
   const workers=Math.max(0,Number(farmers??region?.occupations?.farmer)||0);
   const arableKm2=s.availableArableHa/100;
   if(arableKm2<=0||workers<=0){s.cultivatedHa=0;s.cultivationShare=0;return s;}
-  const landLabor=agriculturalLandLaborFactor(region);
-  const effectiveWorkers=workers*landLabor;
-  const legacyK=Math.max(.01,(Number(region?.areaSqKm)||0)*FARM_LABOR_SATURATION_PER_KM2);
-  const utilisation=clamp(1-Math.exp(-effectiveWorkers/legacyK));
+  const k=Math.max(.01,arableKm2*FARM_LABOR_SATURATION_PER_KM2);
+  const utilisation=clamp(1-Math.exp(-workers/k));
   s.cultivatedHa=s.availableArableHa*utilisation;
   s.cultivationShare=utilisation;
   return s;
