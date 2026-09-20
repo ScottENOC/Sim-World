@@ -3,6 +3,7 @@ import { ELECTRICAL_GENERATION_TECH_ID, INDUSTRIAL_ELECTRIFICATION_TECH_ID } fro
 import { BATTERY_TECH_IDS } from '../economy/batteryStorage.js?v=20260920-battery1';
 import { tickSpaceRace } from './spaceRace.js?v=20260920-space-race1';
 import { tickOrbitalSatellites } from './orbitalSatellites.js?v=20260920-orbital-satellites1';
+import { tickDroneBreakthroughs, tickDrones } from '../military/drones.js?v=20260920-drones1';
 
 export const NATURAL_GAS_EXTRACTION_TECH_ID = 'natural_gas_extraction';
 export const GAS_TURBINE_GENERATION_TECH_ID = 'gas_turbine_generation';
@@ -69,5 +70,7 @@ export function tickModernEnergyBreakthroughs(regions,currentTick,rng=Math.rando
   }
   events.push(...tickSpaceRace(regions,currentTick,rng,elapsedDays));
   events.push(...tickOrbitalSatellites(regions,currentTick,rng,elapsedDays));
+  events.push(...tickDroneBreakthroughs(regions,currentTick,rng,elapsedDays));
+  events.push(...tickDrones(regions,currentTick,elapsedDays,rng));
   return events;
 }
