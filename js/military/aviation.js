@@ -4,7 +4,11 @@ import { takeFinishedEquipment } from '../economy/industrialPlant.js?v=20260919-
 import { airDefenceEngagementRisk, tickAirDefenceIndustry, tickAntiAircraftBreakthrough } from './preDigitalAirNaval.js?v=20260919-aa-naval1';
 import { assignAircraftCrew, aircraftCrewReadiness, recordAircraftCrewPractice, resolveAircraftCrewLoss, tickAirPersonnel, qualifiedPersonnelSummary } from './qualifiedPersonnel.js?v=20260919-personnel1';
 import { helicopterSummary, tickHelicopterBreakthroughs, tickHelicopters } from './helicopters.js?v=20260920-helicopters1';
+import { specialForcesSummary, tickSpecialOperations } from './specialOperations.js?v=20260920-special-ops1';
 export { AIR_ASSAULT_TECH_ID, ATTACK_HELICOPTER_TECH_ID, HELICOPTER_MISSIONS, HELICOPTER_ROLES, ROTARY_WING_FLIGHT_TECH_ID, assignHelicopterMission, authoriseHelicopterGeneration, buildHelicopter, helicopterBattlefieldSupport, helicopterDesignFrontier, helicopterDesignImprovement } from './helicopters.js?v=20260920-helicopters1';
+export { HELIBORNE_SPECIAL_OPERATIONS_TECH_ID, SPECIAL_FORCES_TECH_ID, SPECIAL_OPERATION_INSERTION, SPECIAL_OPERATION_MISSIONS, establishSpecialForces, launchSpecialOperation, specialOperationAssessment } from './specialOperations.js?v=20260920-special-ops1';
+export { NAVAL_ROTARY_WING_TECH_ID, embarkHelicopter, disembarkHelicopter, fitHelicopterDeck, fleetRotaryWingCapacity, navalHelicopterLaunchAssessment } from './navalRotaryWing.js?v=20260920-naval-rotary1';
+export { AIR_MOBILITY_MODES, helicopterLiftCapacity, requestCampaignAirlift } from './airMobility.js?v=20260920-airmobility1';
 
 const DAYS_PER_YEAR=365.2425;
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
@@ -202,6 +206,7 @@ export function tickAviation(regions,currentTick,elapsedDays=7,rng=Math.random,o
     }
   }
   events.push(...tickHelicopters(regions,currentTick,elapsedDays,rng));
+  events.push(...tickSpecialOperations(regions,currentTick,elapsedDays,rng));
   return events;
 }
 
@@ -230,5 +235,5 @@ export function completeAircraftCourier(route,regionsById,{lost=false,rng=Math.r
 export function aviationSummary(region){
   const all=ensureAviation(region).aircraft,a=all.filter(x=>x.aircraftType!=='helicopter');
   const models=new Map();for(const x of a){if(x.status==='destroyed'||!x.designId)continue;const row=models.get(x.designId)||{designId:x.designId,name:x.modelName||'Unknown model',count:0,stats:x.designStats||{}};row.count++;models.set(x.designId,row);}
-  return{total:a.filter(x=>x.status!=='destroyed').length,civilian:a.filter(x=>x.ownerType==='civilian'&&x.status!=='destroyed').length,military:a.filter(x=>x.ownerType==='military'&&x.status!=='destroyed').length,destroyed:a.filter(x=>x.status==='destroyed').length,models:[...models.values()],personnel:qualifiedPersonnelSummary(region,all,[]),helicopters:helicopterSummary(region)};
+  return{total:a.filter(x=>x.status!=='destroyed').length,civilian:a.filter(x=>x.ownerType==='civilian'&&x.status!=='destroyed').length,military:a.filter(x=>x.ownerType==='military'&&x.status!=='destroyed').length,destroyed:a.filter(x=>x.status==='destroyed').length,models:[...models.values()],personnel:qualifiedPersonnelSummary(region,all,[]),helicopters:helicopterSummary(region),specialForces:specialForcesSummary(region)};
 }
