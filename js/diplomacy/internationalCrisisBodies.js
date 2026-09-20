@@ -105,18 +105,20 @@ export function tickInternationalCrisisBodies(world,currentTick=0,rng=Math.rando
   const playerPolityId=options.playerPolityId||globalThis.__worldsim?.activePlayerPolityId||null;
   const peaceEvents=tickPeaceNegotiations(world,currentTick,7,rng,{playerPolityId});
   restoreMediation();
+  const compatibilityEvents=[];
 
   for(const event of peaceEvents){
     const crisis=(world.internationalCrises||[]).find((candidate)=>candidate.id===event.crisisId);
     const proposal=crisis?.peaceConferences?.find((candidate)=>candidate.id===event.proposalId);
     if(event.type==='peace_negotiation_action_required'&&proposal){
       event.resolveDecision=(choice,changes={})=>respondPeaceNegotiation(proposal,crisis,world,event.actorId,choice,currentTick,changes);
+      compatibilityEvents.push({...event,type:'peace_conference_proposal_available'});
     }
     if(event.type==='peace_implementation_action_required'&&proposal){
       const obligation=proposal.implementation?.obligations?.find((candidate)=>candidate.id===event.obligation.id);
       event.resolveDecision=(choice)=>resolveImplementationAction(event.actorId,obligation,proposal,crisis,world,choice,currentTick,rng);
     }
   }
-  events.push(...peaceEvents);
+  events.push(...peaceEvents,...compatibilityEvents);
   return events;
 }
