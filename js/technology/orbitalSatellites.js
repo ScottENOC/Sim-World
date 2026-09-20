@@ -40,8 +40,10 @@ function carrierRegion(members){
 }
 function ensureOrbitalState(region){
   region.orbitalProgramme||={satellites:[],lastLaunchTick:null,totalLaunches:0,totalFailures:0};
-  region.orbitalProgramme.satellites||=[];
-  return region.orbitalProgramme;
+  const state=region.orbitalProgramme;state.satellites||=[];
+  state.groundControlCondition=clamp(state.groundControlCondition??1);
+  state.launchInfrastructureCondition=clamp(state.launchInfrastructureCondition??1);
+  return state;
 }
 export function syncNextSatelliteId(regions=[]){
   let max=0;
@@ -87,20 +89,28 @@ function orbitalCapabilityFrom(satellites){
   out.operationalSatellites=satellites.filter(s=>s.operational).length;
   return out;
 }
-function syncSupport(members,satellites){const capability=orbitalCapabilityFrom(satellites);for(const r of members)r.orbitalSupport={...capability};return capability;}
+function applyGroundControl(capability,state){
+  const control=clamp(state?.groundControlCondition??1),observation=.45+.55*control;
+  capability.civilianCommunications*=control;capability.militaryCommand*=control;capability.remoteControl*=control;capability.droneBeyondLineOfSightControl*=control;capability.navigation*=control;
+  capability.militaryReconnaissance*=observation;capability.weatherObservation*=observation;capability.scienceObservation*=observation;
+  capability.groundControlCondition=control;capability.launchInfrastructureCondition=clamp(state?.launchInfrastructureCondition??1);
+  return capability;
+}
+function syncSupport(members,satellites,state){const capability=applyGroundControl(orbitalCapabilityFrom(satellites),state);for(const r of members)r.orbitalSupport={...capability};return capability;}
 
-export function orbitalSupport(region){return region?.orbitalSupport||{scienceObservation:0,weatherObservation:0,civilianCommunications:0,militaryReconnaissance:0,militaryCommand:0,remoteControl:0,navigation:0,droneBeyondLineOfSightControl:0,operationalSatellites:0};}
+export function orbitalSupport(region){return region?.orbitalSupport||{scienceObservation:0,weatherObservation:0,civilianCommunications:0,militaryReconnaissance:0,militaryCommand:0,remoteControl:0,navigation:0,droneBeyondLineOfSightControl:0,operationalSatellites:0,groundControlCondition:1,launchInfrastructureCondition:1};}
 
 export function launchSatellite(members,role,currentTick,{free=false}= {}){
   const carrier=carrierRegion(members);if(!carrier)return{launched:false,reason:'no_space_programme'};
   if(!roleAvailable(members,role))return{launched:false,reason:'technology_not_ready'};
+  const state=ensureOrbitalState(carrier);if(!free&&state.launchInfrastructureCondition<.18)return{launched:false,reason:'launch_infrastructure_disabled'};
   const type=SATELLITE_TYPES[role],resources=nationalResources(members);
   if(!free&&(resources.treasury<type.cash||resources.steel<type.steel||resources.fuel<type.fuel))return{launched:false,reason:'insufficient_resources'};
   if(!free){consumeAcross(members,'treasury',type.cash);consumeAcross(members,'steel',type.steel);consumeAcross(members,'fuel',type.fuel);}
-  const power=powerPackage(members),state=ensureOrbitalState(carrier);
+  const power=powerPackage(members);
   const satellite={id:`sat_${nextSatelliteId++}`,role,use:type.use,ownerPolityId:polityId(carrier),launchRegionId:carrier.id,launchedTick:currentTick,powerMode:power.mode,batteryChemistry:power.batteryChemistry,designLifeDays:power.designLifeDays,remainingLifeDays:power.designLifeDays,condition:1,operational:true};
   state.satellites.push(satellite);state.lastLaunchTick=currentTick;state.totalLaunches++;
-  syncSupport(members,state.satellites);
+  syncSupport(members,state.satellites,state);
   return{launched:true,satellite,cost:free?{cash:0,steel:0,fuel:0}:{cash:type.cash,steel:type.steel,fuel:type.fuel}};
 }
 
@@ -115,12 +125,19 @@ function chooseNextRole(members,satellites){
   candidates.sort((a,b)=>a[1]-b[1]);return candidates[0]?.[0]||null;
 }
 function programmeReady(members){return members.some(r=>r.spaceProgramme?.completedMilestones?.includes?.('first_satellite'))&&technologyAvailable(members,SPACE_TECH_IDS.ORBITAL_SYSTEMS);}
+function repairGroundInfrastructure(carrier,state,days){
+  if(state.groundControlCondition>=.999&&state.launchInfrastructureCondition>=.999)return;
+  const pace=Math.max(.1,days/7),cash=Math.min(nonNegative(carrier.treasury),1.4*pace),steel=Math.min(nonNegative(carrier.stockpile?.steel),.12*pace);
+  if(cash<=0||steel<=0)return;
+  carrier.treasury-=cash;carrier.stockpile.steel-=steel;
+  const repair=.012*pace*Math.min(1,cash/(1.4*pace),steel/(.12*pace));state.groundControlCondition=clamp(state.groundControlCondition+repair);state.launchInfrastructureCondition=clamp(state.launchInfrastructureCondition+repair*.82);
+}
 
 export function tickOrbitalSatellites(regions,currentTick,rng=Math.random,elapsedDays=7){
   const events=[],groups=groupedPolities(regions);syncNextSatelliteId(regions);
   for(const members of groups.values()){
     const carrier=carrierRegion(members);if(!carrier||!programmeReady(members))continue;
-    const state=ensureOrbitalState(carrier),days=Math.max(0,Number(elapsedDays)||0);
+    const state=ensureOrbitalState(carrier),days=Math.max(0,Number(elapsedDays)||0);repairGroundInfrastructure(carrier,state,days);
     if(!state.satellites.length){
       const first=launchSatellite(members,SATELLITE_ROLES.SCIENTIFIC,currentTick,{free:true});
       if(first.launched)events.push({type:'satellite_launched',regionId:carrier.id,tick:currentTick,title:'First orbital satellite enters service',satelliteId:first.satellite.id,role:first.satellite.role,use:first.satellite.use});
@@ -132,14 +149,14 @@ export function tickOrbitalSatellites(regions,currentTick,rng=Math.random,elapse
       satellite.condition=clamp(Math.min(satellite.condition??1,.45+lifeFraction*.55));
       if(satellite.remainingLifeDays<=0){satellite.operational=false;satellite.condition=0;events.push({type:'satellite_end_of_life',regionId:carrier.id,tick:currentTick,satelliteId:satellite.id,role:satellite.role});}
     }
-    syncSupport(members,state.satellites);
+    syncSupport(members,state.satellites,state);
     const since=state.lastLaunchTick===null?99999:Math.max(0,currentTick-state.lastLaunchTick);
     const role=chooseNextRole(members,state.satellites);
     if(!role||since<26)continue;
     const resources=nationalResources(members),type=SATELLITE_TYPES[role];
     const affordability=Math.min(resources.treasury/Math.max(1,type.cash),resources.steel/Math.max(1,type.steel),resources.fuel/Math.max(1,type.fuel));
     const operational=state.satellites.filter(s=>s.operational).length;
-    const annualChance=clamp(.10+Math.min(.18,operational*.025)+(affordability>=2?.12:0));
+    const annualChance=clamp((.10+Math.min(.18,operational*.025)+(affordability>=2?.12:0))*state.launchInfrastructureCondition);
     if(affordability<1||rng()>=1-Math.pow(1-annualChance,days/DAYS_PER_YEAR))continue;
     const launched=launchSatellite(members,role,currentTick);
     if(launched.launched)events.push({type:'satellite_launched',regionId:carrier.id,tick:currentTick,title:`${role} satellite launched`,satelliteId:launched.satellite.id,role,use:launched.satellite.use,cost:launched.cost});
