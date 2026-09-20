@@ -1,4 +1,6 @@
 import { tickSubmarineBreakthroughs, tickSubmarineFleet, submarineCanAmbush, submarineDetectionSignature } from './submarineOperations.js?v=20260920-submarine1';
+import { attitudeToward } from '../diplomacy/relations.js?v=20260904-save1';
+import { carrierAirGroupSummary, resolveCarrierAirExchange } from './carrierAirGroupCombat.js?v=20260920-carrier-combat1';
 
 const DAYS_PER_YEAR=365.2425;
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
@@ -108,6 +110,34 @@ function submarineAmbush(subFleet,target,ownerRegion,rng){
  return{type:'submarine_ambush',submarineFleetId:subFleet.id,targetFleetId:target.id,seaRegionId:subFleet.seaRegionId,shots,hits,targetShipId:ship?.id||null,counterDetected:subLost,submarineSignature:signature,submarineMode:subFleet.submarineStatus?.mode||null};
 }
 
+function carrierHostile(owner,targetRegion){return Boolean(owner&&targetRegion&&attitudeToward(owner,targetRegion.id)<=-.45);}
+function carrierSearchChance(owner,fleet,target,summary){
+ const mission=fleet.mission==='intercept'?.20:fleet.mission==='patrol'?.13:fleet.mission==='blockade'?.16:.06;
+ const targetSize=Math.min(.18,Math.log1p(target.ships?.length||0)*.055);
+ return clamp(.05+mission+summary.detectionBonus+targetSize,0,.92);
+}
+function resolveCarrierAirWarfare(fleets,regionsById,currentTick,rng){
+ const events=[],handled=new Set();
+ for(const fleet of fleets){
+  if(fleet.locationType!=='sea'||!fleet.seaRegionId||fleet.routeSeaIds?.length||isSubmarineFleet(fleet))continue;
+  const owner=regionsById.get(fleet.ownerRegionId);if(!owner)continue;
+  const ownSummary=carrierAirGroupSummary(owner,fleet);if(ownSummary.aircraft<=0)continue;
+  const targets=fleets.filter(t=>t!==fleet&&t.locationType==='sea'&&t.seaRegionId===fleet.seaRegionId&&!t.routeSeaIds?.length&&t.ownerActorId!==fleet.ownerActorId&&!isSubmarineFleet(t));
+  for(const target of targets){
+   const targetRegion=regionsById.get(target.ownerRegionId);if(!carrierHostile(owner,targetRegion))continue;
+   const key=[fleet.id,target.id].sort().join('|');if(handled.has(key))continue;
+   const targetSummary=targetRegion?carrierAirGroupSummary(targetRegion,target):{aircraft:0,detectionBonus:0};
+   const foundByA=rng()<carrierSearchChance(owner,fleet,target,ownSummary);
+   const foundByB=targetRegion&&targetSummary.aircraft>0&&rng()<carrierSearchChance(targetRegion,target,fleet,targetSummary);
+   if(!foundByA&&!foundByB)continue;
+   handled.add(key);
+   const exchange=resolveCarrierAirExchange(fleet,target,regionsById,rng);
+   events.push({type:'carrier_air_engagement',tick:currentTick,seaRegionId:fleet.seaRegionId,attackerFleetId:fleet.id,defenderFleetId:target.id,detectedByAttacker:foundByA,detectedByDefender:Boolean(foundByB),attackerAew:ownSummary.aew,defenderAew:targetSummary.aew||null,exchange});
+  }
+ }
+ return events;
+}
+
 export function tickLateIndustrialNavalWarfare(fleets,regions,seaRegions,currentTick,elapsedDays=7,rng=Math.random){
  const events=[],regionsById=new Map(regions.map(r=>[r.id,r])),seasById=new Map(seaRegions.map(s=>[s.id,s]));
  for(const sea of seaRegions)for(const field of ensureNavalMineState(sea)){field.condition=clamp(field.condition-Math.max(0,elapsedDays)/DAYS_PER_YEAR*.18);field.density=clamp(field.density*field.condition);}
@@ -129,5 +159,6 @@ export function tickLateIndustrialNavalWarfare(fleets,regions,seaRegions,current
   const weighted=[...targets].sort((a,b)=>(capitalShipCount(b)*4+b.ships.length)-(capitalShipCount(a)*4+a.ships.length));
   const event=submarineAmbush(fleet,weighted[0],owner,rng);if(event)events.push(event);
  }
+ events.push(...resolveCarrierAirWarfare(fleets,regionsById,currentTick,rng));
  return events;
 }
