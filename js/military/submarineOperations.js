@@ -149,8 +149,6 @@ export function tickSubmarineShip(ship, ownerRegion, { elapsedDays = 7, requeste
 
   if (state.propulsion === SUBMARINE_PROPULSION.NUCLEAR) {
     state.mode = SUBMARINE_MODES.NUCLEAR_CRUISE;
-    // Nuclear boats do not spend propulsion battery while submerged. Reactor power supports
-    // atmosphere regeneration; long patrol endurance is instead constrained by stores and maintenance.
     state.batteryCharge = clamp(state.batteryCharge + 0.03 * scale);
     state.atmosphereReserve = clamp(state.atmosphereReserve + 0.08 * scale);
     state.storesReserve = clamp(state.storesReserve - 0.018 * scale);
@@ -178,7 +176,7 @@ export function tickSubmarineShip(ship, ownerRegion, { elapsedDays = 7, requeste
     const fuelNeed = (snorkelling ? 0.72 : 0.88) * scale;
     dieselConsumed = consumeDiesel(ownerRegion, fuelNeed);
     const fuelRatio = fuelNeed > 0 ? clamp(dieselConsumed / fuelNeed) : 1;
-    batteryDelta = (0.48 + battery.powerDensity * 0.18) * scale * fuelRatio;
+    batteryDelta = (0.48 + battery.quietPropulsion * 0.18) * scale * fuelRatio;
     airDelta = (snorkelling ? 0.68 : 1.05) * scale;
     signature = snorkelling ? 0.68 : 0.94;
     if (fuelRatio < 0.12) {
