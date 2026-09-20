@@ -69,7 +69,10 @@ export function powerRatio(demander, target, toolTypes) {
 export function tradeRelationMultiplier(a, b) {
   const mutual = (attitudeToward(a, b.id) + attitudeToward(b, a.id)) / 2;
   const diplomatic = clamp(1 + mutual * 0.45, 0.45, 1.35);
-  return diplomatic * cultureTradeMultiplier(a, b);
+  const aSanction = clamp(Number(relationToward(a, b.id).tradeSanctionSeverity) || 0, 0, 1);
+  const bSanction = clamp(Number(relationToward(b, a.id).tradeSanctionSeverity) || 0, 0, 1);
+  const sanctions = clamp(1 - Math.max(aSanction, bSanction) * 0.72, 0.2, 1);
+  return diplomatic * sanctions * cultureTradeMultiplier(a, b);
 }
 
 export function recordDiplomaticTrade(a, b, value, currentTick) {
@@ -193,7 +196,11 @@ export function tickDiplomacy(regions, agreements, toolTypes, currentTick, elaps
     region.diplomacyReport = { paid: 0, received: 0, woodTaken: 0, support: 0 };
     if (options.maintainRelationships === false) continue;
     for (const [otherId, relation] of region.relations.entries()) {
-      if (!relation.lastCause && Math.abs(Number(relation.attitude) || 0) < 1e-12) {
+      if (Number.isFinite(relation.tradeSanctionUntilTick) && currentTick >= relation.tradeSanctionUntilTick) {
+        relation.tradeSanctionSeverity = 0;
+        relation.tradeSanctionUntilTick = null;
+      }
+      if (!relation.lastCause && Math.abs(Number(relation.attitude) || 0) < 1e-12 && !(relation.tradeSanctionSeverity > 0)) {
         region.relations.delete(otherId);
         continue;
       }
