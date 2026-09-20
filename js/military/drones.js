@@ -1,7 +1,7 @@
 import { batteryMobilityCapability, BATTERY_TECH_IDS } from '../economy/batteryStorage.js?v=20260920-battery1';
 import { INDUSTRIAL_ELECTRIFICATION_TECH_ID } from '../technology/electrification.js?v=20260917-electric1';
-import { airDefenceEngagementRisk } from './preDigitalAirNaval.js?v=20260919-aa-naval1';
 import { ROCKET_STABILISATION_TECH_ID } from './earlyRocketry.js?v=20260920-drones1';
+import { layeredAirDefenceEngagement } from './guidedAirDefence.js?v=20260920-drones2';
 
 const DAYS_PER_YEAR=365.2425;
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
@@ -30,10 +30,10 @@ export const DRONE_MISSIONS=Object.freeze({IDLE:'idle',RECON:'recon',ATTACK:'att
 export const DRONE_CONTROL=Object.freeze({LOCAL:'local_radio',RELAY:'radio_relay',SATELLITE:'satellite',AUTONOMOUS:'autonomous',NONE:'none'});
 
 const TYPE_SPEC=Object.freeze({
-  [DRONE_TYPES.RECON_UAV]:{tech:DRONE_TECH_IDS.RECON_UAV,cash:28,steel:3,machine:2,fuel:0.10,reusable:true,satellite:true,signature:.55,recon:.68,payload:0,battery:false},
-  [DRONE_TYPES.STRIKE_UAV]:{tech:DRONE_TECH_IDS.REMOTE_STRIKE,cash:46,steel:5,machine:3,fuel:0.16,reusable:true,satellite:true,signature:.65,recon:.42,payload:.42,battery:false},
-  [DRONE_TYPES.LOITERING_MUNITION]:{tech:DRONE_TECH_IDS.LOITERING_MUNITION,cash:18,steel:2,machine:1,fuel:0.07,reusable:false,satellite:true,signature:.38,recon:.18,payload:.58,battery:false},
-  [DRONE_TYPES.QUADCOPTER]:{tech:DRONE_TECH_IDS.MULTIROTOR,cash:7,steel:.25,machine:.4,fuel:0,reusable:true,satellite:false,signature:.22,recon:.52,payload:.14,battery:true},
+  [DRONE_TYPES.RECON_UAV]:{tech:DRONE_TECH_IDS.RECON_UAV,cash:18,steel:2.4,machine:1.6,fuel:.09,reusable:true,satellite:true,signature:.52,recon:.68,payload:0,battery:false,speed:.48,altitude:.56,replacementValue:18,damagePotential:.05},
+  [DRONE_TYPES.STRIKE_UAV]:{tech:DRONE_TECH_IDS.REMOTE_STRIKE,cash:34,steel:4,machine:2.7,fuel:.14,reusable:true,satellite:true,signature:.62,recon:.40,payload:.46,battery:false,speed:.58,altitude:.62,replacementValue:34,damagePotential:.42},
+  [DRONE_TYPES.LOITERING_MUNITION]:{tech:DRONE_TECH_IDS.LOITERING_MUNITION,cash:5.5,steel:.8,machine:.55,fuel:.045,reusable:false,satellite:true,signature:.34,recon:.16,payload:.60,battery:false,speed:.36,altitude:.30,replacementValue:5.5,damagePotential:.55},
+  [DRONE_TYPES.QUADCOPTER]:{tech:DRONE_TECH_IDS.MULTIROTOR,cash:2.2,steel:.12,machine:.22,fuel:0,reusable:true,satellite:false,signature:.18,recon:.52,payload:.16,battery:true,speed:.16,altitude:.12,replacementValue:2.2,damagePotential:.18},
 });
 
 function electronics(region){const p=region.industrialPlants?.componentCapability||{};return clamp(Math.max(p.electronics||0,p.radio_navigation||0));}
@@ -82,7 +82,7 @@ function spend(region,spec){
 export function buildDrone(region,type){
   const spec=TYPE_SPEC[type];if(!spec||!has(region,spec.tech))return null;if(!spend(region,spec))return null;
   const battery=batteryMobilityCapability(region);
-  const drone={id:`drone-${nextDroneId++}`,type,mission:DRONE_MISSIONS.IDLE,targetRegionId:null,status:'serviceable',condition:1,fuel:spec.battery?null:1,batteryCharge:spec.battery?1:null,endurance:spec.battery?clamp(.35+(battery.endurance||0)*.65):1,controlMode:DRONE_CONTROL.LOCAL,totalMissions:0};
+  const drone={id:`drone-${nextDroneId++}`,type,mission:DRONE_MISSIONS.IDLE,targetRegionId:null,status:'serviceable',condition:1,fuel:spec.battery?null:1,batteryCharge:spec.battery?1:null,endurance:spec.battery?clamp(.35+(battery.endurance||0)*.65):1,controlMode:DRONE_CONTROL.LOCAL,totalMissions:0,replacementValue:spec.replacementValue};
   ensureDrones(region).inventory.push(drone);region.droneForces.totalBuilt++;return drone;
 }
 
@@ -110,10 +110,7 @@ export function assignDroneMission(region,droneId,mission,targetRegionId){
   d.mission=mission;d.targetRegionId=mission===DRONE_MISSIONS.IDLE?null:targetRegionId;return{assigned:true,drone:d};
 }
 
-function missionEnergyAvailable(region,d,spec){
-  if(spec.battery)return(d.batteryCharge||0)>=.20;
-  return nonNegative(region.stockpile?.aviation_fuel)>=spec.fuel;
-}
+function missionEnergyAvailable(region,d,spec){return spec.battery?(d.batteryCharge||0)>=.20:nonNegative(region.stockpile?.aviation_fuel)>=spec.fuel;}
 function consumeMissionEnergy(region,d,spec){
   if(spec.battery){const use=.18/Math.max(.35,d.endurance||.35);d.batteryCharge=clamp((d.batteryCharge||0)-use);return;}
   region.stockpile.aviation_fuel=Math.max(0,nonNegative(region.stockpile?.aviation_fuel)-spec.fuel);d.fuel=clamp((d.fuel??1)-.08);
@@ -123,6 +120,7 @@ function recoverAtBase(region,d,elapsedDays){
   if(d.batteryCharge!==null&&d.batteryCharge<1&&(region.electricity?.service||region.electricity?.industrialService||0)>.15)d.batteryCharge=clamp(d.batteryCharge+Math.max(.05,elapsedDays/7*.28));
   if(d.fuel!==null&&d.fuel<1&&nonNegative(region.stockpile?.aviation_fuel)>0){const take=Math.min(1-d.fuel,nonNegative(region.stockpile.aviation_fuel),elapsedDays/7*.25);region.stockpile.aviation_fuel-=take;d.fuel=clamp(d.fuel+take);}
 }
+function threatProfile(d,spec){return{type:d.type,signature:spec.signature,speed:spec.speed,altitude:spec.altitude,replacementValue:spec.replacementValue,damagePotential:spec.damagePotential,payloadValue:spec.payload};}
 
 export function tickDrones(regions,currentTick,elapsedDays=7,rng=Math.random){
   const events=[],byId=new Map((regions||[]).map(r=>[r.id,r]));syncNextDroneId(regions);
@@ -135,12 +133,13 @@ export function tickDrones(regions,currentTick,elapsedDays=7,rng=Math.random){
       if(!control.available){events.push({type:'drone_mission_aborted_link',regionId:region.id,droneId:d.id,targetRegionId:target.id});d.mission=DRONE_MISSIONS.IDLE;d.targetRegionId=null;continue;}
       if(!missionEnergyAvailable(region,d,spec)){events.push({type:'drone_mission_aborted_energy',regionId:region.id,droneId:d.id,targetRegionId:target.id});d.mission=DRONE_MISSIONS.IDLE;d.targetRegionId=null;continue;}
       consumeMissionEnergy(region,d,spec);d.totalMissions++;force.experience+=1;
-      const risk=clamp(airDefenceEngagementRisk(target,null)*spec.signature*(1.08-control.quality*.18));
-      if(rng()<risk){d.status='destroyed';d.condition=0;force.totalLost++;events.push({type:'drone_destroyed',regionId:region.id,droneId:d.id,targetRegionId:target.id,controlMode:control.mode});continue;}
+      const defence=layeredAirDefenceEngagement(target,threatProfile(d,spec),{rng});
+      if(defence.engaged)events.push({type:'drone_air_defence_engagement',regionId:region.id,droneId:d.id,targetRegionId:target.id,layer:defence.layer,killed:defence.killed,interceptorCost:defence.interceptorCost,targetValue:defence.targetValue,attackerReplacementValue:spec.replacementValue});
+      if(defence.killed){d.status='destroyed';d.condition=0;force.totalLost++;events.push({type:'drone_destroyed',regionId:region.id,droneId:d.id,targetRegionId:target.id,controlMode:control.mode,defenceLayer:defence.layer});continue;}
       if(d.mission===DRONE_MISSIONS.RECON){
         region.droneRecon||={};const confidence=clamp(.30+spec.recon*.45+control.quality*.22+d.condition*.08);region.droneRecon[target.id]={observedTick:currentTick,confidence,controlMode:control.mode,droneType:d.type};force.totalReconMissions++;events.push({type:'drone_reconnaissance',regionId:region.id,droneId:d.id,targetRegionId:target.id,confidence,controlMode:control.mode});
       }else if(d.mission===DRONE_MISSIONS.ATTACK){
-        target.warDamage||={infrastructureDamage:0,bombardmentWeeks:0};const damage=.0035*spec.payload*(.55+control.quality*.45)*(d.type===DRONE_TYPES.LOITERING_MUNITION?1.5:1);target.warDamage.infrastructureDamage+=damage;force.totalStrikes++;events.push({type:'drone_strike',regionId:region.id,droneId:d.id,targetRegionId:target.id,damage,controlMode:control.mode,expendable:!spec.reusable});
+        target.warDamage||={infrastructureDamage:0,bombardmentWeeks:0};const damage=.0045*spec.payload*(.55+control.quality*.45)*(d.type===DRONE_TYPES.LOITERING_MUNITION?1.65:1);target.warDamage.infrastructureDamage+=damage;force.totalStrikes++;events.push({type:'drone_strike',regionId:region.id,droneId:d.id,targetRegionId:target.id,damage,controlMode:control.mode,expendable:!spec.reusable,attackerReplacementValue:spec.replacementValue});
       }
       if(!spec.reusable){d.status='destroyed';d.condition=0;force.totalLost++;}
       d.mission=DRONE_MISSIONS.IDLE;d.targetRegionId=null;
