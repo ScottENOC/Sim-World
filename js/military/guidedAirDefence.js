@@ -47,6 +47,21 @@ export function buildSurfaceToAirMissile(region,{radarGuided=false,count=1}={}){
   return{built:true,count:n,radarGuided,cost:{cash:unit.cash*n,steel:unit.steel*n,machine:unit.machine*n}};
 }
 
+export function tickGuidedAirDefenceIndustry(regions,currentTick,rng=Math.random,elapsedDays=7){
+  const events=[],years=Math.max(.001,Number(elapsedDays)||0)/DAYS_PER_YEAR;
+  for(const region of regions||[]){
+    if(!has(region,SURFACE_TO_AIR_MISSILE_TECH_ID))continue;
+    const s=ensureGuidedAirDefence(region),pressure=clamp((region.conflictPressure||0)*1.4+(region.droneThreatExperience||0)*.7+(region.militaryStrategy?.spendingPriority||0)*.35);
+    const protectedValue=estimateProtectedTargetValue(region),desired=Math.max(2,Math.ceil(Math.log1p(protectedValue)/1.9+pressure*8));
+    const total=s.samInventory+s.radarSamInventory;
+    if(total>=desired||rng()>=years*(.18+pressure*.52))continue;
+    const radarGuided=has(region,RADAR_GUIDED_SAM_TECH_ID)&&s.radarSamInventory<Math.ceil(desired*.35)&&rng()<.55;
+    const built=buildSurfaceToAirMissile(region,{radarGuided,count:1});
+    if(built.built)events.push({type:'sam_produced',regionId:region.id,tick:currentTick,radarGuided,cost:built.cost});
+  }
+  return events;
+}
+
 function cheapGunLayer(region,threat){
   const aa=region.airDefenceIndustry||{};let guns=0,quality=0;
   for(const [id,countRaw] of Object.entries(aa.inventoryByDesign||{})){
