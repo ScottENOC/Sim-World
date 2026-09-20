@@ -36,8 +36,9 @@ export function electricityDemand(region, elapsedDays = 7) {
   const lightMetalsDemand = nonNegative(region.lightMetals?.electricityLoad);
   const strategicNuclearDemand = nonNegative(region.strategicNuclear?.electricityLoad);
   const modernEnergyDemand = modernEnergyElectricityDemand(region);
-  const industrialDemand = baseIndustrialDemand + lightMetalsDemand + strategicNuclearDemand + modernEnergyDemand;
-  return { householdDemand, industrialDemand, total: householdDemand + industrialDemand, lightMetalsDemand, strategicNuclearDemand, modernEnergyDemand };
+  const fertiliserDemand = nonNegative(region.agriculturalFertiliser?.electricityLoad);
+  const industrialDemand = baseIndustrialDemand + lightMetalsDemand + strategicNuclearDemand + modernEnergyDemand + fertiliserDemand;
+  return { householdDemand, industrialDemand, total: householdDemand + industrialDemand, lightMetalsDemand, strategicNuclearDemand, modernEnergyDemand, fertiliserDemand };
 }
 
 export function dispatchElectricityPortfolio(outputs = {}, demand = Infinity) {
@@ -79,9 +80,6 @@ function syncDistributedGridStorage(region, grids) {
   const capability = batteryCapability(region);
   const storage = ensureBatteryStorage(region);
   if (!capability || grids <= 0) return storage;
-  // This first battery tranche treats storage as retrofits attached to existing grids.
-  // Dedicated utility-scale battery projects can later add to installedCapacity through
-  // installBatteryStorage without changing dispatch semantics.
   const retrofitCapacityPerGrid = 260 * (0.35 + capability.energyDensity * 0.65);
   const floorCapacity = grids * retrofitCapacityPerGrid;
   if (storage.installedCapacity < floorCapacity) {
@@ -174,6 +172,7 @@ export function tickElectricity(region, elapsedDays = 7) {
   state.lightMetalsDemand = demand.lightMetalsDemand || 0;
   state.strategicNuclearDemand = demand.strategicNuclearDemand || 0;
   state.modernEnergyDemand = demand.modernEnergyDemand || 0;
+  state.fertiliserDemand = demand.fertiliserDemand || 0;
   state.gasConsumed = gasConsumed;
   state.storageCharge = storageDispatch.chargeInput;
   state.storageDischarge = storageDispatch.discharged;

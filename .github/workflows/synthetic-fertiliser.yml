@@ -1,0 +1,26 @@
+name: Synthetic fertiliser
+
+on:
+  pull_request:
+  push:
+    branches:
+      - feature/synthetic-fertiliser
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check fertiliser integration
+        run: |
+          node --check js/economy/agriculturalFertiliser.js
+          node --check js/economy/agriculturalWater.js
+          node --check js/economy/electricity.js
+          node --check js/technology/industrialProduction.js
+      - name: Run synthetic fertiliser regression
+        run: node tools/test-synthetic-fertiliser.mjs
+      - name: Re-run agricultural machinery regression
+        run: node tools/test-agricultural-machinery.mjs
