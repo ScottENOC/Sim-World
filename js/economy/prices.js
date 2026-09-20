@@ -19,7 +19,7 @@ export function localPrice(region, resource) {
   // Generic commodities retain the legacy half-year strategic reserve. Diet
   // baskets are weekly market availability signals, not duplicated calorie
   // reserves, so only a token buffer is removed before scarcity is observed.
-  const reserveWeeks=dietGood?.25:26;
+  const reserveWeeks=dietGood ? 0.25 : 26;
   const stock = Math.max(0, (region.stockpile?.[resource] || 0) - demand * reserveWeeks);
   const demandPremium = 1 + Math.min(9, demand / Math.max(1, ref * 0.01));
   return base * (ref / (stock + ref)) * demandPremium;
