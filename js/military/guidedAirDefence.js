@@ -1,3 +1,5 @@
+import { engageLaserDefence, laserDefenceLayer } from './directedEnergy.js?v=20260920-laser1';
+
 const DAYS_PER_YEAR=365.2425;
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const nonNegative=v=>Math.max(0,Number(v)||0);
@@ -93,11 +95,15 @@ export function estimateProtectedTargetValue(region){
 
 export function layeredAirDefenceEngagement(region,threat,{rng=Math.random,targetValue=null}={}){
   const state=ensureGuidedAirDefence(region),value=Math.max(0,targetValue??estimateProtectedTargetValue(region));
-  const gun=cheapGunLayer(region,threat),short=has(region,SURFACE_TO_AIR_MISSILE_TECH_ID)?samLayer(region,threat):{available:false},radarSam=has(region,RADAR_GUIDED_SAM_TECH_ID)?samLayer(region,threat,{radarGuided:true}):{available:false};
-  const result={engaged:false,killed:false,layer:'none',targetValue:value,interceptorCost:0,gun,shortSam:short,radarSam};
+  const gun=cheapGunLayer(region,threat),laser=laserDefenceLayer(region,threat),short=has(region,SURFACE_TO_AIR_MISSILE_TECH_ID)?samLayer(region,threat):{available:false},radarSam=has(region,RADAR_GUIDED_SAM_TECH_ID)?samLayer(region,threat,{radarGuided:true}):{available:false};
+  const result={engaged:false,killed:false,layer:'none',targetValue:value,interceptorCost:0,gun,laser,shortSam:short,radarSam};
   if(gun.available&&gun.killChance>.08){
     result.engaged=true;result.layer='gun';result.interceptorCost=gun.cashPerEngagement;state.gunEngagements++;state.gunExperience=clamp(state.gunExperience+.0015*(1-state.gunExperience));
     if(rng()<gun.killChance){result.killed=true;return result;}
+  }
+  if(laser.available){
+    const shot=engageLaserDefence(region,threat,{rng});result.engaged=true;result.layer='laser';result.interceptorCost=shot.cashPerEngagement;
+    if(shot.killed){result.killed=true;return result;}
   }
   const incomingValue=Math.max(1,nonNegative(threat.replacementValue||threat.payloadValue||1));
   const consequence=value*Math.max(.08,clamp(threat.damagePotential||.2));
