@@ -45,7 +45,7 @@ export const SCENARIOS = Object.freeze([
     mapStyle: 'modern-strategic',
     rulesProfile: 'modern-crisis',
     technologyProfile: 'near-future-conventional',
-    victoryModel: 'military-control',
+    victoryModel: 'country-survival-and-aims',
     targetRealHours: 30,
     targetSimYears: 6,
     available: false,
