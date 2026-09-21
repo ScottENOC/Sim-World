@@ -43,19 +43,23 @@ assert.equal(countryActorId('Türkiye'), 'turkiye');
 const result = consolidateScenarioSovereignty(world, navigation, sovereignty);
 assert.equal(result.countryCount, 4);
 assert.equal(world.polities.length, 4);
-assert.deepEqual(new Set(world.polities.map((p) => p.id)), new Set(['australia', 'usa', 'france', 'germany']));
-assert.ok(!world.polities.some((p) => p.id === 'european-union'), 'EU must not replace sovereign member countries');
+assert.equal(result.actorToPolityId.australia, 'polity_au-east');
+assert.equal(result.actorToPolityId.usa, 'polity_us-east');
+assert.equal(world.polities.find((p) => p.scenarioActorId === 'australia')?.id, 'polity_au-east');
+assert.equal(world.polities.find((p) => p.scenarioActorId === 'usa')?.id, 'polity_us-east');
+assert.ok(!world.polities.some((p) => p.scenarioActorId === 'european-union'), 'EU must not replace sovereign member countries');
 
 for (const id of ['au-east', 'au-west']) {
   const region = regions.find((r) => r.id === id);
-  assert.equal(region.governance.sovereignPolityId, 'australia');
-  assert.equal(region.polityId, 'australia');
+  assert.equal(region.governance.sovereignPolityId, 'polity_au-east');
+  assert.equal(region.polityId, 'polity_au-east');
+  assert.equal(region.scenarioCountryId, 'australia');
   assert.ok(region.scenarioSelectors.includes('australia'));
 }
 assert.equal(regions.find((r) => r.id === 'au-east').governance.relationship, 'core');
 assert.equal(regions.find((r) => r.id === 'au-west').governance.relationship, 'integrated');
-assert.equal(world.polities.find((p) => p.id === 'australia').capitalRegionId, 'au-east');
-assert.equal(world.polities.find((p) => p.id === 'usa').capitalRegionId, 'us-east');
+assert.equal(world.polities.find((p) => p.scenarioActorId === 'australia').capitalRegionId, 'au-east');
+assert.equal(world.polities.find((p) => p.scenarioActorId === 'usa').capitalRegionId, 'us-east');
 assert.equal(result.unassignedRegionIds.length, 0);
 
-console.log('Scenario sovereignty regression passed: mapped regions consolidate into sovereign countries while EU members remain separate.');
+console.log('Scenario sovereignty regression passed: mapped regions consolidate behind representative engine polity IDs while modern country aliases remain stable.');
