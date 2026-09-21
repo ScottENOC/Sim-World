@@ -1,6 +1,7 @@
-import { currentScenario, waitForScenarioSelection } from './scenarios.js?v=20260921-scenarios1';
+import { currentScenario, waitForScenarioSelection } from './scenarios.js?v=20260921-scenarios2';
 import { hydrateScenarioInitialState, scenarioPlayablePolities } from './scenarioState.js?v=20260921-scenario-state1';
 import { updateFocusedCampaignResolution, canDeclareFocusedScenarioResult } from './scenarioVictory.js?v=20260921-scenario-victory1';
+import { consolidateScenarioSovereignty } from './scenarioSovereignty.js?v=20260921-scenario-sovereignty1';
 
 const jsonClone = (value) => JSON.parse(JSON.stringify(value));
 const arr = (value) => Array.isArray(value) ? value : [];
@@ -24,15 +25,17 @@ export async function loadScenarioPackage(scenario = currentScenario(), fetchFn 
   if (manifest.id !== scenario.id) throw new Error(`Scenario package mismatch: selected ${scenario.id}, loaded ${manifest.id}`);
 
   const loadOptional = async (file) => file ? fetchJson(`${root}${file}`, fetchFn) : null;
-  const [initialState, factionBalance, pressureEvents, playability, victory] = await Promise.all([
+  const [initialState, factionBalance, pressureEvents, playability, victory, sovereignty, navigation] = await Promise.all([
     loadOptional(manifest.initialStateFile),
     loadOptional(manifest.factionBalanceFile),
     loadOptional(manifest.pressureEventsFile),
     loadOptional(manifest.playabilityFile),
     loadOptional(manifest.victoryFile),
+    loadOptional(manifest.sovereigntyFile),
+    fetchJson(`${scenario.mapBaseUrl}region-navigation.json`, fetchFn),
   ]);
 
-  return { root, manifest, initialState, factionBalance, pressureEvents, playability, victory };
+  return { root, manifest, initialState, factionBalance, pressureEvents, playability, victory, sovereignty, navigation };
 }
 
 function inferredPolities(regions) {
@@ -51,7 +54,8 @@ function inferredPolities(regions) {
 
 export function scenarioWorldAdapter(sim) {
   if (!sim) throw new Error('scenarioWorldAdapter requires a live simulation object');
-  const polities = arr(sim.polities).length ? sim.polities : inferredPolities(sim.regions);
+  const usesPolityFacade = !arr(sim.polities).length;
+  const polities = usesPolityFacade ? inferredPolities(sim.regions) : sim.polities;
   const world = {
     regions: arr(sim.regions),
     seaRegions: arr(sim.seaRegions),
@@ -61,6 +65,7 @@ export function scenarioWorldAdapter(sim) {
     agreements: arr(sim.agreements),
     scenarioState: sim.scenarioState || {},
     scenarioVictoryState: sim.scenarioVictoryState || {},
+    usesPolityFacade,
   };
   return world;
 }
@@ -69,6 +74,12 @@ export function attachScenarioPackage(sim, scenario, pkg, options = {}) {
   if (!sim || !scenario) throw new Error('attachScenarioPackage requires simulation and scenario');
   if (!pkg) return { attached: false, reason: 'grand_campaign_no_package' };
   const world = scenarioWorldAdapter(sim);
+
+  let sovereignty = null;
+  if (pkg.sovereignty && pkg.navigation && !world.usesPolityFacade) {
+    sovereignty = consolidateScenarioSovereignty(world, pkg.navigation, pkg.sovereignty);
+  }
+
   const hydration = pkg.initialState
     ? hydrateScenarioInitialState(world, jsonClone(pkg.initialState), { currentTick: options.currentTick || 0 })
     : null;
@@ -79,8 +90,10 @@ export function attachScenarioPackage(sim, scenario, pkg, options = {}) {
     pressureEvents: pkg.pressureEvents,
     playability: pkg.playability,
     victory: pkg.victory,
+    sovereignty: pkg.sovereignty,
   };
   world.scenarioState.scenarioId = scenario.id;
+  world.scenarioState.sovereignty = sovereignty;
   sim.scenarioState = world.scenarioState;
   sim.scenarioVictoryState = world.scenarioVictoryState;
   sim.scenarioPackage = world.scenarioState.package;
@@ -95,6 +108,8 @@ export function attachScenarioPackage(sim, scenario, pkg, options = {}) {
     attached: true,
     scenarioId: scenario.id,
     hydration,
+    sovereignty,
+    requiresMainPolityHook: Boolean(pkg.sovereignty && world.usesPolityFacade),
     playablePolityIds: sim.scenarioPlayablePolities().map((polity) => polity.id),
   };
 }
