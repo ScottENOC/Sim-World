@@ -1,0 +1,26 @@
+name: Synthetic pesticides
+
+on:
+  pull_request:
+  push:
+    branches:
+      - feature/synthetic-pesticides
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check synthetic pesticide integration
+        run: |
+          node --check js/economy/agriculturalPesticides.js
+          node --check js/technology/industrialProduction.js
+      - name: Run synthetic pesticide regression
+        run: node tools/test-synthetic-pesticides.mjs
+      - name: Re-run first-generation pesticide regression
+        run: node tools/test-agricultural-pesticides.mjs
+      - name: Re-run pest regression
+        run: node tools/test-agricultural-pests.mjs
