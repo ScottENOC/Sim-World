@@ -1,5 +1,4 @@
-import { DIET_FOOD_IDS } from './foodDiversity.js?v=20260921-food-diversity1';
-
+const DIET_FOOD_IDS=Object.freeze(['staple_grains','pulses','fruit_vegetables','animal_foods']);
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const DAYS_PER_YEAR=365.2425;
 
