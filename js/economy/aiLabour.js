@@ -5,6 +5,17 @@ const AI_TECH_HINTS=Object.freeze({
   advanced:['advanced_artificial_intelligence','general_purpose_ai','advanced_machine_learning'],
 });
 
+export const AI_LABOUR_SECTORS=Object.freeze({
+  agriculture:{label:'Agriculture',weight:'agriculture',augmentation:.34,substitution:.20,complementarity:.12},
+  manufacturing:{label:'Manufacturing',weight:'industrial',augmentation:.42,substitution:.46,complementarity:.10},
+  services:{label:'Services',weight:'services',augmentation:.48,substitution:.38,complementarity:.18},
+  administration:{label:'Administration',weight:'administration',augmentation:.52,substitution:.44,complementarity:.12},
+  research:{label:'Research',weight:'research',augmentation:.62,substitution:.16,complementarity:.34},
+  healthcare:{label:'Healthcare',weight:'healthcare',augmentation:.58,substitution:.12,complementarity:.30},
+  logistics:{label:'Logistics',weight:'logistics',augmentation:.38,substitution:.62,complementarity:.10},
+  military:{label:'Military',weight:'military',augmentation:.40,substitution:.28,complementarity:.18},
+});
+
 function techCapability(region){
   const tech=region.unlockedTechIds;
   if(!tech?.has)return 0;
@@ -32,6 +43,7 @@ export function ensureAiLabourState(region){
     wageShare:0,profitShare:0,priceShare:0,standardWeeklyHours:40,effectiveWeeklyHours:40,
     automationDisplacementRate:0,employmentPreservation:1,aiDemandBoost:0,
   }))if(!Number.isFinite(s[key]))s[key]=value;
+  s.sectors||={};
   return s;
 }
 
@@ -87,55 +99,107 @@ function ownershipBroadness(region){
   ));
 }
 
+function sectorWeights(region){
+  const structural=region.structuralTransformation||{};
+  const employment=region.employment||{};
+  const occupations=region.occupations||{};
+  const working=Math.max(1,Number(region.demographics?.workingAge)||Number(employment.labourForce)||region.population||1);
+  const agriculture=clamp(structural.agriculturalShare??(Number(occupations.farmer)||0)/working);
+  const industrial=clamp(structural.industrialShare??((Number(occupations.smith)||0)+(Number(occupations.miner)||0)+(Number(occupations.lumberjack)||0))/working);
+  const services=clamp(structural.serviceShare??Math.max(0,1-agriculture-industrial)*.55);
+  const administration=clamp(((Number(occupations.scribe)||0)+(Number(occupations.administrator)||0))/working,0,.30);
+  const research=clamp(((Number(occupations.scholar)||0)+(Number(occupations.scientist)||0)+(Number(occupations.engineer)||0))/working,0,.24);
+  const healthcare=clamp(((Number(occupations.doctor)||0)+(Number(occupations.nurse)||0)+(Number(occupations.healer)||0))/working,0,.24);
+  const logistics=clamp(((Number(occupations.trader)||0)+(Number(occupations.driver)||0)+(Number(occupations.sailor)||0)+(Number(occupations.dockworker)||0))/working,0,.28);
+  const military=clamp(((Number(region.armySize)||0)+(Number(region.navyCrew)||0))/working,0,.30);
+  const raw={agriculture,industrial,services,administration,research,healthcare,logistics,military};
+  const total=Object.values(raw).reduce((a,b)=>a+b,0)||1;
+  return Object.fromEntries(Object.entries(raw).map(([k,v])=>[k,v/total]));
+}
+
+function sectorReadiness(region,key){
+  const human=clamp(region.publicEducation?.technicalHumanCapital||region.publicEducation?.literacy||0);
+  const electricity=clamp(region.electricity?.industrialService||0);
+  const computers=clamp(Math.log1p(Math.max(0,region.stockpile?.computers||0))/5);
+  const bureaucracy=clamp(region.governance?.administrativeCapacity||region.governance?.capacity||0);
+  const medicine=clamp(region.medicalProgress?.professionalCapacity||region.medicalCapacity||0);
+  const logistics=clamp(region.tradeEconomy?.logisticsEfficiency||region.transport?.efficiency||0);
+  if(key==='research')return clamp(.35+human*.45+computers*.20);
+  if(key==='healthcare')return clamp(.30+human*.30+medicine*.25+computers*.15);
+  if(key==='administration')return clamp(.30+bureaucracy*.35+computers*.20+human*.15);
+  if(key==='logistics')return clamp(.28+logistics*.32+electricity*.18+computers*.22);
+  if(key==='manufacturing')return clamp(.25+electricity*.35+computers*.18+human*.22);
+  if(key==='military')return clamp(.25+computers*.28+human*.20+clamp(region.warEconomy?.munitionsOutputValue||0)*.12+electricity*.15);
+  if(key==='agriculture')return clamp(.24+electricity*.16+computers*.16+human*.14+clamp(region.agriculturalMachinery?.mechanisation||0)*.30);
+  return clamp(.30+computers*.28+human*.24+electricity*.18);
+}
+
+function sectorProfile(region,adoption,capability,demand,workers,employers){
+  const weights=sectorWeights(region),powerTotal=Math.max(.05,workers+employers),workerBargain=workers/powerTotal,employerBargain=employers/powerTotal;
+  const sectors={};let productivity=0,substitution=0,complementarity=0,displacement=0,demandBoost=0;
+  for(const [key,def] of Object.entries(AI_LABOUR_SECTORS)){
+    const weight=weights[def.weight]||0,readiness=sectorReadiness(region,key);
+    const effectiveAdoption=clamp(adoption*(.55+.45*readiness));
+    const aug=clamp(effectiveAdoption*def.augmentation*(.35+.65*capability),0,.80);
+    const sub=clamp(effectiveAdoption*def.substitution*Math.max(0,capability-.12),0,.72);
+    const comp=clamp(effectiveAdoption*def.complementarity*(.45+.55*demand),0,.42);
+    const sectorDemand=clamp(demand+(key==='healthcare'||key==='research'?.12:0)+(key==='military'&&region.warEconomy?.defendingCampaigns?.18:0));
+    const leisure=clamp(workerBargain*(.14+.48*aug));
+    const shedding=clamp(sub*(.32+.68*employerBargain)*(1-sectorDemand*.48));
+    const growth=clamp(aug*(.28+.72*sectorDemand)*(1-shedding*.50)+comp*.35);
+    const autoDisp=clamp(shedding*(1-workers*.52)-comp*sectorDemand*.42,0,.45);
+    sectors[key]={label:def.label,weight,readiness,adoption:effectiveAdoption,productivityGain:aug,substitutionPressure:sub,complementarity:comp,outputClaim:growth,leisureClaim:leisure,labourSheddingClaim:shedding,automationDisplacementRate:autoDisp};
+    productivity+=weight*aug;substitution+=weight*sub;complementarity+=weight*comp;displacement+=weight*autoDisp;demandBoost+=weight*clamp(growth+comp*sectorDemand,0,.65);
+  }
+  return {sectors,productivityGain:clamp(productivity,0,.65),substitutionPressure:clamp(substitution,0,.55),complementarity:clamp(complementarity,0,.30),automationDisplacementRate:clamp(displacement,0,.34),aiDemandBoost:clamp(demandBoost,0,.55)};
+}
+
 export function tickAiLabour(region,elapsedDays=7){
   const s=ensureAiLabourState(region);
   const capability=aiEconomicCapability(region);
   const years=Math.max(0,Number(elapsedDays)||0)/365.2425;
   const targetAdoption=adoptionPotential(region,capability);
   s.capability=capability;
-  s.adoption+= (targetAdoption-s.adoption)*Math.min(1,years*1.4);
+  s.adoption+=(targetAdoption-s.adoption)*Math.min(1,years*1.4);
   const adoption=clamp(s.adoption);
   const workers=workerPower(region),employers=employerPower(region,workers);
   s.workerPower=workers;s.employerPower=employers;
 
-  // Capability creates a potential labour-productivity dividend, while substitution
-  // is deliberately lower at first. Later AI generations can automate whole tasks.
-  const productivityGain=clamp(adoption*(.10+capability*.42),0,.52);
-  const substitution=clamp(adoption*Math.max(0,capability-.18)*.46,0,.34);
-  const complementarity=clamp(adoption*(.08+capability*.13),0,.18);
-  s.productivityGain=productivityGain;s.substitutionPressure=substitution;s.complementarity=complementarity;
-
   const demand=demandAbsorption(region);
+  const profile=sectorProfile(region,adoption,capability,demand,workers,employers);
+  s.sectors=profile.sectors;s.productivityGain=profile.productivityGain;s.substitutionPressure=profile.substitutionPressure;s.complementarity=profile.complementarity;
+
   const powerTotal=Math.max(.05,workers+employers);
   const workerBargain=workers/powerTotal,employerBargain=employers/powerTotal;
-  const leisureClaim=clamp(workerBargain*(.20+.50*productivityGain)*(1-clamp(region.warEconomy?.defendingCampaigns||0)));
-  const sheddingClaim=clamp(substitution*(.35+.65*employerBargain)*(1-demand*.45));
-  const growthClaim=clamp(productivityGain*(.30+.70*demand)*(1-sheddingClaim*.55));
+  let leisureClaim=0,sheddingClaim=0,growthClaim=0;
+  for(const sector of Object.values(s.sectors)){
+    leisureClaim+=sector.weight*sector.leisureClaim;
+    sheddingClaim+=sector.weight*sector.labourSheddingClaim;
+    growthClaim+=sector.weight*sector.outputClaim;
+  }
   const allocationTotal=Math.max(.001,leisureClaim+sheddingClaim+growthClaim);
   s.leisureShare=clamp(leisureClaim/allocationTotal);
   s.labourSheddingShare=clamp(sheddingClaim/allocationTotal);
   s.outputShare=clamp(growthClaim/allocationTotal);
 
   const broadOwnership=ownershipBroadness(region);
-  const surplus=Math.max(0,productivityGain*(1-s.outputShare*.55));
+  const surplus=Math.max(0,s.productivityGain*(1-s.outputShare*.55));
   s.wageShare=clamp(surplus*(.18+.58*workerBargain));
   s.profitShare=clamp(surplus*(.20+.58*employerBargain)*(1-broadOwnership*.18));
   s.priceShare=clamp(Math.max(0,surplus-s.wageShare-s.profitShare));
 
   const hoursFloor=28;
-  const desiredHours=40-productivityGain*s.leisureShare*30;
-  // In insecure labour markets, the employed can work longer even while total labour
-  // demand falls: overtime becomes preferable to joining the displaced workforce.
+  const desiredHours=40-s.productivityGain*s.leisureShare*30;
   const insecurity=clamp(region.employment?.unemploymentRate||0);
   const insecurityOvertime=clamp(insecurity*(1-workers)*10,0,8);
   s.standardWeeklyHours=clamp(desiredHours,hoursFloor,48);
   s.effectiveWeeklyHours=clamp(s.standardWeeklyHours+insecurityOvertime,hoursFloor,56);
 
-  s.automationDisplacementRate=clamp(sheddingClaim*(1-workers*.55)-complementarity*demand*.45,0,.28);
+  s.automationDisplacementRate=profile.automationDisplacementRate;
   s.employmentPreservation=clamp(1-s.automationDisplacementRate);
-  s.aiDemandBoost=clamp(growthClaim+complementarity*demand,0,.45);
+  s.aiDemandBoost=profile.aiDemandBoost;
 
-  region.labourProductivityMultiplier=Math.max(1,Number(region.labourProductivityMultiplier)||1,1+productivityGain*s.outputShare);
+  region.labourProductivityMultiplier=Math.max(1,Number(region.labourProductivityMultiplier)||1,1+s.productivityGain*s.outputShare);
   region.report||={};
   region.report.aiLabour=aiLabourSummary(region);
   return s;
@@ -150,6 +214,6 @@ export function aiLabourSummary(region){
     dividend:{output:s.outputShare,leisure:s.leisureShare,labourShedding:s.labourSheddingShare,wages:s.wageShare,profits:s.profitShare,prices:s.priceShare},
     standardWeeklyHours:s.standardWeeklyHours,effectiveWeeklyHours:s.effectiveWeeklyHours,
     automationDisplacementRate:s.automationDisplacementRate,employmentPreservation:s.employmentPreservation,
-    aiDemandBoost:s.aiDemandBoost,
+    aiDemandBoost:s.aiDemandBoost,sectors:Object.fromEntries(Object.entries(s.sectors||{}).map(([key,v])=>[key,{...v}])),
   };
 }
