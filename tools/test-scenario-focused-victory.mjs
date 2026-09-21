@@ -16,9 +16,12 @@ assert.equal(victory.campaignResolution.requireEveryWorldWarEnded, false);
 assert.equal(victory.campaignResolution.peaceStabilityDays, 180);
 
 const actorIds = new Set(initialState.actors.filter((actor) => actor.kind === 'country').map((actor) => actor.id));
-actorIds.add('australia');
 const world = {
-  polities: [...actorIds].map((id) => ({ id, economicHealth: .8, humanSecurity: .9 })),
+  polities: [
+    ...[...actorIds].map((id) => ({ id, economicHealth: .8, humanSecurity: .9 })),
+    { id: 'australia', economicHealth: .8, humanSecurity: .9 },
+    { id: 'european-union', kind: 'coalition', isCoalition: true },
+  ],
   regions: [
     { id: 'australia-east', governance: { sovereignPolityId: 'australia' }, scenarioSelectors: ['australia'] },
     { id: 'greenland', governance: { sovereignPolityId: 'denmark' }, scenarioSelectors: ['greenland'] },
@@ -26,16 +29,15 @@ const world = {
   activeWars: [],
 };
 
-const definition = structuredClone(initialState);
-definition.actors.push({ id: 'australia', kind: 'country', name: 'Australia' });
-const report = hydrateScenarioInitialState(world, definition, { currentTick: 0 });
+const report = hydrateScenarioInitialState(world, structuredClone(initialState), { currentTick: 0 });
 assert.equal(report.hydrated, true);
 assert.ok(world.scenarioState.hydrated);
 assert.ok(world.activeWars.some((war) => war.id === 'greenland-war'));
 assert.equal(world.regions.find((region) => region.id === 'greenland').controllingActorId, 'usa');
+assert.ok(world.scenarioRelationships.some((relationship) => relationship.posture === 'unexpectedly-cooperative'));
 
 const playableIds = scenarioPlayablePolities(world, playability).map((polity) => polity.id);
-assert.ok(playableIds.includes('australia'));
+assert.ok(playableIds.includes('australia'), 'a mapped sovereign country need not be hand-listed in initial-state actors to be playable');
 assert.ok(playableIds.includes('usa'));
 assert.ok(!playableIds.includes('european-union'));
 
@@ -66,4 +68,4 @@ outcome = evaluateCountryScenarioOutcome(world, 'australia', victory);
 assert.equal(outcome.minimumSuccess, false);
 assert.equal(outcome.result, 'defeat');
 
-console.log('Focused scenario hydration/victory regression passed, including playable Australia and sustained-peace resolution.');
+console.log('Focused scenario hydration/victory regression passed, including map-derived playable Australia and sustained-peace resolution.');
