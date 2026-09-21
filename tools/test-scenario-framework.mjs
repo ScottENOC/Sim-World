@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { SCENARIOS, scenarioById } from '../js/core/scenarios.js';
 
 assert.ok(Array.isArray(SCENARIOS));
@@ -36,4 +37,25 @@ for (const scenario of SCENARIOS) {
   assert.ok(scenario.targetSimYears > 0);
 }
 
-console.log(`Scenario framework regression passed for ${SCENARIOS.length} scenarios.`);
+const packageUrl = new URL('../data/scenarios/fractured-2027/scenario.json', import.meta.url);
+const stateUrl = new URL('../data/scenarios/fractured-2027/initial-state.json', import.meta.url);
+const packageManifest = JSON.parse(await readFile(packageUrl, 'utf8'));
+const initialState = JSON.parse(await readFile(stateUrl, 'utf8'));
+
+assert.equal(packageManifest.id, fractured.id);
+assert.equal(packageManifest.startYear, fractured.startYear);
+assert.equal(packageManifest.victoryModel, fractured.victoryModel);
+assert.equal(packageManifest.fictionalAlternateHistory, true);
+assert.equal(packageManifest.initialStateFile, 'initial-state.json');
+assert.ok(packageManifest.requiredMapFiles.includes('regions.geo.json'));
+assert.ok(packageManifest.requiredMapFiles.includes('seaRegions.geo.json'));
+
+assert.equal(initialState.scenarioId, fractured.id);
+assert.equal(initialState.year, fractured.startYear);
+assert.equal(initialState.defaultExternalAlignment.state, 'uncommitted');
+assert.equal(initialState.defaultExternalAlignment.scriptedFutureAlignment, false);
+assert.ok(initialState.conflicts.some((conflict) => conflict.id === 'greenland-war'));
+assert.ok(initialState.conflicts.some((conflict) => conflict.id === 'russia-ukraine-war'));
+assert.ok(initialState.conflicts.some((conflict) => conflict.id === 'taiwan-blockade'));
+
+console.log(`Scenario framework regression passed for ${SCENARIOS.length} scenarios and the Fractured World scaffold.`);
