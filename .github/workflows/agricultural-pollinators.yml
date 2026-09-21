@@ -1,0 +1,29 @@
+name: Agricultural pollinators
+
+on:
+  pull_request:
+  push:
+    branches:
+      - feature/pollinators
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check pollinator integration
+        run: |
+          node --check js/economy/agriculturalPollinators.js
+          node --check js/economy/foodDiversity.js
+          node --check js/economy/agriculturalWater.js
+      - name: Run pollinator regression
+        run: node tools/test-agricultural-pollinators.mjs
+      - name: Re-run pesticide regressions
+        run: |
+          node tools/test-agricultural-pesticides.mjs
+          node tools/test-synthetic-pesticides.mjs
+      - name: Re-run food diversity regression
+        run: node tools/test-food-diversity.mjs
