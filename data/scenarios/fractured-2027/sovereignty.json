@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "fractured-2027",
+  "strategy": "navigation-country-consolidation",
+  "actorAliases": {
+    "United States": "usa",
+    "United Kingdom": "united-kingdom",
+    "North Korea": "north-korea",
+    "South Korea": "south-korea",
+    "Czechia": "czechia",
+    "Türkiye": "turkiye",
+    "Taiwan": "taiwan"
+  },
+  "defaultProvincialAutonomy": 0.12,
+  "capitalPolicy": "Use explicit scenario override when supplied; otherwise choose the largest-population mapped region as the initial administrative capital.",
+  "capitals": {},
+  "coalitionPolicy": {
+    "europeanUnionIsCountry": false,
+    "euMembersRemainSovereignPolities": true,
+    "strategicCampsDoNotReplaceCountrySovereignty": true
+  },
+  "notes": [
+    "This file controls scenario polity construction, not diplomatic alignment.",
+    "Country geometry and country sovereignty are intentionally separate from temporary military control and occupation.",
+    "Country IDs generated from navigation labels are stable slugs unless overridden above."
+  ]
+}
