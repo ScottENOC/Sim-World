@@ -49,6 +49,7 @@ const playability = JSON.parse(fs.readFileSync(new URL('../data/scenarios/fractu
 const victory = JSON.parse(fs.readFileSync(new URL('../data/scenarios/fractured-2027/victory.json', import.meta.url), 'utf8'));
 const sovereignty = JSON.parse(fs.readFileSync(new URL('../data/scenarios/fractured-2027/sovereignty.json', import.meta.url), 'utf8'));
 const modernStart = JSON.parse(fs.readFileSync(new URL('../data/scenarios/fractured-2027/modern-start.json', import.meta.url), 'utf8'));
+const forceDeployments = JSON.parse(fs.readFileSync(new URL('../data/scenarios/fractured-2027/force-deployments.json', import.meta.url), 'utf8'));
 const strategicRegions = JSON.parse(fs.readFileSync(new URL('../data/scenarios/fractured-2027/world/strategic-regions.json', import.meta.url), 'utf8'));
 
 assert.equal(scenarioManifest.id, fractured.id);
@@ -59,6 +60,7 @@ assert.equal(scenarioManifest.playabilityFile, 'playability.json');
 assert.equal(scenarioManifest.victoryFile, 'victory.json');
 assert.equal(scenarioManifest.sovereigntyFile, 'sovereignty.json');
 assert.equal(scenarioManifest.modernStartFile, 'modern-start.json');
+assert.equal(scenarioManifest.forceDeploymentsFile, 'force-deployments.json');
 assert.equal(scenarioManifest.strategicMapCatalogueFile, 'world/strategic-regions.json');
 assert.equal(scenarioManifest.victoryModel, victory.model);
 assert.deepEqual(new Set(scenarioManifest.requiredMapFiles), SCENARIO_MAP_FILES);
@@ -70,6 +72,7 @@ assert.equal(playability.scenarioId, fractured.id);
 assert.equal(victory.scenarioId, fractured.id);
 assert.equal(sovereignty.scenarioId, fractured.id);
 assert.equal(modernStart.scenarioId, fractured.id);
+assert.equal(forceDeployments.scenarioId, fractured.id);
 assert.equal(strategicRegions.scenarioId, fractured.id);
 
 for (const filename of scenarioManifest.requiredMapFiles) {
@@ -105,7 +108,11 @@ assert.equal(victory.campaignResolution.requireEveryWorldWarEnded, false);
 assert.equal(sovereignty.coalitionPolicy.euMembersRemainSovereignPolities, true);
 assert.ok(modernStart.commonTechIds.includes('lithium_ion_batteries'));
 assert.ok(modernStart.commonTechIds.includes('battery_multirotor_drones'));
+assert.ok(forceDeployments.formations.some((formation) => formation.id === 'usa-iran-forward-fleet'));
+assert.ok(forceDeployments.formations.some((formation) => formation.id === 'usa-greenland-surge-fleet'));
+assert.ok(forceDeployments.landConcentration.some((entry) => entry.actorId === 'russia' && entry.frontlineManeuverShare >= 0.8));
+assert.ok(forceDeployments.landConcentration.some((entry) => entry.actorId === 'ukraine' && entry.frontlineManeuverShare >= 0.8));
 assert.ok(strategicRegions.priorityTheatres.some((theatre) => theatre.id === 'australia-and-maritime-approaches'));
 assert.ok(strategicRegions.priorityTheatres.some((theatre) => theatre.id === 'taiwan-western-pacific'));
 
-console.log(`Scenario framework regression passed for ${SCENARIOS.length} scenarios, including independent map files, modern baseline, sovereignty, playability, balance and victory scaffolds.`);
+console.log(`Scenario framework regression passed for ${SCENARIOS.length} scenarios, including independent map files, modern baseline, opening force deployments, sovereignty, playability, balance and victory scaffolds.`);
