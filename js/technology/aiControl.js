@@ -1,3 +1,5 @@
+import { tickInformationIntegrity } from '../diplomacy/informationIntegrity.js?v=20260922-info1';
+
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
 export const AI_ACCESS_DOMAINS=Object.freeze(['civilianDigital','industrial','infrastructure','military','nuclearCommand']);
@@ -88,6 +90,9 @@ export function tickAiControl(region,elapsedDays=7){
   s.lossOfControlHazard=clamp(raw,0,1);
   s.incidentPressure=clamp(s.incidentPressure+years*(s.lossOfControlHazard*.16-s.monitoringMaturity*.025-s.containmentMaturity*.018),0,1);
 
+  // This runs even before AI appears, allowing medieval cipher conventions to
+  // evolve continuously into electronic cryptography and later synthetic-media verification.
+  tickInformationIntegrity(region,elapsedDays);
   region.report||={};region.report.aiControl=aiControlSummary(region);
   return s;
 }
