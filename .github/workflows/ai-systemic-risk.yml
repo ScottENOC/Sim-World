@@ -1,0 +1,22 @@
+name: AI systemic risk
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  ai-systemic-risk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check
+        run: |
+          node --check js/technology/aiSystemicRisk.js
+          node --check js/military/aiStrategicCommand.js
+          node --check js/economy/aiLabour.js
+      - name: AI systemic-risk regressions
+        run: node tests/aiSystemicRisk.test.mjs
