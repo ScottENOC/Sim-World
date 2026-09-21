@@ -1,0 +1,28 @@
+name: Cooperative space programmes
+
+on:
+  pull_request:
+  push:
+    branches:
+      - feature/cooperative-space-programmes
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check space cooperation integration
+        run: |
+          node --check js/technology/spaceLaunchGeography.js
+          node --check js/technology/spaceCooperation.js
+          node --check js/technology/modernEnergy.js
+          node --check js/world/seaRegion.js
+      - name: Run cooperative space regression
+        run: node tools/test-space-cooperation.mjs
+      - name: Re-run off-world habitat regression
+        run: node tools/test-offworld-habitats.mjs
+      - name: Re-run space race regression
+        run: node tools/test-space-race.mjs
