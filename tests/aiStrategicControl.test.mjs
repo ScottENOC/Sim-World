@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
 import { ensureAiControlState, setAiControlPolicy, tickAiControl } from '../js/technology/aiControl.js';
+import { tickAiLabour } from '../js/economy/aiLabour.js';
 import { setStrategicAiPolicy, tickStrategicAiCommand } from '../js/military/aiStrategicCommand.js';
 
 function region(){
   return {
+    population:100000,
+    demographics:{workingAge:60000},
+    aiEconomy:{capability:.92},
     aiLabour:{
       capability:.92,
       adoption:.82,
@@ -14,6 +18,19 @@ function region(){
         research:{productivityGain:.35,outputClaim:.5},
       },
     },
+    electricity:{industrialService:.9},
+    stockpile:{computers:200},
+    publicEducation:{technicalHumanCapital:.8,literacy:.9},
+    computingIndustry:{capability:.8},
+    structuralTransformation:{agriculturalShare:.05,industrialShare:.35,serviceShare:.60},
+    employment:{unemploymentRate:.04},
+    labourRelations:{unionDensity:.55,bargainingTrust:.75,policy:{collectiveBargaining:'recognised'}},
+    economicRegulation:{labourStandards:.8,workerSafety:.85},
+    socialProtection:{coverage:.8},
+    corporateCapital:{financialDepth:.6,failedFirmPressure:0},
+    tradeEconomy:{weeklyExports:5000},
+    householdDemandMultiplier:1,
+    occupations:{farmer:3000,miner:3000,smith:2500,lumberjack:1000,trader:3000,driver:2000,sailor:1000,scribe:1500,administrator:1000,scholar:1000,scientist:1500,engineer:1500,doctor:1000,nurse:2000},
     report:{},
   };
 }
@@ -53,6 +70,16 @@ function region(){
   assert.ok(r.aiControl.access.nuclearCommand>0,'explicit nuclear C2 integration should grant nuclear command access');
   assert.ok(r.strategicAi.effects.secondStrikeResilience>0,'nuclear C2 integration should improve second-strike resilience');
   assert.ok(r.strategicAi.effects.commandRisk>before,'deep nuclear integration with autonomy should add strategic command risk');
+}
+
+{
+  const r=region();
+  setStrategicAiPolicy(r,{militaryDecisionSupport:.5,earlyWarningIntegration:.65,nuclearCommandIntegration:.4,humanReleaseAuthority:.95});
+  r.strategicAi.effects={warningQuality:0};
+  tickAiLabour(r,7);
+  assert.ok(r.report.strategicAi,'normal weekly AI ticking should refresh strategic AI reporting');
+  assert.ok(r.report.strategicAi.effects.warningQuality>0,'strategic AI benefits should refresh as AI capability and controls change');
+  assert.equal(r.report.strategicAi.effects.nuclearCommandAccess,.4,'weekly refresh should preserve the explicitly chosen nuclear C2 integration');
 }
 
 console.log('aiStrategicControl tests passed');
