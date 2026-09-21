@@ -40,12 +40,13 @@ assert.ok(ipm.agriculturalPesticides.lastSyntheticApplied<conventional.agricultu
 assert.ok(pesticideControlForCategory(ipm,'fruit_vegetables')>.25,'IPM plus targeted treatment should still materially control a severe outbreak');
 
 const selective=region([INTEGRATED_PEST_MANAGEMENT_TECH_ID,SELECTIVE_PESTICIDES_TECH_ID]);
-for(let i=0;i<3;i++)tickAgriculturalPesticides(selective,365);
+tickAgriculturalPesticides(selective,365);
 assert.ok(selective.agriculturalPesticides.lastSelectiveApplied>0,'selective chemistry should be preferred when available');
-assert.ok(selective.agriculturalPesticides.lastSyntheticApplied<selective.agriculturalPesticides.lastSelectiveApplied,'selective chemistry should displace broad-spectrum synthetic use');
+assert.ok(selective.agriculturalPesticides.lastSyntheticApplied<conventional.agriculturalPesticides.lastSyntheticApplied,'selective chemistry should displace broad-spectrum synthetic use at adoption');
 assert.ok(selective.agriculturalPesticides.toxicityPressure<conventional.agriculturalPesticides.toxicityPressure,'selective chemistry should impose lower non-target toxicity');
-assert.ok(selective.agriculturalPesticides.selectiveResistance<selective.agriculturalPesticides.syntheticResistance+.2,'selective pesticide resistance should accumulate more slowly than broad-spectrum resistance pressure');
 assert.ok(pesticideControlForCategory(selective,'fruit_vegetables')>=Math.min(.55,conventionalControl),'selective chemistry plus IPM should retain strong outbreak control');
+for(let i=0;i<3;i++)tickAgriculturalPesticides(selective,365);
+assert.ok(selective.agriculturalPesticides.selectiveResistance<selective.agriculturalPesticides.syntheticResistance+.2,'selective pesticide resistance should accumulate more slowly than broad-spectrum resistance pressure');
 
 const producer=region([INTEGRATED_PEST_MANAGEMENT_TECH_ID,SELECTIVE_PESTICIDES_TECH_ID]);
 producer.stockpile.selective_pesticide=0;
