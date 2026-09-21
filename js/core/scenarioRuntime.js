@@ -1,7 +1,7 @@
 import { currentScenario, waitForScenarioSelection } from './scenarios.js?v=20260921-scenarios2';
-import { hydrateScenarioInitialState, scenarioPlayablePolities } from './scenarioState.js?v=20260921-scenario-state1';
+import { hydrateScenarioInitialState, scenarioPlayablePolities } from './scenarioState.js?v=20260921-scenario-state2';
 import { updateFocusedCampaignResolution, canDeclareFocusedScenarioResult } from './scenarioVictory.js?v=20260921-scenario-victory1';
-import { consolidateScenarioSovereignty } from './scenarioSovereignty.js?v=20260921-scenario-sovereignty1';
+import { consolidateScenarioSovereignty } from './scenarioSovereignty.js?v=20260921-scenario-sovereignty2';
 
 const jsonClone = (value) => JSON.parse(JSON.stringify(value));
 const arr = (value) => Array.isArray(value) ? value : [];
@@ -56,7 +56,7 @@ export function scenarioWorldAdapter(sim) {
   if (!sim) throw new Error('scenarioWorldAdapter requires a live simulation object');
   const usesPolityFacade = !arr(sim.polities).length;
   const polities = usesPolityFacade ? inferredPolities(sim.regions) : sim.polities;
-  const world = {
+  return {
     regions: arr(sim.regions),
     seaRegions: arr(sim.seaRegions),
     polities,
@@ -67,7 +67,6 @@ export function scenarioWorldAdapter(sim) {
     scenarioVictoryState: sim.scenarioVictoryState || {},
     usesPolityFacade,
   };
-  return world;
 }
 
 export function attachScenarioPackage(sim, scenario, pkg, options = {}) {
@@ -75,10 +74,9 @@ export function attachScenarioPackage(sim, scenario, pkg, options = {}) {
   if (!pkg) return { attached: false, reason: 'grand_campaign_no_package' };
   const world = scenarioWorldAdapter(sim);
 
-  let sovereignty = null;
-  if (pkg.sovereignty && pkg.navigation && !world.usesPolityFacade) {
-    sovereignty = consolidateScenarioSovereignty(world, pkg.navigation, pkg.sovereignty);
-  }
+  const sovereignty = pkg.sovereignty && pkg.navigation
+    ? consolidateScenarioSovereignty(world, pkg.navigation, pkg.sovereignty)
+    : null;
 
   const hydration = pkg.initialState
     ? hydrateScenarioInitialState(world, jsonClone(pkg.initialState), { currentTick: options.currentTick || 0 })
@@ -98,6 +96,7 @@ export function attachScenarioPackage(sim, scenario, pkg, options = {}) {
   sim.scenarioVictoryState = world.scenarioVictoryState;
   sim.scenarioPackage = world.scenarioState.package;
   sim.scenarioPolities = world.polities;
+  sim.scenarioActorToPolityId = world.scenarioActorToPolityId || {};
   sim.scenarioPlayablePolities = () => scenarioPlayablePolities(world, pkg.playability || {});
   sim.updateScenarioResolution = (currentDay = sim.clock?.elapsedDays || 0) =>
     pkg.victory ? updateFocusedCampaignResolution(world, pkg.victory, currentDay) : { resolved: false, reason: 'no_victory_model' };
@@ -109,8 +108,8 @@ export function attachScenarioPackage(sim, scenario, pkg, options = {}) {
     scenarioId: scenario.id,
     hydration,
     sovereignty,
-    requiresMainPolityHook: Boolean(pkg.sovereignty && world.usesPolityFacade),
-    playablePolityIds: sim.scenarioPlayablePolities().map((polity) => polity.id),
+    usedPolityFacade: world.usesPolityFacade,
+    playablePolityIds: sim.scenarioPlayablePolities().map((polity) => polity.scenarioActorId || polity.id),
   };
 }
 
