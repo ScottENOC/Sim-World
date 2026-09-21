@@ -1,5 +1,3 @@
-import { tickAgriculturalPests } from './agriculturalPests.js?v=20260921-pests1';
-
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
 export const DIET_FOOD_IDS=Object.freeze(['staple_grains','pulses','fruit_vegetables','animal_foods']);
@@ -30,16 +28,11 @@ export function ensureFoodDiversity(region){
 
 export function foodDiversityProfile(region){return {...ensureFoodDiversity(region)};}
 
-export function tickFoodDiversity(region,elapsedDays=7,rng=Math.random){
+export function tickFoodDiversity(region,elapsedDays=7){
   const s=ensureFoodDiversity(region),weeks=Math.max(.01,(Number(elapsedDays)||0)/7),pop=Math.max(1,Number(region.population)||1);
   region.stockpile||={};region.marketDemand||={};
-  // Pest ecology is evaluated before this week's category harvest so an active
-  // outbreak immediately changes what households and merchants see.
-  tickAgriculturalPests(region,elapsedDays,rng);
   const cultivated=Math.max(0,Number(region.agriculturalLand?.cultivatedHa)||0);
   const farmScale=Math.max(0.25,Math.min(2.2,cultivated/Math.max(1,pop*.18)));
-  // These stocks represent dietary-category availability rather than a second calorie ledger.
-  // Generic `food` remains the caloric accounting stock for compatibility.
   const categorySupply=pop*.025*weeks*farmScale;
   for(const id of DIET_FOOD_IDS){
     const pestMultiplier=clamp(region.agriculturalPests?.categoryYieldMultiplier?.[id]??1,.45,1);
