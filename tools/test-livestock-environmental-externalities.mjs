@@ -29,6 +29,7 @@ assert.ok(watered.waterResources.livestockSatisfaction>.95,'adequate supply shou
 // Previous-period water shortage suppresses subsequent livestock performance.
 const dry=region('dry');
 tickLivestockAgriculture(dry,7);
+dry.livestockAgriculture.waterDemand=10;
 prepareRegionalWaterDemand(dry,7);
 dry.hydrology.report={surfaceWithdrawal:0};
 dry.waterResources.groundwaterStorage=0;
