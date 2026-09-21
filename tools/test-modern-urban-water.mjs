@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { ensureRegionalHydrology, setWaterPolicy } from '../js/world/hydrology.js';
-import { ensureUrbanWater, finaliseUrbanWater, prepareUrbanWater, supplementalUrbanWater, urbanWaterCapabilities, wastewaterPollutionMultiplier } from '../js/world/urbanWater.js';
+import { ensureRegionalHydrology, initialiseHydrology, setWaterPolicy, tickHydrology } from '../js/world/hydrology.js';
+import { finaliseUrbanWater, prepareUrbanWater, supplementalUrbanWater, urbanWaterCapabilities, wastewaterPollutionMultiplier } from '../js/world/urbanWater.js';
 import { ensureWaterResources, prepareRegionalWaterDemand, finaliseRegionalWaterBalance } from '../js/world/waterResources.js';
 import { electricityDemand } from '../js/economy/electricity.js';
 
@@ -40,5 +40,14 @@ assert.ok(integrated.waterResources.totalSupply<=integrated.waterResources.total
 assert.ok(integrated.urbanWater.desalinatedSupply>0,'desalination should enter the real regional water balance when conventional supply is short');
 assert.ok(integrated.urbanWater.electricityLoad>0,'treatment, reuse or desalination must consume electricity');
 const demand=electricityDemand(integrated,7);assert.equal(demand.urbanWaterDemand,integrated.urbanWater.electricityLoad,'urban water electricity load must reach the power system');
+
+const upstream=region({modern:false,coastal:false,power:0});upstream.id='up';upstream.name='Up';upstream.population=7000000;upstream.agriculturalLand.cultivatedHa=300000;upstream.industrialChemicalDischarge=.4;upstream.construction.assets.push({typeId:'irrigation',condition:1});
+const downstream=region({modern:false,coastal:false,power:0});downstream.id='down';downstream.name='Down';downstream.population=250000;downstream.industrialChemicalDischarge=.1;
+const river={id:'river',type:'river',regionIds:['up','down'],regionSegments:[{regionId:'up'},{regionId:'down'}],navigation:{naturalCapacity:.7,flowVariability:0}};const graph={corridors:new Map([[river.id,river]])};initialiseHydrology(graph,[upstream,downstream]);
+for(let year=0;year<4;year++)tickHydrology(graph,[upstream,downstream],year*365,365);
+assert.ok(upstream.hydrology.ecologicalHealth<.98,'chronic abstraction and pollution should degrade river ecological condition');
+const degraded=upstream.hydrology.ecologicalHealth;upstream.population=0;upstream.agriculturalLand.cultivatedHa=0;upstream.industrialChemicalDischarge=0;upstream.waterPolicy.surfaceWithdrawalIntensity=0;upstream.climate.rainfallMultiplier=1.4;upstream.weather.yieldMultiplier=1.2;
+for(let year=0;year<8;year++)tickHydrology(graph,[upstream,downstream],2000+year*365,365);
+assert.ok(upstream.hydrology.ecologicalHealth>degraded,'river ecology should recover gradually after flow and pollution pressures ease');
 
 console.log('modern urban water regression passed');
