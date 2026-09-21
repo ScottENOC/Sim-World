@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "fractured-2027",
+  "designPrinciple": "Asymmetric balance: factions begin with different strengths, constraints and theatres. No faction receives hidden combat bonuses merely to equalise outcomes.",
+  "factions": [
+    {
+      "id": "american-power",
+      "name": "United States",
+      "members": ["usa"],
+      "cohesion": "unitary",
+      "startingStrengths": [
+        "global force projection",
+        "large integrated defence-industrial base",
+        "advanced air, naval, space and intelligence capabilities",
+        "substantial domestic energy and agricultural capacity"
+      ],
+      "startingPressures": [
+        "simultaneous commitments in Greenland, Europe and the Middle East",
+        "hostile or uncertain access to allied bases and supply routes",
+        "strategic ambiguity toward China, Russia and North Korea",
+        "political and economic costs of sustaining several distant theatres"
+      ],
+      "balanceIntent": "Powerful enough to survive temporary isolation, but unable to dominate every theatre without prioritising, negotiating or rebuilding access relationships."
+    },
+    {
+      "id": "european-defence-coalition",
+      "name": "European Defence Coalition",
+      "members": ["denmark", "united-kingdom", "canada", "ukraine", "european-union"],
+      "cohesion": "coalition",
+      "startingStrengths": [
+        "large combined population and economy",
+        "dense infrastructure and industrial capacity",
+        "multiple capable militaries",
+        "strong defensive motivation in Europe and the North Atlantic"
+      ],
+      "startingPressures": [
+        "two-front war against the United States and Russia",
+        "incomplete energy and defence-supply-chain transitions",
+        "member-state political constraints and uneven mobilisation",
+        "dependence on intact shipping, undersea cables and cross-border logistics"
+      ],
+      "balanceIntent": "Potentially the largest aggregate bloc, but its power should depend on coalition cohesion, logistics and successful substitution rather than appearing instantly as one perfectly integrated state."
+    },
+    {
+      "id": "eurasian-accommodation",
+      "name": "Eurasian Accommodation",
+      "members": ["china", "russia", "iran", "north-korea"],
+      "cohesion": "coordination-without-alliance",
+      "startingStrengths": [
+        "favourable geography for local concentration",
+        "large resource and industrial bases in aggregate",
+        "ability to trade and coordinate without formal military integration",
+        "several nearby neutral or non-aligned states available for diplomacy and commerce"
+      ],
+      "startingPressures": [
+        "limited formal alliance obligations",
+        "different strategic objectives and mutual distrust",
+        "exposure to maritime interdiction and sanctions in some sectors",
+        "risk that opportunistic expansion provokes balancing coalitions"
+      ],
+      "balanceIntent": "Less integrated than the other camps, but able to exploit local superiority, trade networks and opponents' distraction. Cooperation should remain contingent rather than guaranteed."
+    }
+  ],
+  "neutralPowerRule": {
+    "default": "uncommitted",
+    "scriptedAlignment": false,
+    "drivers": [
+      "security threat",
+      "trade dependence",
+      "sanctions exposure",
+      "energy dependence",
+      "domestic politics",
+      "territorial disputes",
+      "military basing requests",
+      "refugee and humanitarian pressure",
+      "recent battlefield behaviour",
+      "reliability of prospective partners"
+    ]
+  },
+  "antiSnowballRules": [
+    "occupation creates garrison, legitimacy and logistics costs",
+    "long supply lines reduce effective military power",
+    "coalition members can limit access, basing and war participation",
+    "sanctions and blockades create substitution and smuggling incentives rather than binary shutdowns",
+    "heavy casualties and infrastructure loss increase domestic pressure for de-escalation",
+    "rapid territorial expansion raises balancing pressure among nearby uncommitted powers"
+  ]
+}
