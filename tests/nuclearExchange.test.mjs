@@ -54,7 +54,7 @@ function region(id, polity, opts={}) {
   const before=a.population,food=a.stockpile.food,fallout=a.nuclearAftermath.fallout;
   tickNuclearAftermath([a],365.2425);
   assert.ok(a.population<before,'fallout and soot should cause continuing post-exchange mortality');
-  assert.ok(a.stockpile.food<food,'food-system shock should consume reserves over time');
+  assert.equal(a.stockpile.food,food,'nuclear winter should reduce food production rather than directly delete existing reserves');
   assert.ok(a.nuclearAftermath.fallout<fallout,'fallout burden should decay rather than remain permanent');
   assert.ok(a.report.nuclearAftermath,'aftermath should remain visible to advisor/reporting systems');
 }
