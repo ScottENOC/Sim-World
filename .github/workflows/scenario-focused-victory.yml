@@ -5,8 +5,11 @@ on:
     paths:
       - 'js/core/scenarioState.js'
       - 'js/core/scenarioVictory.js'
+      - 'js/core/scenarioRuntime.js'
+      - 'js/ui/scenarioRuntimeAuto.js'
       - 'data/scenarios/**'
       - 'tools/test-scenario-focused-victory.mjs'
+      - 'tools/test-scenario-runtime.mjs'
       - '.github/workflows/scenario-focused-victory.yml'
   push:
     branches:
@@ -14,8 +17,11 @@ on:
     paths:
       - 'js/core/scenarioState.js'
       - 'js/core/scenarioVictory.js'
+      - 'js/core/scenarioRuntime.js'
+      - 'js/ui/scenarioRuntimeAuto.js'
       - 'data/scenarios/**'
       - 'tools/test-scenario-focused-victory.mjs'
+      - 'tools/test-scenario-runtime.mjs'
       - '.github/workflows/scenario-focused-victory.yml'
 
 jobs:
@@ -26,4 +32,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: node --check js/core/scenarioRuntime.js
+      - run: node --check js/ui/scenarioRuntimeAuto.js
       - run: node tools/test-scenario-focused-victory.mjs
+      - run: node tools/test-scenario-runtime.mjs
