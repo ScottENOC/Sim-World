@@ -7,12 +7,14 @@ import { tickEmploymentAndHardship } from './employmentAndHardship.js?v=20260918
 import { tickHouseholdFoodSecurity } from './householdFoodSecurity.js?v=20260919-household-food1';
 import { tickLightMetals } from './lightMetals.js?v=20260919-light-metals1';
 import { tickAgriculturalLand, agriculturalLandSummary } from './agriculturalLand.js?v=20260921-arable1';
+import { tickAgriculturalPests } from './agriculturalPests.js?v=20260921-pests1';
 export * from './laborCore.js?v=20260905-merchant1';
 export * from './housing.js?v=20260916-housing1';
 export * from './employmentAndHardship.js?v=20260918-employment1';
 export * from './householdFoodSecurity.js?v=20260919-household-food1';
 export * from './lightMetals.js?v=20260919-light-metals1';
 export * from './agriculturalLand.js?v=20260921-arable1';
+export * from './agriculturalPests.js?v=20260921-pests1';
 
 function committedMerchantCount(region) {
   const workingAge = Math.max(0, Number(region.demographics?.workingAge) || 0);
@@ -28,7 +30,7 @@ function committedArtistCount(region, availableAfterMerchants) {
 }
 
 function normaliseReportMetadata(region) {
-  for (const key of ['conflict', 'structuralTransformation', 'industrialSupply', 'lightMetals', 'housing', 'employment', 'landUse']) {
+  for (const key of ['conflict', 'structuralTransformation', 'industrialSupply', 'lightMetals', 'housing', 'employment', 'landUse', 'agriculturalPests']) {
     if (region.report?.[key] && !Number.isFinite(region.report[key].workers)) region.report[key].workers = 0;
   }
 }
@@ -36,8 +38,6 @@ function normaliseReportMetadata(region) {
 export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, currentTick = null, elapsedDays = 7, endDay = null) {
   const reservations = [];
   for (const region of regions) {
-    // Land allocation is persistent state, but refresh it before farming so
-    // current forest, pasture and urbanisation feed the production ceiling.
     tickAgriculturalLand(region);
     const previousOccupations = { ...(region.occupations || {}) };
     const housingConstruction = prepareHousingConstruction(region, elapsedDays);
@@ -57,6 +57,11 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
     reservations.push([region, housingBuilders, housingConstruction, previousOccupations, merchants, artists, industrialSupport, services]);
     if (reserved > 0 && region.demographics) region.demographics.workingAge = Math.max(0, region.demographics.workingAge - reserved);
   }
+
+  // Pest ecology advances once per economy tick. It reads the previous weather
+  // state plus current crop mix and established trade contacts, giving outbreaks
+  // memory rather than making them a second instantaneous weather roll.
+  tickAgriculturalPests(regions, elapsedDays, rng);
 
   try {
     tickCoreEconomy(regions, seaRegions, toolTypes, rng, currentTick, elapsedDays, endDay);
@@ -86,11 +91,12 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
         ...housingSummary(region),
       };
       region.report.industrialSupply = { workers: 0, capability: { ...region.industrialSupply.capability }, outputCapacity: { ...region.industrialSupply.outputCapacity } };
-      // Refresh after the core tick because horse pasture and farmer employment
-      // can both change during it. This is the player-facing land monitor.
       tickAgriculturalLand(region);
       region.report.landUse = { workers: 0, ...agriculturalLandSummary(region) };
-      if (region.report.farming) region.report.farming.land = { ...region.report.landUse };
+      if (region.report.farming) {
+        region.report.farming.land = { ...region.report.landUse };
+        region.report.farming.pests = { ...(region.report.agriculturalPests || {}) };
+      }
       normaliseReportMetadata(region);
     }
   }
