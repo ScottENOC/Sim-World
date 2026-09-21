@@ -1,5 +1,6 @@
 import { tickAgriculturalPollinators, pollinatorCategoryYieldMultiplier } from './agriculturalPollinators.js?v=20260921-pollinators1';
 import { geneticClimateMultiplier } from './agriculturalGenetics.js?v=20260921-genetics1';
+import { breedingYieldMultiplier, breedingClimateRelief } from './cropBreeding.js?v=20260921-breeding1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
@@ -24,7 +25,7 @@ export function regionalFoodProductionMix(region){
 export function ensureFoodDiversity(region){
   region.foodDiversity||={};const s=region.foodDiversity;
   s.productionMix={...regionalFoodProductionMix(region),...(s.productionMix||{})};
-  s.availability||={};s.consumption||={};s.shortage||={};s.pestMultiplier||={};s.pollinatorMultiplier||={};s.geneticClimateMultiplier||={};
+  s.availability||={};s.consumption||={};s.shortage||={};s.pestMultiplier||={};s.pollinatorMultiplier||={};s.geneticClimateMultiplier||={};s.breedingMultiplier||={};
   if(!Number.isFinite(s.diversityIndex))s.diversityIndex=0;
   if(!Number.isFinite(s.healthSupport))s.healthSupport=.9;
   return s;
@@ -43,8 +44,11 @@ export function tickFoodDiversity(region,elapsedDays=7){
     const pestMultiplier=pestCategoryMultiplier(region,id);
     const pollinatorMultiplier=pollinatorCategoryYieldMultiplier(region,id);
     const geneticMultiplier=geneticClimateMultiplier(region,id);
-    s.pestMultiplier[id]=pestMultiplier;s.pollinatorMultiplier[id]=pollinatorMultiplier;s.geneticClimateMultiplier[id]=geneticMultiplier;
-    const local=categorySupply*(s.productionMix[id]||0)*pestMultiplier*pollinatorMultiplier*geneticMultiplier;
+    const yieldMultiplier=breedingYieldMultiplier(region,id);
+    const climateRelief=breedingClimateRelief(region,id);
+    const breedingMultiplier=yieldMultiplier*Math.min(1,geneticMultiplier+climateRelief)/Math.max(.0001,geneticMultiplier);
+    s.pestMultiplier[id]=pestMultiplier;s.pollinatorMultiplier[id]=pollinatorMultiplier;s.geneticClimateMultiplier[id]=geneticMultiplier;s.breedingMultiplier[id]=breedingMultiplier;
+    const local=categorySupply*(s.productionMix[id]||0)*pestMultiplier*pollinatorMultiplier*geneticMultiplier*breedingMultiplier;
     region.stockpile[id]=Math.max(0,Number(region.stockpile[id])||0)+local;
     const desired=pop*.0065*weeks;
     const available=Math.max(0,Number(region.stockpile[id])||0);
@@ -59,6 +63,6 @@ export function tickFoodDiversity(region,elapsedDays=7){
   const minimum=Math.min(...values),mean=values.reduce((a,b)=>a+b,0)/values.length;
   s.diversityIndex=clamp(mean*.65+minimum*.35);
   s.healthSupport=.94+s.diversityIndex*.08;
-  region.report||={};region.report.foodDiversity={workers:0,productionMix:{...s.productionMix},availability:{...s.availability},shortage:{...s.shortage},pestMultiplier:{...s.pestMultiplier},pollinatorMultiplier:{...s.pollinatorMultiplier},geneticClimateMultiplier:{...s.geneticClimateMultiplier},diversityIndex:s.diversityIndex,healthSupport:s.healthSupport};
+  region.report||={};region.report.foodDiversity={workers:0,productionMix:{...s.productionMix},availability:{...s.availability},shortage:{...s.shortage},pestMultiplier:{...s.pestMultiplier},pollinatorMultiplier:{...s.pollinatorMultiplier},geneticClimateMultiplier:{...s.geneticClimateMultiplier},breedingMultiplier:{...s.breedingMultiplier},diversityIndex:s.diversityIndex,healthSupport:s.healthSupport};
   return region.report.foodDiversity;
 }
