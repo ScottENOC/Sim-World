@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "fractured-2027",
+  "model": "formation-and-force-allocation",
+  "calibrationNote": "Fictional scenario opening-force calibration for gameplay. It is not an exact real-world order of battle or a claim about actual 2027 deployments.",
+  "formations": [
+    {
+      "id": "usa-iran-forward-fleet",
+      "actorId": "usa",
+      "domain": "naval-joint",
+      "theatreId": "iran-gulf-arabian-sea",
+      "posture": "sustained-combat-deployment",
+      "deploymentAgeDays": 165,
+      "readiness": 0.73,
+      "fatigue": 0.37,
+      "sustainmentStrain": 0.34,
+      "fractionOfDeployablePower": 0.27,
+      "composition": {
+        "carrierTaskGroups": 1,
+        "surfaceCombatantGroups": 2,
+        "attackSubmarineGroups": 1,
+        "amphibiousGroups": 1,
+        "replenishmentGroups": 1,
+        "landBasedAirWings": 1
+      },
+      "missions": ["sea-control", "strike", "air-defence", "protect-logistics"]
+    },
+    {
+      "id": "usa-greenland-surge-fleet",
+      "actorId": "usa",
+      "domain": "naval-joint",
+      "theatreId": "greenland-north-atlantic",
+      "posture": "fresh-surge-deployment",
+      "deploymentAgeDays": 18,
+      "readiness": 0.93,
+      "fatigue": 0.08,
+      "sustainmentStrain": 0.12,
+      "fractionOfDeployablePower": 0.34,
+      "composition": {
+        "carrierTaskGroups": 1,
+        "surfaceCombatantGroups": 3,
+        "attackSubmarineGroups": 2,
+        "amphibiousGroups": 1,
+        "replenishmentGroups": 2,
+        "landBasedAirWings": 1
+      },
+      "missions": ["sea-control", "air-defence", "amphibious-support", "protect-occupation-logistics"]
+    }
+  ],
+  "landConcentration": [
+    {
+      "actorId": "russia",
+      "theatreId": "ukraine-line-of-contact",
+      "frontlineManeuverShare": 0.84,
+      "rearManeuverShare": 0.06,
+      "reconstitutionReserveShare": 0.10,
+      "rearStrategicMissions": ["strategic-air-defence", "nuclear-force-security", "base-security", "training"]
+    },
+    {
+      "actorId": "ukraine",
+      "theatreId": "ukraine-line-of-contact",
+      "frontlineManeuverShare": 0.90,
+      "rearManeuverShare": 0.04,
+      "reconstitutionReserveShare": 0.06,
+      "rearStrategicMissions": ["air-defence", "critical-infrastructure-security", "training-and-reconstitution"]
+    }
+  ],
+  "designRules": [
+    "Opening deployments are movable state, not permanent combat bonuses.",
+    "Long deployments accumulate fatigue and sustainment strain; fresh surge deployments begin at higher readiness.",
+    "Russia and Ukraine begin with almost all mobile conventional manoeuvre power committed to the line of contact.",
+    "Rear areas retain strategic air defence, base and nuclear security, training and reconstitution functions rather than being literally undefended.",
+    "Redeploying forces away from an active theatre weakens that theatre immediately and requires travel and logistics time."
+  ]
+}
