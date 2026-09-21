@@ -44,8 +44,9 @@ export function electricityDemand(region, elapsedDays = 7) {
   const controlledAgricultureDemand = nonNegative(region.controlledEnvironmentAgriculture?.electricityLoad);
   const waterPumpingDemand = nonNegative(region.waterResources?.pumpingElectricityLoad);
   const urbanWaterDemand = nonNegative(region.urbanWater?.electricityLoad);
-  const industrialDemand = baseIndustrialDemand + lightMetalsDemand + strategicNuclearDemand + modernEnergyDemand + fertiliserDemand + controlledAgricultureDemand + waterPumpingDemand + urbanWaterDemand;
-  return { householdDemand, industrialDemand, total: householdDemand + industrialDemand, lightMetalsDemand, strategicNuclearDemand, modernEnergyDemand, fertiliserDemand, controlledAgricultureDemand, waterPumpingDemand, urbanWaterDemand };
+  const precisionAgricultureDemand = nonNegative(region.precisionAgriculture?.electricityLoad);
+  const industrialDemand = baseIndustrialDemand + lightMetalsDemand + strategicNuclearDemand + modernEnergyDemand + fertiliserDemand + controlledAgricultureDemand + waterPumpingDemand + urbanWaterDemand + precisionAgricultureDemand;
+  return { householdDemand, industrialDemand, total: householdDemand + industrialDemand, lightMetalsDemand, strategicNuclearDemand, modernEnergyDemand, fertiliserDemand, controlledAgricultureDemand, waterPumpingDemand, urbanWaterDemand, precisionAgricultureDemand };
 }
 
 export function dispatchElectricityPortfolio(outputs = {}, demand = Infinity) {
@@ -125,9 +126,6 @@ export function tickElectricity(region, elapsedDays = 7) {
   const windOutput = windStations * 4500 * years * windAvailability;
 
   const demand = electricityDemand(region, elapsedDays);
-  // Do not cap generation dispatch at local demand: once high-voltage links exist,
-  // a region can deliberately produce for export. Grid capacity still caps what can
-  // reach either local consumers or an interconnector.
   const preliminary = dispatchElectricityPortfolio({ coal: coalOutput, hydro: hydroOutput, solar: solarOutput, wind: windOutput, nuclear: nuclear.output }, Infinity);
   const gasPotential = gasPowerPotential(region, elapsedDays);
   const gasWanted = Math.max(0, demand.total - preliminary.usableGeneration) + preliminary.balancingShortfall;
@@ -182,14 +180,13 @@ export function tickElectricity(region, elapsedDays = 7) {
   state.controlledAgricultureDemand = demand.controlledAgricultureDemand || 0;
   state.waterPumpingDemand = demand.waterPumpingDemand || 0;
   state.urbanWaterDemand = demand.urbanWaterDemand || 0;
+  state.precisionAgricultureDemand = demand.precisionAgricultureDemand || 0;
   state.gasConsumed = gasConsumed;
   state.storageCharge = storageDispatch.chargeInput;
   state.storageDischarge = storageDispatch.discharged;
   state.storageEnergy = region.batteryStorage?.storedEnergy || 0;
   state.storageCapacity = region.batteryStorage?.installedCapacity || 0;
   state.storageChemistry = storageDispatch.chemistry;
-  // Storage gets first use of local surplus. Only energy left after charging is
-  // available to export, which prevents one MWh from being both stored and sold.
   state.exportableSurplus = Math.max(0, directAvailable - demand.total - storageDispatch.chargeInput);
   state.importNeed = Math.max(0, demand.total - delivered);
   state.imports = 0; state.exports = 0; state.transit = 0; state.interconnectorLosses = 0;
