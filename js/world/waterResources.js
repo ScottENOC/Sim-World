@@ -1,4 +1,5 @@
 import { finaliseUrbanWater, prepareUrbanWater, supplementalUrbanWater, urbanDemandMultiplier } from './urbanWater.js?v=20260921-urban-water1';
+import { precisionIrrigationDemandMultiplier } from '../economy/precisionAgriculture.js?v=20260921-precision-ag1';
 
 const DAYS_PER_YEAR=365.2425;
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
@@ -23,7 +24,7 @@ export function ensureWaterResources(region){
 
 export function regionalWaterDemand(region){
   const pop=positive(region?.population),urban=urbanShare(region),cultivated=positive(region?.agriculturalLand?.cultivatedHa),weather=clamp(region?.weather?.yieldMultiplier??1,.25,1.8),rain=rainfallSignal(region),dryness=clamp(1-(rain*.62+weather*.38),0,1),irrigation=activeAssets(region,'irrigation')+activeAssets(region,'canal'),wells=activeAssets(region,'wells_cisterns');
-  const households=Math.pow(pop/100000,.72)*(.018+urban*.022)*urbanDemandMultiplier(region,'households'),irrigationNeed=clamp(.12+dryness*.88+(irrigation>0?.18:0)+(wells>0?.06:0),.08,1),agriculture=(cultivated/100000)*.16*irrigationNeed,industry=industrialSignal(region)*(.035+urban*.02)*urbanDemandMultiplier(region,'industry'),cea=region?.controlledEnvironmentAgriculture||{},controlledEnvironment=(positive(cea.greenhouseHa)*.000035+positive(cea.hydroponicHa)*.000010)*urbanDemandMultiplier(region,'controlledEnvironment');
+  const households=Math.pow(pop/100000,.72)*(.018+urban*.022)*urbanDemandMultiplier(region,'households'),irrigationNeed=clamp(.12+dryness*.88+(irrigation>0?.18:0)+(wells>0?.06:0),.08,1),agriculture=(cultivated/100000)*.16*irrigationNeed*precisionIrrigationDemandMultiplier(region),industry=industrialSignal(region)*(.035+urban*.02)*urbanDemandMultiplier(region,'industry'),cea=region?.controlledEnvironmentAgriculture||{},controlledEnvironment=(positive(cea.greenhouseHa)*.000035+positive(cea.hydroponicHa)*.000010)*urbanDemandMultiplier(region,'controlledEnvironment');
   return {households,agriculture,industry,controlledEnvironment,total:households+agriculture+industry+controlledEnvironment};
 }
 
