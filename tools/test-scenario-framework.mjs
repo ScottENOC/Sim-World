@@ -108,10 +108,19 @@ assert.equal(victory.campaignResolution.requireEveryWorldWarEnded, false);
 assert.equal(sovereignty.coalitionPolicy.euMembersRemainSovereignPolities, true);
 assert.ok(modernStart.commonTechIds.includes('lithium_ion_batteries'));
 assert.ok(modernStart.commonTechIds.includes('battery_multirotor_drones'));
-assert.ok(forceDeployments.formations.some((formation) => formation.id === 'usa-iran-forward-fleet'));
+assert.ok(forceDeployments.formations.some((formation) => formation.id === 'usa-iran-forward-fleet' && formation.theatreId === 'iran-gulf'));
 assert.ok(forceDeployments.formations.some((formation) => formation.id === 'usa-greenland-surge-fleet'));
+for (const actorId of ['uk', 'canada', 'france', 'denmark']) {
+  assert.ok(forceDeployments.formations.some((formation) => formation.actorId === actorId && formation.theatreId === 'greenland-north-atlantic'), `${actorId} Greenland response force missing`);
+}
+assert.equal(forceDeployments.formations.filter((formation) => formation.actorId === 'china' && formation.theatreId === 'taiwan-western-pacific').length, 3);
+assert.ok(forceDeployments.formations.some((formation) => formation.actorId === 'taiwan' && formation.theatreId === 'taiwan-western-pacific'));
 assert.ok(forceDeployments.landConcentration.some((entry) => entry.actorId === 'russia' && entry.frontlineManeuverShare >= 0.8));
 assert.ok(forceDeployments.landConcentration.some((entry) => entry.actorId === 'ukraine' && entry.frontlineManeuverShare >= 0.8));
+assert.ok(forceDeployments.landConcentration.some((entry) => entry.actorId === 'poland' && entry.theatreId === 'eastern-europe'));
+assert.ok(forceDeployments.landConcentration.some((entry) => entry.actorId === 'finland' && entry.theatreId === 'eastern-europe'));
+assert.ok(forceDeployments.landConcentration.some((entry) => entry.actorId === 'germany' && entry.theatreId === 'eastern-europe'));
+assert.ok(forceDeployments.landConcentration.some((entry) => entry.actorId === 'taiwan' && entry.frontlineManeuverShare >= 0.7));
 assert.ok(strategicRegions.priorityTheatres.some((theatre) => theatre.id === 'australia-and-maritime-approaches'));
 assert.ok(strategicRegions.priorityTheatres.some((theatre) => theatre.id === 'taiwan-western-pacific'));
 
