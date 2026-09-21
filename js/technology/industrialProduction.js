@@ -4,6 +4,7 @@ import { tickIndustrialInvestment } from '../economy/industrialInvestment.js?v=2
 import { TRACTOR_TECH_ID, COMBINE_TECH_ID, tickAgriculturalMachinery } from '../economy/agriculturalMachinery.js?v=20260921-farm-machinery1';
 import { INDUSTRIAL_AMMONIA_TECH_ID, SYNTHETIC_FERTILISER_TECH_ID, agriculturalChemistryBreakthroughChances, tickAgriculturalFertiliser } from '../economy/agriculturalFertiliser.js?v=20260921-fertiliser1';
 import { CHEMICAL_PEST_CONTROL_TECH_ID, SYNTHETIC_PESTICIDES_TECH_ID, pesticideBreakthroughChances, tickAgriculturalPesticides } from '../economy/agriculturalPesticides.js?v=20260921-synth-pesticides1';
+import { tickMobilePollination } from '../economy/mobilePollination.js?v=20260921-mobile-pollination1';
 import '../ui/industrialInvestmentUi.js?v=20260919-investment1';
 import '../ui/militaryDesignUi.js?v=20260919-light-metal-designs1';
 
@@ -106,6 +107,7 @@ export function tickIndustrialProduction(regions,elapsedDays=7){
     tickAgriculturalFertiliser(region,elapsedDays);
     tickAgriculturalPesticides(region,elapsedDays);
   }
+  tickMobilePollination(regions,elapsedDays);
 }
 
 export function tickIndustrialProductionBreakthroughs(regions,currentTick,rng=Math.random,elapsedDays=7){
