@@ -1,4 +1,5 @@
 import { DIET_FOOD_IDS, regionalFoodProductionMix } from './foodDiversity.js?v=20260921-food-diversity1';
+import { pesticideControlForCategory } from './agriculturalPesticides.js?v=20260921-pesticides1';
 
 const DAYS_PER_YEAR = 365.2425;
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
@@ -18,11 +19,13 @@ export function ensureAgriculturalPests(region) {
   s.outbreakSeverity ||= {};
   s.extraYieldLoss ||= {};
   s.introductionRisk ||= {};
+  s.pesticideControl ||= {};
   ensureCategoryMap(s.baselinePressure, BASELINE);
   ensureCategoryMap(s.pressure, BASELINE);
   ensureCategoryMap(s.outbreakSeverity, {});
   ensureCategoryMap(s.extraYieldLoss, {});
   ensureCategoryMap(s.introductionRisk, {});
+  ensureCategoryMap(s.pesticideControl, {});
   if (!Number.isFinite(s.monocultureRisk)) s.monocultureRisk = 0;
   if (!Number.isFinite(s.aggregateExtraLoss)) s.aggregateExtraLoss = 0;
   if (!Number.isFinite(s.yieldMultiplier)) s.yieldMultiplier = 1;
@@ -118,6 +121,14 @@ export function tickAgriculturalPests(regions, elapsedDays = 7, rng = Math.rando
         s.outbreakCount += 1;
       }
 
+      // Crop protection suppresses abnormal pressure only. Endemic baseline
+      // losses remain embedded in historical yields and cannot be erased by
+      // spraying, so pesticides prevent bad outbreaks rather than creating a
+      // permanent productivity bonus in normal years.
+      const control = PLANT_FOODS.includes(category) ? pesticideControlForCategory(region, category) : 0;
+      s.pesticideControl[category] = control;
+      pressure = baseline + Math.max(0, pressure - baseline) * (1 - control);
+
       pressure = clamp(pressure, baseline * 0.75, 1);
       const abnormal = clamp((pressure - baseline) / Math.max(0.01, 1 - baseline));
       const extraLoss = clamp(abnormal * MAX_EXTRA_LOSS[category], 0, MAX_EXTRA_LOSS[category]);
@@ -142,6 +153,7 @@ export function tickAgriculturalPests(regions, elapsedDays = 7, rng = Math.rando
       outbreakSeverity: { ...s.outbreakSeverity },
       extraYieldLoss: { ...s.extraYieldLoss },
       introductionRisk: { ...s.introductionRisk },
+      pesticideControl: { ...s.pesticideControl },
       aggregateExtraLoss: s.aggregateExtraLoss,
       yieldMultiplier: s.yieldMultiplier,
       outbreakCount: s.outbreakCount,

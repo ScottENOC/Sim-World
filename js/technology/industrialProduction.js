@@ -3,13 +3,14 @@ import { industrialFactoryCapacity } from '../economy/industrialPlant.js?v=20260
 import { tickIndustrialInvestment } from '../economy/industrialInvestment.js?v=20260919-investment1';
 import { TRACTOR_TECH_ID, COMBINE_TECH_ID, tickAgriculturalMachinery } from '../economy/agriculturalMachinery.js?v=20260921-farm-machinery1';
 import { INDUSTRIAL_AMMONIA_TECH_ID, SYNTHETIC_FERTILISER_TECH_ID, agriculturalChemistryBreakthroughChances, tickAgriculturalFertiliser } from '../economy/agriculturalFertiliser.js?v=20260921-fertiliser1';
+import { CHEMICAL_PEST_CONTROL_TECH_ID, pesticideBreakthroughChance, tickAgriculturalPesticides } from '../economy/agriculturalPesticides.js?v=20260921-pesticides1';
 import '../ui/industrialInvestmentUi.js?v=20260919-investment1';
 import '../ui/militaryDesignUi.js?v=20260919-light-metal-designs1';
 
 export const AUTOMOBILE_TECH_ID = 'automobile';
 export const ASSEMBLY_LINE_TECH_ID = 'assembly_line_production';
 export const ADVANCED_FACTORY_TECH_ID = 'advanced_factories';
-export { TRACTOR_TECH_ID, COMBINE_TECH_ID, INDUSTRIAL_AMMONIA_TECH_ID, SYNTHETIC_FERTILISER_TECH_ID };
+export { TRACTOR_TECH_ID, COMBINE_TECH_ID, INDUSTRIAL_AMMONIA_TECH_ID, SYNTHETIC_FERTILISER_TECH_ID, CHEMICAL_PEST_CONTROL_TECH_ID };
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const weekly=(p,days)=>1-Math.pow(1-clamp(p),Math.max(0,Number(days)||0)/7);
@@ -103,6 +104,7 @@ export function tickIndustrialProduction(regions,elapsedDays=7){
     tickIndustrialInvestment(region,elapsedDays);
     tickAgriculturalMachinery(region,elapsedDays);
     tickAgriculturalFertiliser(region,elapsedDays);
+    tickAgriculturalPesticides(region,elapsedDays);
   }
 }
 
@@ -113,17 +115,19 @@ export function tickIndustrialProductionBreakthroughs(regions,currentTick,rng=Ma
     region.unlockedTechIds||=new Set(); ensureIndustrialProduction(region);
     const c=industrialProductionBreakthroughChances(region,byId);
     const chemistry=agriculturalChemistryBreakthroughChances(region,byId);
+    const pesticide=pesticideBreakthroughChance(region,byId);
     const attempts=[
       ['automobile',AUTOMOBILE_TECH_ID,'automobile_breakthrough','Practical automobile','Engineers have developed a practical self-propelled road vehicle.'],
       ['tractor',TRACTOR_TECH_ID,'tractor_breakthrough','Internal-combustion tractor','Vehicle engineers and farmers have adapted reliable engines, transmissions and heavy chassis to sustained field work.'],
       ['combine',COMBINE_TECH_ID,'combine_harvester_breakthrough','Mechanised combine harvester','Manufacturers have integrated powered harvesting, threshing and mobile field machinery into a practical combine harvester.'],
+      ['pesticide',CHEMICAL_PEST_CONTROL_TECH_ID,'chemical_pest_control_breakthrough','Chemical crop protection','Farmers and chemical producers have developed practical sulfur- and copper-based treatments that suppress severe crop pests and diseases.'],
       ['ammonia',INDUSTRIAL_AMMONIA_TECH_ID,'industrial_ammonia_breakthrough','Industrial ammonia synthesis','Chemical engineers can now fix atmospheric nitrogen into ammonia using high pressure, catalysts and large industrial energy inputs.'],
       ['fertiliser',SYNTHETIC_FERTILISER_TECH_ID,'synthetic_fertiliser_breakthrough','Synthetic nitrogen fertiliser','Industry can now convert ammonia into standardised nitrogen fertiliser for large-scale agricultural application.'],
       ['assembly',ASSEMBLY_LINE_TECH_ID,'assembly_line_breakthrough','Assembly-line production','Manufacturers have learned to organise sequential, standardised high-volume production.'],
       ['advanced',ADVANCED_FACTORY_TECH_ID,'advanced_factory_breakthrough','Advanced factory organisation','Factories can now combine specialised machine tools, powered layouts, quality control and more sophisticated production management.'],
     ];
     for(const [key,id,type,title,message] of attempts){
-      const chance=key==='ammonia'||key==='fertiliser'?chemistry[key]:c[key];
+      const chance=key==='ammonia'||key==='fertiliser'?chemistry[key]:key==='pesticide'?pesticide:c[key];
       if(region.unlockedTechIds.has(id)||rng()>=weekly(chance||0,elapsedDays))continue;
       region.unlockedTechIds.add(id); events.push({type,regionId:region.id,regionName:region.name,tick:currentTick,title,message:`${region.name}: ${message}`}); break;
     }
