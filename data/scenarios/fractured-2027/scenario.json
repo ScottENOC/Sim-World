@@ -11,6 +11,7 @@
   "playabilityFile": "playability.json",
   "victoryFile": "victory.json",
   "sovereigntyFile": "sovereignty.json",
+  "modernStartFile": "modern-start.json",
   "strategicMapCatalogueFile": "world/strategic-regions.json",
   "rulesProfile": "modern-crisis",
   "technologyProfile": "near-future-conventional",
@@ -80,5 +81,5 @@
   "sharedWorldFiles": [
     "toolTypes.json"
   ],
-  "status": "runtime and state scaffolds ready; dedicated strategic geometry is under construction"
+  "status": "independent baseline map, modern runtime calibration and country-first startup ready for CI validation"
 }
