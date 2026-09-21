@@ -8,9 +8,11 @@
   "initialStateFile": "initial-state.json",
   "factionBalanceFile": "faction-balance.json",
   "pressureEventsFile": "pressure-events.json",
+  "playabilityFile": "playability.json",
+  "victoryFile": "victory.json",
   "rulesProfile": "modern-crisis",
   "technologyProfile": "near-future-conventional",
-  "victoryModel": "military-control",
+  "victoryModel": "country-survival-and-aims",
   "pacing": {
     "targetRealHours": 30,
     "targetSimYears": 6,
