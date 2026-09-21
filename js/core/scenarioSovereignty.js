@@ -38,16 +38,10 @@ function capitalFor(group, sovereignty = {}) {
   return [...group.regions].sort((a, b) => Number(b.population || 0) - Number(a.population || 0))[0] || null;
 }
 
-function cloneSet(value) {
-  return value instanceof Set ? new Set(value) : value;
-}
-
 function prepareCountryPolity(template, group, capital) {
-  const polity = template || {
-    administration: { experience: {}, breakthroughs: new Set() },
-    report: {},
-  };
-  polity.id = group.actorId;
+  const polity = template || { administration: { experience: {}, breakthroughs: new Set() }, report: {} };
+  const representativeId = polity.id || capital?.governance?.sovereignPolityId || capital?.polityId || `scenario_${group.actorId}`;
+  polity.id = representativeId;
   polity.name = group.name;
   polity.capitalRegionId = capital?.id || group.regions[0]?.id || null;
   polity.rulerRegionId = polity.capitalRegionId;
@@ -55,7 +49,6 @@ function prepareCountryPolity(template, group, capital) {
   polity.scenarioActorId = group.actorId;
   polity.scenarioActorKind = 'country';
   polity.scenarioPlayable = true;
-  if (polity.administration?.breakthroughs) polity.administration.breakthroughs = cloneSet(polity.administration.breakthroughs);
   return polity;
 }
 
@@ -66,24 +59,28 @@ export function consolidateScenarioSovereignty(world, navigation, sovereignty = 
   const polityById = new Map(polities.map((polity) => [polity.id, polity]));
   const absorbed = new Set();
   const countries = [];
+  const actorToPolityId = {};
 
   for (const group of groups) {
     const capital = capitalFor(group, sovereignty);
     if (!capital) continue;
     const oldCapitalPolityId = capital.governance?.sovereignPolityId || capital.polityId;
-    const template = polityById.get(oldCapitalPolityId) || null;
+    const template = polityById.get(oldCapitalPolityId) || { id: oldCapitalPolityId };
     const countryPolity = prepareCountryPolity(template, group, capital);
+    actorToPolityId[group.actorId] = countryPolity.id;
 
     for (const region of group.regions) {
       const oldId = region.governance?.sovereignPolityId || region.polityId;
       if (oldId && oldId !== countryPolity.id) absorbed.add(oldId);
       region.polityId = countryPolity.id;
       region.controllingActorId = countryPolity.id;
-      region.scenarioCountryId = countryPolity.id;
+      region.scenarioCountryId = group.actorId;
       region.scenarioSelectors = [...new Set([...(region.scenarioSelectors || []), group.actorId, countryActorId(group.name)])];
       region.governance ||= {};
       region.governance.sovereignPolityId = countryPolity.id;
       region.governance.localPolityId = countryPolity.id;
+      region.governance.scenarioCountryId = group.actorId;
+      region.governance.sovereignPolityName = group.name;
       region.governance.relationship = region.id === capital.id ? 'core' : 'integrated';
       region.governance.administrativeControl = 1;
       region.governance.autonomy = region.id === capital.id ? 0 : Number(sovereignty.defaultProvincialAutonomy ?? 0.12);
@@ -91,14 +88,16 @@ export function consolidateScenarioSovereignty(world, navigation, sovereignty = 
     countries.push(countryPolity);
   }
 
-  const countryIds = new Set(countries.map((country) => country.id));
-  const retained = polities.filter((polity) => !absorbed.has(polity.id) && !countryIds.has(polity.id));
+  const representativeIds = new Set(countries.map((country) => country.id));
+  const retained = polities.filter((polity) => !absorbed.has(polity.id) && !representativeIds.has(polity.id));
   polities.splice(0, polities.length, ...retained, ...countries);
   world.scenarioCountries = countries;
+  world.scenarioActorToPolityId = actorToPolityId;
   return {
     consolidated: true,
     countryCount: countries.length,
     countries,
+    actorToPolityId,
     absorbedRegionalPolities: absorbed.size,
     unassignedRegionIds: regions.filter((region) => !region.scenarioCountryId).map((region) => region.id),
   };
