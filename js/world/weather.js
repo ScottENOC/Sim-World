@@ -1,3 +1,5 @@
+import { nuclearWinterEffects } from './nuclearWinter.js?v=20260922-nuclear-winter1';
+
 // Weekly agricultural weather with both spatial and temporal memory. Broad
 // systems affect the whole simulated world, four-degree cells share regional
 // conditions, and direct neighbours smooth cell-boundary discontinuities.
@@ -27,8 +29,9 @@ export function seasonalFarmMultiplier(region, currentDay) {
 export function tickWeather(regions, currentDay, rng = Math.random, elapsedDays = 7) {
   if (currentDay === null || currentDay === undefined) {
     for (const region of regions) {
-      region.weather = { index: 0, yieldMultiplier: 1,
-        seasonalMultiplier: 1, condition: 'normal' };
+      const winter=nuclearWinterEffects(region);
+      region.weather = { index: 0, yieldMultiplier: winter.outdoorYieldMultiplier,
+        seasonalMultiplier: 1, condition: winter.soot>0.02?'nuclear winter':'normal', nuclearWinter:winter };
     }
     return;
   }
@@ -66,11 +69,15 @@ export function tickWeather(regions, currentDay, rng = Math.random, elapsedDays 
       ? neighbours.reduce((sum, value) => sum + value, 0) / neighbours.length
       : rawById.get(region.id);
     const index = clamp(rawById.get(region.id) * 0.65 + neighbourMean * 0.35, -2.4, 2.2);
-    const heatPenalty = Math.max(0, (region.climate?.temperatureAnomalyC || 0) - 1.5) * 0.025;
-    const yieldMultiplier = clamp(1 + index * 0.20 - heatPenalty, 0.52, 1.35);
-    const condition = index <= -0.75 ? 'drought' : index <= -0.3 ? 'dry'
+    const winter=nuclearWinterEffects(region);
+    const effectiveTemperature=(region.climate?.temperatureAnomalyC||0)+winter.coolingC;
+    const heatPenalty = Math.max(0, effectiveTemperature - 1.5) * 0.025;
+    const coldPenalty = Math.max(0, -effectiveTemperature - 1.0) * 0.035;
+    const normalWeatherYield=clamp(1 + index * 0.20 - heatPenalty - coldPenalty, 0.52, 1.35);
+    const yieldMultiplier = clamp(normalWeatherYield*winter.outdoorYieldMultiplier,0.18,1.35);
+    const condition = winter.soot>0.12?'severe nuclear winter':winter.soot>0.02?'nuclear winter':index <= -0.75 ? 'drought' : index <= -0.3 ? 'dry'
       : index >= 0.75 ? 'exceptionally wet' : index >= 0.3 ? 'wet' : 'normal';
     region.weather = { index, yieldMultiplier,
-      seasonalMultiplier: seasonalFarmMultiplier(region, currentDay), condition };
+      seasonalMultiplier: seasonalFarmMultiplier(region, currentDay), condition, nuclearWinter:winter };
   }
 }

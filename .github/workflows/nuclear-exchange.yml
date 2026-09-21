@@ -4,7 +4,7 @@ on:
   pull_request:
   push:
     branches:
-      - feature/nuclear-exchange-aftermath
+      - feature/nuclear-winter-integration
 
 jobs:
   test:
@@ -14,7 +14,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Syntax check nuclear exchange model
-        run: node --check js/military/nuclearExchange.js
+      - name: Syntax check nuclear aftermath integration
+        run: |
+          node --check js/military/nuclearExchange.js
+          node --check js/world/nuclearWinter.js
+          node --check js/world/weather.js
+          node --check js/economy/livestockAgriculture.js
+          node --check js/economy/controlledEnvironmentAgriculture.js
       - name: Run nuclear exchange regressions
         run: node tests/nuclearExchange.test.mjs
+      - name: Run nuclear winter regressions
+        run: node tests/nuclearWinter.test.mjs
