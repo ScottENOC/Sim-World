@@ -16,6 +16,7 @@ function region(techIds=[]){
     industrialPlants:{componentCapability:{electronics:.9}},
     structuralTransformation:{capability:{manufacture:.9}},
     corporateCapital:{financialDepth:.8}, electricity:{industrialService:.9},
+    stockpile:{lead_acid_battery_cells:10,advanced_rechargeable_cells:10,lithium_ion_cells:10},
   };
 }
 
@@ -23,6 +24,8 @@ function region(techIds=[]){
   const r=region([BATTERY_TECH_IDS.LEAD_ACID]);
   const installed=installBatteryStorage(r,100,{chargeRate:100,dischargeRate:100});
   assert.equal(installed.installed,true);
+  assert.equal(installed.cellsUsed,5,'100 storage capacity should consume five lead-acid cell units');
+  assert.equal(r.stockpile.lead_acid_battery_cells,5);
   const charged=dispatchBatteryStorage(r,{surplus:100,elapsedDays:7});
   assert.equal(charged.chemistry,'lead_acid');
   assert.ok(charged.chargeInput>0);
@@ -32,6 +35,15 @@ function region(techIds=[]){
   const discharged=dispatchBatteryStorage(r,{shortfall:25,elapsedDays:7});
   assert.equal(discharged.discharged,25);
   assert.equal(r.batteryStorage.storedEnergy,before-25);
+}
+
+{
+  const r=region([BATTERY_TECH_IDS.LITHIUM_ION]);
+  r.stockpile.lithium_ion_cells=.5;
+  const installed=installBatteryStorage(r,100);
+  assert.equal(installed.installed,true);
+  assert.equal(installed.materialLimited,true);
+  assert.equal(installed.addedCapacity,31,'half a lithium-ion cell unit should install 31 capacity');
 }
 
 {

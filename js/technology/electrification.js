@@ -4,6 +4,8 @@ export const ELECTRICAL_GENERATION_TECH_ID = 'electrical_generation';
 export const LOCAL_ELECTRIC_DISTRIBUTION_TECH_ID = 'local_electric_distribution';
 export const INDUSTRIAL_ELECTRIFICATION_TECH_ID = 'industrial_electrification';
 export const HYDROELECTRIC_GENERATION_TECH_ID = 'hydroelectric_generation';
+export const HIGH_VOLTAGE_TRANSMISSION_TECH_ID = 'high_voltage_transmission';
+export const SUBMARINE_POWER_CABLE_TECH_ID = 'submarine_power_cables';
 
 function industrialReadiness(region) {
   const c = region.industrialSupply?.capability || {};
@@ -39,7 +41,16 @@ export function electrificationBreakthroughChances(region, regionsById) {
     readiness * readiness * (0.55 + records * 0.45) * 0.000008 + diffusion(region, regionsById, INDUSTRIAL_ELECTRIFICATION_TECH_ID, 0.00025);
   const hydro = tech.has(HYDROELECTRIC_GENERATION_TECH_ID) || !tech.has(ELECTRICAL_GENERATION_TECH_ID) ? 0 :
     readiness * (region.construction?.completed?.reservoir_dam ? 1 : 0.22) * 0.000006 + diffusion(region, regionsById, HYDROELECTRIC_GENERATION_TECH_ID, 0.00018);
-  return { generation: clamp01(generation), distribution: clamp01(distribution), industrialUse: clamp01(industrialUse), hydro: clamp01(hydro) };
+  const transmission = tech.has(HIGH_VOLTAGE_TRANSMISSION_TECH_ID) || !tech.has(LOCAL_ELECTRIC_DISTRIBUTION_TECH_ID) ? 0 :
+    readiness * (0.45 + records * 0.30 + (tech.has(INDUSTRIAL_ELECTRIFICATION_TECH_ID) ? 0.25 : 0)) * 0.000007 +
+    diffusion(region, regionsById, HIGH_VOLTAGE_TRANSMISSION_TECH_ID, 0.00022);
+  const submarineCable = tech.has(SUBMARINE_POWER_CABLE_TECH_ID) || !tech.has(HIGH_VOLTAGE_TRANSMISSION_TECH_ID) || !region.isCoastal ? 0 :
+    readiness * readiness * (tech.has('advanced_factories') ? 1 : 0.36) * 0.000004 +
+    diffusion(region, regionsById, SUBMARINE_POWER_CABLE_TECH_ID, 0.00015);
+  return {
+    generation: clamp01(generation), distribution: clamp01(distribution), industrialUse: clamp01(industrialUse), hydro: clamp01(hydro),
+    transmission: clamp01(transmission), submarineCable: clamp01(submarineCable),
+  };
 }
 
 export function tickElectrificationBreakthroughs(regions, currentTick, rng = Math.random, elapsedDays = 7) {
@@ -51,6 +62,8 @@ export function tickElectrificationBreakthroughs(regions, currentTick, rng = Mat
     ['distribution', LOCAL_ELECTRIC_DISTRIBUTION_TECH_ID, 'electric_distribution_breakthrough', 'Local electric distribution'],
     ['industrialUse', INDUSTRIAL_ELECTRIFICATION_TECH_ID, 'industrial_electrification_breakthrough', 'Industrial electrification'],
     ['hydro', HYDROELECTRIC_GENERATION_TECH_ID, 'hydroelectric_generation_breakthrough', 'Hydroelectric generation'],
+    ['transmission', HIGH_VOLTAGE_TRANSMISSION_TECH_ID, 'high_voltage_transmission_breakthrough', 'High-voltage transmission'],
+    ['submarineCable', SUBMARINE_POWER_CABLE_TECH_ID, 'submarine_power_cable_breakthrough', 'Submarine power cables'],
   ];
   for (const region of regions) {
     region.unlockedTechIds ||= new Set();

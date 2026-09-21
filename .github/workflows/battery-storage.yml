@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - feature/grid-and-mobile-batteries
+      - feature/battery-grid-interconnectors
 
 jobs:
   test:
@@ -14,10 +15,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Syntax check battery integration
+      - name: Syntax check battery and grid integration
         run: |
           node --check js/economy/batteryStorage.js
+          node --check js/economy/batterySupplyChain.js
           node --check js/economy/electricity.js
+          node --check js/economy/electricityInterconnectors.js
+          node --check js/economy/localCommunications.js
+          node --check js/military/drones.js
+          node --check js/technology/electrification.js
           node --check js/technology/modernEnergy.js
       - name: Run battery regressions
-        run: node tools/test-battery-storage.mjs
+        run: |
+          node tools/test-battery-storage.mjs
+          node tools/test-battery-grid-interconnectors.mjs
