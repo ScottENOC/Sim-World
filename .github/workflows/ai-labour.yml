@@ -1,0 +1,24 @@
+name: AI labour distribution
+
+on:
+  pull_request:
+  push:
+    branches:
+      - feature/ai-labour-dividend
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check AI labour integration
+        run: |
+          node --check js/economy/aiLabour.js
+          node --check js/economy/employmentAndHardship.js
+          node --check js/economy/industrialSupply.js
+          node --check js/core/endgame.js
+      - name: Run AI labour regressions
+        run: node tests/aiLabour.test.mjs
