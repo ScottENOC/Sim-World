@@ -2,7 +2,8 @@ import { effectiveInfrastructureCount, operationalInfrastructure } from './const
 import { tickNuclearFuelCycle, nuclearGeneration } from './nuclearPower.js?v=20260920-nuclear1';
 import { tickStrategicNuclearFuelCycle, strategicNuclearElectricityDemand } from './strategicNuclear.js?v=20260920-strategic-nuclear1';
 import { modernEnergyElectricityDemand, gasPowerPotential, consumeGasForGeneration, solarGenerationMultiplier } from './lngSolarEnergy.js?v=20260920-modern-energy1';
-import { batteryCapability, dispatchBatteryStorage, ensureBatteryStorage } from './batteryStorage.js?v=20260920-battery1';
+import { batteryCapability, dispatchBatteryStorage, ensureBatteryStorage, installBatteryStorage } from './batteryStorage.js?v=20260921-battery-chain1';
+import { registerElectricityRegion } from './electricityInterconnectors.js?v=20260921-grid-links1';
 
 const DAYS_PER_YEAR = 365.2425;
 const INDUSTRIAL_ELECTRIFICATION_TECH_ID = 'industrial_electrification';
@@ -16,8 +17,11 @@ export function ensureElectricityState(region) {
     curtailed: 0, coalCyclingLoss: 0, nuclearCyclingLoss: 0, balancingShortfall: 0, dispatchEfficiency: 1,
     reactorFuelConsumed: 0, spentFuelGenerated: 0,
     storageCharge: 0, storageDischarge: 0, storageEnergy: 0, storageCapacity: 0,
+    exportableSurplus: 0, importNeed: 0, imports: 0, exports: 0, transit: 0, interconnectorLosses: 0,
   };
-  return region.electricity;
+  const state=region.electricity;
+  for(const key of ['exportableSurplus','importNeed','imports','exports','transit','interconnectorLosses']) if(!Number.isFinite(state[key]))state[key]=0;
+  return state;
 }
 
 function industrialDemandSignal(region) {
@@ -83,12 +87,8 @@ function syncDistributedGridStorage(region, grids) {
   if (!capability || grids <= 0) return storage;
   const retrofitCapacityPerGrid = 260 * (0.35 + capability.energyDensity * 0.65);
   const floorCapacity = grids * retrofitCapacityPerGrid;
-  if (storage.installedCapacity < floorCapacity) {
-    storage.installedCapacity = floorCapacity;
-    storage.maxChargeRate = storage.installedCapacity * (0.25 + capability.powerDensity * 0.22);
-    storage.maxDischargeRate = storage.installedCapacity * (0.30 + capability.powerDensity * 0.28);
-    storage.storedEnergy = Math.min(storage.storedEnergy, storage.installedCapacity);
-  }
+  const shortfall = Math.max(0, floorCapacity - storage.installedCapacity);
+  if (shortfall > 0) installBatteryStorage(region, shortfall, { requireCells: true });
   return storage;
 }
 
@@ -123,12 +123,15 @@ export function tickElectricity(region, elapsedDays = 7) {
   const windOutput = windStations * 4500 * years * windAvailability;
 
   const demand = electricityDemand(region, elapsedDays);
-  const preliminary = dispatchElectricityPortfolio({ coal: coalOutput, hydro: hydroOutput, solar: solarOutput, wind: windOutput, nuclear: nuclear.output }, demand.total);
+  // Do not cap generation dispatch at local demand: once high-voltage links exist,
+  // a region can deliberately produce for export. Grid capacity still caps what can
+  // reach either local consumers or an interconnector.
+  const preliminary = dispatchElectricityPortfolio({ coal: coalOutput, hydro: hydroOutput, solar: solarOutput, wind: windOutput, nuclear: nuclear.output }, Infinity);
   const gasPotential = gasPowerPotential(region, elapsedDays);
   const gasWanted = Math.max(0, demand.total - preliminary.usableGeneration) + preliminary.balancingShortfall;
   const gasOutput = Math.min(gasPotential.outputPotential, gasWanted);
   const gasConsumed = consumeGasForGeneration(region, gasOutput, gasPotential);
-  const dispatch = dispatchElectricityPortfolio({ coal: coalOutput, hydro: hydroOutput, solar: solarOutput, wind: windOutput, peaking: gasOutput, nuclear: nuclear.output }, demand.total);
+  const dispatch = dispatchElectricityPortfolio({ coal: coalOutput, hydro: hydroOutput, solar: solarOutput, wind: windOutput, peaking: gasOutput, nuclear: nuclear.output }, Infinity);
   const generated = dispatch.usableGeneration;
 
   const nuclearStations = effectiveInfrastructureCount(region, 'nuclear_power_station');
@@ -181,6 +184,14 @@ export function tickElectricity(region, elapsedDays = 7) {
   state.storageEnergy = region.batteryStorage?.storedEnergy || 0;
   state.storageCapacity = region.batteryStorage?.installedCapacity || 0;
   state.storageChemistry = storageDispatch.chemistry;
+  // Storage gets first use of local surplus. Only energy left after charging is
+  // available to export, which prevents one MWh from being both stored and sold.
+  state.exportableSurplus = Math.max(0, directAvailable - demand.total - storageDispatch.chargeInput);
+  state.importNeed = Math.max(0, demand.total - delivered);
+  state.imports = 0; state.exports = 0; state.transit = 0; state.interconnectorLosses = 0;
+  state.gridCapacity = gridCapacity;
+  state.reliability = networkReliability;
+  registerElectricityRegion(region);
   return {
     ...state, coalOutput, hydroOutput, solarOutput, windOutput, gasOutput, nuclearOutput: nuclear.output || 0, nuclear, gridCapacity, networkReliability,
     copperNeed, balancingNeed: dispatch.balancingNeed, balancingAvailable: dispatch.balancingAvailable,
