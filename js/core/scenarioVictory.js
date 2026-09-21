@@ -1,16 +1,20 @@
 const clamp = (value, low = 0, high = 1) => Math.max(low, Math.min(high, Number(value) || 0));
 const arr = (value) => Array.isArray(value) ? value : [];
 
-function actorId(region) {
-  return region?.governance?.sovereignPolityId || region?.polityId || region?.controllingActorId || null;
+function polity(world, actorOrPolityId) {
+  const mappedId = world?.scenarioActorToPolityId?.[actorOrPolityId];
+  return arr(world?.polities).find((candidate) =>
+    candidate?.id === actorOrPolityId || candidate?.id === mappedId || candidate?.scenarioActorId === actorOrPolityId) || null;
 }
 
-function polity(world, id) {
-  return arr(world?.polities).find((candidate) => candidate?.id === id) || null;
-}
-
-function countryRegions(world, id) {
-  return arr(world?.regions).filter((region) => actorId(region) === id || region?.governance?.sovereignPolityId === id);
+function countryRegions(world, actorOrPolityId) {
+  const p = polity(world, actorOrPolityId);
+  const polityId = p?.id || actorOrPolityId;
+  return arr(world?.regions).filter((region) =>
+    region?.scenarioCountryId === actorOrPolityId ||
+    region?.governance?.scenarioCountryId === actorOrPolityId ||
+    region?.governance?.sovereignPolityId === polityId ||
+    region?.polityId === polityId);
 }
 
 function hostileCampPairs(state, model) {
@@ -29,10 +33,10 @@ export function activePrincipalCampWars(world, victoryModel) {
   const wars = [];
   for (const war of arr(world?.activeWars)) {
     if (!war || war.active === false) continue;
-    const participants = arr(war.participantPolityIds).length
-      ? arr(war.participantPolityIds)
+    const actorParticipants = arr(war.participantScenarioActorIds).length
+      ? arr(war.participantScenarioActorIds)
       : arr(war.participants).map((entry) => typeof entry === 'string' ? entry : entry?.actorId).filter(Boolean);
-    const camps = new Set(participants.map((id) => membership.get(id)).filter(Boolean));
+    const camps = new Set(actorParticipants.map((id) => membership.get(id)).filter(Boolean));
     if (camps.size >= 2) wars.push(war);
   }
   return wars;
@@ -119,6 +123,7 @@ export function evaluateCountryScenarioOutcome(world, countryId, victoryModel) {
   const minimumMet = values.sovereignty > 0 && !(p?.permanentlyAnnexed === true);
   return {
     countryId,
+    polityId: p?.id || null,
     minimumSuccess: minimumMet,
     score,
     dimensions: values,
