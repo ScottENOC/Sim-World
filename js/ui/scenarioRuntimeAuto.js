@@ -1,4 +1,4 @@
-import { hydrateSelectedScenarioRuntime } from '../core/scenarioRuntime.js?v=20260921-scenario-runtime1';
+import { hydrateSelectedScenarioRuntime } from '../core/scenarioRuntime.js?v=20260921-scenario-runtime2';
 
 let started = false;
 
