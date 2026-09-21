@@ -13,6 +13,7 @@ import {
   registerElectricityRegion,
   setGridConnectionPolicy,
 } from '../js/economy/electricityInterconnectors.js';
+import { tickLocalCommunications } from '../js/economy/localCommunications.js';
 import { buildDrone, DRONE_TECH_IDS, DRONE_TYPES } from '../js/military/drones.js';
 
 function gridRegion(id, polity, neighbors = [], seas = []) {
@@ -94,11 +95,15 @@ function completeProject(regions, project, rng = () => 1) {
   a.electricity.exportableSurplus = 100;
   b.electricity.importNeed = 50;
   b.electricity.demand = 50;
+  b.electricity.householdDemand = 35;
+  b.electricity.industrialDemand = 15;
   for (const r of [a,b]) registerElectricityRegion(r);
   flushElectricityInterconnectors(7, () => 1);
   assert.ok(b.electricity.imports > 49 && b.electricity.imports <= 50.0001);
   assert.ok(a.electricity.exports > b.electricity.imports, 'transmission losses should make sent energy exceed delivered energy');
   assert.ok(b.electricity.interconnectorLosses > 0);
+  tickLocalCommunications(b, 7);
+  assert.ok(b.electricity.householdService > .98, 'imported electricity should restore household service as well as industrial service');
 }
 
 // Foreign permission considers indirect topology. A can disconnect B when B later joins C.
