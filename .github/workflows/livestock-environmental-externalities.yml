@@ -1,0 +1,46 @@
+name: Livestock environmental externalities
+
+on:
+  pull_request:
+    paths:
+      - 'js/economy/livestockAgriculture.js'
+      - 'js/world/waterResources.js'
+      - 'js/world/urbanWater.js'
+      - 'js/world/hydrology.js'
+      - 'js/world/climateChange.js'
+      - 'tools/test-livestock-environmental-externalities.mjs'
+      - '.github/workflows/livestock-environmental-externalities.yml'
+  push:
+    paths:
+      - 'js/economy/livestockAgriculture.js'
+      - 'js/world/waterResources.js'
+      - 'js/world/urbanWater.js'
+      - 'js/world/hydrology.js'
+      - 'js/world/climateChange.js'
+      - 'tools/test-livestock-environmental-externalities.mjs'
+      - '.github/workflows/livestock-environmental-externalities.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check integration
+        run: |
+          node --check js/economy/livestockAgriculture.js
+          node --check js/world/waterResources.js
+          node --check js/world/urbanWater.js
+          node --check js/world/hydrology.js
+          node --check js/world/climateChange.js
+          node --check tools/test-livestock-environmental-externalities.mjs
+      - name: Run environmental externality regression
+        run: node tools/test-livestock-environmental-externalities.mjs
+      - name: Re-run livestock agriculture regression
+        run: node tools/test-livestock-agriculture.mjs
+      - name: Re-run modern water quantity regression
+        run: node tools/test-modern-water-quantity.mjs
+      - name: Re-run modern urban water regression
+        run: node tools/test-modern-urban-water.mjs
