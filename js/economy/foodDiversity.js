@@ -1,3 +1,5 @@
+import { tickAgriculturalPollinators, pollinatorCategoryYieldMultiplier } from './agriculturalPollinators.js?v=20260921-pollinators1';
+
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
 export const DIET_FOOD_IDS=Object.freeze(['staple_grains','pulses','fruit_vegetables','animal_foods']);
@@ -21,7 +23,7 @@ export function regionalFoodProductionMix(region){
 export function ensureFoodDiversity(region){
   region.foodDiversity||={};const s=region.foodDiversity;
   s.productionMix={...regionalFoodProductionMix(region),...(s.productionMix||{})};
-  s.availability||={};s.consumption||={};s.shortage||={};s.pestMultiplier||={};
+  s.availability||={};s.consumption||={};s.shortage||={};s.pestMultiplier||={};s.pollinatorMultiplier||={};
   if(!Number.isFinite(s.diversityIndex))s.diversityIndex=0;
   if(!Number.isFinite(s.healthSupport))s.healthSupport=.9;
   return s;
@@ -31,14 +33,16 @@ export function foodDiversityProfile(region){return {...ensureFoodDiversity(regi
 
 export function tickFoodDiversity(region,elapsedDays=7){
   const s=ensureFoodDiversity(region),weeks=Math.max(.01,(Number(elapsedDays)||0)/7),pop=Math.max(1,Number(region.population)||1);
+  tickAgriculturalPollinators(region,elapsedDays);
   region.stockpile||={};region.marketDemand||={};
   const cultivated=Math.max(0,Number(region.agriculturalLand?.cultivatedHa)||0);
   const farmScale=Math.max(0.25,Math.min(2.2,cultivated/Math.max(1,pop*.18)));
   const categorySupply=pop*.025*weeks*farmScale;
   for(const id of DIET_FOOD_IDS){
     const pestMultiplier=pestCategoryMultiplier(region,id);
-    s.pestMultiplier[id]=pestMultiplier;
-    const local=categorySupply*(s.productionMix[id]||0)*pestMultiplier;
+    const pollinatorMultiplier=pollinatorCategoryYieldMultiplier(region,id);
+    s.pestMultiplier[id]=pestMultiplier;s.pollinatorMultiplier[id]=pollinatorMultiplier;
+    const local=categorySupply*(s.productionMix[id]||0)*pestMultiplier*pollinatorMultiplier;
     region.stockpile[id]=Math.max(0,Number(region.stockpile[id])||0)+local;
     const desired=pop*.0065*weeks;
     const available=Math.max(0,Number(region.stockpile[id])||0);
@@ -53,6 +57,6 @@ export function tickFoodDiversity(region,elapsedDays=7){
   const minimum=Math.min(...values),mean=values.reduce((a,b)=>a+b,0)/values.length;
   s.diversityIndex=clamp(mean*.65+minimum*.35);
   s.healthSupport=.94+s.diversityIndex*.08;
-  region.report||={};region.report.foodDiversity={workers:0,productionMix:{...s.productionMix},availability:{...s.availability},shortage:{...s.shortage},pestMultiplier:{...s.pestMultiplier},diversityIndex:s.diversityIndex,healthSupport:s.healthSupport};
+  region.report||={};region.report.foodDiversity={workers:0,productionMix:{...s.productionMix},availability:{...s.availability},shortage:{...s.shortage},pestMultiplier:{...s.pestMultiplier},pollinatorMultiplier:{...s.pollinatorMultiplier},diversityIndex:s.diversityIndex,healthSupport:s.healthSupport};
   return region.report.foodDiversity;
 }
