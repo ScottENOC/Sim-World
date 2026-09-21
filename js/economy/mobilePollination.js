@@ -1,8 +1,8 @@
 import { effectiveInfrastructureCount } from './construction.js?v=20260921-mobile-pollination1';
-import { AUTOMOBILE_TECH_ID } from '../technology/industrialProduction.js?v=20260921-mobile-pollination1';
 import { ensureAgriculturalPollinators } from './agriculturalPollinators.js?v=20260921-mobile-pollination1';
 
 const DAYS_PER_YEAR=365.2425;
+const AUTOMOBILE_TECH_ID='automobile';
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const nonNegative=v=>Math.max(0,Number(v)||0);
 const PETROL_PER_COLONY_TRIP=.0012;
