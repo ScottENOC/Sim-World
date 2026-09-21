@@ -79,9 +79,7 @@ export function ensureBatterySupplyChain(region) {
   region.batteryIndustry ||= {
     experience: { mineralProcessing: 0, cellManufacturing: 0 },
     facilities: { mineralProcessing: 0, cellManufacturing: 0 },
-    lastOutput: {},
-    shortages: {},
-    totalCellsMade: 0,
+    lastOutput: {}, shortages: {}, totalCellsMade: 0,
   };
   region.batteryIndustry.experience ||= { mineralProcessing: 0, cellManufacturing: 0 };
   region.batteryIndustry.facilities ||= { mineralProcessing: 0, cellManufacturing: 0 };
@@ -93,8 +91,7 @@ export function ensureBatterySupplyChain(region) {
 
 function extract(region, depositKey, stockKey, scale, years) {
   const dep = region.resourceDeposits?.[depositKey];
-  const depth = clamp(dep?.depth || 0);
-  const remaining = clamp(dep?.remainingFraction ?? (depth > 0 ? 1 : 0));
+  const depth = clamp(dep?.depth || 0), remaining = clamp(dep?.remainingFraction ?? (depth > 0 ? 1 : 0));
   if (depth <= 0 || remaining <= 0 || years <= 0) return 0;
   const output = scale * depth * remaining * miningReadiness(region) * years;
   region.stockpile[stockKey] = nonNegative(region.stockpile[stockKey]) + output;
@@ -103,24 +100,19 @@ function extract(region, depositKey, stockKey, scale, years) {
 }
 
 function consume(stockpile, key, requested) {
-  const available = nonNegative(stockpile[key]);
-  const amount = Math.min(available, Math.max(0, requested));
+  const available = nonNegative(stockpile[key]), amount = Math.min(available, Math.max(0, requested));
   stockpile[key] = available - amount;
   return amount;
 }
 
 function recipeScale(stockpile, recipe, requestedOutput) {
   let scale = 1;
-  for (const [key, perOutput] of Object.entries(recipe)) {
-    if (perOutput <= 0) continue;
-    scale = Math.min(scale, nonNegative(stockpile[key]) / Math.max(1e-9, requestedOutput * perOutput));
-  }
+  for (const [key, perOutput] of Object.entries(recipe)) if (perOutput > 0) scale = Math.min(scale, nonNegative(stockpile[key]) / Math.max(1e-9, requestedOutput * perOutput));
   return clamp(scale);
 }
 
 function runRecipe(stockpile, recipe, outputKey, requestedOutput) {
-  const scale = recipeScale(stockpile, recipe, requestedOutput);
-  const output = Math.max(0, requestedOutput) * scale;
+  const output = Math.max(0, requestedOutput) * recipeScale(stockpile, recipe, requestedOutput);
   for (const [key, perOutput] of Object.entries(recipe)) consume(stockpile, key, output * perOutput);
   stockpile[outputKey] = nonNegative(stockpile[outputKey]) + output;
   return output;
@@ -128,60 +120,45 @@ function runRecipe(stockpile, recipe, outputKey, requestedOutput) {
 
 function bootstrapTechnology(region, industry) {
   region.unlockedTechIds ||= new Set();
-  if ((has(region, 'advanced_rechargeable_batteries') || has(region, 'lithium_ion_batteries')) && industry > 0.28) {
-    region.unlockedTechIds.add(BATTERY_MATERIAL_TECH_IDS.MINERAL_PROCESSING);
-  }
-  if (has(region, 'advanced_factories') && has(region, 'advanced_rechargeable_batteries') && industry > 0.42) {
-    region.unlockedTechIds.add(BATTERY_MATERIAL_TECH_IDS.CELL_MANUFACTURING);
-  }
+  if (has(region, 'lead_acid_batteries') && industry > 0.20) region.unlockedTechIds.add(BATTERY_MATERIAL_TECH_IDS.MINERAL_PROCESSING);
+  if (has(region, 'lead_acid_batteries') && industry > 0.24) region.unlockedTechIds.add(BATTERY_MATERIAL_TECH_IDS.CELL_MANUFACTURING);
 }
 
 function growFacilities(region, state, years, industry) {
-  if (has(region, BATTERY_MATERIAL_TECH_IDS.MINERAL_PROCESSING)) {
-    state.facilities.mineralProcessing = nonNegative(state.facilities.mineralProcessing) + years * (2 + 9 * industry) * (1 - clamp(state.facilities.mineralProcessing / 220));
-  }
-  if (has(region, BATTERY_MATERIAL_TECH_IDS.CELL_MANUFACTURING)) {
-    state.facilities.cellManufacturing = nonNegative(state.facilities.cellManufacturing) + years * (1 + 6 * industry) * (1 - clamp(state.facilities.cellManufacturing / 160));
-  }
+  if (has(region, BATTERY_MATERIAL_TECH_IDS.MINERAL_PROCESSING)) state.facilities.mineralProcessing = nonNegative(state.facilities.mineralProcessing) + years * (2 + 9 * industry) * (1 - clamp(state.facilities.mineralProcessing / 220));
+  if (has(region, BATTERY_MATERIAL_TECH_IDS.CELL_MANUFACTURING)) state.facilities.cellManufacturing = nonNegative(state.facilities.cellManufacturing) + years * (1 + 6 * industry) * (1 - clamp(state.facilities.cellManufacturing / 160));
 }
 
 function processMinerals(region, state, years, industry) {
   const capacity = nonNegative(state.facilities.mineralProcessing) * (0.35 + industry * 0.9) * years;
   if (capacity <= 0) return {};
-  const each = capacity / 5;
-  const outputs = {};
-  const routes = [
-    ['lead_ore', 'lead', 0.82],
-    ['lithium_ore', 'battery_grade_lithium', 0.42],
-    ['cobalt_ore', 'battery_grade_cobalt', 0.48],
-    ['nickel_ore', 'battery_grade_nickel', 0.58],
-    ['natural_graphite', 'battery_graphite', 0.72],
-  ];
+  const routes = [];
+  if (has(region, 'lead_acid_batteries')) routes.push(['lead_ore', 'lead', 0.82]);
+  if (has(region, 'advanced_rechargeable_batteries')) routes.push(['nickel_ore', 'battery_grade_nickel', 0.58]);
+  if (has(region, 'lithium_ion_batteries')) routes.push(['lithium_ore', 'battery_grade_lithium', 0.42], ['cobalt_ore', 'battery_grade_cobalt', 0.48], ['natural_graphite', 'battery_graphite', 0.72]);
+  if (!routes.length) return {};
+  const each = capacity / routes.length, outputs = {};
   for (const [input, output, yieldRate] of routes) {
     const feed = consume(region.stockpile, input, each);
     const made = feed * yieldRate * (0.78 + industry * 0.30);
     region.stockpile[output] = nonNegative(region.stockpile[output]) + made;
     outputs[output] = made;
   }
-  const processed = Object.values(outputs).reduce((sum, value) => sum + value, 0);
-  state.experience.mineralProcessing = nonNegative(state.experience.mineralProcessing) + processed;
+  state.experience.mineralProcessing = nonNegative(state.experience.mineralProcessing) + Object.values(outputs).reduce((sum, value) => sum + value, 0);
   return outputs;
 }
 
 function cellDemandSignal(region) {
   const grids = Math.max(0, Number(region.construction?.completed?.local_electric_grid) || 0);
   const drones = Math.max(0, Number(region.droneForces?.inventory?.length) || 0);
-  const pop = Math.max(0, Number(region.population) || 0);
-  return 0.8 + grids * 1.6 + drones * 0.12 + Math.pow(pop / 100000, 0.45) * 1.2;
+  return 0.8 + grids * 1.6 + drones * 0.12 + Math.pow(Math.max(0, Number(region.population) || 0) / 100000, 0.45) * 1.2;
 }
 
 function makeCells(region, state, years, industry) {
   const capacity = nonNegative(state.facilities.cellManufacturing) * (0.38 + industry * 0.95) * years;
   if (capacity <= 0) return {};
-  const demand = cellDemandSignal(region);
-  const totalTarget = Math.min(capacity, demand * Math.max(0.25, years * 3.5));
+  const totalTarget = Math.min(capacity, cellDemandSignal(region) * Math.max(0.25, years * 3.5));
   const output = {};
-
   if (has(region, 'lead_acid_batteries')) {
     const target = totalTarget * (has(region, 'lithium_ion_batteries') ? 0.16 : has(region, 'advanced_rechargeable_batteries') ? 0.42 : 1);
     output.lead_acid_battery_cells = runRecipe(region.stockpile, { lead: 0.78, sulfur: 0.08, copper: 0.025 }, 'lead_acid_battery_cells', target);
@@ -191,81 +168,55 @@ function makeCells(region, state, years, industry) {
     output.advanced_rechargeable_cells = runRecipe(region.stockpile, { battery_grade_nickel: 0.34, steel: 0.06, copper: 0.04 }, 'advanced_rechargeable_cells', target);
   }
   if (has(region, 'lithium_ion_batteries')) {
-    const target = totalTarget * 0.62;
-    // An abstract NMC-like mix. The low cobalt share also lets later economies
-    // substitute away from cobalt without making lithium-ion batteries material-free.
     output.lithium_ion_cells = runRecipe(region.stockpile, {
-      battery_grade_lithium: 0.10,
-      battery_grade_cobalt: 0.06,
-      battery_grade_nickel: 0.22,
-      battery_graphite: 0.30,
-      aluminium: 0.035,
-      copper: 0.055,
-      electronic_components: 0.012,
-    }, 'lithium_ion_cells', target);
+      battery_grade_lithium: 0.10, battery_grade_cobalt: 0.06, battery_grade_nickel: 0.22,
+      battery_graphite: 0.30, aluminium: 0.035, copper: 0.055, electronic_components: 0.012,
+    }, 'lithium_ion_cells', totalTarget * 0.62);
   }
-
   const made = Object.values(output).reduce((sum, value) => sum + nonNegative(value), 0);
   state.totalCellsMade = nonNegative(state.totalCellsMade) + made;
   state.experience.cellManufacturing = nonNegative(state.experience.cellManufacturing) + made;
   return output;
 }
 
-export function batteryCellGoodForChemistry(chemistryId) {
-  return BATTERY_CELL_GOODS[chemistryId] || null;
-}
-
-export function batteryCellCapacityPerUnit(chemistryId) {
-  return CELL_CAPACITY_PER_UNIT[chemistryId] || 0;
-}
-
+export function batteryCellGoodForChemistry(chemistryId) { return BATTERY_CELL_GOODS[chemistryId] || null; }
+export function batteryCellCapacityPerUnit(chemistryId) { return CELL_CAPACITY_PER_UNIT[chemistryId] || 0; }
 export function availableBatteryCapacityFromCells(region, chemistryId) {
-  ensureBatterySupplyChain(region);
-  const good = batteryCellGoodForChemistry(chemistryId);
-  if (!good) return 0;
-  return nonNegative(region.stockpile[good]) * batteryCellCapacityPerUnit(chemistryId);
+  ensureBatterySupplyChain(region); const good = batteryCellGoodForChemistry(chemistryId);
+  return good ? nonNegative(region.stockpile[good]) * batteryCellCapacityPerUnit(chemistryId) : 0;
 }
-
 export function consumeBatteryCellsForCapacity(region, chemistryId, requestedCapacity) {
   ensureBatterySupplyChain(region);
-  const good = batteryCellGoodForChemistry(chemistryId);
-  const capacityPerUnit = batteryCellCapacityPerUnit(chemistryId);
+  const good = batteryCellGoodForChemistry(chemistryId), capacityPerUnit = batteryCellCapacityPerUnit(chemistryId);
   if (!good || capacityPerUnit <= 0) return { capacity: 0, cellsUsed: 0, good };
-  const requested = Math.max(0, Number(requestedCapacity) || 0);
-  const cellsWanted = requested / capacityPerUnit;
-  const cellsUsed = consume(region.stockpile, good, cellsWanted);
+  const cellsUsed = consume(region.stockpile, good, Math.max(0, Number(requestedCapacity) || 0) / capacityPerUnit);
   return { capacity: cellsUsed * capacityPerUnit, cellsUsed, good };
 }
-
 export function consumeBatteryCells(region, chemistryId, cellsRequested) {
-  ensureBatterySupplyChain(region);
-  const good = batteryCellGoodForChemistry(chemistryId);
-  if (!good) return 0;
-  return consume(region.stockpile, good, Math.max(0, Number(cellsRequested) || 0));
+  ensureBatterySupplyChain(region); const good = batteryCellGoodForChemistry(chemistryId);
+  return good ? consume(region.stockpile, good, Math.max(0, Number(cellsRequested) || 0)) : 0;
 }
 
 export function tickBatterySupplyChain(region, elapsedDays = 7) {
-  const state = ensureBatterySupplyChain(region);
-  const years = Math.max(0, Number(elapsedDays) || 0) / DAYS_PER_YEAR;
-  const industry = industrialReadiness(region);
+  const state = ensureBatterySupplyChain(region), years = Math.max(0, Number(elapsedDays) || 0) / DAYS_PER_YEAR, industry = industrialReadiness(region);
   bootstrapTechnology(region, industry);
   growFacilities(region, state, years, industry);
-
+  const leadEra = has(region, 'lead_acid_batteries'), advancedEra = has(region, 'advanced_rechargeable_batteries'), lithiumEra = has(region, 'lithium_ion_batteries');
   const extracted = {
-    lead_ore: extract(region, 'lead', 'lead_ore', GEOLOGY.lead.scale, years),
-    lithium_ore: extract(region, 'lithium', 'lithium_ore', GEOLOGY.lithium.scale, years),
-    cobalt_ore: extract(region, 'cobalt', 'cobalt_ore', GEOLOGY.cobalt.scale, years),
-    nickel_ore: extract(region, 'nickel', 'nickel_ore', GEOLOGY.nickel.scale, years),
-    natural_graphite: extract(region, 'graphite', 'natural_graphite', GEOLOGY.graphite.scale, years),
+    lead_ore: leadEra ? extract(region, 'lead', 'lead_ore', GEOLOGY.lead.scale, years) : 0,
+    lithium_ore: lithiumEra ? extract(region, 'lithium', 'lithium_ore', GEOLOGY.lithium.scale, years) : 0,
+    cobalt_ore: lithiumEra ? extract(region, 'cobalt', 'cobalt_ore', GEOLOGY.cobalt.scale, years) : 0,
+    nickel_ore: advancedEra ? extract(region, 'nickel', 'nickel_ore', GEOLOGY.nickel.scale, years) : 0,
+    natural_graphite: lithiumEra ? extract(region, 'graphite', 'natural_graphite', GEOLOGY.graphite.scale, years) : 0,
   };
   const processed = has(region, BATTERY_MATERIAL_TECH_IDS.MINERAL_PROCESSING) ? processMinerals(region, state, years, industry) : {};
   const cells = has(region, BATTERY_MATERIAL_TECH_IDS.CELL_MANUFACTURING) ? makeCells(region, state, years, industry) : {};
   state.lastOutput = { extracted, processed, cells };
   state.shortages = {
-    lithium: has(region, 'lithium_ion_batteries') && nonNegative(region.stockpile.battery_grade_lithium) < 0.2,
-    cobalt: has(region, 'lithium_ion_batteries') && nonNegative(region.stockpile.battery_grade_cobalt) < 0.1,
-    nickel: has(region, 'advanced_rechargeable_batteries') && nonNegative(region.stockpile.battery_grade_nickel) < 0.2,
-    graphite: has(region, 'lithium_ion_batteries') && nonNegative(region.stockpile.battery_graphite) < 0.3,
+    lithium: lithiumEra && nonNegative(region.stockpile.battery_grade_lithium) < 0.2,
+    cobalt: lithiumEra && nonNegative(region.stockpile.battery_grade_cobalt) < 0.1,
+    nickel: advancedEra && nonNegative(region.stockpile.battery_grade_nickel) < 0.2,
+    graphite: lithiumEra && nonNegative(region.stockpile.battery_graphite) < 0.3,
   };
   return state.lastOutput;
 }
