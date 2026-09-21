@@ -2,6 +2,7 @@ import { enterpriseRegionalConsequences } from '../economy/enterpriseBehaviour.j
 import { householdEnergyWellbeing } from '../economy/householdEnergy.js?v=20260917-oil1';
 import { electricityWellbeing } from '../economy/electricity.js?v=20260917-electric1';
 import { institutionalPoliticalVoice } from './institutionalPowers.js?v=20260916-institutions1';
+import { waterGovernanceWellbeing } from '../world/waterGovernance.js?v=20260922-water-governance2';
 
 const DAYS_PER_YEAR = 365.2425;
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
@@ -34,7 +35,8 @@ function materialProsperity(region) {
   const enterprise = enterpriseRegionalConsequences(region);
   const energy = householdEnergyWellbeing(region);
   const electricity = electricityWellbeing(region);
-  return clamp(wealth * 0.28 + food * 0.32 + housing * 0.2 + employment * 0.2 + energy.prosperity + electricity.prosperity - enterprise.prosperityPenalty);
+  const water = waterGovernanceWellbeing(region);
+  return clamp(wealth * 0.28 + food * 0.32 + housing * 0.2 + employment * 0.2 + energy.prosperity + electricity.prosperity - enterprise.prosperityPenalty - water.prosperityPenalty);
 }
 
 function culturalAccess(region) {
@@ -80,18 +82,19 @@ export function assessPopularWellbeing(region, polity) {
   const enterprise = enterpriseRegionalConsequences(region);
   const energy = householdEnergyWellbeing(region);
   const electricity = electricityWellbeing(region);
-  const safety = clamp(1 - violencePressure(region) - enterprise.safetyPenalty + energy.safety + electricity.safety);
+  const water = waterGovernanceWellbeing(region);
+  const safety = clamp(1 - violencePressure(region) - enterprise.safetyPenalty + energy.safety + electricity.safety - water.safetyPenalty);
   const culture = culturalAccess(region);
   const voice = politicalVoice(polity);
   const legitimacy = stateLegitimacy(polity);
   const stability = clamp(region?.stability ?? 0.55);
-  const satisfaction = clamp(prosperity * 0.34 + safety * 0.3 + culture * 0.14 + legitimacy * 0.13 + stability * 0.09);
-  const grievance = clamp((1 - prosperity) * 0.31 + (1 - safety) * 0.31 + (1 - culture) * 0.1 + (1 - legitimacy) * 0.16 + (1 - stability) * 0.12);
+  const satisfaction = clamp(prosperity * 0.34 + safety * 0.3 + culture * 0.14 + legitimacy * 0.13 + stability * 0.09 - water.grievance * 0.08);
+  const grievance = clamp((1 - prosperity) * 0.31 + (1 - safety) * 0.31 + (1 - culture) * 0.1 + (1 - legitimacy) * 0.16 + (1 - stability) * 0.12 + water.grievance * 0.22);
   // Political voice is primarily an outlet for grievances rather than a generic
   // happiness bonus. Content people can tolerate concentrated power; unhappy
   // people are less likely to turn revolutionary when peaceful remedies exist.
   const peacefulOutlet = clamp(voice * 0.72 + legitimacy * 0.16 + stability * 0.12);
-  const revolutionaryPressure = clamp(Math.max(0, grievance - 0.38) * 1.35 * (1 - peacefulOutlet * 0.72));
+  const revolutionaryPressure = clamp(Math.max(0, grievance - 0.38) * 1.35 * (1 - peacefulOutlet * 0.72) + water.revolutionaryPressure * (1 - peacefulOutlet * 0.55));
   const mobilisationPotential = clamp(revolutionaryPressure * (0.45 + culture * 0.18 + Math.max(0, voice - 0.2) * 0.2));
   return { prosperity, safety, culturalAccess: culture, politicalVoice: voice, satisfaction, grievance, peacefulOutlet, revolutionaryPressure, mobilisationPotential };
 }
