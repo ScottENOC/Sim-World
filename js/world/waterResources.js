@@ -1,0 +1,86 @@
+const DAYS_PER_YEAR=365.2425;
+const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
+const positive=v=>Math.max(0,Number(v)||0);
+
+function activeAssets(region,typeId){return (region?.construction?.assets||[]).filter(a=>a?.typeId===typeId&&(a.condition??1)>.2).length;}
+function areaKm2(region){const ha=positive(region?.agriculturalLand?.totalLandHa);if(ha>0)return ha/100;return positive(region?.areaSqKm||region?.areaKm2||region?.area)||100;}
+function industrialSignal(region){const c=region?.industrialSupply?.capability||{};const factories=positive(region?.industrialPlants?.factoryCapacity);const mining=positive(region?.report?.mining?.workers||region?.occupations?.miner);const electricity=positive(region?.electricity?.generated);return clamp(factories/80+(c.steelmaking||0)*.22+(c.precision_machining||0)*.18+Math.log1p(mining)/18+Math.log1p(electricity)/30,0,1.8);}
+function urbanShare(region){return clamp(region?.medievalSociety?.urban?.urbanisation||region?.settlements?.urbanShare||region?.urbanisation?.urbanShare||0);}
+function rainfallSignal(region){const rainfall=clamp(region?.climate?.rainfallMultiplier??1,.05,3);const weather=clamp(region?.weather?.yieldMultiplier??1,.25,1.8);return clamp(rainfall*.72+weather*.28,.05,2.4);}
+function aquiferCapacity(region){const area=areaKm2(region);const wet=clamp(region?.terrain?.wetland||0),plains=clamp(region?.terrain?.plains||0),mountains=clamp(region?.terrain?.mountains||0);return Math.max(.35,Math.log1p(area)*.32*(.72+wet*.45+plains*.18-mountains*.12));}
+function hasModernPumping(region){const tech=region?.unlockedTechIds||new Set();return tech.has?.('electrical_generation')||tech.has?.('industrial_electrification')||tech.has?.('hydraulic_engineering');}
+function surfaceAccess(region){const engineered=activeAssets(region,'irrigation')+activeAssets(region,'canal')+activeAssets(region,'reservoir_dam')+activeAssets(region,'river_weir');const tech=region?.unlockedTechIds||new Set();return engineered>0||tech.has?.('water_management')||tech.has?.('hydraulic_engineering')||hasModernPumping(region);}
+function groundwaterAccess(region){return activeAssets(region,'wells_cisterns')>0||hasModernPumping(region);}
+
+export function ensureWaterResources(region){
+  region.waterResources||={};const s=region.waterResources;
+  const capacity=Number.isFinite(s.groundwaterCapacity)?Math.max(.1,s.groundwaterCapacity):aquiferCapacity(region);
+  s.groundwaterCapacity=capacity;
+  if(!Number.isFinite(s.groundwaterStorage)){
+    const legacy=Number(region?.hydrology?.groundwater?.storage);
+    s.groundwaterStorage=capacity*clamp(Number.isFinite(legacy)?legacy:.78,.05,1);
+  }
+  for(const [k,v] of Object.entries({groundwaterRecharge:0,groundwaterWithdrawal:0,unsustainableGroundwaterWithdrawal:0,groundwaterLevel:clamp(s.groundwaterStorage/capacity),pumpingElectricityLoad:0,surfaceRequest:0,surfaceUse:0,totalDemand:0,totalSupply:0,stressIndex:0,chronicStress:0,irrigationSatisfaction:1,householdSatisfaction:1,industrySatisfaction:1,controlledEnvironmentSatisfaction:1}))if(!Number.isFinite(s[k]))s[k]=v;
+  s.demand||={households:0,agriculture:0,industry:0,controlledEnvironment:0};
+  s.allocation||={households:0,agriculture:0,industry:0,controlledEnvironment:0};
+  s.shortfall||={households:0,agriculture:0,industry:0,controlledEnvironment:0};
+  return s;
+}
+
+export function regionalWaterDemand(region){
+  const pop=positive(region?.population),urban=urbanShare(region),cultivated=positive(region?.agriculturalLand?.cultivatedHa),weather=clamp(region?.weather?.yieldMultiplier??1,.25,1.8),rain=rainfallSignal(region),dryness=clamp(1-(rain*.62+weather*.38),0,1),irrigation=activeAssets(region,'irrigation')+activeAssets(region,'canal'),wells=activeAssets(region,'wells_cisterns');
+  const households=Math.pow(pop/100000,.72)*(.018+urban*.022);
+  const irrigationNeed=clamp(.12+dryness*.88+(irrigation>0?.18:0)+(wells>0?.06:0),.08,1);
+  const agriculture=(cultivated/100000)*.16*irrigationNeed;
+  const industry=industrialSignal(region)*(.035+urban*.02);
+  const cea=region?.controlledEnvironmentAgriculture||{};
+  // Protected horticulture still needs water; recirculating hydroponics uses far less per hectare.
+  const controlledEnvironment=positive(cea.greenhouseHa)*.000035+positive(cea.hydroponicHa)*.000010;
+  return {households,agriculture,industry,controlledEnvironment,total:households+agriculture+industry+controlledEnvironment};
+}
+
+export function prepareRegionalWaterDemand(region,elapsedDays=7){
+  const s=ensureWaterResources(region),d=regionalWaterDemand(region);s.demand={households:d.households,agriculture:d.agriculture,industry:d.industry,controlledEnvironment:d.controlledEnvironment};s.totalDemand=d.total;
+  const rivers=Math.max(0,region?.hydrology?.riverIds?.length||0),surface=surfaceAccess(region)&&rivers>0,ground=groundwaterAccess(region);
+  const level=clamp(s.groundwaterStorage/Math.max(.001,s.groundwaterCapacity));
+  let surfaceShare=surface?(ground?clamp(.72+(1-level)*.18,.62,.92):1):0;
+  if(!surface&&ground)surfaceShare=0;
+  s.surfaceRequest=d.total*surfaceShare;
+  s.groundwaterRequest=d.total-s.surfaceRequest;
+  s.surfaceUse=0;s.groundwaterWithdrawal=0;s.unsustainableGroundwaterWithdrawal=0;s.pumpingElectricityLoad=0;
+  for(const key of Object.keys(s.allocation))s.allocation[key]=0;
+  return s;
+}
+
+export function requestedSurfaceWithdrawalForRiver(region){const s=ensureWaterResources(region),rivers=Math.max(1,region?.hydrology?.riverIds?.length||1);return positive(s.surfaceRequest)/rivers;}
+
+function allocateProportionally(demand,available){const keys=['households','agriculture','industry','controlledEnvironment'],total=keys.reduce((n,k)=>n+positive(demand[k]),0),out={households:0,agriculture:0,industry:0,controlledEnvironment:0};if(total<=0||available<=0)return out;const ratio=clamp(available/total);for(const k of keys)out[k]=positive(demand[k])*ratio;return out;}
+function addAllocation(a,b){for(const k of ['households','agriculture','industry','controlledEnvironment'])a[k]=positive(a[k])+positive(b[k]);return a;}
+
+export function finaliseRegionalWaterBalance(region,elapsedDays=7){
+  const s=ensureWaterResources(region),years=Math.max(0,positive(elapsedDays))/DAYS_PER_YEAR,report=region?.hydrology?.report||{};
+  const surfaceAvailable=Math.min(positive(report.surfaceWithdrawal),s.totalDemand);s.surfaceUse=surfaceAvailable;
+  const surfaceAllocation=allocateProportionally(s.demand,surfaceAvailable);addAllocation(s.allocation,surfaceAllocation);
+  const residual={};for(const k of ['households','agriculture','industry','controlledEnvironment'])residual[k]=Math.max(0,positive(s.demand[k])-positive(s.allocation[k]));
+  const residualTotal=Object.values(residual).reduce((a,b)=>a+b,0);
+  const capacity=s.groundwaterCapacity,preRecharge=s.groundwaterStorage;
+  const rain=rainfallSignal(region),wet=clamp(region?.terrain?.wetland||0),forest=clamp(region?.terrain?.forest||0),rechargeRate=capacity*(.028+.032*clamp(rain/1.4)+wet*.018+forest*.010)*(region?.hydrology?.groundwater?.rechargeMultiplier??1),recharge=Math.min(Math.max(0,capacity-s.groundwaterStorage),rechargeRate*years);s.groundwaterStorage+=recharge;s.groundwaterRecharge=recharge;
+  const levelBefore=clamp(s.groundwaterStorage/Math.max(.001,capacity));
+  const wells=activeAssets(region,'wells_cisterns'),modern=hasModernPumping(region),power=clamp(region?.electricity?.industrialService||0),industry=industrialSignal(region);
+  const pumpRate=groundwaterAccess(region)?wells*.018+(modern?(.055+.16*power+.08*industry):0):0;
+  const storageRateLimit=years>0?s.groundwaterStorage/years:0;
+  const groundwaterRate=Math.min(residualTotal,pumpRate,storageRateLimit);
+  const groundwaterAllocation=allocateProportionally(residual,groundwaterRate);addAllocation(s.allocation,groundwaterAllocation);
+  const withdrawnVolume=groundwaterRate*years;s.groundwaterStorage=Math.max(0,s.groundwaterStorage-withdrawnVolume);s.groundwaterWithdrawal=groundwaterRate;
+  const sustainableRechargeRate=years>0?recharge/years:0;s.unsustainableGroundwaterWithdrawal=Math.max(0,groundwaterRate-sustainableRechargeRate);
+  s.groundwaterLevel=clamp(s.groundwaterStorage/Math.max(.001,capacity));
+  const liftPenalty=1+Math.pow(1-s.groundwaterLevel,1.35)*4.2;s.pumpingElectricityLoad=modern?groundwaterRate*liftPenalty*positive(elapsedDays)/7*.34:0;
+  s.totalSupply=Object.values(s.allocation).reduce((a,b)=>a+positive(b),0);s.stressIndex=s.totalDemand>0?clamp(1-s.totalSupply/s.totalDemand):0;s.chronicStress=clamp(s.chronicStress+(s.stressIndex-s.chronicStress)*clamp(years*.75,0,.15));
+  for(const k of ['households','agriculture','industry','controlledEnvironment'])s.shortfall[k]=Math.max(0,positive(s.demand[k])-positive(s.allocation[k]));
+  s.householdSatisfaction=s.demand.households>0?clamp(s.allocation.households/s.demand.households):1;s.irrigationSatisfaction=s.demand.agriculture>0?clamp(s.allocation.agriculture/s.demand.agriculture):1;s.industrySatisfaction=s.demand.industry>0?clamp(s.allocation.industry/s.demand.industry):1;s.controlledEnvironmentSatisfaction=s.demand.controlledEnvironment>0?clamp(s.allocation.controlledEnvironment/s.demand.controlledEnvironment):1;
+  if(region.hydrology){region.hydrology.groundwater||={};region.hydrology.groundwater.storage=s.groundwaterLevel;region.hydrology.groundwater.withdrawal=groundwaterRate;region.hydrology.waterAvailability=clamp(s.totalDemand>0?s.totalSupply/s.totalDemand:1);region.hydrology.report||={};region.hydrology.report.groundwaterRecharge=recharge;region.hydrology.report.groundwaterWithdrawal=groundwaterRate;region.hydrology.report.groundwaterLevel=s.groundwaterLevel;region.hydrology.report.waterDemand=s.totalDemand;region.hydrology.report.waterSupply=s.totalSupply;region.hydrology.report.waterStress=s.stressIndex;}
+  region.report||={};region.report.waterResources={workers:0,demand:{...s.demand},allocation:{...s.allocation},shortfall:{...s.shortfall},surfaceUse:s.surfaceUse,groundwaterWithdrawal:s.groundwaterWithdrawal,groundwaterRecharge:s.groundwaterRecharge,groundwaterLevel:s.groundwaterLevel,unsustainableGroundwaterWithdrawal:s.unsustainableGroundwaterWithdrawal,pumpingElectricityLoad:s.pumpingElectricityLoad,stressIndex:s.stressIndex,chronicStress:s.chronicStress,householdSatisfaction:s.householdSatisfaction,irrigationSatisfaction:s.irrigationSatisfaction,industrySatisfaction:s.industrySatisfaction,controlledEnvironmentSatisfaction:s.controlledEnvironmentSatisfaction};
+  return s;
+}
+
+export function waterQuantityProfile(region){const s=ensureWaterResources(region);return {demand:{...s.demand},allocation:{...s.allocation},shortfall:{...s.shortfall},surfaceUse:s.surfaceUse,groundwaterWithdrawal:s.groundwaterWithdrawal,groundwaterRecharge:s.groundwaterRecharge,groundwaterLevel:s.groundwaterLevel,pumpingElectricityLoad:s.pumpingElectricityLoad,stressIndex:s.stressIndex,chronicStress:s.chronicStress};}
