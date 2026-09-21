@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
 import {
+  addInformationEvidence,
   assessPublicClaim,
   cryptographicCapabilities,
   ensureInformationIntegrity,
+  informationIntegritySummary,
+  publishCompetingNarrative,
+  recordInformationIncident,
   setInformationIntegrityPolicy,
   tickInformationIntegrity,
 } from '../js/diplomacy/informationIntegrity.js';
@@ -72,6 +76,36 @@ function polity(id='p',capitalRegionId='r'){
   assert(verified.confidence>viral.confidence+.35,'corroboration and provenance still distinguish strong evidence from viral media');
   assert(denied.confidence<verified.confidence,'claiming genuine evidence is synthetic can reduce confidence');
   assert.equal(denied.strategicTruthKnown,false,'the player is never handed omniscient truth');
+}
+
+{
+  const observer=region('claims','c');
+  observer.unlockedTechIds=new Set(['electronic_computing','computer_networks','public_key_cryptography','digital_signatures']);
+  setInformationIntegrityPolicy(observer,{provenanceStandards:.85,platformTransparency:.75,publicMediaIndependence:.85,archivalTransparency:.8});
+  for(let i=0;i<4;i++)tickInformationIntegrity(observer,365.2425);
+  const incident=recordInformationIncident(observer,{
+    id:'school-strike',type:'civilian_strike',headline:'Reports say a school was struck',tick:100,subjectRegionId:'city',allegedActorId:'foreign',
+    evidence:[{sourceId:'viral-video',evidenceType:'video',sourceReliability:.45,provenance:.05,forensicPotential:.65}],
+  });
+  const initial=incident.assessment.confidence;
+  assert(initial<.55,'a single low-provenance viral video should remain uncertain');
+  addInformationEvidence(observer,incident.id,{sourceId:'hospital',sourceType:'witness',sourceReliability:.82,evidenceType:'report',provenance:.45,forensicPotential:.6});
+  addInformationEvidence(observer,incident.id,{sourceId:'news-wire',sourceType:'journalism',sourceReliability:.88,evidenceType:'image',provenance:.72,forensicPotential:.8});
+  addInformationEvidence(observer,incident.id,{sourceId:'satellite-provider',sourceType:'remote_sensing',sourceReliability:.92,evidenceType:'image',provenance:.9,forensicPotential:.9,cryptographicallySigned:true,attributionEvidence:.55});
+  const corroborated=incident.assessment.confidence;
+  assert(corroborated>initial+.2,'independent corroboration and provenance should materially improve confidence');
+  const forensicBefore=incident.assessment.forensicSupport;
+  tickInformationIntegrity(observer,180);
+  assert(incident.assessment.forensicSupport>forensicBefore,'forensic verification should improve over time when capability exists');
+  const beforeDenial=incident.assessment.confidence;
+  publishCompetingNarrative(observer,incident.id,{kind:'denial_synthetic',actorId:'foreign',reach:.9,sourceReliability:.65});
+  assert(incident.assessment.confidence<beforeDenial,'an AI-fake denial can reduce confidence even in a real-looking event');
+  publishCompetingNarrative(observer,incident.id,{kind:'alternative_account',actorId:'foreign',reach:.8,sourceReliability:.6,evidenceSupport:.35});
+  assert(incident.assessment.narrativePressure>0,'competing accounts create explicit narrative pressure');
+  assert.equal(incident.assessment.strategicTruthKnown,false,'claim lifecycle never exposes hidden truth');
+  const summary=informationIntegritySummary(observer);
+  assert.equal(summary.contestedClaims[0].id,'school-strike','contested claims are exposed through the normal report summary');
+  assert(summary.contestedClaims[0].evidenceCount>=4,'report summary carries evidence depth for advisor/UI use');
 }
 
 {
