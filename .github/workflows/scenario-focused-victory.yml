@@ -8,12 +8,14 @@ on:
       - 'js/core/scenarioRuntime.js'
       - 'js/core/scenarioSovereignty.js'
       - 'js/core/scenarioModernStart.js'
+      - 'js/core/scenarioForces.js'
       - 'js/ui/scenarioRuntimeAuto.js'
       - 'data/scenarios/**'
       - 'tools/test-scenario-focused-victory.mjs'
       - 'tools/test-scenario-runtime.mjs'
       - 'tools/test-scenario-sovereignty.mjs'
       - 'tools/test-scenario-modern-start.mjs'
+      - 'tools/test-scenario-forces.mjs'
       - '.github/workflows/scenario-focused-victory.yml'
   push:
     branches:
@@ -24,12 +26,14 @@ on:
       - 'js/core/scenarioRuntime.js'
       - 'js/core/scenarioSovereignty.js'
       - 'js/core/scenarioModernStart.js'
+      - 'js/core/scenarioForces.js'
       - 'js/ui/scenarioRuntimeAuto.js'
       - 'data/scenarios/**'
       - 'tools/test-scenario-focused-victory.mjs'
       - 'tools/test-scenario-runtime.mjs'
       - 'tools/test-scenario-sovereignty.mjs'
       - 'tools/test-scenario-modern-start.mjs'
+      - 'tools/test-scenario-forces.mjs'
       - '.github/workflows/scenario-focused-victory.yml'
 
 jobs:
@@ -43,8 +47,10 @@ jobs:
       - run: node --check js/core/scenarioRuntime.js
       - run: node --check js/core/scenarioSovereignty.js
       - run: node --check js/core/scenarioModernStart.js
+      - run: node --check js/core/scenarioForces.js
       - run: node --check js/ui/scenarioRuntimeAuto.js
       - run: node tools/test-scenario-sovereignty.mjs
       - run: node tools/test-scenario-modern-start.mjs
+      - run: node tools/test-scenario-forces.mjs
       - run: node tools/test-scenario-focused-victory.mjs
       - run: node tools/test-scenario-runtime.mjs
