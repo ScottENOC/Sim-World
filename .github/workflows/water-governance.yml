@@ -1,0 +1,42 @@
+name: Water governance
+
+on:
+  push:
+    branches: [ main, 'feature/water-governance-v2' ]
+    paths:
+      - 'js/world/waterGovernance.js'
+      - 'js/world/waterResources.js'
+      - 'js/society/migration.js'
+      - 'js/society/demographics.js'
+      - 'js/politics/popularWellbeing.js'
+      - 'tools/test-water-governance.mjs'
+      - '.github/workflows/water-governance.yml'
+  pull_request:
+    paths:
+      - 'js/world/waterGovernance.js'
+      - 'js/world/waterResources.js'
+      - 'js/society/migration.js'
+      - 'js/society/demographics.js'
+      - 'js/politics/popularWellbeing.js'
+      - 'tools/test-water-governance.mjs'
+      - '.github/workflows/water-governance.yml'
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax checks
+        run: |
+          node --check js/world/waterGovernance.js
+          node --check js/world/waterResources.js
+          node --check js/society/migration.js
+          node --check js/society/demographics.js
+          node --check js/politics/popularWellbeing.js
+      - name: Water governance regression
+        run: node tools/test-water-governance.mjs
+      - name: Existing modern water quantity regression
+        run: node tools/test-modern-water-quantity.mjs

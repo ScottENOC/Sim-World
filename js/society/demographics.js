@@ -19,6 +19,7 @@ import { tickArtistMigration, tickStatePatronage } from './statePatronage.js?v=2
 import { tickCulturalMemory } from './culturalMemory.js?v=20260907-memory1';
 import { recordFamineStress } from './societalMemoryEvents.js?v=20260907-memory2';
 import { tickMilitaryFormations } from '../military/formations.js?v=20260907-formations1';
+import { waterEmigrationAnnualRate } from '../world/waterGovernance.js?v=20260922-water-governance2';
 
 const CHILD_BAND_YEARS = 14;
 const WORKING_BAND_YEARS = 45;
@@ -51,6 +52,7 @@ export function tickDemographics(regions, religiousWorld = null, elapsedDays = 7
   let famineRegions = 0;
   measureDetail('Demographics: famine and migration', () => { for (const region of regions) { if ((region.stockpile?.food||0)<-0.5) famineRegions++; applyFamineResponse(region, regionsById, religiousWorld, elapsedDays); } });
   measureDetail('Demographics: climate displacement', () => { for (const region of regions) applyClimateDisplacement(region, regionsById, religiousWorld, elapsedDays); });
+  measureDetail('Demographics: water hardship migration', () => { for (const region of regions) applyWaterHardshipMigration(region, regionsById, religiousWorld, elapsedDays); });
   measureDetail('Demographics: culture', () => tickCulture(regions, elapsedDays));
   metric('Demographics total population', regions.reduce((sum,r)=>sum+(r.population||0),0));
   metric('Demographics famine regions', famineRegions);
@@ -73,9 +75,6 @@ function applyBaselineDemographics(region, elapsedDays) {
   const elderlyDeaths = d.elderly * annualFractionRate(BASE_ANNUAL_DEATH_RATE.elderly +
     (effects.adultMortalityExtraAnnual || 0) * 0.6, elapsedDays);
   const deaths = childDeaths + workingDeaths + elderlyDeaths;
-  // Deaths vacate dwellings during the tick; net population growth cannot run
-  // ahead of the ordinary housing stock. This makes construction, not an
-  // arbitrary demographic multiplier, the physical ceiling on growth.
   const housingRoom = Math.max(0, housingPopulationLimit(region) - Math.max(0, totalPop - deaths));
   const births = Math.min(birthsWanted, housingRoom);
   const childToWorking = d.children * Math.min(1, years / CHILD_BAND_YEARS);
@@ -148,6 +147,25 @@ function applyClimateDisplacement(region, regionsById, religiousWorld, elapsedDa
     migrateCulture(region, dest, count);
   }
   region.climate.coastalMigrants = (region.climate.coastalMigrants || 0) + moved;
+  syncPopulation(region);
+}
+
+function applyWaterHardshipMigration(region, regionsById, religiousWorld, elapsedDays) {
+  const annualRate = waterEmigrationAnnualRate(region);
+  if (annualRate <= 0.0005 || region.population <= 0) return;
+  const years = Math.max(0, elapsedDays) / DAYS_PER_YEAR;
+  const desiredEmigrants = Math.min(region.population * 0.055 * years, region.population * annualRate * years);
+  if (desiredEmigrants < 5) return;
+  const destinations = chooseEmigrationDestinations(region, regionsById, desiredEmigrants);
+  const moved = destinations.reduce((sum, route) => sum + route.count, 0);
+  if (moved <= 0) return;
+  removeFromBands(region, moved);
+  for (const { dest, count } of destinations) {
+    migrateReligion(region, dest, count, religiousWorld);
+    addToBands(dest, count);
+    migrateCulture(region, dest, count);
+  }
+  region.waterGovernance.waterHardshipMigrants = (region.waterGovernance.waterHardshipMigrants || 0) + moved;
   syncPopulation(region);
 }
 
