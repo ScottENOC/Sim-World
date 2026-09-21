@@ -110,7 +110,10 @@ export function tickAgriculturalGenetics(regions, elapsedDays = 7) {
       const preserved = s.preservedDiversity[category];
       const reserve = s.seedReserve[category];
 
-      const erosionRate = (0.010 + mono * 0.055 + stress * 0.030 + pestLoss * 0.045) * (0.35 + cultivated * 0.65);
+      // Genetic erosion is intentionally generational. Even severe monoculture,
+      // drought and repeated outbreaks should take decades to materially narrow
+      // the crop population and much longer to approach a genetic bottleneck.
+      const erosionRate = (0.004 + mono * 0.025 + stress * 0.016 + pestLoss * 0.022) * (0.35 + cultivated * 0.65);
       const preservationShield = clamp(bank * (0.35 + s.collectionEffort * 0.65));
       const liveLoss = live * erosionRate * (1 - preservationShield * 0.42) * years;
 
