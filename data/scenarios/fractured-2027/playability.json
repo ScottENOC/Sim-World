@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "fractured-2027",
+  "policy": {
+    "playableActorKinds": ["country"],
+    "allMappedSovereignCountriesPlayable": true,
+    "coalitionsDirectlyPlayable": false,
+    "allowGovernmentInExileContinuation": true,
+    "allowOccupiedCountryContinuation": true,
+    "description": "Every sovereign country represented by the scenario map is selectable. Strategic camps and coalitions coordinate countries but are not themselves the player's polity."
+  },
+  "featuredCountries": [
+    "usa",
+    "denmark",
+    "united-kingdom",
+    "canada",
+    "ukraine",
+    "russia",
+    "china",
+    "iran",
+    "north-korea",
+    "taiwan",
+    "australia",
+    "india",
+    "japan",
+    "turkiye",
+    "brazil",
+    "indonesia",
+    "mexico",
+    "south-africa",
+    "south-korea"
+  ],
+  "selectionRules": {
+    "useScenarioMapCountryList": true,
+    "showOpeningCamp": true,
+    "showOpeningWars": true,
+    "showDifficultyRating": false,
+    "showStartingSituationSummary": true
+  }
+}
