@@ -14,6 +14,7 @@ import { tickAgriculturalGenetics, agriculturalGeneticsSummary } from './agricul
 import { cropBreedingSummary } from './cropBreeding.js?v=20260921-breeding1';
 import { tickPrecisionAgriculture, precisionAgricultureSummary } from './precisionAgriculture.js?v=20260921-precision-ag1';
 import { tickCropBiotechnology, cropBiotechnologySummary } from './cropBiotechnology.js?v=20260921-biotech1';
+import { tickNuclearWarRisk } from '../military/nuclearWarRisk.js?v=20260921-nuclear-risk1';
 export * from './laborCore.js?v=20260905-merchant1';
 export * from './housing.js?v=20260916-housing1';
 export * from './employmentAndHardship.js?v=20260918-employment1';
@@ -68,5 +69,6 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
       if(region.report.farming){region.report.farming.land={...region.report.landUse};region.report.farming.soil={...region.report.soil};region.report.farming.genetics={...region.report.agriculturalGenetics};region.report.farming.breeding={...region.report.cropBreeding};region.report.farming.precisionAgriculture={...region.report.precisionAgriculture};region.report.farming.biotechnology={...region.report.cropBiotechnology};region.report.farming.pests={...(region.report.agriculturalPests||{})};}normaliseReportMetadata(region);
     }
   }
+  tickNuclearWarRisk(regions,globalThis.__worldsim?.activeWars||[],currentTick??0,elapsedDays,rng);
   return tickEmploymentAndHardship(regions,currentTick??0,elapsedDays,{playerPolityId:globalThis.__worldsim?.activePlayerPolityId||null});
 }
