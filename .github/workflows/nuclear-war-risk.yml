@@ -1,0 +1,20 @@
+name: Nuclear war risk
+
+on:
+  pull_request:
+  push:
+    branches:
+      - feature/nuclear-war-risk
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check nuclear risk model
+        run: node --check js/military/nuclearWarRisk.js
+      - name: Run nuclear risk regressions
+        run: node tests/nuclearWarRisk.test.mjs
