@@ -116,6 +116,9 @@ function installRuntimePatch() {
   import('./infrastructureMapUi.js?v=20260915-infra-map1').then(({ installInfrastructureMapUi }) =>
     installInfrastructureMapUi(sim)).catch((error) =>
     console.error('Could not install infrastructure ownership overlay', error));
+  import('./electricGridMapUi.js?v=20260921-grid-map1').then(({ installElectricGridMapUi }) =>
+    installElectricGridMapUi(sim)).catch((error) =>
+    console.error('Could not install electric grid map overlay', error));
   return true;
 }
 
