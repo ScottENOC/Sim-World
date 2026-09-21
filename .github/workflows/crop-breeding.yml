@@ -1,0 +1,41 @@
+name: Selective crop breeding
+
+on:
+  pull_request:
+    paths:
+      - 'js/economy/cropBreeding.js'
+      - 'js/economy/agriculturalGenetics.js'
+      - 'js/economy/agriculturalPests.js'
+      - 'js/economy/foodDiversity.js'
+      - 'js/economy/labor.js'
+      - 'tools/test-crop-breeding.mjs'
+      - '.github/workflows/crop-breeding.yml'
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check breeding integration
+        run: |
+          node --check js/economy/cropBreeding.js
+          node --check js/economy/agriculturalPests.js
+          node --check js/economy/foodDiversity.js
+          node --check js/economy/labor.js
+          node --check tools/test-crop-breeding.mjs
+      - name: Run crop breeding regression
+        run: node tools/test-crop-breeding.mjs
+      - name: Re-run agricultural genetics regression
+        run: node tools/test-agricultural-genetics.mjs
+      - name: Re-run agricultural pest regression
+        run: node tools/test-agricultural-pests.mjs
+      - name: Re-run food diversity regression
+        run: node tools/test-food-diversity.mjs
