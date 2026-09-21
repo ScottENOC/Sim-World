@@ -1,6 +1,5 @@
-// Lightweight startup picker. Scenario selection happens before world loading;
-// modern countries remain navigation metadata only for the Grand Campaign.
-import { SCENARIOS, scenarioAssetUrl, selectScenario } from '../core/scenarios.js?v=20260921-scenarios1';
+// Lightweight startup picker. Scenario selection happens before world loading.
+import { SCENARIOS, currentScenario, scenarioAssetUrl, selectScenario } from '../core/scenarios.js?v=20260921-scenarios2';
 
 const CLOCK_MS_PER_TICK_AT_1X = 2200;
 const collator = new Intl.Collator('en', { sensitivity: 'base', numeric: true });
@@ -86,6 +85,24 @@ function scenarioDetail(scenario) {
   return `${scenario.subtitle} · ${timing}`;
 }
 
+async function loadMapEntries(scenario) {
+  const [metaResponse, navResponse] = await Promise.all([
+    fetch(scenarioAssetUrl('regions.meta.json?v=20260921-scenario-picker1', scenario)),
+    fetch(scenarioAssetUrl('region-navigation.json?v=20260921-scenario-picker1', scenario)),
+  ]);
+  if (!metaResponse.ok) throw new Error(`region metadata HTTP ${metaResponse.status}`);
+  if (!navResponse.ok) throw new Error(`navigation metadata HTTP ${navResponse.status}`);
+  const metadata = await metaResponse.json();
+  const navigation = await navResponse.json();
+  const regions = [...(metadata.regions || [])].sort((a, b) => alphabetical(a.name, b.name));
+  const regionById = new Map(regions.map((region) => [region.id, region]));
+  const entries = [];
+  for (const region of regions) {
+    for (const membership of navigation.regions?.[region.id] || []) entries.push({ region, ...membership });
+  }
+  return { regions, regionById, entries };
+}
+
 async function installEarlyPicker() {
   const pickerModal = document.getElementById('picker-modal');
   const pickerList = document.getElementById('picker-list');
@@ -98,23 +115,58 @@ async function installEarlyPicker() {
     pickerList.scrollTop = 0;
   };
 
+  const markPendingStart = (scenario, region, continent, country, countryFirst = false) => {
+    window.__pendingStartRegionId = region.id;
+    window.__pendingStartRegionName = region.name;
+    window.__pendingStartNavigation = { continent, country };
+    window.__pendingStartCountryName = countryFirst ? country : null;
+    pickerList.replaceChildren();
+    pickerTitle.textContent = countryFirst ? country : region.name;
+    pickerHelp.textContent = `${scenario.name} · finishing world setup in the background.`;
+    const status = document.createElement('div');
+    status.className = 'startup-picker-status';
+    status.textContent = countryFirst
+      ? `Loading world… ${country} is selected. The game will open on ${region.name} when the scenario state is ready.`
+      : `Loading world… ${region.name} is selected and will start automatically when ready.`;
+    pickerList.appendChild(status);
+  };
+
+  const renderFocusedCountryPicker = async (scenario) => {
+    pickerTitle.textContent = 'Choose your country';
+    pickerHelp.textContent = `${scenario.name} · every mapped sovereign country is playable.`;
+    pickerList.innerHTML = '<div class="startup-picker-status">Preparing countries…</div>';
+    try {
+      const { entries } = await loadMapEntries(scenario);
+      if (window.__worldsim) return;
+      const groups = new Map();
+      for (const entry of entries) {
+        if (!entry.country) continue;
+        const key = `${entry.continent || 'Other'}\u0000${entry.country}`;
+        if (!groups.has(key)) groups.set(key, { continent: entry.continent || 'Other', country: entry.country, regions: [] });
+        if (!groups.get(key).regions.some((region) => region.id === entry.region.id)) groups.get(key).regions.push(entry.region);
+      }
+      const countries = [...groups.values()].sort((a, b) => alphabetical(a.country, b.country));
+      resetList(...countries.map((group) => {
+        const startRegion = [...group.regions].sort((a, b) => alphabetical(a.name, b.name))[0];
+        return makeButton('picker-group startup-country-option', group.country, group.continent, () =>
+          markPendingStart(scenario, startRegion, group.continent, group.country, true));
+      }));
+    } catch (error) {
+      console.error('Could not prepare focused country picker', error);
+      pickerHelp.textContent = 'The scenario map could not be loaded.';
+      pickerList.innerHTML = `<div class="startup-picker-status">${error.message}</div>`;
+    }
+  };
+
   const renderRegionPicker = async (scenario) => {
     pickerTitle.textContent = 'Choose your region';
     pickerHelp.textContent = `${scenario.name} · loading region names…`;
     pickerList.innerHTML = '<div class="startup-picker-status">Preparing region list…</div>';
 
-    let regions;
-    let navigation;
+    let entries;
+    let regionById;
     try {
-      const [metaResponse, navResponse] = await Promise.all([
-        fetch(scenarioAssetUrl('regions.meta.json?v=20260913-country-picker1', scenario)),
-        fetch(scenarioAssetUrl('region-navigation.json?v=20260913-country-picker1', scenario)),
-      ]);
-      if (!metaResponse.ok) throw new Error(`region metadata HTTP ${metaResponse.status}`);
-      if (!navResponse.ok) throw new Error(`navigation metadata HTTP ${navResponse.status}`);
-      const metadata = await metaResponse.json();
-      navigation = await navResponse.json();
-      regions = [...(metadata.regions || [])].sort((a, b) => alphabetical(a.name, b.name));
+      ({ entries, regionById } = await loadMapEntries(scenario));
     } catch (error) {
       console.error('Could not prepare early country picker', error);
       pickerHelp.textContent = 'The scenario map could not be loaded.';
@@ -123,26 +175,6 @@ async function installEarlyPicker() {
     }
 
     if (window.__worldsim) return;
-
-    const regionById = new Map(regions.map((region) => [region.id, region]));
-    const entries = [];
-    for (const region of regions) {
-      const memberships = navigation.regions?.[region.id] || [];
-      for (const membership of memberships) entries.push({ region, ...membership });
-    }
-
-    const selectRegion = (region, continent, country) => {
-      window.__pendingStartRegionId = region.id;
-      window.__pendingStartRegionName = region.name;
-      window.__pendingStartNavigation = { continent, country };
-      pickerList.replaceChildren();
-      pickerTitle.textContent = region.name;
-      pickerHelp.textContent = `${scenario.name} · finishing world setup in the background.`;
-      const status = document.createElement('div');
-      status.className = 'startup-picker-status';
-      status.textContent = `Loading world… ${region.name} is selected and will start automatically when ready.`;
-      pickerList.appendChild(status);
-    };
 
     const renderRegions = (continent, country) => {
       pickerTitle.textContent = country;
@@ -154,7 +186,8 @@ async function installEarlyPicker() {
         .sort((a, b) => alphabetical(a.name, b.name));
       const nodes = [makeBackButton(continent, () => renderCountries(continent))];
       for (const region of matches) {
-        const button = makeButton('picker-option startup-picker-option', region.name, 'Simulation region', () => selectRegion(region, continent, country));
+        const button = makeButton('picker-option startup-picker-option', region.name, 'Simulation region', () =>
+          markPendingStart(scenario, region, continent, country));
         button.dataset.id = region.id;
         nodes.push(button);
       }
@@ -191,7 +224,8 @@ async function installEarlyPicker() {
   const chooseScenario = (scenario) => {
     try {
       selectScenario(scenario.id);
-      renderRegionPicker(scenario);
+      if (scenario.rulesProfile === 'modern-crisis') renderFocusedCountryPicker(scenario);
+      else renderRegionPicker(scenario);
     } catch (error) {
       pickerHelp.textContent = error.message;
     }
@@ -227,10 +261,24 @@ if (typeof window !== 'undefined') {
     if (window.__worldsim) {
       installRuntimeCompatibilityPatches();
       const pending = window.__pendingStartRegionId;
+      const scenario = currentScenario();
+      if (pending && scenario?.id !== 'grand-campaign') {
+        const runtime = window.__worldsimScenarioRuntime;
+        if (runtime?.error) {
+          const help = document.getElementById('picker-help');
+          if (help) help.textContent = `Scenario setup failed: ${runtime.error}`;
+          return;
+        }
+        if (!runtime?.attached) {
+          if (attempts < 1200) setTimeout(poll, 100);
+          return;
+        }
+      }
       if (pending && handOffPendingRegion(pending)) {
         delete window.__pendingStartRegionId;
         delete window.__pendingStartRegionName;
         delete window.__pendingStartNavigation;
+        delete window.__pendingStartCountryName;
         return;
       }
       if (!pending) return;
