@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "id": "fractured-2027",
+  "title": "Fractured World",
+  "fictionalAlternateHistory": true,
+  "startYear": 2027,
+  "mapRoot": "world/",
+  "initialStateFile": "initial-state.json",
+  "rulesProfile": "modern-crisis",
+  "technologyProfile": "near-future-conventional",
+  "victoryModel": "military-control",
+  "pacing": {
+    "targetRealHours": 30,
+    "targetSimYears": 6,
+    "preferredStrategicTurnUnit": "day"
+  },
+  "openingPremise": {
+    "description": "A deliberately fictional near-future crisis starting point. The opening situation is fixed; subsequent alignments, escalation, negotiation and territorial outcomes are simulated rather than scripted.",
+    "crises": [
+      {
+        "id": "greenland-war",
+        "type": "war",
+        "theatre": "Greenland and North Atlantic",
+        "facts": [
+          "The United States has invaded and occupies Greenland.",
+          "Denmark is at war with the United States over Greenland.",
+          "EU participants and the United Kingdom have entered the war in support of Denmark."
+        ]
+      },
+      {
+        "id": "russia-ukraine-war",
+        "type": "war",
+        "theatre": "Ukraine",
+        "facts": [
+          "Russia's war in Ukraine is continuing at scenario start."
+        ]
+      },
+      {
+        "id": "taiwan-blockade",
+        "type": "blockade",
+        "theatre": "Taiwan Strait and surrounding approaches",
+        "facts": [
+          "China has imposed a blockade on Taiwan."
+        ]
+      }
+    ],
+    "uncommittedPowers": {
+      "policy": "emergent",
+      "description": "States not assigned to an opening belligerent relationship begin free to align, remain neutral, mediate, trade, sanction, rearm or pursue their own interests according to the simulation."
+    }
+  },
+  "requiredMapFiles": [
+    "regions.geo.json",
+    "regions.meta.json",
+    "region-navigation.json",
+    "resources.initial.json",
+    "terrain.initial.json",
+    "seaRegions.geo.json",
+    "seaRegions.meta.json",
+    "spatial.base.json",
+    "majorRivers.real.json"
+  ],
+  "status": "scaffold"
+}
