@@ -1,0 +1,26 @@
+import assert from 'node:assert/strict';
+import { tickLivestockAgriculture, ensureLivestockAgriculture } from '../js/economy/livestockAgriculture.js?v=20260921-livestock1';
+import { tickFoodDiversity } from '../js/economy/foodDiversity.js?v=20260921-livestock1';
+import { electricityDemand } from '../js/economy/electricity.js?v=20260921-livestock1';
+
+function region(modern=true){return {id:'r',population:300000,centroid:[0,38],terrain:{hills:.35,plains:.35,forest:.15},landQuality:1.05,unlockedTechIds:new Set(modern?['industrial_electrification','germ_theory','vaccination','refrigeration']:[]),electricity:{industrialService:modern?.9:0},publicEducation:{literacy:modern?.85:.12},governance:{administrativeControl:modern?.75:.25},agriculturalMachinery:{tractorCoverage:modern?.8:0,combineCoverage:modern?.65:0},precisionAgriculture:{adoption:modern?.65:0},cropBreeding:{capability:modern?.8:.15},cropBiotechnology:{platformMaturity:modern?.55:0},agriculturalLand:{cultivatedHa:50000},stockpile:{staple_grains:100,animal_foods:0},foodDiversity:{productionMix:{staple_grains:.42,pulses:.18,fruit_vegetables:.16,animal_foods:.24}},marketDemand:{},report:{}};}
+
+{
+  const old=region(false);for(let y=0;y<30;y++)tickLivestockAgriculture(old,365.2425);assert.ok(old.livestockAgriculture.intensiveShare<.02,'premodern livestock should not industrialise without electricity');
+}
+{
+  const r=region(true);const initialGrain=r.stockpile.staple_grains;for(let y=0;y<25;y++)tickLivestockAgriculture(r,365.2425);const s=r.livestockAgriculture;assert.ok(s.intensiveShare>.15,'modern capacity should support intensive livestock');assert.ok(s.geneticImprovement>.03,'selective livestock breeding should accumulate');assert.ok(s.outputMultiplier>1,'modern livestock should improve animal-food output');assert.ok(r.stockpile.staple_grains<initialGrain,'intensive livestock should consume grain feed');assert.ok(s.electricityLoad>0&&s.waterDemand>0,'intensive livestock should create utility demand');assert.ok(s.manureNutrientLoad>0&&s.welfarePressure>0,'intensification should create environmental and welfare pressures');
+}
+{
+  const fed=region(true),hungry=region(true);hungry.stockpile.staple_grains=0;ensureLivestockAgriculture(fed).intensiveShare=.6;ensureLivestockAgriculture(hungry).intensiveShare=.6;tickLivestockAgriculture(fed,30);tickLivestockAgriculture(hungry,30);assert.ok(fed.livestockAgriculture.feedSatisfaction>hungry.livestockAgriculture.feedSatisfaction,'feed availability should matter');assert.ok(fed.livestockAgriculture.outputMultiplier>hungry.livestockAgriculture.outputMultiplier,'feed shortages should cut intensive output');
+}
+{
+  const r=region(true);const s=ensureLivestockAgriculture(r);s.intensiveShare=.8;s.antibioticResistance=.4;s.intensificationInvestment=1;for(let y=0;y<15;y++)tickLivestockAgriculture(r,365.2425);assert.ok(r.livestockAgriculture.antibioticResistance>.4,'sustained intensive disease treatment should build resistance');
+}
+{
+  const r=region(true);const s=ensureLivestockAgriculture(r);s.outputMultiplier=1.6;r.stockpile.staple_grains=1000;tickFoodDiversity(r,7);assert.equal(r.foodDiversity.livestockMultiplier.animal_foods,1.6,'animal-food supply should use livestock output multiplier');
+}
+{
+  const r=region(true);ensureLivestockAgriculture(r).electricityLoad=.37;const d=electricityDemand(r,7);assert.equal(d.livestockDemand,.37,'livestock electricity should enter grid demand');
+}
+console.log('livestock agriculture regression passed');
