@@ -30,17 +30,23 @@ export function ensureClimateWorld(regions) {
   if (!regions?.length) return null;
   const anchor = regions[0];
   anchor._worldClimate ||= {
-    version: 1,
+    version: 2,
     carbonBurdenIndex: 0,
+    methaneBurdenIndex: 0,
     fossilCarbonIndex: 0,
     landUseCarbonIndex: 0,
+    livestockMethaneIndex: 0,
     temperatureAnomalyC: 0,
     oceanHeatIndex: 0,
     seaLevelM: 0,
     lastTick: null,
   };
+  const world=anchor._worldClimate;
+  if(!Number.isFinite(world.methaneBurdenIndex))world.methaneBurdenIndex=0;
+  if(!Number.isFinite(world.livestockMethaneIndex))world.livestockMethaneIndex=0;
+  world.version=Math.max(2,Number(world.version)||1);
   for (const region of regions) ensureRegionalClimate(region);
-  return anchor._worldClimate;
+  return world;
 }
 
 function forestCarbonFlux(regions) {
@@ -50,8 +56,6 @@ function forestCarbonFlux(regions) {
     const current = positive(region?.forest?.currentStock);
     const previous = Number.isFinite(c.lastForestStock) ? c.lastForestStock : current;
     const delta = current - previous;
-    // Clearing releases stored carbon quickly. Regrowth removes it more slowly:
-    // young forest does not instantly restore the carbon stock of mature forest.
     if (delta < 0) flux += -delta * 0.000012;
     else if (delta > 0) flux -= delta * 0.000006;
     c.lastForestStock = current;
@@ -60,10 +64,6 @@ function forestCarbonFlux(regions) {
 }
 
 function fossilCarbonFlux(regions) {
-  // International commitments are not magic: they represent the fraction of
-  // otherwise-emitting activity actually avoided through member-state policy,
-  // efficiency, substitution and enforcement. Weak/illegitimate organisations
-  // generate low commitments and therefore little physical effect.
   return regions.reduce((sum, region) => {
     const commitment = clamp(region?.internationalPolicy?.climateCommitment || 0, 0, 1);
     const abatement = 1 - commitment * 0.65;
@@ -71,31 +71,38 @@ function fossilCarbonFlux(regions) {
   }, 0) * 0.00002;
 }
 
+function livestockMethaneFlux(regions){
+  return regions.reduce((sum,region)=>sum+positive(region?.livestockAgriculture?.methaneEmissions),0)*0.0012;
+}
+
 function updateGlobalClimate(world, regions, elapsedDays) {
   const years = positive(elapsedDays) / DAYS_PER_YEAR;
   const fossil = fossilCarbonFlux(regions);
   const landUse = forestCarbonFlux(regions);
+  const methane = livestockMethaneFlux(regions);
   world.fossilCarbonIndex += fossil;
   world.landUseCarbonIndex += landUse;
+  world.livestockMethaneIndex += methane;
 
   const sinkFraction = 1 - Math.pow(0.5, years / 240);
   world.carbonBurdenIndex = Math.max(0,
     world.carbonBurdenIndex * (1 - sinkFraction) + fossil + landUse);
+  const methaneSinkFraction=1-Math.pow(0.5,years/12);
+  world.methaneBurdenIndex=Math.max(0,world.methaneBurdenIndex*(1-methaneSinkFraction)+methane);
 
-  // Log-like response keeps very large emissions from producing absurd linear
-  // warming while allowing centuries of cumulative industrial activity to matter.
-  const equilibriumTemperature = 3.1 * Math.log1p(world.carbonBurdenIndex / 18);
+  const carbonForcing = 3.1 * Math.log1p(world.carbonBurdenIndex / 18);
+  const methaneForcing = 0.72 * Math.log1p(world.methaneBurdenIndex / 3);
+  const equilibriumTemperature = carbonForcing + methaneForcing;
   const thermalResponse = 1 - Math.exp(-years / 24);
   world.temperatureAnomalyC += (equilibriumTemperature - world.temperatureAnomalyC) * thermalResponse;
 
-  // Ocean heat and sea level deliberately lag atmospheric warming by decades.
   const oceanResponse = 1 - Math.exp(-years / 70);
   world.oceanHeatIndex += (Math.max(0, world.temperatureAnomalyC) - world.oceanHeatIndex) * oceanResponse;
   const equilibriumSeaLevel = Math.max(0,
     world.oceanHeatIndex * 0.10 + world.oceanHeatIndex * world.oceanHeatIndex * 0.22);
   const seaResponse = 1 - Math.exp(-years / 95);
   world.seaLevelM += (equilibriumSeaLevel - world.seaLevelM) * seaResponse;
-  return { fossil, landUse };
+  return { fossil, landUse, methane };
 }
 
 function latitudeClimateResponse(region, world) {
@@ -116,8 +123,6 @@ function coastalExposure(region) {
   if (!region?.isCoastal) return 0;
   const terrain = region.terrain || {};
   if (Number.isFinite(terrain.lowElevationFraction)) return clamp(terrain.lowElevationFraction, 0, 1);
-  // Until detailed elevation rasters are added, wetlands and flat plains provide
-  // a conservative proxy. This is intentionally replaceable, not baked geography.
   const wetland = clamp(terrain.wetland || 0);
   const plains = clamp(terrain.plains || 0);
   const mountains = clamp(terrain.mountains || 0);
@@ -232,7 +237,7 @@ export function climateKnowledgeView(region, world = null) {
     rainfallMultiplier: c.rainfallMultiplier,
     extremeWeatherMultiplier: c.extremeWeatherMultiplier,
     seaLevelRiseM: positive(world?.seaLevelM),
-    attribution: 'human activity, especially fossil-fuel combustion and land-cover change',
+    attribution: 'human activity, especially fossil-fuel combustion, land-cover change and agricultural methane',
   };
 }
 
