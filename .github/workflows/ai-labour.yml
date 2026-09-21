@@ -19,6 +19,7 @@ jobs:
           node --check js/economy/aiLabour.js
           node --check js/economy/employmentAndHardship.js
           node --check js/economy/industrialSupply.js
+          node --check js/ui/labourRelationsUi.js
           node --check js/core/endgame.js
       - name: Run AI labour regressions
         run: node tests/aiLabour.test.mjs
