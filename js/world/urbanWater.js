@@ -1,5 +1,5 @@
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
-const positive=v=>Math.max(0,Number(v)||0;
+const positive=v=>Math.max(0,Number(v)||0);
 const KEYS=['households','agriculture','livestock','industry','controlledEnvironment'];
 
 function assetCapacity(region,typeId){return (region?.construction?.assets||[]).filter(a=>a?.typeId===typeId&&(a.condition??1)>.05).reduce((sum,a)=>sum+clamp(a.condition??1)*Math.max(.1,positive(a.scale)||1),0);}
