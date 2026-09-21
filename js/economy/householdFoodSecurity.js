@@ -1,5 +1,5 @@
 import { FOOD_CANNING_TECH_ID, MECHANICAL_REFRIGERATION_TECH_ID, CFC_REFRIGERATION_TECH_ID, recordRefrigerationUse } from '../technology/foodPreservationEnvironmentalHealth.js?v=20260919-preservation1';
-import { tickFoodDiversity } from './foodDiversity.js?v=20260921-food-diversity1';
+import { tickFoodDiversity } from './foodDiversity.js?v=20260921-pests1';
 
 const DAYS_PER_YEAR = 365.2425;
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
@@ -44,6 +44,7 @@ export function ensureHouseholdFoodSecurity(region) {
   s.storedLastTick = Math.max(0, Number(s.storedLastTick) || 0);
   s.dietDiversity = clamp(s.dietDiversity || 0);
   s.dietHealthSupport = Number.isFinite(s.dietHealthSupport) ? s.dietHealthSupport : 0.94;
+  s.pestFoodLossLastTick = Math.max(0, Number(s.pestFoodLossLastTick) || 0);
   return s;
 }
 
@@ -86,6 +87,21 @@ export function tickHouseholdFoodSecurity(region, elapsedDays = 7) {
     7.5,
   );
 
+  // Crop composition and pest ecology update before household reserves react.
+  // The old baseline already includes ordinary pest losses, so only the
+  // *abnormal* outbreak multiplier is deducted from this tick's farm output.
+  const diet=tickFoodDiversity(region,elapsedDays);
+  s.dietDiversity=diet.diversityIndex;
+  s.dietHealthSupport=diet.healthSupport;
+  region.dietaryHealthMultiplier=s.dietHealthSupport;
+  const pestLossFraction=clamp(1-(region.agriculturalPests?.yieldMultiplier??1),0,.48);
+  const farmFood=Math.max(0,Number(region.report?.farming?.food)||0);
+  s.pestFoodLossLastTick=farmFood*pestLossFraction;
+  if(s.pestFoodLossLastTick>0){
+    region.stockpile ||= {};
+    region.stockpile.food=(Number(region.stockpile.food)||0)-s.pestFoodLossLastTick;
+  }
+
   const weeklyNeed = Math.max(1, (Number(region?._foodNeeded) || Number(region?.population) || 1) / weeks);
   const baseWeeklySpoilage = 0.032;
   const shelfStableProtection = s.cannedPantryUptake * 0.78;
@@ -118,14 +134,6 @@ export function tickHouseholdFoodSecurity(region, elapsedDays = 7) {
     Math.max(1, Number(region.population) || 1) * s.refrigeratedRoadShare * 0.000015;
   if (refrigerationLoad > 0) recordRefrigerationUse(region, refrigerationLoad, weeks);
 
-  const diet=tickFoodDiversity(region,elapsedDays);
-  s.dietDiversity=diet.diversityIndex;
-  s.dietHealthSupport=diet.healthSupport;
-  // Expose this as a small multiplicative health input for demographic/health
-  // systems. Calories still dominate survival; diversity shifts resilience
-  // and chronic nutritional health rather than preventing starvation.
-  region.dietaryHealthMultiplier=s.dietHealthSupport;
-
   s.reserveWeeks = s.privateReserve / weeklyNeed;
   region.marketDemand ||= {};
   region.marketDemand.food = Math.max(0, Number(region.marketDemand.food) || 0) + gap / 52;
@@ -140,6 +148,7 @@ export function tickHouseholdFoodSecurity(region, elapsedDays = 7) {
     spoilage: s.spoilageLastTick,
     released: s.releasedLastTick,
     stored: s.storedLastTick,
+    pestFoodLoss:s.pestFoodLossLastTick,
     dietDiversity:s.dietDiversity,
     dietHealthSupport:s.dietHealthSupport,
     refrigeratedLandFoodTransportMultiplier: refrigeratedLandFoodTransportMultiplier(region),
