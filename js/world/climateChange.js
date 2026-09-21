@@ -30,17 +30,23 @@ export function ensureClimateWorld(regions) {
   if (!regions?.length) return null;
   const anchor = regions[0];
   anchor._worldClimate ||= {
-    version: 1,
+    version: 2,
     carbonBurdenIndex: 0,
+    methaneBurdenIndex: 0,
     fossilCarbonIndex: 0,
     landUseCarbonIndex: 0,
+    livestockMethaneIndex: 0,
     temperatureAnomalyC: 0,
     oceanHeatIndex: 0,
     seaLevelM: 0,
     lastTick: null,
   };
+  const world=anchor._worldClimate;
+  if(!Number.isFinite(world.methaneBurdenIndex))world.methaneBurdenIndex=0;
+  if(!Number.isFinite(world.livestockMethaneIndex))world.livestockMethaneIndex=0;
+  world.version=Math.max(2,Number(world.version)||1);
   for (const region of regions) ensureRegionalClimate(region);
-  return anchor._worldClimate;
+  return world;
 }
 
 function forestCarbonFlux(regions) {
@@ -71,20 +77,30 @@ function fossilCarbonFlux(regions) {
   }, 0) * 0.00002;
 }
 
+function livestockMethaneFlux(regions){
+  return regions.reduce((sum,region)=>sum+positive(region?.livestockAgriculture?.methaneEmissions),0)*0.0012;
+}
+
 function updateGlobalClimate(world, regions, elapsedDays) {
   const years = positive(elapsedDays) / DAYS_PER_YEAR;
   const fossil = fossilCarbonFlux(regions);
   const landUse = forestCarbonFlux(regions);
+  const methane = livestockMethaneFlux(regions);
   world.fossilCarbonIndex += fossil;
   world.landUseCarbonIndex += landUse;
+  world.livestockMethaneIndex += methane;
 
   const sinkFraction = 1 - Math.pow(0.5, years / 240);
   world.carbonBurdenIndex = Math.max(0,
     world.carbonBurdenIndex * (1 - sinkFraction) + fossil + landUse);
+  const methaneSinkFraction=1-Math.pow(0.5,years/12);
+  world.methaneBurdenIndex=Math.max(0,world.methaneBurdenIndex*(1-methaneSinkFraction)+methane);
 
   // Log-like response keeps very large emissions from producing absurd linear
   // warming while allowing centuries of cumulative industrial activity to matter.
-  const equilibriumTemperature = 3.1 * Math.log1p(world.carbonBurdenIndex / 18);
+  const carbonForcing = 3.1 * Math.log1p(world.carbonBurdenIndex / 18);
+  const methaneForcing = 0.72 * Math.log1p(world.methaneBurdenIndex / 3);
+  const equilibriumTemperature = carbonForcing + methaneForcing;
   const thermalResponse = 1 - Math.exp(-years / 24);
   world.temperatureAnomalyC += (equilibriumTemperature - world.temperatureAnomalyC) * thermalResponse;
 
@@ -95,7 +111,7 @@ function updateGlobalClimate(world, regions, elapsedDays) {
     world.oceanHeatIndex * 0.10 + world.oceanHeatIndex * world.oceanHeatIndex * 0.22);
   const seaResponse = 1 - Math.exp(-years / 95);
   world.seaLevelM += (equilibriumSeaLevel - world.seaLevelM) * seaResponse;
-  return { fossil, landUse };
+  return { fossil, landUse, methane };
 }
 
 function latitudeClimateResponse(region, world) {
@@ -232,7 +248,7 @@ export function climateKnowledgeView(region, world = null) {
     rainfallMultiplier: c.rainfallMultiplier,
     extremeWeatherMultiplier: c.extremeWeatherMultiplier,
     seaLevelRiseM: positive(world?.seaLevelM),
-    attribution: 'human activity, especially fossil-fuel combustion and land-cover change',
+    attribution: 'human activity, especially fossil-fuel combustion, land-cover change and agricultural methane',
   };
 }
 
