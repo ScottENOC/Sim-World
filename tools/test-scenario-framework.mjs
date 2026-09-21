@@ -22,7 +22,7 @@ const fractured = scenarioById('fractured-2027');
 assert.ok(fractured, '2027 scenario definition missing');
 assert.equal(fractured.startYear, 2027);
 assert.equal(fractured.mapBaseUrl, 'data/scenarios/fractured-2027/world/');
-assert.equal(fractured.victoryModel, 'military-control');
+assert.equal(fractured.victoryModel, 'country-survival-and-aims');
 assert.equal(fractured.available, false, '2027 must stay disabled until its map/state package exists');
 
 for (const scenario of SCENARIOS) {
@@ -41,14 +41,21 @@ const scenarioManifest = JSON.parse(fs.readFileSync(new URL('../data/scenarios/f
 const initialState = JSON.parse(fs.readFileSync(new URL('../data/scenarios/fractured-2027/initial-state.json', import.meta.url), 'utf8'));
 const factionBalance = JSON.parse(fs.readFileSync(new URL('../data/scenarios/fractured-2027/faction-balance.json', import.meta.url), 'utf8'));
 const pressureEvents = JSON.parse(fs.readFileSync(new URL('../data/scenarios/fractured-2027/pressure-events.json', import.meta.url), 'utf8'));
+const playability = JSON.parse(fs.readFileSync(new URL('../data/scenarios/fractured-2027/playability.json', import.meta.url), 'utf8'));
+const victory = JSON.parse(fs.readFileSync(new URL('../data/scenarios/fractured-2027/victory.json', import.meta.url), 'utf8'));
 
 assert.equal(scenarioManifest.id, fractured.id);
 assert.equal(scenarioManifest.startYear, fractured.startYear);
 assert.equal(scenarioManifest.factionBalanceFile, 'faction-balance.json');
 assert.equal(scenarioManifest.pressureEventsFile, 'pressure-events.json');
+assert.equal(scenarioManifest.playabilityFile, 'playability.json');
+assert.equal(scenarioManifest.victoryFile, 'victory.json');
+assert.equal(scenarioManifest.victoryModel, victory.model);
 assert.equal(initialState.scenarioId, fractured.id);
 assert.equal(factionBalance.scenarioId, fractured.id);
 assert.equal(pressureEvents.scenarioId, fractured.id);
+assert.equal(playability.scenarioId, fractured.id);
+assert.equal(victory.scenarioId, fractured.id);
 
 const camps = new Map(initialState.strategicCamps.map((camp) => [camp.id, camp]));
 assert.equal(camps.size, 3, 'Fractured World should start with three loose strategic camps');
@@ -71,5 +78,8 @@ assert.equal(factionBalance.neutralPowerRule.scriptedAlignment, false);
 assert.ok(factionBalance.antiSnowballRules.length >= 5);
 assert.equal(pressureEvents.triggerPolicy.scriptedOutcome, false);
 assert.ok(pressureEvents.eventFamilies.length >= 6);
+assert.equal(playability.policy.allMappedSovereignCountriesPlayable, true);
+assert.ok(playability.featuredCountries.includes('australia'));
+assert.equal(victory.campaignResolution.requireEveryWorldWarEnded, false);
 
-console.log(`Scenario framework regression passed for ${SCENARIOS.length} scenarios, including Fractured World balance and event scaffolds.`);
+console.log(`Scenario framework regression passed for ${SCENARIOS.length} scenarios, including Fractured World playability, balance and victory scaffolds.`);
