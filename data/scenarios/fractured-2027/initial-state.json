@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "fractured-2027",
+  "year": 2027,
+  "actors": [
+    { "id": "usa", "kind": "country", "name": "United States" },
+    { "id": "denmark", "kind": "country", "name": "Denmark" },
+    { "id": "united-kingdom", "kind": "country", "name": "United Kingdom" },
+    { "id": "canada", "kind": "country", "name": "Canada" },
+    { "id": "european-union", "kind": "coalition", "name": "European Union", "membershipSource": "scenario-map" },
+    { "id": "russia", "kind": "country", "name": "Russia" },
+    { "id": "ukraine", "kind": "country", "name": "Ukraine" },
+    { "id": "china", "kind": "country", "name": "China" },
+    { "id": "taiwan", "kind": "country", "name": "Taiwan" },
+    { "id": "iran", "kind": "country", "name": "Iran" },
+    { "id": "north-korea", "kind": "country", "name": "North Korea" }
+  ],
+  "strategicCamps": [
+    {
+      "id": "american-power",
+      "members": ["usa"],
+      "formalAlliance": false,
+      "description": "A powerful but strategically overextended United States operating largely without its former transatlantic coalition."
+    },
+    {
+      "id": "european-defence-coalition",
+      "members": ["denmark", "united-kingdom", "canada", "ukraine", "european-union"],
+      "formalAlliance": false,
+      "description": "A coalition fighting both the United States in the North Atlantic and Russia in Europe, with significant aggregate capacity but incomplete integration and disrupted supply chains."
+    },
+    {
+      "id": "eurasian-accommodation",
+      "members": ["china", "russia", "iran", "north-korea"],
+      "formalAlliance": false,
+      "description": "States with different goals that begin by avoiding conflict with each other and may coordinate opportunistically without acting as a unified alliance."
+    }
+  ],
+  "conflicts": [
+    {
+      "id": "greenland-war",
+      "kind": "war",
+      "belligerents": {
+        "sideA": ["usa"],
+        "sideB": ["denmark", "european-union", "united-kingdom", "canada"]
+      },
+      "occupation": [
+        {
+          "territorySelector": "greenland",
+          "occupier": "usa",
+          "sovereigntyClaimant": "denmark",
+          "control": "occupied"
+        }
+      ]
+    },
+    {
+      "id": "russia-ukraine-war",
+      "kind": "war",
+      "belligerents": {
+        "sideA": ["russia"],
+        "sideB": ["ukraine"]
+      },
+      "externalSupport": ["european-union", "united-kingdom", "canada"],
+      "frontControlSource": "scenario-map"
+    },
+    {
+      "id": "usa-iran-war",
+      "kind": "war",
+      "belligerents": {
+        "sideA": ["usa"],
+        "sideB": ["iran"]
+      }
+    },
+    {
+      "id": "taiwan-blockade",
+      "kind": "blockade",
+      "blockadingActors": ["china"],
+      "targetActors": ["taiwan"],
+      "affectedSeaSelectors": ["taiwan-approaches"],
+      "enforcement": "active",
+      "automaticWarWithUnitedStates": false
+    }
+  ],
+  "diplomaticPostures": [
+    {
+      "actors": ["usa", "russia"],
+      "posture": "unexpectedly-cooperative",
+      "militaryAlliance": false,
+      "notes": "Scenario premise: relations are unusually cordial despite incompatible interests elsewhere. The relationship can deteriorate or deepen through simulation."
+    },
+    {
+      "actors": ["usa", "north-korea"],
+      "posture": "unexpectedly-cooperative",
+      "militaryAlliance": false,
+      "notes": "Scenario premise: relations are unusually cordial but do not imply alliance obligations."
+    },
+    {
+      "actors": ["china", "russia", "iran", "north-korea"],
+      "posture": "mutual-accommodation",
+      "militaryAlliance": false,
+      "notes": "They begin by avoiding conflict with each other and can trade or coordinate, but have no automatic shared-war obligation."
+    },
+    {
+      "actors": ["usa", "china"],
+      "posture": "antagonistic",
+      "militaryAlliance": false,
+      "notes": "High strategic tension, but no automatic shooting war at scenario start."
+    }
+  ],
+  "startingPressures": {
+    "american-power": [
+      "multi-theatre military overextension",
+      "loss or uncertainty of traditional European basing and logistics",
+      "simultaneous war with Iran and the European defence coalition"
+    ],
+    "european-defence-coalition": [
+      "two-front conflict",
+      "incomplete transition away from Russian fossil-fuel dependence",
+      "incomplete transition away from United States military imports",
+      "fragmented procurement, stockpiles and mobilisation across members"
+    ],
+    "eurasian-accommodation": [
+      "weak formal alliance integration",
+      "different strategic objectives",
+      "exposure to sanctions, maritime interdiction and trade-route disruption"
+    ]
+  },
+  "defaultExternalAlignment": {
+    "state": "uncommitted",
+    "scriptedFutureAlignment": false
+  },
+  "notes": [
+    "This file encodes the fictional scenario premise, not assertions about real-world events.",
+    "Territory and sea selectors will be resolved when the dedicated modern strategic map is authored.",
+    "The simulation should determine future alliances, neutrality, mediation, escalation and settlement from game systems rather than event scripting.",
+    "Strategic camps are descriptive starting geometries, not permanent teams. Members may diverge if simulation incentives and domestic politics push them apart."
+  ]
+}

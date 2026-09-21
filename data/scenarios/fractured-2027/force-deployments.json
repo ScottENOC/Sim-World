@@ -1,0 +1,266 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "fractured-2027",
+  "model": "formation-and-force-allocation",
+  "calibrationNote": "Fictional scenario opening-force calibration for gameplay. It is not an exact real-world order of battle or a claim about actual 2027 deployments.",
+  "formations": [
+    {
+      "id": "usa-iran-forward-fleet",
+      "actorId": "usa",
+      "domain": "naval-joint",
+      "theatreId": "iran-gulf",
+      "posture": "sustained-combat-deployment",
+      "deploymentAgeDays": 165,
+      "readiness": 0.73,
+      "fatigue": 0.37,
+      "sustainmentStrain": 0.34,
+      "fractionOfDeployablePower": 0.27,
+      "composition": {
+        "carrierTaskGroups": 1,
+        "surfaceCombatantGroups": 2,
+        "attackSubmarineGroups": 1,
+        "amphibiousGroups": 1,
+        "replenishmentGroups": 1,
+        "landBasedAirWings": 1
+      },
+      "missions": ["sea-control", "strike", "air-defence", "protect-logistics"]
+    },
+    {
+      "id": "usa-greenland-surge-fleet",
+      "actorId": "usa",
+      "domain": "naval-joint",
+      "theatreId": "greenland-north-atlantic",
+      "posture": "fresh-surge-deployment",
+      "deploymentAgeDays": 18,
+      "readiness": 0.93,
+      "fatigue": 0.08,
+      "sustainmentStrain": 0.12,
+      "fractionOfDeployablePower": 0.34,
+      "composition": {
+        "carrierTaskGroups": 1,
+        "surfaceCombatantGroups": 3,
+        "attackSubmarineGroups": 2,
+        "amphibiousGroups": 1,
+        "replenishmentGroups": 2,
+        "landBasedAirWings": 1
+      },
+      "missions": ["sea-control", "air-defence", "amphibious-support", "protect-occupation-logistics"]
+    },
+    {
+      "id": "uk-north-atlantic-response",
+      "actorId": "uk",
+      "domain": "naval-joint",
+      "theatreId": "greenland-north-atlantic",
+      "posture": "coalition-counter-deployment",
+      "deploymentAgeDays": 15,
+      "readiness": 0.89,
+      "fatigue": 0.10,
+      "sustainmentStrain": 0.16,
+      "fractionOfDeployablePower": 0.42,
+      "composition": {
+        "carrierTaskGroups": 1,
+        "surfaceCombatantGroups": 2,
+        "attackSubmarineGroups": 1,
+        "replenishmentGroups": 1,
+        "maritimePatrolWings": 1
+      },
+      "missions": ["sea-denial", "convoy-protection", "air-defence", "reinforcement-cover"]
+    },
+    {
+      "id": "canada-arctic-reinforcement",
+      "actorId": "canada",
+      "domain": "joint-expeditionary",
+      "theatreId": "greenland-north-atlantic",
+      "posture": "rapid-arctic-reinforcement",
+      "deploymentAgeDays": 12,
+      "readiness": 0.84,
+      "fatigue": 0.09,
+      "sustainmentStrain": 0.22,
+      "fractionOfDeployablePower": 0.33,
+      "composition": {
+        "surfaceCombatantGroups": 1,
+        "patrolGroups": 2,
+        "airTransportWings": 1,
+        "fighterWings": 1,
+        "arcticGroundGroups": 1
+      },
+      "missions": ["arctic-surveillance", "reinforcement", "convoy-protection", "base-defence"]
+    },
+    {
+      "id": "france-north-atlantic-response",
+      "actorId": "france",
+      "domain": "naval-joint",
+      "theatreId": "greenland-north-atlantic",
+      "posture": "coalition-counter-deployment",
+      "deploymentAgeDays": 11,
+      "readiness": 0.87,
+      "fatigue": 0.08,
+      "sustainmentStrain": 0.15,
+      "fractionOfDeployablePower": 0.30,
+      "composition": {
+        "carrierTaskGroups": 1,
+        "surfaceCombatantGroups": 1,
+        "attackSubmarineGroups": 1,
+        "replenishmentGroups": 1,
+        "maritimePatrolWings": 1
+      },
+      "missions": ["sea-denial", "air-defence", "escort", "coalition-reinforcement"]
+    },
+    {
+      "id": "denmark-greenland-recovery-group",
+      "actorId": "denmark",
+      "domain": "joint-local",
+      "theatreId": "greenland-north-atlantic",
+      "posture": "territorial-recovery",
+      "deploymentAgeDays": 18,
+      "readiness": 0.82,
+      "fatigue": 0.14,
+      "sustainmentStrain": 0.28,
+      "fractionOfDeployablePower": 0.48,
+      "composition": {
+        "patrolGroups": 2,
+        "surfaceCombatantGroups": 1,
+        "airTransportWings": 1,
+        "groundGroups": 1
+      },
+      "missions": ["sovereignty-restoration", "surveillance", "base-recovery", "coalition-liaison"]
+    },
+    {
+      "id": "china-taiwan-northern-blockade",
+      "actorId": "china",
+      "domain": "naval-air",
+      "theatreId": "taiwan-western-pacific",
+      "posture": "active-blockade",
+      "deploymentAgeDays": 24,
+      "readiness": 0.91,
+      "fatigue": 0.12,
+      "sustainmentStrain": 0.13,
+      "fractionOfDeployablePower": 0.20,
+      "composition": {
+        "surfaceCombatantGroups": 2,
+        "submarineGroups": 1,
+        "landBasedAirWings": 2,
+        "maritimePatrolWings": 1
+      },
+      "missions": ["blockade", "air-control", "interdiction", "surveillance"]
+    },
+    {
+      "id": "china-taiwan-southern-blockade",
+      "actorId": "china",
+      "domain": "naval-air",
+      "theatreId": "taiwan-western-pacific",
+      "posture": "active-blockade",
+      "deploymentAgeDays": 24,
+      "readiness": 0.89,
+      "fatigue": 0.13,
+      "sustainmentStrain": 0.16,
+      "fractionOfDeployablePower": 0.16,
+      "composition": {
+        "surfaceCombatantGroups": 2,
+        "submarineGroups": 1,
+        "landBasedAirWings": 1,
+        "replenishmentGroups": 1
+      },
+      "missions": ["blockade", "interdiction", "bashi-channel-control", "escort"]
+    },
+    {
+      "id": "china-taiwan-strike-and-landing-reserve",
+      "actorId": "china",
+      "domain": "joint-strike-amphibious",
+      "theatreId": "taiwan-western-pacific",
+      "posture": "high-readiness-reserve",
+      "deploymentAgeDays": 20,
+      "readiness": 0.88,
+      "fatigue": 0.10,
+      "sustainmentStrain": 0.11,
+      "fractionOfDeployablePower": 0.18,
+      "composition": {
+        "amphibiousGroups": 2,
+        "rocketAndMissileGroups": 2,
+        "landBasedAirWings": 2,
+        "airborneGroups": 1
+      },
+      "missions": ["coercive-reserve", "strike-support", "amphibious-readiness", "rapid-escalation-option"]
+    },
+    {
+      "id": "taiwan-island-defence",
+      "actorId": "taiwan",
+      "domain": "joint-island-defence",
+      "theatreId": "taiwan-western-pacific",
+      "posture": "full-alert-defence",
+      "deploymentAgeDays": 24,
+      "readiness": 0.92,
+      "fatigue": 0.16,
+      "sustainmentStrain": 0.21,
+      "fractionOfDeployablePower": 0.76,
+      "composition": {
+        "groundDefenceGroups": 4,
+        "fighterWings": 2,
+        "coastalDefenceGroups": 2,
+        "surfaceCombatantGroups": 1,
+        "airDefenceGroups": 2
+      },
+      "missions": ["island-defence", "air-defence", "sea-denial", "protect-ports-and-airfields"]
+    }
+  ],
+  "landConcentration": [
+    {
+      "actorId": "russia",
+      "theatreId": "ukraine-line-of-contact",
+      "frontlineManeuverShare": 0.84,
+      "rearManeuverShare": 0.06,
+      "reconstitutionReserveShare": 0.10,
+      "rearStrategicMissions": ["strategic-air-defence", "nuclear-force-security", "base-security", "training"]
+    },
+    {
+      "actorId": "ukraine",
+      "theatreId": "ukraine-line-of-contact",
+      "frontlineManeuverShare": 0.90,
+      "rearManeuverShare": 0.04,
+      "reconstitutionReserveShare": 0.06,
+      "rearStrategicMissions": ["air-defence", "critical-infrastructure-security", "training-and-reconstitution"]
+    },
+    {
+      "actorId": "poland",
+      "theatreId": "eastern-europe",
+      "frontlineManeuverShare": 0.62,
+      "rearManeuverShare": 0.23,
+      "reconstitutionReserveShare": 0.15,
+      "rearStrategicMissions": ["homeland-air-defence", "logistics-hub-security", "training", "reserve-mobilisation"]
+    },
+    {
+      "actorId": "finland",
+      "theatreId": "eastern-europe",
+      "frontlineManeuverShare": 0.58,
+      "rearManeuverShare": 0.27,
+      "reconstitutionReserveShare": 0.15,
+      "rearStrategicMissions": ["territorial-defence", "air-defence", "mobilisation", "infrastructure-security"]
+    },
+    {
+      "actorId": "germany",
+      "theatreId": "eastern-europe",
+      "frontlineManeuverShare": 0.38,
+      "rearManeuverShare": 0.42,
+      "reconstitutionReserveShare": 0.20,
+      "rearStrategicMissions": ["european-logistics", "air-defence", "training", "reconstitution"]
+    },
+    {
+      "actorId": "taiwan",
+      "theatreId": "taiwan-western-pacific",
+      "frontlineManeuverShare": 0.78,
+      "rearManeuverShare": 0.12,
+      "reconstitutionReserveShare": 0.10,
+      "rearStrategicMissions": ["critical-infrastructure-security", "air-defence", "civil-defence-support", "reconstitution"]
+    }
+  ],
+  "designRules": [
+    "Opening deployments are movable state, not permanent combat bonuses.",
+    "Long deployments accumulate fatigue and sustainment strain; fresh surge deployments begin at higher readiness.",
+    "Russia and Ukraine begin with almost all mobile conventional manoeuvre power committed to the line of contact.",
+    "European coalition power is distributed across sovereign members; Greenland response forces and the eastern land front compete for readiness, shipping, airlift and stocks.",
+    "China begins with a substantial but not total share of deployable power committed to maintaining the Taiwan blockade and holding an escalation reserve.",
+    "Taiwan begins on full alert with most deployable forces assigned to island and maritime defence.",
+    "Rear areas retain strategic air defence, base and nuclear security, training and reconstitution functions rather than being literally undefended.",
+    "Redeploying forces away from an active theatre weakens that theatre immediately and requires travel and logistics time."
+  ]
+}

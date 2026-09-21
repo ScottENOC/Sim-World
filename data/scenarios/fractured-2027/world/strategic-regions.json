@@ -1,0 +1,180 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "fractured-2027",
+  "purpose": "Authoring catalogue for the dedicated modern strategic map. This is not yet the runtime geometry file.",
+  "resolutionPolicy": {
+    "default": "coarse-national-interior",
+    "fineWhere": [
+      "active-war-fronts",
+      "islands-and-archipelagos",
+      "major-naval-chokepoints",
+      "critical-basing-and-logistics-corridors",
+      "high-density-border-zones",
+      "strategic-resource-and-industrial-concentrations"
+    ],
+    "avoid": [
+      "uniform-resolution-for-its-own-sake",
+      "modern-administrative-boundaries-with-no-gameplay-value",
+      "single-region-countries-where-geography-creates-distinct-operational-theatres"
+    ]
+  },
+  "priorityTheatres": [
+    {
+      "id": "greenland-north-atlantic",
+      "priority": 1,
+      "landSelectors": [
+        "greenland-north",
+        "greenland-west",
+        "greenland-south",
+        "greenland-east",
+        "iceland",
+        "faroe-islands"
+      ],
+      "seaSelectors": [
+        "davis-strait",
+        "denmark-strait",
+        "greenland-sea",
+        "giuk-gap",
+        "north-atlantic",
+        "norwegian-sea"
+      ],
+      "rationale": "Opening US-Europe war needs several Greenland objectives plus air, sea, submarine and reinforcement routes rather than one giant Greenland tile."
+    },
+    {
+      "id": "eastern-europe",
+      "priority": 1,
+      "landSelectors": [
+        "ukraine-west",
+        "ukraine-centre",
+        "ukraine-north",
+        "ukraine-east",
+        "ukraine-south",
+        "crimea",
+        "belarus-south",
+        "russia-border-west",
+        "black-sea-coast-north"
+      ],
+      "seaSelectors": [
+        "black-sea-west",
+        "black-sea-east",
+        "sea-of-azov",
+        "bosporus-approaches"
+      ],
+      "rationale": "The continuing Ukraine war needs operational depth, multiple axes and Black Sea logistics without encoding a scripted front line into the geometry."
+    },
+    {
+      "id": "taiwan-western-pacific",
+      "priority": 1,
+      "landSelectors": [
+        "taiwan-north",
+        "taiwan-central",
+        "taiwan-south",
+        "taiwan-east",
+        "fujian-coast",
+        "okinawa-chain",
+        "luzon-north"
+      ],
+      "seaSelectors": [
+        "taiwan-strait-north",
+        "taiwan-strait-south",
+        "taiwan-east-approaches",
+        "bashi-channel",
+        "east-china-sea-south",
+        "philippine-sea-west"
+      ],
+      "rationale": "A blockade must be a set of routes and patrol areas that can be enforced, contested, bypassed or broken rather than a binary Taiwan status flag."
+    },
+    {
+      "id": "iran-gulf",
+      "priority": 1,
+      "landSelectors": [
+        "iran-west",
+        "iran-centre",
+        "iran-south",
+        "iran-east",
+        "persian-gulf-arabian-shore",
+        "oman-musandam"
+      ],
+      "seaSelectors": [
+        "persian-gulf",
+        "strait-of-hormuz",
+        "gulf-of-oman",
+        "arabian-sea-north"
+      ],
+      "rationale": "The opening US-Iran war needs meaningful basing, missile, shipping and energy geography around Hormuz."
+    },
+    {
+      "id": "european-logistics",
+      "priority": 2,
+      "landSelectors": [
+        "britain-south",
+        "britain-north",
+        "ireland",
+        "france-north",
+        "france-south",
+        "benelux",
+        "germany-west",
+        "germany-east",
+        "poland-west",
+        "poland-east",
+        "scandinavia-north",
+        "scandinavia-south"
+      ],
+      "seaSelectors": [
+        "north-sea",
+        "english-channel",
+        "baltic-sea-west",
+        "baltic-sea-east"
+      ],
+      "rationale": "European strength should depend on mobilisation, ports, industry, energy and reinforcement routes rather than a single aggregate bloc value."
+    },
+    {
+      "id": "global-chokepoints",
+      "priority": 2,
+      "seaSelectors": [
+        "gibraltar-strait",
+        "suez-approaches",
+        "red-sea",
+        "bab-el-mandeb",
+        "strait-of-hormuz",
+        "malacca-strait",
+        "sunda-strait",
+        "lombok-strait",
+        "panama-approaches"
+      ],
+      "rationale": "Trade, naval deployment, sanctions evasion and neutral-country diplomacy need explicit chokepoints that can be protected, denied or bypassed."
+    },
+    {
+      "id": "australia-and-maritime-approaches",
+      "priority": 2,
+      "landSelectors": [
+        "australia-west",
+        "australia-north",
+        "australia-east",
+        "australia-southeast",
+        "australia-south",
+        "tasmania"
+      ],
+      "seaSelectors": [
+        "coral-sea",
+        "tasman-sea",
+        "arafura-sea",
+        "timor-sea",
+        "eastern-indian-ocean",
+        "south-pacific-australia"
+      ],
+      "rationale": "A playable neutral or belligerent Australia needs distinct population/industrial centres and vulnerable maritime trade routes without province-level over-detail."
+    }
+  ],
+  "countryCoverageRule": {
+    "allSovereignCountriesPresent": true,
+    "minimumLandRegions": 1,
+    "splitWhen": "Geography, population, industry, basing, resources or active military operations create materially different strategic choices.",
+    "microstatePolicy": "Merge only where a sovereign microstate has no independent operational geography; otherwise retain as a selectable polity with an appropriate small region or city-state representation."
+  },
+  "ownershipPolicy": {
+    "geometryIndependentFromControl": true,
+    "startingOwnershipStoredInScenarioState": true,
+    "frontLinesStoredAsControlStateNotPermanentBorders": true
+  }
+}

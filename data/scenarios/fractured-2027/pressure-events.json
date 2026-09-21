@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "fractured-2027",
+  "designPrinciple": "Events create dilemmas and shocks, not predetermined historical outcomes. Their effects should depend on world state and player/AI choices.",
+  "eventFamilies": [
+    {
+      "id": "coalition-cohesion",
+      "examples": [
+        "A coalition member debates limiting offensive operations.",
+        "A government conditions continued participation on burden-sharing or basing concessions.",
+        "An election changes domestic tolerance for casualties or sanctions."
+      ],
+      "stateInputs": ["warExhaustion", "casualties", "economicDamage", "threatPerception", "allianceTrust"]
+    },
+    {
+      "id": "supply-chain-shock",
+      "examples": [
+        "A critical imported component becomes scarce.",
+        "Shipping insurance or convoy losses sharply increase import costs.",
+        "A supplier refuses military exports or demands political concessions."
+      ],
+      "stateInputs": ["importDependency", "stockpiles", "tradeRoutes", "sanctions", "industrialSubstitution"]
+    },
+    {
+      "id": "neutral-alignment",
+      "examples": [
+        "A middle power receives competing requests for basing access.",
+        "A neutral government offers mediation in exchange for sanctions relief or security guarantees.",
+        "A regional state seeks arms, fuel or trade preferences without joining a war."
+      ],
+      "stateInputs": ["regionalThreat", "tradeDependence", "recentAggression", "diplomaticTrust", "domesticPolitics"]
+    },
+    {
+      "id": "escalation-control",
+      "examples": [
+        "A strike damages infrastructure in a state not yet directly participating in the conflict.",
+        "Nuclear forces are placed on a more visible readiness posture.",
+        "A cyber operation causes civilian disruption and attribution remains uncertain."
+      ],
+      "stateInputs": ["escalationLevel", "attributionConfidence", "civilianDamage", "nuclearPosture", "leadershipRiskTolerance"]
+    },
+    {
+      "id": "maritime-and-cables",
+      "examples": [
+        "A merchant vessel damages an undersea cable under disputed circumstances.",
+        "A convoy suffers losses and commercial shipping reroutes.",
+        "A coastal state offers or denies port access to a belligerent."
+      ],
+      "stateInputs": ["seaControl", "cableMonitoring", "shippingRisk", "portAccess", "insuranceCost"]
+    },
+    {
+      "id": "mobilisation-and-industry",
+      "examples": [
+        "A government considers emergency industrial conversion.",
+        "Skilled labour shortages constrain military production.",
+        "Civilian rationing or requisition becomes politically contentious."
+      ],
+      "stateInputs": ["industrialCapacity", "labourAvailability", "civilianConsumption", "warSupport", "mobilisationLaw"]
+    },
+    {
+      "id": "humanitarian-pressure",
+      "examples": [
+        "Refugee flows strain neighbouring states.",
+        "A siege or infrastructure collapse creates demands for a humanitarian corridor.",
+        "Food or medicine shortages trigger domestic and international pressure."
+      ],
+      "stateInputs": ["displacement", "foodAccess", "medicalAccess", "infrastructureDamage", "internationalAttention"]
+    }
+  ],
+  "triggerPolicy": {
+    "preferStateDriven": true,
+    "allowFixedOpeningEvents": true,
+    "fixedOpeningWindowDays": 30,
+    "scriptedOutcome": false,
+    "repeatCooldownDays": 30,
+    "notes": [
+      "Fixed opening events may establish immediate consequences of the starting premise, but must still offer choices.",
+      "Later events should normally be generated from thresholds, trends or probabilistic checks against simulated state.",
+      "Do not script countries to join factions on predetermined dates."
+    ]
+  }
+}
