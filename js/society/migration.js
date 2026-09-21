@@ -3,6 +3,7 @@ import { routeCost } from '../economy/trade.js?v=20260905-infra1';
 import { availableResidentHousing } from '../economy/housing.js?v=20260916-housing1';
 import { knownRegionIds } from '../core/knowledge.js?v=20260904-weather1';
 import { nationalReputationEffects } from '../technology/spaceRace.js?v=20260920-space-race1';
+import { waterMigrationPull } from '../world/waterGovernance.js?v=20260922-water-governance2';
 
 const DENSITY_REFERENCE = 6; // people/km² — same "crowded" threshold gathering uses
 const MAX_MIGRATION_DESTINATIONS = 4;
@@ -11,14 +12,15 @@ const MIN_MIGRANT_COHORT = 5;
 // How attractive is `dest` to someone fleeing famine? Peace = stability.
 // Land = room to actually settle (inverse of how crowded it already is).
 // Bread = how cheap food is there right now, read straight off the same
-// price signal trade uses. International reputation is deliberately a soft
-// preference, never enough to override famine, instability or no housing.
+// price signal trade uses. International reputation and reliable household
+// water services are deliberately soft preferences, never enough to override
+// famine, instability or no housing.
 function attractiveness(dest) {
   const density = dest.areaSqKm > 0 ? dest.population / dest.areaSqKm : Infinity;
   const landScore = Math.max(0.1, 1 - density / DENSITY_REFERENCE);
   const breadScore = 1 / (localPrice(dest, 'food') + 0.2);
   const reputation = nationalReputationEffects(dest);
-  return Math.max(0.01, dest.stability) * landScore * breadScore * reputation.migrationPull;
+  return Math.max(0.01, dest.stability) * landScore * breadScore * reputation.migrationPull * waterMigrationPull(dest);
 }
 
 // Splits `emigrantCount` people leaving `region` across destinations present
