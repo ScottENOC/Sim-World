@@ -10,6 +10,8 @@
   "pressureEventsFile": "pressure-events.json",
   "playabilityFile": "playability.json",
   "victoryFile": "victory.json",
+  "sovereigntyFile": "sovereignty.json",
+  "strategicMapCatalogueFile": "world/strategic-regions.json",
   "rulesProfile": "modern-crisis",
   "technologyProfile": "near-future-conventional",
   "victoryModel": "country-survival-and-aims",
@@ -75,5 +77,8 @@
     "spatial.base.json",
     "majorRivers.real.json"
   ],
-  "status": "scaffold"
+  "sharedWorldFiles": [
+    "toolTypes.json"
+  ],
+  "status": "runtime and state scaffolds ready; dedicated strategic geometry is under construction"
 }
