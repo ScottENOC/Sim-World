@@ -7,7 +7,8 @@ function indexById(items) {
 }
 
 function resolvePolity(world, actorId) {
-  return asArray(world?.polities).find((polity) => polity?.id === actorId) || null;
+  const mappedId = world?.scenarioActorToPolityId?.[actorId];
+  return asArray(world?.polities).find((polity) => polity?.id === actorId || polity?.id === mappedId || polity?.scenarioActorId === actorId) || null;
 }
 
 function resolveRegion(world, selector) {
@@ -34,9 +35,8 @@ function ensureScenarioState(world, scenarioId) {
 }
 
 function hydrateActors(world, state, definition, report) {
-  const polityIndex = indexById(world?.polities);
   state.actors = asArray(definition.actors).map((actor) => {
-    const polity = polityIndex.get(actor.id) || null;
+    const polity = resolvePolity(world, actor.id);
     if (polity) {
       polity.scenarioActorId = actor.id;
       polity.scenarioActorKind = actor.kind || 'country';
@@ -74,12 +74,15 @@ function hydrateConflict(world, conflict, report) {
     if (!world.activeWars.some((war) => war.id === conflict.id)) {
       const sideA = asArray(conflict.belligerents?.sideA);
       const sideB = asArray(conflict.belligerents?.sideB);
+      const actorIds = [...sideA, ...sideB];
+      const participantPolityIds = actorIds.map((actorId) => resolvePolity(world, actorId)?.id || actorId);
       const war = {
         id: conflict.id,
         active: hydrated.active,
         scenarioSeeded: true,
-        participants: [...sideA, ...sideB].map((actorId) => ({ actorId })),
-        participantPolityIds: [...sideA, ...sideB],
+        participants: actorIds.map((actorId, index) => ({ actorId, polityId: participantPolityIds[index] })),
+        participantPolityIds,
+        participantScenarioActorIds: actorIds,
         attackerActorId: sideA[0] || null,
         defenderActorId: sideB[0] || null,
         scenarioBelligerents: { sideA, sideB },
@@ -93,14 +96,16 @@ function hydrateConflict(world, conflict, report) {
   for (const occupation of asArray(conflict.occupation)) {
     const matched = resolveRegion(world, occupation.territorySelector || occupation.selector || occupation.regionId);
     if (!matched.length) report.unresolvedTerritorySelectors.push(occupation.territorySelector || occupation.selector || occupation.regionId);
+    const occupierPolity = occupation.occupier ? resolvePolity(world, occupation.occupier) : null;
     for (const region of matched) {
       region.scenarioOccupation = {
         conflictId: conflict.id,
         occupier: occupation.occupier,
+        occupierPolityId: occupierPolity?.id || null,
         sovereigntyClaimant: occupation.sovereigntyClaimant || null,
         control: occupation.control || 'occupied',
       };
-      if (occupation.occupier) region.controllingActorId = occupation.occupier;
+      if (occupierPolity) region.controllingActorId = occupierPolity.id;
     }
   }
 
@@ -137,18 +142,17 @@ export function scenarioPlayablePolities(world, playability = {}) {
   if (policy.allMappedSovereignCountriesPlayable === true) {
     return polities.filter((candidate) => {
       if (!candidate?.id || candidate.extinct === true) return false;
-      const actor = actorById.get(candidate.id);
+      const actor = actorById.get(candidate.scenarioActorId || candidate.id);
       if (actor) return playableKinds.has(actor.kind || 'country');
       if (candidate.scenarioActorKind) return playableKinds.has(candidate.scenarioActorKind);
       if (candidate.kind === 'coalition' || candidate.isCoalition === true || candidate.isInternationalOrganisation === true) return false;
-      return true;
+      return candidate.scenarioPlayable === true;
     });
   }
 
-  const byId = indexById(polities);
   return actors
     .filter((actor) => playableKinds.has(actor.kind || 'country'))
-    .map((actor) => byId.get(actor.id) || null)
+    .map((actor) => resolvePolity(world, actor.id))
     .filter(Boolean);
 }
 
