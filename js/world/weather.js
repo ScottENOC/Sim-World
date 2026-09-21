@@ -2,6 +2,8 @@
 // systems affect the whole simulated world, four-degree cells share regional
 // conditions, and direct neighbours smooth cell-boundary discontinuities.
 
+import { tickAgriculturalPests, pestYieldMultiplier } from '../economy/agriculturalPests.js?v=20260921-pests1';
+
 function clamp(value, low, high) {
   return Math.max(low, Math.min(high, value));
 }
@@ -30,6 +32,8 @@ export function tickWeather(regions, currentDay, rng = Math.random, elapsedDays 
       region.weather = { index: 0, yieldMultiplier: 1,
         seasonalMultiplier: 1, condition: 'normal' };
     }
+    tickAgriculturalPests(regions, elapsedDays, rng);
+    for (const region of regions) region.weather.yieldMultiplier *= pestYieldMultiplier(region);
     return;
   }
 
@@ -72,5 +76,15 @@ export function tickWeather(regions, currentDay, rng = Math.random, elapsedDays 
       : index >= 0.75 ? 'exceptionally wet' : index >= 0.3 ? 'wet' : 'normal';
     region.weather = { index, yieldMultiplier,
       seasonalMultiplier: seasonalFarmMultiplier(region, currentDay), condition };
+  }
+
+  // Pest ecology is updated after all regions receive the same week's weather,
+  // then its *abnormal* outbreak loss is folded into farm yield. Ordinary pest
+  // losses remain baked into the historical baseline calibration.
+  tickAgriculturalPests(regions, elapsedDays, rng);
+  for (const region of regions) {
+    region.weather.weatherOnlyYieldMultiplier = region.weather.yieldMultiplier;
+    region.weather.pestYieldMultiplier = pestYieldMultiplier(region);
+    region.weather.yieldMultiplier = clamp(region.weather.yieldMultiplier * region.weather.pestYieldMultiplier, 0.30, 1.35);
   }
 }
