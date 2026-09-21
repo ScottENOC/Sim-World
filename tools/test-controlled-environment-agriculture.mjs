@@ -19,9 +19,9 @@ function region(){return {
 };}
 
 {
-  const r=region();const s=ensureControlledEnvironmentAgriculture(r);s.publicSupportPolicy='none';
-  tickControlledEnvironmentAgriculture(r,365.2425);
-  assert.ok(s.greenhouseHa>0,'viable private capital should build some greenhouse capacity');
+  const r=region();const s=ensureControlledEnvironmentAgriculture(r);s.publicSupportPolicy='none';s.greenhouseHa=100;s.greenhouseExperience=.95;
+  const before=s.greenhouseHa;tickControlledEnvironmentAgriculture(r,365.2425);
+  assert.ok(s.greenhouseHa>before,'mature commercially viable greenhouse industry should attract private expansion');
   assert.equal(s.lastPublicSpend,0,'no-support policy must not spend treasury');
   assert.ok(s.lastFoodOutput>0&&s.lastProduceOutput>0,'protected agriculture should create real food and produce stocks');
 }
