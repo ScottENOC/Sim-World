@@ -60,7 +60,7 @@ export function supplementalUrbanWater(region,residual,elapsedDays=7){
 }
 
 export function finaliseUrbanWater(region,allocation,elapsedDays=7){
-  const s=ensureUrbanWater(region),p=region.waterPolicy||{},power=electricityService(region),days=Math.max(.01,positive(elapsedDays)),collection=s.wastewaterCollection;
+  const s=ensureUrbanWater(region),p=region.waterPolicy||{},power=electricityService(region),collection=s.wastewaterCollection;
   const wastewater=positive(allocation?.households)*.78+positive(allocation?.industry)*.56+positive(allocation?.controlledEnvironment)*.18;
   const collected=wastewater*collection,treatmentPolicy=clamp(p.wastewaterTreatment??.55),treatmentFraction=clamp(s.wastewaterTreatment*treatmentPolicy),treated=collected*treatmentFraction,untreated=Math.max(0,wastewater-treated);
   s.wastewaterGenerated=wastewater;s.wastewaterTreated=treated;s.untreatedWastewater=untreated;
@@ -73,5 +73,5 @@ export function finaliseUrbanWater(region,allocation,elapsedDays=7){
   return s;
 }
 
-export function wastewaterPollutionMultiplier(region){const s=ensureUrbanWater(region);const generated=Math.max(.0001,s.wastewaterGenerated);return clamp(s.untreatedWastewater/generated,0,1);}
+export function wastewaterPollutionMultiplier(region){const s=ensureUrbanWater(region);const generated=positive(s.wastewaterGenerated);return generated>.0001?clamp(s.untreatedWastewater/generated,0,1):1;}
 export function urbanWaterProfile(region){const s=ensureUrbanWater(region);return {...s,lastSupplementalAllocation:{...s.lastSupplementalAllocation}};}
