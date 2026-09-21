@@ -1,0 +1,23 @@
+name: Agricultural pests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - feature/agricultural-pests
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check pest ecology integration
+        run: |
+          node --check js/economy/agriculturalPests.js
+          node --check js/economy/foodDiversity.js
+          node --check js/economy/householdFoodSecurity.js
+      - name: Run pest regression
+        run: node tools/test-agricultural-pests.mjs

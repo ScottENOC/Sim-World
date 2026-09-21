@@ -1,5 +1,5 @@
 import { FOOD_CANNING_TECH_ID, MECHANICAL_REFRIGERATION_TECH_ID, CFC_REFRIGERATION_TECH_ID, recordRefrigerationUse } from '../technology/foodPreservationEnvironmentalHealth.js?v=20260919-preservation1';
-import { tickFoodDiversity } from './foodDiversity.js?v=20260921-food-diversity1';
+import { tickFoodDiversity } from './foodDiversity.js?v=20260921-pests1';
 
 const DAYS_PER_YEAR = 365.2425;
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
@@ -121,9 +121,6 @@ export function tickHouseholdFoodSecurity(region, elapsedDays = 7) {
   const diet=tickFoodDiversity(region,elapsedDays);
   s.dietDiversity=diet.diversityIndex;
   s.dietHealthSupport=diet.healthSupport;
-  // Expose this as a small multiplicative health input for demographic/health
-  // systems. Calories still dominate survival; diversity shifts resilience
-  // and chronic nutritional health rather than preventing starvation.
   region.dietaryHealthMultiplier=s.dietHealthSupport;
 
   s.reserveWeeks = s.privateReserve / weeklyNeed;
