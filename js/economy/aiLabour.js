@@ -1,4 +1,5 @@
 import { tickAiControl } from '../technology/aiControl.js?v=20260921-ai-control1';
+import { tickStrategicAiCommand } from '../military/aiStrategicCommand.js?v=20260921-ai-strategic1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
@@ -212,6 +213,7 @@ export function tickAiLabour(region,elapsedDays=7){
 
   region.labourProductivityMultiplier=Math.max(1,Number(region.labourProductivityMultiplier)||1,1+s.productivityGain*s.outputShare);
   tickAiControl(region,elapsedDays);
+  tickStrategicAiCommand(region);
   region.report||={};
   region.report.aiLabour=aiLabourSummary(region);
   return s;
