@@ -1,5 +1,6 @@
 import { ensureInstitutionalGovernment, establishParliament } from './institutionalPowers.js?v=20260916-institutions1';
 import { polityPopularWellbeing } from './popularWellbeing.js?v=20260918-wellbeing1';
+import { ensureElectionIntegrity, tickElectionIntegrity } from './electionInterference.js?v=20260922-election1';
 
 const DAYS_PER_YEAR = 365.2425;
 const clamp = (value, low = 0, high = 1) => Math.max(low, Math.min(high, Number(value) || 0));
@@ -128,7 +129,7 @@ export function assessMassPolitics(polity, regions) {
   ensureInstitutionalGovernment(polity);
   const state = ensureMassPolitics(polity);
   const territories = territoriesFor(polity, regions);
-  if (!territories.length) return { readiness: 0, awareness: 0, organisationTarget: 0, effectiveElectorateShare: 0, representationGap: 0, reformPressure: 0, radicalisationTarget: 0, mobilisationBurden: 0, administrativeCapacity: 0, peacefulParticipation: 0 };
+  if (!territories.length) return { readiness: 0, awareness: 0, organisationTarget: 0, effectiveElectorateShare: 0, representationGap: 0, reformPressure: 0, radicalisationTarget: 0, mobilisationBurden: 0, administrativeCapacity: 0, peacefulParticipation: 0, informationDisorder: 0 };
 
   const lit = weightedAverage(territories, literacy);
   const urban = weightedAverage(territories, urbanisation);
@@ -140,12 +141,19 @@ export function assessMassPolitics(polity, regions) {
   const adminCapacity = administrativeCapacity(polity, territories);
   const wellbeing = polityPopularWellbeing(polity.id, regions);
   const grievance = clamp(wellbeing.grievance || 0);
+  const election = ensureElectionIntegrity(polity);
+  const informationDisorder = clamp(
+    election.disinformationPressure * 0.35 +
+    election.resultContestationRisk * 0.30 +
+    election.foreignInfluencePressure * 0.15 +
+    (1 - election.publicConfidence) * 0.20
+  );
 
   // Mass politics is not unlocked by a date. Literacy, cities, wage work,
   // organised labour and fast communications make large-scale participation
   // practical and make people aware that remote government decisions affect them.
   const readiness = clamp(lit * 0.26 + urban * 0.18 + wage * 0.16 + communications * 0.18 + adminCapacity * 0.14 + unions * 0.08);
-  const awareness = clamp(readiness * 0.72 + mobilisation * 0.13 + fiscal * 0.08 + grievance * 0.07);
+  const awareness = clamp(readiness * 0.72 + mobilisation * 0.13 + fiscal * 0.08 + grievance * 0.07 + informationDisorder * 0.06);
 
   const associationLaw = ASSOCIATION_LAWS[state.policy.associations];
   const organisationTarget = clamp(awareness * (0.28 + associationLaw.organisation * 0.72) + unions * 0.18);
@@ -156,18 +164,27 @@ export function assessMassPolitics(polity, regions) {
   // communicate rules and count results exists on paper but cannot be fully
   // realised. This gives census/administration/communications real value.
   const administrationCeiling = clamp(0.08 + adminCapacity * 0.72 + communications * 0.20);
-  const effectiveElectorateShare = clamp(legalElectorate * Math.min(1, administrationCeiling * 1.35) * institutionFactor);
+  const administeredElectorateShare = clamp(legalElectorate * Math.min(1, administrationCeiling * 1.35) * institutionFactor);
+  // Voter-suppression operations affect participation, not the legal franchise itself.
+  const effectiveElectorateShare = clamp(administeredElectorateShare * (1 - election.turnoutSuppressionPressure * 0.38));
   const representationGap = clamp(awareness * (1 - effectiveElectorateShare * 0.88) * (0.62 + organisationTarget * 0.38));
   const burdenPressure = clamp(mobilisation * 0.45 + fiscal * 0.24 + grievance * 0.31);
-  const reformPressure = clamp(representationGap * 0.68 + burdenPressure * 0.32);
+  const reformPressure = clamp(representationGap * 0.65 + burdenPressure * 0.29 + informationDisorder * 0.06);
   const repression = associationLaw.repression;
   const radicalisationTarget = clamp(
-    Math.max(0, reformPressure - 0.32) * 0.95 +
-    state.repressionMemory * 0.45 + repression * awareness * 0.35 -
-    effectiveElectorateShare * 0.32
+    Math.max(0, reformPressure - 0.32) * 0.90 +
+    state.repressionMemory * 0.42 + repression * awareness * 0.33 -
+    effectiveElectorateShare * 0.30 +
+    election.resultContestationRisk * 0.18 + informationDisorder * 0.12
   );
-  const peacefulParticipation = clamp(effectiveElectorateShare * 0.58 + organisationTarget * (associationLaw.id === 'legal' ? 0.24 : 0.08) + (parliament.established ? parliament.independence * 0.18 : 0));
-  return { readiness, awareness, organisationTarget, effectiveElectorateShare, representationGap, reformPressure, radicalisationTarget, mobilisationBurden: mobilisation, administrativeCapacity: adminCapacity, peacefulParticipation };
+  const peacefulParticipation = clamp(
+    effectiveElectorateShare * 0.54 +
+    organisationTarget * (associationLaw.id === 'legal' ? 0.23 : 0.08) +
+    (parliament.established ? parliament.independence * 0.17 : 0) +
+    election.publicConfidence * 0.10 -
+    election.resultContestationRisk * 0.15 - informationDisorder * 0.08
+  );
+  return { readiness, awareness, organisationTarget, effectiveElectorateShare, representationGap, reformPressure, radicalisationTarget, mobilisationBurden: mobilisation, administrativeCapacity: adminCapacity, peacefulParticipation, informationDisorder };
 }
 
 function nextFranchise(current) {
@@ -235,6 +252,7 @@ function npcPolicyResponse(polity, state, assessment, currentTick) {
 
 export function tickMassPolitics(polities, regions, currentTick = 0, elapsedDays = 7, options = {}) {
   const events = [];
+  tickElectionIntegrity(polities, regions, currentTick, elapsedDays);
   for (const polity of polities || []) {
     const state = ensureMassPolitics(polity);
     const assessment = assessMassPolitics(polity, regions);
@@ -260,13 +278,25 @@ export function tickMassPolitics(polities, regions, currentTick = 0, elapsedDays
     ensureInstitutionalGovernment(polity);
     const parliament = polity.institutions.parliament;
     if (parliament.established) {
-      const representationTarget = clamp(0.05 + state.effectiveElectorateShare * 0.78 + state.organisation * 0.17);
+      const election = ensureElectionIntegrity(polity);
+      const representationTarget = clamp(0.05 + state.effectiveElectorateShare * 0.72 + state.organisation * 0.15 + election.publicConfidence * 0.08 - election.resultContestationRisk * 0.10);
       parliament.representation = smooth(parliament.representation || 0, representationTarget, elapsedDays, 1.2);
     }
 
     if (previousPressure < 0.45 && state.reformPressure >= 0.45 && currentTick - state.lastPressureEventTick >= 26) {
       state.lastPressureEventTick = currentTick;
       events.push({ type: 'mass_politics_reform_pressure', polityId: polity.id, pressure: state.reformPressure, representationGap: state.representationGap, playerRelevant: polity.id === options.playerPolityId });
+    }
+    const election = ensureElectionIntegrity(polity);
+    if (election.resultContestationRisk >= 0.55 && currentTick - (election.lastContestationEventTick ?? -Infinity) >= 26) {
+      election.lastContestationEventTick = currentTick;
+      events.push({
+        type: 'election_legitimacy_contested', polityId: polity.id,
+        contestationRisk: election.resultContestationRisk,
+        publicConfidence: election.publicConfidence,
+        attributionConfidence: election.attributedInterference,
+        playerRelevant: polity.id === options.playerPolityId,
+      });
     }
     events.push(...npcPolicyResponse(polity, state, assessment, currentTick).map((event) => ({ ...event, playerRelevant: polity.id === options.playerPolityId })));
   }
@@ -275,6 +305,7 @@ export function tickMassPolitics(polities, regions, currentTick = 0, elapsedDays
 
 export function massPoliticsSummary(polity) {
   const state = ensureMassPolitics(polity);
+  const election = ensureElectionIntegrity(polity);
   return {
     franchise: state.policy.franchise,
     franchiseLabel: FRANCHISE_LEVELS[state.policy.franchise].label,
@@ -291,5 +322,12 @@ export function massPoliticsSummary(polity) {
     mobilisationMemory: state.mobilisationMemory,
     administrativeCapacity: state.administrativeCapacity,
     peacefulParticipation: state.peacefulParticipation,
+    electionIntegrity: {
+      publicConfidence: election.publicConfidence,
+      foreignInfluencePressure: election.foreignInfluencePressure,
+      disinformationPressure: election.disinformationPressure,
+      turnoutSuppressionPressure: election.turnoutSuppressionPressure,
+      resultContestationRisk: election.resultContestationRisk,
+    },
   };
 }

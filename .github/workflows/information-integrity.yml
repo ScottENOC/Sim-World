@@ -1,0 +1,42 @@
+name: Information integrity and election interference
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [feature/post-truth-information-integrity]
+    paths:
+      - 'js/diplomacy/informationIntegrity.js'
+      - 'js/diplomacy/counterIntelligence.js'
+      - 'js/politics/electionInterference.js'
+      - 'js/politics/massPolitics.js'
+      - 'js/technology/aiControl.js'
+      - 'tests/informationIntegrity.test.mjs'
+      - '.github/workflows/information-integrity.yml'
+  workflow_dispatch:
+
+jobs:
+  information-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks
+        run: |
+          node --check js/diplomacy/informationIntegrity.js
+          node --check js/diplomacy/counterIntelligence.js
+          node --check js/politics/electionInterference.js
+          node --check js/politics/massPolitics.js
+          node --check js/technology/aiControl.js
+          node --check tests/informationIntegrity.test.mjs
+      - name: Information integrity regressions
+        run: node tests/informationIntegrity.test.mjs
+      - name: Existing AI compatibility
+        run: |
+          node tests/aiLabour.test.mjs
+          node tests/aiStrategicControl.test.mjs
+          node tests/aiSystemicRisk.test.mjs
+      - name: Diff sanity
+        run: git diff --check
