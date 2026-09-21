@@ -30,7 +30,9 @@ function weatherRisk(region){
   const warm=clamp(1-Math.abs(Number(region.centroid?.[1])||0)/65);
   const wet=clamp((index+0.1)/1.2);
   const drought=clamp((-index-0.2)/1.4);
-  return clamp(warm*wet*0.72+drought*0.38+Math.max(0,(region.climate?.temperatureAnomalyC||0))*0.05);
+  // Warmth strongly amplifies wet-season insect/fungal pressure, but even
+  // temperate wet regions remain vulnerable rather than dropping to near zero.
+  return clamp(wet*(0.30+warm*0.48)+drought*0.38+Math.max(0,(region.climate?.temperatureAnomalyC||0))*0.05);
 }
 
 function tradeExposure(region){
