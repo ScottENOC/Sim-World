@@ -95,7 +95,7 @@ function ownershipBroadness(region){
     Number(o.householdShare)||0,
     Number(o.workerShare)||0,
     Number(o.publicShare)||0,
-    Number(region.socialProtection?.coverage)||0*.35,
+    (Number(region.socialProtection?.coverage)||0)*.35,
   ));
 }
 
@@ -143,7 +143,9 @@ function sectorProfile(region,adoption,capability,demand,workers,employers){
     const aug=clamp(effectiveAdoption*def.augmentation*(.35+.65*capability),0,.80);
     const sub=clamp(effectiveAdoption*def.substitution*Math.max(0,capability-.12),0,.72);
     const comp=clamp(effectiveAdoption*def.complementarity*(.45+.55*demand),0,.42);
-    const sectorDemand=clamp(demand+(key==='healthcare'||key==='research'?.12:0)+(key==='military'&&region.warEconomy?.defendingCampaigns?.18:0));
+    const publicDemand=(key==='healthcare'||key==='research')?.12:0;
+    const wartimeDemand=(key==='military'&&region.warEconomy?.defendingCampaigns)?.18:0;
+    const sectorDemand=clamp(demand+publicDemand+wartimeDemand);
     const leisure=clamp(workerBargain*(.14+.48*aug));
     const shedding=clamp(sub*(.32+.68*employerBargain)*(1-sectorDemand*.48));
     const growth=clamp(aug*(.28+.72*sectorDemand)*(1-shedding*.50)+comp*.35);
@@ -152,6 +154,13 @@ function sectorProfile(region,adoption,capability,demand,workers,employers){
     productivity+=weight*aug;substitution+=weight*sub;complementarity+=weight*comp;displacement+=weight*autoDisp;demandBoost+=weight*clamp(growth+comp*sectorDemand,0,.65);
   }
   return {sectors,productivityGain:clamp(productivity,0,.65),substitutionPressure:clamp(substitution,0,.55),complementarity:clamp(complementarity,0,.30),automationDisplacementRate:clamp(displacement,0,.34),aiDemandBoost:clamp(demandBoost,0,.55)};
+}
+
+export function aiSectorOutputMultiplier(region,sector){
+  const s=ensureAiLabourState(region);
+  const p=s.sectors?.[sector];
+  if(!p)return 1;
+  return Math.max(1,1+(Number(p.productivityGain)||0)*(Number(p.outputClaim)||0));
 }
 
 export function tickAiLabour(region,elapsedDays=7){
