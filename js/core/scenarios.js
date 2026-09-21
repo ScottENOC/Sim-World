@@ -1,7 +1,20 @@
 // Scenario selection is deliberately separate from simulation mechanics.
 // A scenario chooses a map package, initial date/rules profile and victory model;
 // the ordinary simulation modules continue to load their normal data/world/* URLs.
-// For alternate scenarios we redirect those URLs to the selected map package.
+// Alternate scenarios redirect only the explicit map contract, leaving shared
+// game definitions (for example toolTypes.json) on the common data/world path.
+
+export const SCENARIO_MAP_FILES = Object.freeze(new Set([
+  'regions.geo.json',
+  'regions.meta.json',
+  'region-navigation.json',
+  'resources.initial.json',
+  'terrain.initial.json',
+  'seaRegions.geo.json',
+  'seaRegions.meta.json',
+  'spatial.base.json',
+  'majorRivers.real.json',
+]));
 
 export const SCENARIOS = Object.freeze([
   Object.freeze({
@@ -49,7 +62,7 @@ export const SCENARIOS = Object.freeze([
     targetRealHours: 30,
     targetSimYears: 6,
     available: false,
-    status: 'Scenario map, ownership and initial diplomatic state to be authored',
+    status: 'Runtime/state scaffolds are ready; dedicated strategic geometry is under construction',
   }),
 ]);
 
@@ -69,7 +82,13 @@ function stripWorldPrefix(url) {
   const marker = 'data/world/';
   const index = value.indexOf(marker);
   if (index < 0) return null;
-  return { prefix: value.slice(0, index), suffix: value.slice(index + marker.length) };
+  const suffix = value.slice(index + marker.length);
+  const path = suffix.split(/[?#]/, 1)[0];
+  return { prefix: value.slice(0, index), suffix, path };
+}
+
+export function isScenarioMapAsset(relativePath) {
+  return SCENARIO_MAP_FILES.has(String(relativePath || '').split(/[?#]/, 1)[0]);
 }
 
 export function scenarioAssetUrl(relativePath, scenario = selectedScenario) {
@@ -84,10 +103,10 @@ export function installScenarioFetchRouting() {
   window.fetch = async (input, init) => {
     const rawUrl = typeof input === 'string' || input instanceof URL ? String(input) : input?.url;
     const parts = stripWorldPrefix(rawUrl);
-    if (!parts) return originalFetch(input, init);
+    if (!parts || !isScenarioMapAsset(parts.path)) return originalFetch(input, init);
 
-    // main.js starts loading immediately. Holding world-data requests here keeps
-    // startup deterministic without making every world loader scenario-aware.
+    // main.js starts loading immediately. Holding only map-data requests here keeps
+    // startup deterministic without accidentally redirecting shared definitions.
     const scenario = await waitForScenarioSelection();
     if (scenario.mapBaseUrl === 'data/world/') return originalFetch(input, init);
 
@@ -116,5 +135,5 @@ export function scenarioStartYear(fallback = -1300) {
 }
 
 // Install as soon as this module is imported, before main.js reaches its first
-// data/world/* fetch. The picker resolves the held requests when a scenario is chosen.
+// map-data fetch. The picker resolves held map requests when a scenario is chosen.
 installScenarioFetchRouting();
