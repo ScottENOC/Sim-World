@@ -1,3 +1,5 @@
+import { availableBatteryCapacityFromCells, consumeBatteryCellsForCapacity } from './batterySupplyChain.js?v=20260921-battery-chain1';
+
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const nonNegative=(v)=>Math.max(0,Number(v)||0);
 
@@ -22,8 +24,9 @@ export function batteryCapability(region){
 }
 
 export function ensureBatteryStorage(region){
-  region.batteryStorage||={installedCapacity:0,storedEnergy:0,maxChargeRate:0,maxDischargeRate:0,throughput:0,losses:0,lastCharge:0,lastDischarge:0};
+  region.batteryStorage||={installedCapacity:0,storedEnergy:0,maxChargeRate:0,maxDischargeRate:0,throughput:0,losses:0,lastCharge:0,lastDischarge:0,installedByChemistry:{}};
   const state=region.batteryStorage;
+  state.installedByChemistry ||= {};
   state.installedCapacity=nonNegative(state.installedCapacity);
   state.storedEnergy=clamp(state.storedEnergy,0,state.installedCapacity);
   if(!Number.isFinite(state.maxChargeRate)||state.maxChargeRate<=0)state.maxChargeRate=state.installedCapacity*.38;
@@ -31,16 +34,44 @@ export function ensureBatteryStorage(region){
   return state;
 }
 
-export function installBatteryStorage(region,capacity,{chargeRate=null,dischargeRate=null}={}){
+export function installBatteryStorage(region,capacity,{chargeRate=null,dischargeRate=null,requireCells=true}={}){
   const capability=batteryCapability(region);
   if(!capability)return{installed:false,reason:'battery_technology_unavailable'};
   const state=ensureBatteryStorage(region);
-  const added=nonNegative(capacity);
-  if(added<=0)return{installed:false,reason:'invalid_capacity'};
+  const requested=nonNegative(capacity);
+  if(requested<=0)return{installed:false,reason:'invalid_capacity'};
+
+  let added=requested;
+  let cellsUsed=0;
+  let cellGood=null;
+  if(requireCells){
+    const material=consumeBatteryCellsForCapacity(region,capability.id,requested);
+    added=material.capacity;
+    cellsUsed=material.cellsUsed;
+    cellGood=material.good;
+    if(added<=0)return{
+      installed:false,
+      reason:'battery_cells_unavailable',
+      chemistry:capability.id,
+      availableCellCapacity:availableBatteryCapacityFromCells(region,capability.id),
+      cellGood,
+    };
+  }
+
   state.installedCapacity+=added;
+  state.installedByChemistry[capability.id]=nonNegative(state.installedByChemistry[capability.id])+added;
   state.maxChargeRate=chargeRate==null?state.installedCapacity*(.25+capability.powerDensity*.22):nonNegative(chargeRate);
   state.maxDischargeRate=dischargeRate==null?state.installedCapacity*(.30+capability.powerDensity*.28):nonNegative(dischargeRate);
-  return{installed:true,addedCapacity:added,capacity:state.installedCapacity,chemistry:capability.id};
+  return{
+    installed:true,
+    requestedCapacity:requested,
+    addedCapacity:added,
+    capacity:state.installedCapacity,
+    chemistry:capability.id,
+    cellsUsed,
+    cellGood,
+    materialLimited:added+1e-9<requested,
+  };
 }
 
 export function dispatchBatteryStorage(region,{surplus=0,shortfall=0,elapsedDays=7}={}){
