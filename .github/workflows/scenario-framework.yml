@@ -1,0 +1,30 @@
+name: Scenario Framework
+
+on:
+  pull_request:
+    paths:
+      - 'js/core/scenarios.js'
+      - 'js/core/clock.js'
+      - 'js/ui/startupPicker.js'
+      - 'tools/test-scenario-framework.mjs'
+      - '.github/workflows/scenario-framework.yml'
+      - 'docs/SCENARIOS.md'
+  push:
+    branches: [ main ]
+    paths:
+      - 'js/core/scenarios.js'
+      - 'js/core/clock.js'
+      - 'js/ui/startupPicker.js'
+      - 'tools/test-scenario-framework.mjs'
+      - '.github/workflows/scenario-framework.yml'
+      - 'docs/SCENARIOS.md'
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node tools/test-scenario-framework.mjs
