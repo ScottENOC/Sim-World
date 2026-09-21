@@ -1,12 +1,10 @@
 import { effectiveInfrastructureCount } from './construction.js?v=20260914-water3';
 import { agriculturalLandYieldFactor } from './agriculturalLand.js?v=20260921-arable1';
 import { fertiliserYieldMultiplier } from './agriculturalFertiliser.js?v=20260921-fertiliser1';
+import { pestYieldMultiplier } from './agriculturalPests.js?v=20260921-pests1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
-// Translate physical water state into an agricultural modifier. Groundwater is
-// deliberately excluded until pumping/recharge mechanics exist: surface works
-// cannot conjure an infinite aquifer.
 export function agriculturalWaterProfile(region,{weatherMultiplier=1}={}){
   const irrigation=Math.max(0,effectiveInfrastructureCount(region,'irrigation'));
   const canal=Math.max(0,effectiveInfrastructureCount(region,'canal'));
@@ -31,11 +29,11 @@ export function agriculturalWaterProfile(region,{weatherMultiplier=1}={}){
   const landYieldFactor=agriculturalLandYieldFactor(region);
   const harvestRetention=Math.max(1,Number(region.agriculturalMachinery?.harvestRetention)||1);
   const fertiliserMultiplier=fertiliserYieldMultiplier(region);
-  // These are deliberately distinct channels: irrigation changes water supply,
-  // combines reduce harvest losses, and fertiliser changes biological yield per
-  // hectare. None of them creates additional arable land.
-  const yieldMultiplier=irrigationYieldMultiplier*landYieldFactor*harvestRetention*fertiliserMultiplier;
+  const pestMultiplier=pestYieldMultiplier(region);
+  // Pest losses are abnormal losses only. Ordinary historical pest pressure is
+  // already baked into baseline crop yields, so an average year remains 1.0.
+  const yieldMultiplier=irrigationYieldMultiplier*landYieldFactor*harvestRetention*fertiliserMultiplier*pestMultiplier;
 
   return {riverCount,flowAvailability,surfaceReliability,effectiveIrrigation,droughtProtection,yieldMultiplier,
-    irrigationYieldMultiplier,landYieldFactor,harvestRetention,fertiliserMultiplier,surfaceInflow:inflow,surfaceWithdrawal:withdrawal,groundwaterUsed:0};
+    irrigationYieldMultiplier,landYieldFactor,harvestRetention,fertiliserMultiplier,pestMultiplier,surfaceInflow:inflow,surfaceWithdrawal:withdrawal,groundwaterUsed:0};
 }
