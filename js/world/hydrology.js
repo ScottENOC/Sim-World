@@ -1,5 +1,6 @@
 import { changeAttitude } from '../diplomacy/relations.js?v=20260914-water1';
-import { prepareRegionalWaterDemand, requestedSurfaceWithdrawalForRiver, finaliseRegionalWaterBalance } from './waterResources.js?v=20260921-water-quantity1';
+import { prepareRegionalWaterDemand, requestedSurfaceWithdrawalForRiver, finaliseRegionalWaterBalance } from './waterResources.js?v=20260921-water-quantity2';
+import { wastewaterPollutionMultiplier } from './urbanWater.js?v=20260921-urban-water1';
 
 const DAYS_PER_YEAR=365.2425;
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
@@ -23,16 +24,15 @@ export function ensureRegionalHydrology(region){
   if(!Number.isFinite(h.groundwater.rechargeMultiplier))h.groundwater.rechargeMultiplier=1;
   if(!Number.isFinite(h.groundwater.withdrawal))h.groundwater.withdrawal=0;
   if(!Number.isFinite(h.waterImpactAwareness))h.waterImpactAwareness=0;
+  if(!Number.isFinite(h.ecologicalHealth))h.ecologicalHealth=1;
   if(!h.report||typeof h.report!=='object')h.report={};
   if(!region.waterPolicy||typeof region.waterPolicy!=='object')region.waterPolicy={};
   if(!region.waterPolicy.operatingPriority)region.waterPolicy.operatingPriority='balanced';
-  if(!Number.isFinite(region.waterPolicy.surfaceWithdrawalIntensity))region.waterPolicy.surfaceWithdrawalIntensity=.5;
-  if(!Number.isFinite(region.waterPolicy.targetReservoirFill))region.waterPolicy.targetReservoirFill=.55;
-  if(!Number.isFinite(region.waterPolicy.targetDownstreamFlow))region.waterPolicy.targetDownstreamFlow=.82;
+  for(const [key,value] of Object.entries({surfaceWithdrawalIntensity:.5,targetReservoirFill:.55,targetDownstreamFlow:.82,drinkingWaterTreatment:.7,wastewaterTreatment:.55,waterReuse:.25,desalination:.12,demandEfficiency:.08,agriculturalRunoffControl:0,industrialDischargeControl:0}))if(!Number.isFinite(region.waterPolicy[key]))region.waterPolicy[key]=value;
   return h;
 }
 
-export function setWaterPolicy(region,patch={}){ensureRegionalHydrology(region);const allowed=['surfaceWithdrawalIntensity','targetReservoirFill','targetDownstreamFlow','wastewaterTreatment','agriculturalRunoffControl','industrialDischargeControl'];for(const key of allowed)if(patch[key]!==undefined)region.waterPolicy[key]=clamp(patch[key]);return region.waterPolicy;}
+export function setWaterPolicy(region,patch={}){ensureRegionalHydrology(region);const allowed=['surfaceWithdrawalIntensity','targetReservoirFill','targetDownstreamFlow','drinkingWaterTreatment','wastewaterTreatment','waterReuse','desalination','demandEfficiency','agriculturalRunoffControl','industrialDischargeControl'];for(const key of allowed)if(patch[key]!==undefined)region.waterPolicy[key]=clamp(patch[key]);return region.waterPolicy;}
 export function setWaterOperatingPriority(region,priority='balanced'){
   ensureRegionalHydrology(region);const profiles={balanced:{targetReservoirFill:.55,targetDownstreamFlow:.82},irrigation:{targetReservoirFill:.72,targetDownstreamFlow:.62},flood_control:{targetReservoirFill:.35,targetDownstreamFlow:.86},downstream:{targetReservoirFill:.48,targetDownstreamFlow:1},hydropower:{targetReservoirFill:.62,targetDownstreamFlow:.92}},selected=profiles[priority]||profiles.balanced;region.waterPolicy.operatingPriority=profiles[priority]?priority:'balanced';Object.assign(region.waterPolicy,selected);return region.waterPolicy;
 }
@@ -53,11 +53,12 @@ function regulateFlow(region,river,inflow,naturalFlow,elapsedDays){
   return{outflow:Math.max(0,outflow),stored:store.stored,storageChange,floodPeakReduction,hydropowerPotential};
 }
 
-function pollutionSources(region,elapsedDays){const monthScale=Math.max(.01,positive(elapsedDays)/30),population=positive(region?.population),farmers=positive(region?.report?.farming?.workers),drainage=hasAsset(region,'urban_drainage'),wastewaterTreatment=clamp(region?.waterPolicy?.wastewaterTreatment??0),farmControls=clamp(region?.waterPolicy?.agriculturalRunoffControl??0),industrialControls=clamp(region?.waterPolicy?.industrialDischargeControl??0),sewageControl=clamp((drainage?.12:0)+wastewaterTreatment*.86),pathogen=population*.0000022*(1-sewageControl)*monthScale,nutrients=farmers*.0000014*(1-farmControls*.82)*monthScale,chemicals=positive(region?.industrialChemicalDischarge)*(1-industrialControls*.92)*monthScale;return{pathogen,nutrients,chemicals};}
+function pollutionSources(region,elapsedDays){const monthScale=Math.max(.01,positive(elapsedDays)/30),population=positive(region?.population),farmers=positive(region?.report?.farming?.workers),drainage=hasAsset(region,'urban_drainage'),legacyDrainageControl=drainage?.12:0,wasteFactor=wastewaterPollutionMultiplier(region),farmControls=clamp(region?.waterPolicy?.agriculturalRunoffControl??0),industrialControls=clamp(region?.waterPolicy?.industrialDischargeControl??0),sewageControl=clamp(Math.max(legacyDrainageControl,1-wasteFactor)),pathogen=population*.0000022*(1-sewageControl)*monthScale,nutrients=farmers*.0000014*(1-farmControls*.82)*monthScale,chemicals=positive(region?.industrialChemicalDischarge)*(1-industrialControls*.92)*monthScale;return{pathogen,nutrients,chemicals};}
 function addPollution(a,b){return{pathogen:positive(a?.pathogen)+positive(b?.pathogen),nutrients:positive(a?.nutrients)+positive(b?.nutrients),chemicals:positive(a?.chemicals)+positive(b?.chemicals)};}
 function decayPollution(load,elapsedDays){const days=positive(elapsedDays);return{pathogen:positive(load?.pathogen)*Math.pow(.5,days/18),nutrients:positive(load?.nutrients)*Math.pow(.5,days/120),chemicals:positive(load?.chemicals)*Math.pow(.5,days/720)};}
 function concentration(load,flow){const dilution=Math.max(.08,positive(flow));return{pathogen:positive(load?.pathogen)/dilution,nutrients:positive(load?.nutrients)/dilution,chemicals:positive(load?.chemicals)/dilution};}
 function healthRisk(c){return clamp(c.pathogen*4.8+c.nutrients*.35+c.chemicals*2.6,0,1);}
+function ecologicalStress(flowRatio,risk){const lowFlow=clamp(Math.max(0,.75-flowRatio)/.75);return clamp(lowFlow*.68+clamp(risk)*.52);}
 function awareness(region,harm){const h=ensureRegionalHydrology(region),technical=region?.unlockedTechIds?.has?.('water_management')?.35:0,advanced=region?.unlockedTechIds?.has?.('hydraulic_engineering')?.25:0,recognisedDisease=Object.values(region?.disease?.pathogens||{}).some(p=>p?.recognised)?.15:0;h.waterImpactAwareness=clamp(h.waterImpactAwareness+(technical+advanced+recognisedDisease+harm*.4)*.025);return h.waterImpactAwareness;}
 function applyDiplomaticExternality(victim,source,severity,cause,currentTick){if(!victim||!source||victim.id===source.id||polityId(victim)===polityId(source))return null;const known=awareness(victim,severity);if(known<.18||severity<.015)return null;const penalty=-Math.min(.08,severity*(.025+known*.09));changeAttitude(victim,source.id,penalty,cause,currentTick);return{type:'water_externality',victimRegionId:victim.id,sourceRegionId:source.id,cause,severity,penalty};}
 function riverSegments(river){const segments=river?.regionSegments||[];return segments.length?segments:(river?.regionIds||[]).map(regionId=>({regionId}));}
@@ -67,18 +68,18 @@ export function activeHydrology(){return activeHydrologyGraph;}
 
 export function tickHydrology(graph,regions=[],currentDay=0,elapsedDays=30){
   if(!graph?.corridors)return[];const byId=new Map(regions.map(region=>[region.id,region])),events=[];
-  for(const region of regions){const h=ensureRegionalHydrology(region);prepareRegionalWaterDemand(region,elapsedDays);h.report={surfaceInflow:0,surfaceOutflow:0,surfaceWithdrawal:0,managedRelease:0,waterHealthRisk:0,riverCount:0,floodPeakReduction:0,hydropowerPotential:0};}
+  for(const region of regions){const h=ensureRegionalHydrology(region);prepareRegionalWaterDemand(region,elapsedDays);h.report={surfaceInflow:0,surfaceOutflow:0,surfaceWithdrawal:0,managedRelease:0,waterHealthRisk:0,ecologicalStress:0,riverCount:0,floodPeakReduction:0,hydropowerPotential:0};}
   for(const river of graph.corridors.values()){
     if(river?.type!=='river')continue;const segments=riverSegments(river);if(!segments.length)continue;const naturalCapacity=Math.max(.15,Number(river?.naturalHydrology?.capacity)||Number(river?.navigation?.naturalCapacity)||Number(river?.strength)||.35);let upstreamFlow=0,pollution={pathogen:0,nutrients:0,chemicals:0},previousRegion=null,flowSum=0,minFlowRatio=Infinity;river.hydrology=river.hydrology||{segments:{}};river.hydrology.segments={};
     for(let i=0;i<segments.length;i++){
       const segment=segments[i],region=byId.get(segment.regionId);if(!region)continue;const runoff=seasonalRunoffMultiplier(region,river,currentDay),localNatural=naturalCapacity*(.55+(i+1)/segments.length*.75)*runoff,naturalInflow=upstreamFlow+localNatural,withdrawal=managedWithdrawal(region,naturalInflow),afterWithdrawal=Math.max(0,naturalInflow-withdrawal),regulated=regulateFlow(region,river,afterWithdrawal,localNatural,elapsedDays),outflow=regulated.outflow;
-      pollution=decayPollution(pollution,elapsedDays/Math.max(1,segments.length));pollution=addPollution(pollution,pollutionSources(region,elapsedDays));const c=concentration(pollution,outflow),risk=healthRisk(c),flowRatio=outflow/Math.max(.05,naturalInflow),h=ensureRegionalHydrology(region);h.report.surfaceInflow+=naturalInflow;h.report.surfaceOutflow+=outflow;h.report.surfaceWithdrawal+=withdrawal;h.report.managedRelease+=Math.max(0,-regulated.storageChange);h.report.waterHealthRisk=Math.max(h.report.waterHealthRisk,risk);h.report.floodPeakReduction=Math.max(h.report.floodPeakReduction,regulated.floodPeakReduction||0);h.report.hydropowerPotential+=regulated.hydropowerPotential||0;h.report.riverCount+=1;h.waterHealthRisk=h.report.waterHealthRisk;h.waterborneDiseasePressure=clamp(risk*.45);
-      river.hydrology.segments[region.id]={regionId:region.id,naturalInflow,outflow,flowRatio,withdrawal,stored:regulated.stored,storageChange:regulated.storageChange,floodPeakReduction:regulated.floodPeakReduction||0,hydropowerPotential:regulated.hydropowerPotential||0,pollutionLoad:{...pollution},concentration:c,waterHealthRisk:risk};flowSum+=outflow;minFlowRatio=Math.min(minFlowRatio,flowRatio);
+      pollution=decayPollution(pollution,elapsedDays/Math.max(1,segments.length));pollution=addPollution(pollution,pollutionSources(region,elapsedDays));const c=concentration(pollution,outflow),risk=healthRisk(c),flowRatio=outflow/Math.max(.05,naturalInflow),ecoStress=ecologicalStress(flowRatio,risk),h=ensureRegionalHydrology(region);h.report.surfaceInflow+=naturalInflow;h.report.surfaceOutflow+=outflow;h.report.surfaceWithdrawal+=withdrawal;h.report.managedRelease+=Math.max(0,-regulated.storageChange);h.report.waterHealthRisk=Math.max(h.report.waterHealthRisk,risk);h.report.ecologicalStress=Math.max(h.report.ecologicalStress,ecoStress);h.report.floodPeakReduction=Math.max(h.report.floodPeakReduction,regulated.floodPeakReduction||0);h.report.hydropowerPotential+=regulated.hydropowerPotential||0;h.report.riverCount+=1;h.waterHealthRisk=h.report.waterHealthRisk;h.waterborneDiseasePressure=clamp(risk*.45*(region?.urbanWater?.waterborneRiskMultiplier??1));
+      river.hydrology.segments[region.id]={regionId:region.id,naturalInflow,outflow,flowRatio,withdrawal,stored:regulated.stored,storageChange:regulated.storageChange,floodPeakReduction:regulated.floodPeakReduction||0,hydropowerPotential:regulated.hydropowerPotential||0,pollutionLoad:{...pollution},concentration:c,waterHealthRisk:risk,ecologicalStress:ecoStress};flowSum+=outflow;minFlowRatio=Math.min(minFlowRatio,flowRatio);
       if(previousRegion){const quantityHarm=clamp((1-flowRatio)*.7),pollutionHarm=clamp(risk*.8),quantityEvent=applyDiplomaticExternality(region,previousRegion,quantityHarm,'upstream_water_reduction',currentDay),pollutionEvent=applyDiplomaticExternality(region,previousRegion,pollutionHarm,'upstream_water_pollution',currentDay);if(quantityEvent)events.push(quantityEvent);if(pollutionEvent)events.push(pollutionEvent);}previousRegion=region;upstreamFlow=outflow;
     }
     river.hydrology.aggregate={meanOutflow:flowSum/Math.max(1,segments.length),minFlowRatio:Number.isFinite(minFlowRatio)?minFlowRatio:1,mouthPollution:{...pollution}};river.hydrology.lastUpdatedDay=currentDay;
   }
-  for(const region of regions)finaliseRegionalWaterBalance(region,elapsedDays);
+  const years=Math.max(0,positive(elapsedDays))/DAYS_PER_YEAR;for(const region of regions){const h=ensureRegionalHydrology(region),stress=clamp(h.report.ecologicalStress||0),loss=stress*(.08+.18*stress)*years,recovery=(1-stress)*(1-h.ecologicalHealth)*.12*years;h.ecologicalHealth=clamp(h.ecologicalHealth-loss+recovery,.05,1);h.report.ecologicalHealth=h.ecologicalHealth;finaliseRegionalWaterBalance(region,elapsedDays);}
   return events;
 }
 
