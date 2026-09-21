@@ -1,0 +1,1 @@
+Fractured World baseline map snapshot. Physical map files in this directory are independent Git paths initially copied from the current Grand Campaign world contract. Scenario-specific strategic splits and modernisation can now diverge without changing data/world.
