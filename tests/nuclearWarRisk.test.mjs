@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { assessNuclearWarRisk, ensureNuclearRiskState, setNuclearRiskPolicy, tickNuclearWarRisk, NUCLEAR_ALERT_POSTURES, NUCLEAR_DOCTRINES } from '../js/military/nuclearWarRisk.js';
+import { assessNuclearWarRisk, setNuclearRiskPolicy, tickNuclearWarRisk, NUCLEAR_ALERT_POSTURES, NUCLEAR_DOCTRINES } from '../js/military/nuclearWarRisk.js';
 
 function nuclearRegion(id='a'){
   return {
@@ -50,10 +50,12 @@ function nuclearRegion(id='a'){
   const a=nuclearRegion('a'),b=nuclearRegion('b'),c=nuclearRegion('c'),d=nuclearRegion('d');
   for(const r of [a,b,c,d])setNuclearRiskPolicy(r,{alertPosture:NUCLEAR_ALERT_POSTURES.NORMAL,launchOnWarning:.2,forceSurvivability:.5});
   a.strategicCrisisPressure=.55;
-  const bipolar=assessNuclearWarRisk(a,{regions:[a,b]});
+  const bipolarState=assessNuclearWarRisk(a,{regions:[a,b]});
+  const bipolarPressure=bipolarState.multipolarPressure;
+  const bipolarRisk=bipolarState.annualCatastrophicExchangeRisk;
   const multipolar=assessNuclearWarRisk(a,{regions:[a,b,c,d]});
-  assert.ok(multipolar.multipolarPressure>bipolar.multipolarPressure,'additional nuclear powers should increase multipolar coordination pressure');
-  assert.ok(multipolar.annualCatastrophicExchangeRisk>=bipolar.annualCatastrophicExchangeRisk,'all else equal, multipolar complexity should not reduce systemic exchange risk');
+  assert.ok(multipolar.multipolarPressure>bipolarPressure,'additional nuclear powers should increase multipolar coordination pressure');
+  assert.ok(multipolar.annualCatastrophicExchangeRisk>=bipolarRisk,'all else equal, multipolar complexity should not reduce systemic exchange risk');
 }
 
 {
