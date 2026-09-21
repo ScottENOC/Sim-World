@@ -13,6 +13,7 @@ import { tickSoilDegradation, soilDegradationSummary } from './soilDegradation.j
 import { tickAgriculturalGenetics, agriculturalGeneticsSummary } from './agriculturalGenetics.js?v=20260921-genetics1';
 import { cropBreedingSummary } from './cropBreeding.js?v=20260921-breeding1';
 import { tickPrecisionAgriculture, precisionAgricultureSummary } from './precisionAgriculture.js?v=20260921-precision-ag1';
+import { tickNuclearWarRisk } from '../military/nuclearWarRisk.js?v=20260921-nuclear-risk1';
 export * from './laborCore.js?v=20260905-merchant1';
 export * from './housing.js?v=20260916-housing1';
 export * from './employmentAndHardship.js?v=20260918-employment1';
@@ -121,5 +122,6 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
       normaliseReportMetadata(region);
     }
   }
+  tickNuclearWarRisk(regions, globalThis.__worldsim?.activeWars || [], currentTick ?? 0, elapsedDays, rng);
   return tickEmploymentAndHardship(regions, currentTick ?? 0, elapsedDays, { playerPolityId: globalThis.__worldsim?.activePlayerPolityId || null });
 }
