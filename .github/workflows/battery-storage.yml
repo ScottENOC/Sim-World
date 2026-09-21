@@ -6,6 +6,7 @@ on:
     branches:
       - feature/grid-and-mobile-batteries
       - feature/battery-grid-interconnectors
+      - fix/interconnector-household-service
 
 jobs:
   test:
