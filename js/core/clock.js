@@ -1,4 +1,5 @@
 import { TIME_RESOLUTIONS, formatHistoricalDate, resolutionForWorld } from './simTime.js?v=20260905-time1';
+import { scenarioStartYear } from './scenarios.js?v=20260921-scenarios1';
 
 // 1x aims for roughly two real seconds per turn. Historical time covered by a
 // turn is independent of wall-clock speed and can contract as the simulated
@@ -177,5 +178,7 @@ export class Clock {
     this._nextTickAt = null;
   }
 
-  formatDate(startYear) { return formatHistoricalDate(startYear, this.elapsedDays, this.daysPerTick); }
+  formatDate(startYear) {
+    return formatHistoricalDate(scenarioStartYear(startYear), this.elapsedDays, this.daysPerTick);
+  }
 }
