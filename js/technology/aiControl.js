@@ -34,11 +34,21 @@ function inferredAccess(region,s){
   const sectors=region.aiLabour?.sectors||{};
   const adoption=clamp(region.aiLabour?.adoption||0);
   const caution=clamp(s.policy.deploymentCaution);
+  const strategic=region.strategicAi?.policy||{};
+  const explicitMilitary=Math.max(
+    Number(region.aiMilitaryIntegration)||0,
+    Number(strategic.militaryDecisionSupport)||0,
+    (Number(strategic.earlyWarningIntegration)||0)*.85,
+  );
+  const explicitNuclear=Math.max(
+    Number(region.aiNuclearCommandIntegration)||0,
+    Number(strategic.nuclearCommandIntegration)||0,
+  );
   const civilian=clamp(Math.max(s.access.civilianDigital,adoption*(.35+.35*(sectors.services?.adoption||0))));
   const industrial=clamp(Math.max(s.access.industrial,adoption*(sectors.manufacturing?.adoption||0)*(.45+.35*(1-caution))));
   const infrastructure=clamp(Math.max(s.access.infrastructure,adoption*(sectors.logistics?.adoption||0)*(.22+.30*(1-caution))));
-  const military=clamp(Math.max(s.access.military,Number(region.aiMilitaryIntegration)||0));
-  const nuclearCommand=clamp(Math.max(s.access.nuclearCommand,Number(region.aiNuclearCommandIntegration)||0));
+  const military=clamp(Math.max(s.access.military,explicitMilitary));
+  const nuclearCommand=clamp(Math.max(s.access.nuclearCommand,explicitNuclear));
   return {civilianDigital:civilian,industrial,infrastructure,military,nuclearCommand};
 }
 
