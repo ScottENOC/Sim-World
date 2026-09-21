@@ -1,8 +1,9 @@
 import { currentScenario, waitForScenarioSelection } from './scenarios.js?v=20260921-scenarios2';
-import { hydrateScenarioInitialState, scenarioPlayablePolities } from './scenarioState.js?v=20260921-scenario-state2';
+import { hydrateScenarioInitialState, scenarioPlayablePolities } from './scenarioState.js?v=20260921-scenario-state3';
 import { updateFocusedCampaignResolution, canDeclareFocusedScenarioResult } from './scenarioVictory.js?v=20260921-scenario-victory2';
 import { consolidateScenarioSovereignty } from './scenarioSovereignty.js?v=20260921-scenario-sovereignty2';
 import { applyModernScenarioBaseline } from './scenarioModernStart.js?v=20260921-modern-start1';
+import { hydrateScenarioForceDeployments } from './scenarioForces.js?v=20260921-scenario-forces1';
 
 const jsonClone = (value) => JSON.parse(JSON.stringify(value));
 const arr = (value) => Array.isArray(value) ? value : [];
@@ -26,7 +27,7 @@ export async function loadScenarioPackage(scenario = currentScenario(), fetchFn 
   if (manifest.id !== scenario.id) throw new Error(`Scenario package mismatch: selected ${scenario.id}, loaded ${manifest.id}`);
 
   const loadOptional = async (file) => file ? fetchJson(`${root}${file}`, fetchFn) : null;
-  const [initialState, factionBalance, pressureEvents, playability, victory, sovereignty, modernStart, navigation] = await Promise.all([
+  const [initialState, factionBalance, pressureEvents, playability, victory, sovereignty, modernStart, forceDeployments, navigation] = await Promise.all([
     loadOptional(manifest.initialStateFile),
     loadOptional(manifest.factionBalanceFile),
     loadOptional(manifest.pressureEventsFile),
@@ -34,10 +35,11 @@ export async function loadScenarioPackage(scenario = currentScenario(), fetchFn 
     loadOptional(manifest.victoryFile),
     loadOptional(manifest.sovereigntyFile),
     loadOptional(manifest.modernStartFile),
+    loadOptional(manifest.forceDeploymentsFile),
     fetchJson(`${scenario.mapBaseUrl}region-navigation.json`, fetchFn),
   ]);
 
-  return { root, manifest, initialState, factionBalance, pressureEvents, playability, victory, sovereignty, modernStart, navigation };
+  return { root, manifest, initialState, factionBalance, pressureEvents, playability, victory, sovereignty, modernStart, forceDeployments, navigation };
 }
 
 function inferredPolities(regions) {
@@ -84,6 +86,10 @@ export function attachScenarioPackage(sim, scenario, pkg, options = {}) {
     ? applyModernScenarioBaseline(world, pkg.modernStart)
     : null;
 
+  const forceDeployments = pkg.forceDeployments
+    ? hydrateScenarioForceDeployments(world, pkg.forceDeployments)
+    : null;
+
   const hydration = pkg.initialState
     ? hydrateScenarioInitialState(world, jsonClone(pkg.initialState), { currentTick: options.currentTick || 0 })
     : null;
@@ -96,15 +102,18 @@ export function attachScenarioPackage(sim, scenario, pkg, options = {}) {
     victory: pkg.victory,
     sovereignty: pkg.sovereignty,
     modernStart: pkg.modernStart,
+    forceDeployments: pkg.forceDeployments,
   };
   world.scenarioState.scenarioId = scenario.id;
   world.scenarioState.sovereignty = sovereignty;
   world.scenarioState.modernBaseline = modernBaseline;
+  world.scenarioState.forceDeployments = forceDeployments;
   sim.scenarioState = world.scenarioState;
   sim.scenarioVictoryState = world.scenarioVictoryState;
   sim.scenarioPackage = world.scenarioState.package;
   sim.scenarioPolities = world.polities;
   sim.scenarioActorToPolityId = world.scenarioActorToPolityId || {};
+  sim.scenarioForceDeployments = world.scenarioForceDeployments || null;
   sim.scenarioPlayablePolities = () => scenarioPlayablePolities(world, pkg.playability || {});
   sim.updateScenarioResolution = (currentDay = sim.clock?.elapsedDays || 0) =>
     pkg.victory ? updateFocusedCampaignResolution(world, pkg.victory, currentDay) : { resolved: false, reason: 'no_victory_model' };
@@ -117,6 +126,7 @@ export function attachScenarioPackage(sim, scenario, pkg, options = {}) {
     hydration,
     sovereignty,
     modernBaseline,
+    forceDeployments,
     usedPolityFacade: world.usesPolityFacade,
     playablePolityIds: sim.scenarioPlayablePolities().map((polity) => polity.scenarioActorId || polity.id),
   };
