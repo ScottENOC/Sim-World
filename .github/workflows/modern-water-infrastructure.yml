@@ -1,0 +1,61 @@
+name: Modern water infrastructure
+
+on:
+  push:
+    branches: [feature/modern-water-infrastructure]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/economy/construction.js'
+      - 'js/world/urbanWater.js'
+      - 'js/world/infrastructureSites.js'
+      - 'tools/test-modern-water-infrastructure.mjs'
+      - 'tools/test-modern-urban-water.mjs'
+      - 'tools/apply-modern-water-infrastructure.py'
+      - '.github/workflows/modern-water-infrastructure.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+      - name: Apply construction integration
+        if: github.event_name == 'push'
+        run: python tools/apply-modern-water-infrastructure.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax checks
+        run: |
+          node --check js/economy/construction.js
+          node --check js/world/urbanWater.js
+          node --check js/world/infrastructureSites.js
+          node --check tools/test-modern-water-infrastructure.mjs
+      - name: Run modern water infrastructure regression
+        run: node tools/test-modern-water-infrastructure.mjs
+      - name: Re-run modern urban water regression
+        run: node tools/test-modern-urban-water.mjs
+      - name: Re-run modern water quantity regression
+        run: node tools/test-modern-water-quantity.mjs
+      - name: Re-run persistent infrastructure regression
+        run: node tools/test-persistent-infrastructure-sites.mjs
+      - name: Diff sanity
+        run: git diff --check
+      - name: Commit generated construction integration
+        if: github.event_name == 'push'
+        run: |
+          if git diff --quiet; then
+            echo "No generated integration changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/economy/construction.js
+          git commit -m "Register modern water infrastructure projects"
+          git push origin HEAD:feature/modern-water-infrastructure

@@ -3,13 +3,14 @@
 // module gives it a stable site/corridor in the shared spatial graph and writes
 // the chosen coordinate back to the asset so save/load preserves the place.
 
-const COASTAL = new Set(['harbour','shipyard','naval_base','coastal_fortifications','lighthouse','dry_dock']);
+const COASTAL = new Set(['harbour','shipyard','naval_base','coastal_fortifications','lighthouse','dry_dock','desalination_plant']);
 const EXTRACTION = new Set(['state_quarry','deep_mine','mine_drainage']);
 const URBAN = new Set([
   'wells_cisterns','settlement_walls','urban_drainage','public_granary','royal_arsenal','drill_ground',
-  'market_customs','mint','administrative_centre','great_temple','ceremonial_complex','monumental_statue','monumental_tomb'
+  'market_customs','mint','administrative_centre','great_temple','ceremonial_complex','monumental_statue','monumental_tomb',
+  'water_treatment_plant','wastewater_treatment_plant','water_pumping_station'
 ]);
-const LINEAR = new Set(['road_network','irrigation','aqueduct','canal','relay_stations']);
+const LINEAR = new Set(['road_network','irrigation','aqueduct','canal','relay_stations','bulk_water_pipeline']);
 
 function hash01(text='') {
   let h = 2166136261;
@@ -37,6 +38,7 @@ function infrastructureName(typeId) {
 function siteType(typeId) {
   if (['harbour','shipyard','naval_base','dry_dock'].includes(typeId)) return typeId;
   if (['state_quarry','deep_mine','mine_drainage'].includes(typeId)) return 'industrial_site';
+  if (['water_treatment_plant','wastewater_treatment_plant','water_pumping_station','desalination_plant'].includes(typeId)) return 'utility_site';
   if (['hill_fort','coastal_fortifications','settlement_walls','watchtowers'].includes(typeId)) return 'fortification';
   if (['great_temple','ceremonial_complex','monumental_statue','monumental_tomb'].includes(typeId)) return typeId;
   return 'infrastructure';
@@ -66,7 +68,7 @@ function chooseAssetPoint(graph, region, asset, candidates) {
   const key = `${region.id}:${asset.id || asset.typeId}`;
   const centroid = region.centroid || candidates.principal;
   if (COASTAL.has(asset.typeId) && candidates.coast) {
-    // Harbour-family assets share the coast but do not sit on top of one another.
+    // Harbour-family and seawater assets share the coast but do not sit on top of one another.
     return blend(candidates.coast, candidates.principal, 0.035 + hash01(`${key}:coast`) * 0.11);
   }
   if (EXTRACTION.has(asset.typeId) && candidates.mines.length) {

@@ -2,7 +2,8 @@ const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const positive=v=>Math.max(0,Number(v)||0);
 const KEYS=['households','agriculture','livestock','industry','controlledEnvironment'];
 
-function activeAssets(region,typeId){return (region?.construction?.assets||[]).filter(a=>a?.typeId===typeId&&(a.condition??1)>.2).length;}
+function assetCapacity(region,typeId){return (region?.construction?.assets||[]).filter(a=>a?.typeId===typeId&&(a.condition??1)>.05).reduce((sum,a)=>sum+clamp(a.condition??1)*Math.max(.1,positive(a.scale)||1),0);}
+function activeAssets(region,typeId){return assetCapacity(region,typeId);}
 function hasTech(region,id){return Boolean(region?.unlockedTechIds?.has?.(id));}
 function electricityService(region){return clamp(region?.electricity?.industrialService??region?.electricity?.householdService??0);}
 function urbanShare(region){return clamp(region?.medievalSociety?.urban?.urbanisation||region?.settlements?.urbanShare||region?.urbanisation?.urbanShare||0);}
@@ -10,21 +11,29 @@ function coastal(region){return Boolean(region?.isCoastal||(region?.seaRegionIds
 
 export function ensureUrbanWater(region){
   region.urbanWater||={};const s=region.urbanWater;
-  for(const [k,v] of Object.entries({distributionCoverage:0,potableTreatment:0,wastewaterCollection:0,wastewaterTreatment:0,reuseCapability:0,desalinationCapability:0,recycledStorage:0,recycledSupply:0,desalinatedSupply:0,wastewaterGenerated:0,wastewaterTreated:0,untreatedWastewater:0,potableQuality:1,waterborneRiskMultiplier:1,electricityLoad:0,nonRevenueWater:0.18,demandEfficiency:0}))if(!Number.isFinite(s[k]))s[k]=v;
+  for(const [k,v] of Object.entries({distributionCoverage:0,potableTreatment:0,wastewaterCollection:0,wastewaterTreatment:0,reuseCapability:0,desalinationCapability:0,recycledStorage:0,recycledSupply:0,desalinatedSupply:0,wastewaterGenerated:0,wastewaterTreated:0,untreatedWastewater:0,potableQuality:1,waterborneRiskMultiplier:1,electricityLoad:0,nonRevenueWater:0.18,demandEfficiency:0,treatmentPlantCapacity:0,wastewaterPlantCapacity:0,pumpingCapacity:0,pipelineCapacity:0,desalinationPlantCapacity:0}))if(!Number.isFinite(s[k]))s[k]=v;
   s.lastSupplementalAllocation||={households:0,agriculture:0,livestock:0,industry:0,controlledEnvironment:0};
   return s;
 }
 
 export function urbanWaterCapabilities(region){
-  const s=ensureUrbanWater(region),power=electricityService(region),aqueduct=activeAssets(region,'aqueduct'),drainage=activeAssets(region,'urban_drainage'),wells=activeAssets(region,'wells_cisterns'),hydraulic=hasTech(region,'hydraulic_engineering'),germTheory=hasTech(region,'germ_theory'),electrified=hasTech(region,'electrical_generation')||hasTech(region,'industrial_electrification');
-  const networkBase=clamp((aqueduct?.48:0)+(drainage?.20:0)+(wells?.12:0)+urbanShare(region)*.12);
-  s.distributionCoverage=clamp(networkBase+(electrified?power*.18:0));
-  s.potableTreatment=clamp((germTheory?.34:0)+(hydraulic?.12:0)+(drainage?.12:0)+(electrified?power*.38:0));
-  s.wastewaterCollection=clamp((drainage?.58:0)+(aqueduct?.10:0)+urbanShare(region)*.18);
-  s.wastewaterTreatment=clamp((germTheory&&drainage?.24:0)+(hydraulic&&drainage?.12:0)+(electrified&&drainage?power*.58:0));
-  s.reuseCapability=clamp((germTheory&&drainage?.18:0)+(hydraulic?.12:0)+(electrified?power*.46:0));
-  s.desalinationCapability=clamp(coastal(region)&&electrified&&hasTech(region,'industrial_electrification')?0.18+power*.72:0);
-  return {distributionCoverage:s.distributionCoverage,potableTreatment:s.potableTreatment,wastewaterCollection:s.wastewaterCollection,wastewaterTreatment:s.wastewaterTreatment,reuseCapability:s.reuseCapability,desalinationCapability:s.desalinationCapability};
+  const s=ensureUrbanWater(region),power=electricityService(region),aqueduct=activeAssets(region,'aqueduct'),drainage=activeAssets(region,'urban_drainage'),wells=activeAssets(region,'wells_cisterns'),treatment=assetCapacity(region,'water_treatment_plant'),wastewaterPlant=assetCapacity(region,'wastewater_treatment_plant'),pumping=assetCapacity(region,'water_pumping_station'),pipeline=assetCapacity(region,'bulk_water_pipeline'),desalPlant=assetCapacity(region,'desalination_plant'),hydraulic=hasTech(region,'hydraulic_engineering'),germTheory=hasTech(region,'germ_theory'),electrified=hasTech(region,'electrical_generation')||hasTech(region,'industrial_electrification');
+  s.treatmentPlantCapacity=treatment;s.wastewaterPlantCapacity=wastewaterPlant;s.pumpingCapacity=pumping;s.pipelineCapacity=pipeline;s.desalinationPlantCapacity=desalPlant;
+  const networkBase=clamp((aqueduct?.42:0)+(drainage?.16:0)+(wells?.10:0)+urbanShare(region)*.10);
+  const modernNetwork=electrified?clamp(pumping*.30+pipeline*.34)*(.28+.72*power):0;
+  s.distributionCoverage=clamp(networkBase+modernNetwork);
+  const legacyPotable=(germTheory?.16:0)+(hydraulic?.08:0)+(drainage?.05:0);
+  const modernPotable=germTheory&&treatment>0?clamp(treatment)*(.30+.62*power):0;
+  s.potableTreatment=clamp(legacyPotable+modernPotable,0,treatment>0?1:.38);
+  s.wastewaterCollection=clamp((drainage?.56:0)+(aqueduct?.08:0)+urbanShare(region)*.14+(pipeline>0?clamp(pipeline)*.08:0));
+  const legacyWastewater=(germTheory&&drainage?.14:0)+(hydraulic&&drainage?.07:0);
+  const modernWastewater=germTheory&&wastewaterPlant>0?clamp(wastewaterPlant)*(.24+.68*power):0;
+  s.wastewaterTreatment=clamp(legacyWastewater+modernWastewater,0,wastewaterPlant>0?1:.28);
+  const legacyReuse=(germTheory&&drainage?.07:0)+(hydraulic?.05:0);
+  const modernReuse=wastewaterPlant>0&&electrified?clamp(wastewaterPlant)*(.18+.66*power):0;
+  s.reuseCapability=clamp(legacyReuse+modernReuse,0,wastewaterPlant>0?1:.20);
+  s.desalinationCapability=clamp(coastal(region)&&electrified&&hasTech(region,'industrial_electrification')&&desalPlant>0?clamp(desalPlant)*(.12+.88*power):0);
+  return {distributionCoverage:s.distributionCoverage,potableTreatment:s.potableTreatment,wastewaterCollection:s.wastewaterCollection,wastewaterTreatment:s.wastewaterTreatment,reuseCapability:s.reuseCapability,desalinationCapability:s.desalinationCapability,treatmentPlantCapacity:s.treatmentPlantCapacity,wastewaterPlantCapacity:s.wastewaterPlantCapacity,pumpingCapacity:s.pumpingCapacity,pipelineCapacity:s.pipelineCapacity,desalinationPlantCapacity:s.desalinationPlantCapacity};
 }
 
 export function prepareUrbanWater(region){
@@ -33,6 +42,7 @@ export function prepareUrbanWater(region){
   s.demandEfficiency=clamp(efficiencyPolicy*(.25+c.distributionCoverage*.75)*(.65+networkEfficiency*.35),0,.42);
   s.lastSupplementalAllocation={households:0,agriculture:0,livestock:0,industry:0,controlledEnvironment:0};
   s.recycledSupply=0;s.desalinatedSupply=0;s.electricityLoad=0;
+  const power=electricityService(region);s.electricityLoad+=(s.pumpingCapacity*.018+s.pipelineCapacity*.010)*(1.08-.35*power);
   return s;
 }
 
@@ -55,7 +65,7 @@ export function supplementalUrbanWater(region,residual,elapsedDays=7){
   const reuseAllocation=allocatePreferred(residual,reusable,['agriculture','livestock','industry','controlledEnvironment']);
   const reused=Object.values(reuseAllocation).reduce((a,b)=>a+b,0);for(const k of KEYS)out[k]+=reuseAllocation[k];s.recycledStorage=Math.max(0,s.recycledStorage-reused);s.recycledSupply=reused;s.electricityLoad+=reused*(.10+.18*(1-power));
   const afterReuse=mergeResidual(residual,reuseAllocation),desalPolicy=clamp(p.desalination??.12),desalPotential=s.desalinationCapability*desalPolicy*(.025+.11*power)*days/7;
-  const desalAllocation=allocatePreferred(afterReuse,desalPotential,['households','industry','controlledEnvironment','livestock','agriculture']);const desalinated=Object.values(desalAllocation).reduce((a,b)=>a+b,0);for(const k of KEYS)out[k]+=desalAllocation[k];s.desalinatedSupply=desalinated;s.electricityLoad+=desalinated*(.42+.48*(1-power));
+  const desalAllocation=allocatePreferred(afterReuse,desalPotential,['households','industry','controlledEnvironment','livestock','agriculture']);const desalinated=Object.values(desalAllocation).reduce((a,b)=>a+b,0);for(const k of KEYS)out[k]+=desalAllocation[k];s.desalinatedSupply=desalinated;s.electricityLoad+=desalinated*(.48+.58*(1-power));
   s.lastSupplementalAllocation={...out};return out;
 }
 
@@ -67,9 +77,9 @@ export function finaliseUrbanWater(region,allocation,elapsedDays=7){
   const reusePolicy=clamp(p.waterReuse??.25),recoverable=treated*clamp(s.reuseCapability*reusePolicy)*.78,storageCap=.45+urbanShare(region)*1.8+s.reuseCapability*1.4;s.recycledStorage=clamp(s.recycledStorage+recoverable,0,storageCap);
   const sourceRisk=clamp(region?.hydrology?.report?.waterHealthRisk??region?.hydrology?.waterHealthRisk??0),drinkingPolicy=clamp(p.drinkingWaterTreatment??.7),treatment=clamp(s.potableTreatment*drinkingPolicy),networkProtection=clamp(s.distributionCoverage*.72+treatment*.28),rawRisk=sourceRisk*(1-treatment*.93)*(1-networkProtection*.35);
   s.potableQuality=clamp(1-rawRisk);s.waterborneRiskMultiplier=clamp(.18+rawRisk*.82,.18,1);
-  s.nonRevenueWater=clamp(.34-s.distributionCoverage*.22-power*.05,.06,.36);
-  s.electricityLoad+=treated*(.08+.16*(1-power))+positive(allocation?.households)*treatment*.035;
-  region.report||={};region.report.urbanWater={workers:0,distributionCoverage:s.distributionCoverage,potableTreatment:s.potableTreatment,wastewaterCollection:s.wastewaterCollection,wastewaterTreatment:s.wastewaterTreatment,reuseCapability:s.reuseCapability,desalinationCapability:s.desalinationCapability,recycledStorage:s.recycledStorage,recycledSupply:s.recycledSupply,desalinatedSupply:s.desalinatedSupply,wastewaterGenerated:s.wastewaterGenerated,wastewaterTreated:s.wastewaterTreated,untreatedWastewater:s.untreatedWastewater,potableQuality:s.potableQuality,waterborneRiskMultiplier:s.waterborneRiskMultiplier,electricityLoad:s.electricityLoad,nonRevenueWater:s.nonRevenueWater,demandEfficiency:s.demandEfficiency};
+  s.nonRevenueWater=clamp(.36-s.distributionCoverage*.18-s.pipelineCapacity*.11-power*.04,.05,.38);
+  s.electricityLoad+=treated*(.10+.20*(1-power))+positive(allocation?.households)*treatment*.045;
+  region.report||={};region.report.urbanWater={workers:0,distributionCoverage:s.distributionCoverage,potableTreatment:s.potableTreatment,wastewaterCollection:s.wastewaterCollection,wastewaterTreatment:s.wastewaterTreatment,reuseCapability:s.reuseCapability,desalinationCapability:s.desalinationCapability,treatmentPlantCapacity:s.treatmentPlantCapacity,wastewaterPlantCapacity:s.wastewaterPlantCapacity,pumpingCapacity:s.pumpingCapacity,pipelineCapacity:s.pipelineCapacity,desalinationPlantCapacity:s.desalinationPlantCapacity,recycledStorage:s.recycledStorage,recycledSupply:s.recycledSupply,desalinatedSupply:s.desalinatedSupply,wastewaterGenerated:s.wastewaterGenerated,wastewaterTreated:s.wastewaterTreated,untreatedWastewater:s.untreatedWastewater,potableQuality:s.potableQuality,waterborneRiskMultiplier:s.waterborneRiskMultiplier,electricityLoad:s.electricityLoad,nonRevenueWater:s.nonRevenueWater,demandEfficiency:s.demandEfficiency};
   return s;
 }
 
