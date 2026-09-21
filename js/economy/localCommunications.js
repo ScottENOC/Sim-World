@@ -35,11 +35,27 @@ export function telephonePotentialCoverage(region) {
   return clamp01((1 - Math.exp(-exchanges * 0.72)) * (0.35 + density * 0.65));
 }
 
+function reconcileImportedElectricityService(region) {
+  const electricity = region.electricity;
+  if (!electricity || (Number(electricity.imports) || 0) <= 0) return;
+  const demand = Math.max(0, Number(electricity.demand) || 0);
+  if (demand <= 0) return;
+  const overallService = clamp01((Number(electricity.delivered) || 0) / demand);
+  electricity.service = overallService;
+  if ((Number(electricity.householdDemand) || 0) > 0) {
+    electricity.householdService = Math.max(clamp01(electricity.householdService || 0), overallService);
+  }
+  if ((Number(electricity.industrialDemand) || 0) > 0) {
+    electricity.industrialService = Math.max(clamp01(electricity.industrialService || 0), overallService);
+  }
+}
+
 export function tickLocalCommunications(region, elapsedDays = 7) {
   // main.js computes electricity for every region before it enters the communications
   // loop. The first communications call therefore acts as the safe world-level flush:
   // power can move through completed interconnectors before downstream systems read it.
   flushElectricityInterconnectors(elapsedDays);
+  reconcileImportedElectricityService(region);
   const state = ensureLocalCommunications(region);
   const target = telephonePotentialCoverage(region);
   const smoothing = clamp01(Math.max(0, Number(elapsedDays) || 0) / 56);
