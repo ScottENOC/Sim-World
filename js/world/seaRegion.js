@@ -55,6 +55,7 @@ export function linkSeaAdjacency(landRegions, seaRegions) {
   // so an inland region can never inherit the old prototype's `isCoastal`.
   for (const land of landRegions) {
     land.adjacentSeaIds = [];
+    land.adjacentSeaDirections = [];
     land.isCoastal = false;
   }
 
@@ -63,6 +64,17 @@ export function linkSeaAdjacency(landRegions, seaRegions) {
       const land = landById.get(landId);
       if (!land) continue;
       if (!land.adjacentSeaIds.includes(sea.id)) land.adjacentSeaIds.push(sea.id);
+      const landLon=Number(land.centroid?.[0]);
+      const seaLon=Number(sea.centroid?.[0]);
+      const landLat=Number(land.centroid?.[1]);
+      const seaLat=Number(sea.centroid?.[1]);
+      land.adjacentSeaDirections.push({
+        id:sea.id,
+        eastward:Number.isFinite(landLon)&&Number.isFinite(seaLon)&&seaLon>landLon+0.15,
+        westward:Number.isFinite(landLon)&&Number.isFinite(seaLon)&&seaLon<landLon-0.15,
+        northward:Number.isFinite(landLat)&&Number.isFinite(seaLat)&&seaLat>landLat+0.15,
+        southward:Number.isFinite(landLat)&&Number.isFinite(seaLat)&&seaLat<landLat-0.15,
+      });
       land.isCoastal = true;
     }
   }
