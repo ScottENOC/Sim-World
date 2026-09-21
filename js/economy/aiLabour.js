@@ -1,3 +1,5 @@
+import { tickAiControl } from '../technology/aiControl.js?v=20260921-ai-control1';
+
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
 const AI_TECH_HINTS=Object.freeze({
@@ -209,6 +211,7 @@ export function tickAiLabour(region,elapsedDays=7){
   s.aiDemandBoost=profile.aiDemandBoost;
 
   region.labourProductivityMultiplier=Math.max(1,Number(region.labourProductivityMultiplier)||1,1+s.productivityGain*s.outputShare);
+  tickAiControl(region,elapsedDays);
   region.report||={};
   region.report.aiLabour=aiLabourSummary(region);
   return s;
