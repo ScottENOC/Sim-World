@@ -9,6 +9,7 @@ import { tickLightMetals } from './lightMetals.js?v=20260919-light-metals1';
 import { tickAgriculturalLand, agriculturalLandSummary } from './agriculturalLand.js?v=20260921-arable1';
 import { tickAgriculturalPests } from './agriculturalPests.js?v=20260921-pests1';
 import { tickBatterySupplyChain } from './batterySupplyChain.js?v=20260921-battery-chain1';
+import { tickSoilDegradation, soilDegradationSummary } from './soilDegradation.js?v=20260921-soil1';
 export * from './laborCore.js?v=20260905-merchant1';
 export * from './housing.js?v=20260916-housing1';
 export * from './employmentAndHardship.js?v=20260918-employment1';
@@ -17,6 +18,7 @@ export * from './lightMetals.js?v=20260919-light-metals1';
 export * from './agriculturalLand.js?v=20260921-arable1';
 export * from './agriculturalPests.js?v=20260921-pests1';
 export * from './batterySupplyChain.js?v=20260921-battery-chain1';
+export * from './soilDegradation.js?v=20260921-soil1';
 
 function committedMerchantCount(region) {
   const workingAge = Math.max(0, Number(region.demographics?.workingAge) || 0);
@@ -32,7 +34,7 @@ function committedArtistCount(region, availableAfterMerchants) {
 }
 
 function normaliseReportMetadata(region) {
-  for (const key of ['conflict', 'structuralTransformation', 'industrialSupply', 'lightMetals', 'housing', 'employment', 'landUse', 'agriculturalPests', 'batteryIndustry']) {
+  for (const key of ['conflict', 'structuralTransformation', 'industrialSupply', 'lightMetals', 'housing', 'employment', 'landUse', 'soil', 'agriculturalPests', 'batteryIndustry']) {
     if (region.report?.[key] && !Number.isFinite(region.report[key].workers)) region.report[key].workers = 0;
   }
 }
@@ -40,6 +42,10 @@ function normaliseReportMetadata(region) {
 export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, currentTick = null, elapsedDays = 7, endDay = null) {
   const reservations = [];
   for (const region of regions) {
+    tickAgriculturalLand(region);
+    // Soil responds to the previous period's cultivation and weather, then its
+    // degraded/recovered effective land quality feeds this period's economy.
+    tickSoilDegradation(region, elapsedDays);
     tickAgriculturalLand(region);
     const previousOccupations = { ...(region.occupations || {}) };
     const housingConstruction = prepareHousingConstruction(region, elapsedDays);
@@ -97,8 +103,10 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
       region.report.batteryIndustry = { workers: 0, ...batteryOutput, shortages: { ...(region.batteryIndustry?.shortages || {}) } };
       tickAgriculturalLand(region);
       region.report.landUse = { workers: 0, ...agriculturalLandSummary(region) };
+      region.report.soil = { workers: 0, ...soilDegradationSummary(region) };
       if (region.report.farming) {
         region.report.farming.land = { ...region.report.landUse };
+        region.report.farming.soil = { ...region.report.soil };
         region.report.farming.pests = { ...(region.report.agriculturalPests || {}) };
       }
       normaliseReportMetadata(region);
