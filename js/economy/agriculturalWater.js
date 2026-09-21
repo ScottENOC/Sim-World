@@ -2,6 +2,7 @@ import { effectiveInfrastructureCount } from './construction.js?v=20260914-water
 import { agriculturalLandYieldFactor } from './agriculturalLand.js?v=20260921-arable1';
 import { fertiliserYieldMultiplier } from './agriculturalFertiliser.js?v=20260921-fertiliser1';
 import { pestYieldMultiplier } from './agriculturalPests.js?v=20260921-pests1';
+import { pollinatorAggregateYieldMultiplier } from './agriculturalPollinators.js?v=20260921-pollinators1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
@@ -30,10 +31,11 @@ export function agriculturalWaterProfile(region,{weatherMultiplier=1}={}){
   const harvestRetention=Math.max(1,Number(region.agriculturalMachinery?.harvestRetention)||1);
   const fertiliserMultiplier=fertiliserYieldMultiplier(region);
   const pestMultiplier=pestYieldMultiplier(region);
-  // Pest losses are abnormal losses only. Ordinary historical pest pressure is
-  // already baked into baseline crop yields, so an average year remains 1.0.
-  const yieldMultiplier=irrigationYieldMultiplier*landYieldFactor*harvestRetention*fertiliserMultiplier*pestMultiplier;
+  const pollinatorMultiplier=pollinatorAggregateYieldMultiplier(region);
+  // Pests and pollinator decline represent losses from the ordinary historical
+  // baseline. Healthy wild pollinators do not create an ahistorical bonus above 1.
+  const yieldMultiplier=irrigationYieldMultiplier*landYieldFactor*harvestRetention*fertiliserMultiplier*pestMultiplier*pollinatorMultiplier;
 
   return {riverCount,flowAvailability,surfaceReliability,effectiveIrrigation,droughtProtection,yieldMultiplier,
-    irrigationYieldMultiplier,landYieldFactor,harvestRetention,fertiliserMultiplier,pestMultiplier,surfaceInflow:inflow,surfaceWithdrawal:withdrawal,groundwaterUsed:0};
+    irrigationYieldMultiplier,landYieldFactor,harvestRetention,fertiliserMultiplier,pestMultiplier,pollinatorMultiplier,surfaceInflow:inflow,surfaceWithdrawal:withdrawal,groundwaterUsed:0};
 }
