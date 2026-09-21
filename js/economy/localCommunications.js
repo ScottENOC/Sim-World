@@ -1,4 +1,5 @@
 import { effectiveInfrastructureCount } from './construction.js?v=20260918-telephone1';
+import { communicationsCableConnectivity, flushElectricityInterconnectors } from './electricityInterconnectors.js?v=20260921-grid-links1';
 
 const clamp01 = (v) => Math.max(0, Math.min(1, Number(v) || 0));
 
@@ -12,7 +13,9 @@ export function ensureLocalCommunications(region) {
     militaryCoordination: 0,
     orbitalCivilianLink: 0,
     orbitalMilitaryLink: 0,
+    internationalCableLink: 0,
   };
+  if (!Number.isFinite(region.localCommunications.internationalCableLink)) region.localCommunications.internationalCableLink = 0;
   return region.localCommunications;
 }
 
@@ -33,6 +36,10 @@ export function telephonePotentialCoverage(region) {
 }
 
 export function tickLocalCommunications(region, elapsedDays = 7) {
+  // main.js computes electricity for every region before it enters the communications
+  // loop. The first communications call therefore acts as the safe world-level flush:
+  // power can move through completed interconnectors before downstream systems read it.
+  flushElectricityInterconnectors(elapsedDays);
   const state = ensureLocalCommunications(region);
   const target = telephonePotentialCoverage(region);
   const smoothing = clamp01(Math.max(0, Number(elapsedDays) || 0) / 56);
@@ -40,14 +47,17 @@ export function tickLocalCommunications(region, elapsedDays = 7) {
   const coverage = clamp01(state.telephoneCoverage);
   const orbitalCivilian = clamp01(region.orbitalSupport?.civilianCommunications || 0);
   const orbitalMilitary = clamp01(region.orbitalSupport?.militaryCommand || 0);
+  const internationalCable = communicationsCableConnectivity(region);
   const adminBase = clamp01((region.stateAdministration?.officialdom || 0) * 0.45 + (region.stateAdministration?.records || 0) * 0.35 + (region.communicationState?.writingAvailable ? 0.2 : 0));
   state.orbitalCivilianLink = orbitalCivilian;
   state.orbitalMilitaryLink = orbitalMilitary;
-  // Satellites do not replace local wires. They add long-distance coordination on top of
-  // whatever local network exists, with diminishing returns where telephone coverage is already dense.
-  state.industrialCoordination = clamp01(coverage + orbitalCivilian * 0.24 * (1 - coverage));
-  state.administrativeCoordination = clamp01(coverage * (0.35 + adminBase * 0.65) + orbitalCivilian * 0.30 * (1 - coverage));
-  state.militaryCoordination = clamp01(coverage * clamp01(0.3 + (region.army?.personnel || 0) / Math.max(1, (region.population || 1) * 0.02) * 0.7) + orbitalMilitary * 0.36 * (1 - coverage));
+  state.internationalCableLink = internationalCable;
+  // Satellites and long-distance cables do not replace local wires. They add long-
+  // distance coordination on top of a functioning local network, with diminishing returns.
+  const longDistanceCivilian = clamp01(orbitalCivilian * 0.7 + internationalCable * 0.55);
+  state.industrialCoordination = clamp01(coverage + longDistanceCivilian * 0.24 * (1 - coverage));
+  state.administrativeCoordination = clamp01(coverage * (0.35 + adminBase * 0.65) + longDistanceCivilian * 0.30 * (1 - coverage));
+  state.militaryCoordination = clamp01(coverage * clamp01(0.3 + (region.army?.personnel || 0) / Math.max(1, (region.population || 1) * 0.02) * 0.7) + clamp01(orbitalMilitary * 0.75 + internationalCable * 0.25) * 0.36 * (1 - coverage));
   return { ...state };
 }
 

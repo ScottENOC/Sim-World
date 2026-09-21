@@ -8,6 +8,7 @@ import { tickHouseholdFoodSecurity } from './householdFoodSecurity.js?v=20260919
 import { tickLightMetals } from './lightMetals.js?v=20260919-light-metals1';
 import { tickAgriculturalLand, agriculturalLandSummary } from './agriculturalLand.js?v=20260921-arable1';
 import { tickAgriculturalPests } from './agriculturalPests.js?v=20260921-pests1';
+import { tickBatterySupplyChain } from './batterySupplyChain.js?v=20260921-battery-chain1';
 export * from './laborCore.js?v=20260905-merchant1';
 export * from './housing.js?v=20260916-housing1';
 export * from './employmentAndHardship.js?v=20260918-employment1';
@@ -15,6 +16,7 @@ export * from './householdFoodSecurity.js?v=20260919-household-food1';
 export * from './lightMetals.js?v=20260919-light-metals1';
 export * from './agriculturalLand.js?v=20260921-arable1';
 export * from './agriculturalPests.js?v=20260921-pests1';
+export * from './batterySupplyChain.js?v=20260921-battery-chain1';
 
 function committedMerchantCount(region) {
   const workingAge = Math.max(0, Number(region.demographics?.workingAge) || 0);
@@ -30,7 +32,7 @@ function committedArtistCount(region, availableAfterMerchants) {
 }
 
 function normaliseReportMetadata(region) {
-  for (const key of ['conflict', 'structuralTransformation', 'industrialSupply', 'lightMetals', 'housing', 'employment', 'landUse', 'agriculturalPests']) {
+  for (const key of ['conflict', 'structuralTransformation', 'industrialSupply', 'lightMetals', 'housing', 'employment', 'landUse', 'agriculturalPests', 'batteryIndustry']) {
     if (region.report?.[key] && !Number.isFinite(region.report[key].workers)) region.report[key].workers = 0;
   }
 }
@@ -78,6 +80,7 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
       finalizeStructuralTransformation(region, elapsedDays);
       tickIndustrialSupply(region, elapsedDays);
       tickLightMetals(region, elapsedDays);
+      const batteryOutput = tickBatterySupplyChain(region, elapsedDays);
       tickHouseholdFoodSecurity(region, elapsedDays);
 
       const housingEmployment = enforceHousingEmployment(region, previousOccupations);
@@ -91,6 +94,7 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
         ...housingSummary(region),
       };
       region.report.industrialSupply = { workers: 0, capability: { ...region.industrialSupply.capability }, outputCapacity: { ...region.industrialSupply.outputCapacity } };
+      region.report.batteryIndustry = { workers: 0, ...batteryOutput, shortages: { ...(region.batteryIndustry?.shortages || {}) } };
       tickAgriculturalLand(region);
       region.report.landUse = { workers: 0, ...agriculturalLandSummary(region) };
       if (region.report.farming) {

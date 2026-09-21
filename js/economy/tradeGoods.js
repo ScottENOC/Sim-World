@@ -35,6 +35,24 @@ export const TRADE_GOODS = {
   titanium_minerals: { label: 'Titanium minerals', basePrice: 2.4, referenceStock: 3200, category: 'raw_material', cargoKgPerUnit: 1.4 },
   titanium_dioxide: { label: 'Titanium dioxide pigment', basePrice: 9, referenceStock: 1200, category: 'industrial_chemical', cargoKgPerUnit: 0.8 },
   titanium:   { label: 'Titanium metal', basePrice: 95, referenceStock: 220, category: 'advanced_material', strategic: true, cargoKgPerUnit: 1 },
+
+  // Battery supply chains are deliberately tradable in stages. A country can be
+  // rich in ore but poor at refining, or can import battery-grade materials and
+  // specialise in cell manufacture. Finished cells remain strategic goods.
+  lead_ore: { label: 'Lead ore', basePrice: 1.6, referenceStock: 4500, category: 'raw_material', cargoKgPerUnit: 1.5 },
+  lead: { label: 'Refined lead', basePrice: 7, referenceStock: 1200, category: 'material', cargoKgPerUnit: 1 },
+  lithium_ore: { label: 'Lithium-bearing ore and brine concentrate', basePrice: 5, referenceStock: 1400, category: 'raw_material', strategic: true, cargoKgPerUnit: 1.4 },
+  battery_grade_lithium: { label: 'Battery-grade lithium chemicals', basePrice: 42, referenceStock: 260, category: 'advanced_material', strategic: true, cargoKgPerUnit: 0.45 },
+  cobalt_ore: { label: 'Cobalt-bearing ore', basePrice: 8, referenceStock: 650, category: 'raw_material', strategic: true, cargoKgPerUnit: 1.5 },
+  battery_grade_cobalt: { label: 'Battery-grade cobalt material', basePrice: 85, referenceStock: 120, category: 'advanced_material', strategic: true, cargoKgPerUnit: 0.55 },
+  nickel_ore: { label: 'Nickel ore', basePrice: 3.4, referenceStock: 2600, category: 'raw_material', cargoKgPerUnit: 1.5 },
+  battery_grade_nickel: { label: 'Battery-grade nickel material', basePrice: 28, referenceStock: 430, category: 'advanced_material', strategic: true, cargoKgPerUnit: 0.65 },
+  natural_graphite: { label: 'Natural graphite', basePrice: 4.2, referenceStock: 1600, category: 'raw_material', cargoKgPerUnit: 1.2 },
+  battery_graphite: { label: 'Battery-grade graphite', basePrice: 24, referenceStock: 400, category: 'advanced_material', strategic: true, cargoKgPerUnit: 0.55 },
+  lead_acid_battery_cells: { label: 'Lead-acid battery cells', basePrice: 35, referenceStock: 180, category: 'electrical_component', strategic: true, cargoKgPerUnit: 4.5 },
+  advanced_rechargeable_cells: { label: 'Advanced rechargeable battery cells', basePrice: 72, referenceStock: 130, category: 'electrical_component', strategic: true, cargoKgPerUnit: 1.8 },
+  lithium_ion_cells: { label: 'Lithium-ion battery cells', basePrice: 120, referenceStock: 100, category: 'electrical_component', strategic: true, cargoKgPerUnit: 0.8 },
+
   uranium_ore: { label: 'Uranium ore', basePrice: 7, referenceStock: 700, category: 'raw_material', strategic: true, cargoKgPerUnit: 2.2 },
   uranium_concentrate: { label: 'Uranium concentrate', basePrice: 48, referenceStock: 140, category: 'processed_material', strategic: true, cargoKgPerUnit: 0.8 },
   reactor_fuel: { label: 'Civilian reactor fuel', basePrice: 190, referenceStock: 45, category: 'advanced_material', strategic: true, cargoKgPerUnit: 0.25 },

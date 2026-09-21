@@ -9,6 +9,16 @@ export function hasOperationalTelegraph(region) {
   return effectiveInfrastructureCount(region, 'telegraph_network') >= 0.5;
 }
 
+function communicationsCableNeighbours(region) {
+  const result = [];
+  for (const link of region?.gridInterconnection?.links || []) {
+    if (link.status !== 'active' || (Number(link.condition) || 0) <= 0.2 || (Number(link.communicationsCapacity) || 0) <= 0) continue;
+    const next = link.fromRegionId === region.id ? link.toRegionId : link.toRegionId === region.id ? link.fromRegionId : null;
+    if (next) result.push(next);
+  }
+  return result;
+}
+
 export function telegraphPath(origin, target, regionsById, maxHops = 80) {
   if (!origin || !target) return null;
   if (origin.id === target.id) return [origin.id];
@@ -19,7 +29,8 @@ export function telegraphPath(origin, target, regionsById, maxHops = 80) {
     const path = queue.shift();
     if (path.length > maxHops + 1) continue;
     const here = regionsById.get(path[path.length - 1]);
-    for (const nextId of here?.neighbors || []) {
+    const nextIds = new Set([...(here?.neighbors || []), ...communicationsCableNeighbours(here)]);
+    for (const nextId of nextIds) {
       if (seen.has(nextId)) continue;
       const next = regionsById.get(nextId);
       if (!next || !hasOperationalTelegraph(next)) continue;
