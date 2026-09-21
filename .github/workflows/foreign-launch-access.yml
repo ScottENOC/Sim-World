@@ -1,0 +1,27 @@
+name: Foreign launch access
+on:
+  push:
+    branches: [feature/foreign-launch-access]
+  pull_request:
+    paths:
+      - 'js/technology/foreignLaunchAccess.js'
+      - 'js/technology/spaceRace.js'
+      - 'js/technology/spaceLaunchGeography.js'
+      - 'tools/test-foreign-launch-access.mjs'
+      - '.github/workflows/foreign-launch-access.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check
+        run: node --check js/technology/foreignLaunchAccess.js
+      - name: Run foreign launch access regression
+        run: node tools/test-foreign-launch-access.mjs
+      - name: Re-run cooperative space regression
+        run: node tools/test-space-cooperation.mjs
+      - name: Re-run space race regression
+        run: node tools/test-space-race.mjs
