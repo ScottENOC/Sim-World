@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { tickAgriculturalPollinators, pollinatorCategoryYieldMultiplier, pollinatorAggregateYieldMultiplier } from '../js/economy/agriculturalPollinators.js';
+import { tickAgriculturalPollinators, pollinatorCategoryYieldMultiplier, pollinatorAggregateYieldMultiplier, managedPollinationProfile } from '../js/economy/agriculturalPollinators.js';
 
 function region(){return {
   id:'pollinator-test',areaSqKm:1000,population:10000,landQuality:1,
@@ -28,6 +28,27 @@ assert.ok(produce<pulses&&pulses<grain,'pollinator-dependent produce should be h
 assert.ok(grain>.95,'staple grains should remain largely independent of animal pollination');
 assert.ok(produce<.75,'severe pollinator decline should materially hurt dependent horticulture');
 assert.ok(pollinatorAggregateYieldMultiplier(stressed)<1,'pollinator collapse should reduce aggregate farm yield according to crop mix');
+
+const managed=region();
+managed.agriculturalLand.forestHa=1200;managed.agriculturalLand.otherHa=3500;managed.agriculturalLand.cultivatedHa=50000;
+managed.foodDiversity.productionMix={staple_grains:.28,pulses:.20,fruit_vegetables:.45,animal_foods:.07};
+managed.agriculturalPesticides={ecologicalPressure:.38,toxicityPressure:.42};
+managed.stockpile={wood:200};
+managed.occupations={farmer:1200};
+for(let i=0;i<5;i++)tickAgriculturalPollinators(managed,365);
+const beforeManaged=managedPollinationProfile(managed);
+assert.ok(beforeManaged.colonies>0,'managed hives should expand where pollination demand, labour and hive material exist');
+assert.ok(beforeManaged.serviceableColonies>0,'managed colonies should provide service when maintained');
+assert.ok(beforeManaged.workers>0,'managed beekeeping should consume a real labour requirement');
+assert.ok(managed.agriculturalPollinators.managedService>0,'managed colonies should supplement lost wild pollination');
+const supportedProduce=pollinatorCategoryYieldMultiplier(managed,'fruit_vegetables');
+const unmanagedTwin=region();
+unmanagedTwin.agriculturalLand.forestHa=1200;unmanagedTwin.agriculturalLand.otherHa=3500;unmanagedTwin.agriculturalLand.cultivatedHa=50000;
+unmanagedTwin.foodDiversity.productionMix={...managed.foodDiversity.productionMix};
+unmanagedTwin.agriculturalPesticides={...managed.agriculturalPesticides};
+for(let i=0;i<5;i++)tickAgriculturalPollinators(unmanagedTwin,365);
+assert.ok(supportedProduce>pollinatorCategoryYieldMultiplier(unmanagedTwin,'fruit_vegetables'),'managed hives should partially offset wild pollinator losses');
+assert.ok(supportedProduce<1,'managed bees should not create yields above the historical baseline');
 
 const recovering=stressed;
 recovering.agriculturalPesticides={ecologicalPressure:0,toxicityPressure:0};
