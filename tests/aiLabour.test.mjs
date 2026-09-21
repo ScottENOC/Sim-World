@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { tickAiLabour } from '../js/economy/aiLabour.js';
+import { aiSectorOutputMultiplier, tickAiLabour } from '../js/economy/aiLabour.js';
 
 function region(overrides={}){
   return {
@@ -32,6 +32,8 @@ function region(overrides={}){
   assert.ok(r.aiLabour.standardWeeklyHours<40,'strong labour institutions should capture some dividend as leisure');
   assert.ok(r.aiLabour.sectors.healthcare.productivityGain>r.aiLabour.sectors.healthcare.substitutionPressure,'healthcare AI should begin mostly as augmentation');
   assert.ok(r.aiLabour.sectors.logistics.substitutionPressure>r.aiLabour.sectors.logistics.productivityGain,'logistics should face comparatively strong substitution pressure');
+  assert.ok(aiSectorOutputMultiplier(r,'manufacturing')>1,'an output allocation should raise real manufacturing capacity');
+  assert.equal(aiSectorOutputMultiplier(r,'unknown'),1,'unmodelled sectors should not receive an accidental AI bonus');
 }
 
 {
@@ -46,6 +48,7 @@ function region(overrides={}){
   assert.ok(strong.aiLabour.leisureShare>weak.aiLabour.leisureShare,'worker power should shift AI gains toward shorter hours');
   assert.ok(weak.aiLabour.automationDisplacementRate>strong.aiLabour.automationDisplacementRate,'weak labour institutions should permit more displacement');
   assert.ok(weak.aiLabour.effectiveWeeklyHours>=weak.aiLabour.standardWeeklyHours,'job insecurity can preserve or extend actual hours among employed workers');
+  assert.ok(weak.aiLabour.employerPower>strong.aiLabour.employerPower,'higher unemployment and weaker institutions should increase employer power');
 }
 
 console.log('aiLabour tests passed');
