@@ -6,6 +6,17 @@ function playerPolityId(){return globalThis.__worldsim?.activePlayerPolityId||nu
 function canRule(region){const id=playerPolityId();return Boolean(region&&id&&(region.governance?.sovereignPolityId===id||region.governance?.localPolityId===id));}
 function optionMap(obj,current){return Object.entries(obj).map(([id,d])=>`<option value="${id}" ${current===id?'selected':''}>${d.label}</option>`).join('');}
 function applyPolity(patch){return setPolityLabourPolicy(globalThis.__worldsim?.regions||[],playerPolityId(),patch,{playerChoice:true});}
+function aiLabourText(region){
+  const ai=region.report?.aiLabour||region.aiLabour;
+  if(!ai||Number(ai.adoption||0)<.01)return '';
+  const d=ai.dividend||{};
+  const sectors=Object.entries(ai.sectors||{}).filter(([,s])=>(s.weight||0)>.03).sort((a,b)=>(b[1].automationDisplacementRate||0)-(a[1].automationDisplacementRate||0));
+  const exposed=sectors[0]?.[1];
+  return `<br><strong>AI and work</strong> · adoption ${pct(ai.adoption)} · productivity ${pct(ai.productivityGain)}<br>
+    Standard week ${Number(ai.standardWeeklyHours||40).toFixed(1)}h · actual ${Number(ai.effectiveWeeklyHours||40).toFixed(1)}h · automation displacement ${pct(ai.automationDisplacementRate)}<br>
+    Dividend: output ${pct(d.output)} · leisure ${pct(d.leisure)} · labour shedding ${pct(d.labourShedding)}<br>
+    Bargaining balance: workers ${pct(ai.workerPower)} · employers ${pct(ai.employerPower)}${exposed?` · highest current displacement pressure: ${exposed.label} ${pct(exposed.automationDisplacementRate)}`:''}`;
+}
 
 export function renderLabourRelationsControls(){
   const host=typeof document!=='undefined'?document.getElementById('region-controls'):null;
@@ -17,7 +28,7 @@ export function renderLabourRelationsControls(){
   panel.innerHTML=`<strong>Industrial relations</strong>
     <div class="raid-status">Union density ${pct(r.unionDensity)} · grievance ${pct(r.grievance)} · bargaining trust ${pct(r.bargainingTrust)}<br>${strike}<br>
     ${r.patrioticRestraint>0.05?`Defence-emergency restraint ${pct(r.patrioticRestraint)} · `:''}Industrial output ${pct(r.outputMultiplier??1)} · munitions output ${pct(r.munitionsMultiplier??1)}<br>
-    ${r.repressionMemory>0.03?`Repression memory ${pct(r.repressionMemory)} · `:''}${r.hiringPenalty>0.005?`wage-floor hiring drag ${pct(r.hiringPenalty)}`:''}</div>
+    ${r.repressionMemory>0.03?`Repression memory ${pct(r.repressionMemory)} · `:''}${r.hiringPenalty>0.005?`wage-floor hiring drag ${pct(r.hiringPenalty)}`:''}${aiLabourText(region)}</div>
     <label class="control-row">Minimum wage floor <span id="labour-min-wage-label">${pct(s.policy.minimumWageRatio)} of reference wage</span>
       <input id="labour-min-wage" type="range" min="0" max="125" step="5" value="${Math.round(s.policy.minimumWageRatio*100)}">
     </label>
