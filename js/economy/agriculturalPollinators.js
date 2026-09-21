@@ -16,7 +16,7 @@ const BEEKEEPER_COLONIES_PER_WORKER=85;
 export function ensureAgriculturalPollinators(region){
   region.agriculturalPollinators||={};
   const s=region.agriculturalPollinators;
-  for(const [k,v] of Object.entries({wildHealth:REFERENCE_HEALTH,habitatQuality:.65,floralDiversity:.55,pesticideStress:0,weatherStress:0,managedColonies:0,serviceableManagedColonies:0,managedHealth:.82,managedService:0,managedCoverage:0,managedWorkers:0,hiveMaintenance:.85,transportableColonies:0,serviceLevel:1,aggregateYieldMultiplier:1}))if(!Number.isFinite(s[k]))s[k]=v;
+  for(const [k,v] of Object.entries({wildHealth:REFERENCE_HEALTH,habitatQuality:.65,floralDiversity:.55,pesticideStress:0,weatherStress:0,managedColonies:0,serviceableManagedColonies:0,managedHealth:.82,managedService:0,managedCoverage:0,managedWorkers:0,hiveMaintenance:.85,transportableColonies:0,incomingMobileService:0,mobileColoniesHosted:0,mobileColoniesExported:0,mobileTransportStress:0,mobileDiseasePressure:0,serviceLevel:1,aggregateYieldMultiplier:1}))if(!Number.isFinite(s[k]))s[k]=v;
   s.yieldMultiplierByCategory||={};
   for(const id of Object.keys(POLLINATOR_DEPENDENCE))if(!Number.isFinite(s.yieldMultiplierByCategory[id]))s.yieldMultiplierByCategory[id]=1;
   return s;
@@ -79,8 +79,6 @@ function tickManagedBeekeeping(region,s,years){
   const target=managedColonyTarget(region);
   const labourCap=farmerLabourCapacity(region);
   const desired=Math.min(target,labourCap);
-  // Colonies expand biologically, but additional hives still require durable boxes,
-  // frames and upkeep. Wood is a deliberately simple pre-industrial material input.
   const gap=Math.max(0,desired-s.managedColonies);
   const naturalExpansionCap=Math.max(1,s.managedColonies*.22)*years;
   const wood=nonNegative(region.stockpile.wood);
@@ -90,11 +88,12 @@ function tickManagedBeekeeping(region,s,years){
   const forage=clamp(s.habitatQuality*.48+s.floralDiversity*.52,.08,1);
   const chemical=clamp(1-s.pesticideStress*.82,.12,1);
   const climate=clamp(1-s.weatherStress*.70,.35,1);
-  const carryingHealth=clamp(.22+forage*.58+chemical*.16+climate*.04,.15,1);
+  const mobileDisease=clamp(1-s.mobileDiseasePressure*.36,.55,1);
+  const mobileStress=clamp(1-s.mobileTransportStress*.28,.65,1);
+  const carryingHealth=clamp((.22+forage*.58+chemical*.16+climate*.04)*mobileDisease*mobileStress,.12,1);
   const healthAdjustment=1-Math.exp(-1.05*years);
   s.managedHealth=clamp(s.managedHealth+(carryingHealth-s.managedHealth)*healthAdjustment,0,1);
 
-  // Maintaining boxes and replacing damaged hive material is a small but real cost.
   const maintenanceNeed=s.managedColonies*HIVE_WOOD_PER_COLONY*.16*years;
   const maintenanceWood=Math.min(nonNegative(region.stockpile.wood),maintenanceNeed);
   region.stockpile.wood=Math.max(0,nonNegative(region.stockpile.wood)-maintenanceWood);
@@ -104,12 +103,8 @@ function tickManagedBeekeeping(region,s,years){
   s.serviceableManagedColonies=s.managedColonies*serviceability;
   s.managedWorkers=s.managedColonies/BEEKEEPER_COLONIES_PER_WORKER;
   s.managedCoverage=target>0?clamp(s.serviceableManagedColonies/target):0;
-  // Managed bees can replace much of a missing crop-pollination service but not
-  // every wild insect or ecological interaction.
   s.managedService=clamp(s.managedCoverage*.72,0,.72);
-  // Reserved for the later trucked-pollination tranche. Local hives exist now,
-  // but none are assumed mobile until transport capability explicitly enables it.
-  s.transportableColonies=Math.min(s.transportableColonies,s.serviceableManagedColonies);
+  s.transportableColonies=Math.min(Math.max(0,s.transportableColonies),s.serviceableManagedColonies);
 }
 
 export function tickAgriculturalPollinators(region,elapsedDays=7){
@@ -124,7 +119,8 @@ export function tickAgriculturalPollinators(region,elapsedDays=7){
   s.wildHealth=clamp(s.wildHealth+(carrying-s.wildHealth)*adjustment,0,1);
   const wildService=clamp(s.wildHealth/REFERENCE_HEALTH,0,1);
   tickManagedBeekeeping(region,s,years);
-  s.serviceLevel=clamp(wildService+(1-wildService)*s.managedService,0,1);
+  const localService=clamp(wildService+(1-wildService)*s.managedService,0,1);
+  s.serviceLevel=clamp(localService+(1-localService)*clamp(s.incomingMobileService,0,.48),0,1);
   for(const [id,dependence] of Object.entries(POLLINATOR_DEPENDENCE)){
     s.yieldMultiplierByCategory[id]=1-dependence*(1-s.serviceLevel);
   }
@@ -137,7 +133,7 @@ export function tickAgriculturalPollinators(region,elapsedDays=7){
   }
   s.aggregateYieldMultiplier=total>0?clamp(weighted/total,.55,1):1;
   region.report||={};
-  region.report.agriculturalPollinators={workers:s.managedWorkers,wildHealth:s.wildHealth,habitatQuality:s.habitatQuality,floralDiversity:s.floralDiversity,pesticideStress:s.pesticideStress,weatherStress:s.weatherStress,managedColonies:s.managedColonies,serviceableManagedColonies:s.serviceableManagedColonies,managedHealth:s.managedHealth,managedCoverage:s.managedCoverage,managedService:s.managedService,hiveMaintenance:s.hiveMaintenance,transportableColonies:s.transportableColonies,serviceLevel:s.serviceLevel,yieldMultiplierByCategory:{...s.yieldMultiplierByCategory},aggregateYieldMultiplier:s.aggregateYieldMultiplier};
+  region.report.agriculturalPollinators={workers:s.managedWorkers,wildHealth:s.wildHealth,habitatQuality:s.habitatQuality,floralDiversity:s.floralDiversity,pesticideStress:s.pesticideStress,weatherStress:s.weatherStress,managedColonies:s.managedColonies,serviceableManagedColonies:s.serviceableManagedColonies,managedHealth:s.managedHealth,managedCoverage:s.managedCoverage,managedService:s.managedService,hiveMaintenance:s.hiveMaintenance,transportableColonies:s.transportableColonies,incomingMobileService:s.incomingMobileService,mobileColoniesHosted:s.mobileColoniesHosted,mobileColoniesExported:s.mobileColoniesExported,mobileTransportStress:s.mobileTransportStress,mobileDiseasePressure:s.mobileDiseasePressure,serviceLevel:s.serviceLevel,yieldMultiplierByCategory:{...s.yieldMultiplierByCategory},aggregateYieldMultiplier:s.aggregateYieldMultiplier};
   return s;
 }
 
@@ -151,5 +147,5 @@ export function pollinatorAggregateYieldMultiplier(region){
 
 export function managedPollinationProfile(region){
   const s=ensureAgriculturalPollinators(region);
-  return {colonies:s.managedColonies,serviceableColonies:s.serviceableManagedColonies,health:s.managedHealth,coverage:s.managedCoverage,service:s.managedService,workers:s.managedWorkers,transportableColonies:s.transportableColonies};
+  return {colonies:s.managedColonies,serviceableColonies:s.serviceableManagedColonies,health:s.managedHealth,coverage:s.managedCoverage,service:s.managedService,workers:s.managedWorkers,transportableColonies:s.transportableColonies,incomingMobileService:s.incomingMobileService,mobileColoniesHosted:s.mobileColoniesHosted,mobileColoniesExported:s.mobileColoniesExported,mobileTransportStress:s.mobileTransportStress,mobileDiseasePressure:s.mobileDiseasePressure};
 }

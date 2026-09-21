@@ -1,0 +1,27 @@
+name: Mobile commercial pollination
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/economy/agriculturalPollinators.js'
+      - 'js/economy/mobilePollination.js'
+      - 'js/technology/industrialProduction.js'
+      - 'tools/test-mobile-pollination.mjs'
+      - 'tools/test-agricultural-pollinators.mjs'
+      - '.github/workflows/mobile-pollination.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Syntax check mobile pollination integration
+        run: |
+          node --check js/economy/mobilePollination.js
+          node --check js/economy/agriculturalPollinators.js
+          node --check js/technology/industrialProduction.js
+      - name: Run mobile pollination regression
+        run: node tools/test-mobile-pollination.mjs
+      - name: Re-run pollinator regression
+        run: node tools/test-agricultural-pollinators.mjs
