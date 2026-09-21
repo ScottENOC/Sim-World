@@ -52,7 +52,7 @@ function region(){return {
 }
 
 {
-  const r=region();const byId=new Map([[r.id,r]]);let c=controlledEnvironmentBreakthroughChances(r,byId);assert.ok(c.greenhouse>0,'industrial urban regions with food/climate pressure should be able to discover commercial greenhouse horticulture');
+  const r=region();r.unlockedTechIds.delete(COMMERCIAL_GREENHOUSE_TECH_ID);const byId=new Map([[r.id,r]]);let c=controlledEnvironmentBreakthroughChances(r,byId);assert.ok(c.greenhouse>0,'industrial urban regions with food/climate pressure should be able to discover commercial greenhouse horticulture');
   r.unlockedTechIds.add(COMMERCIAL_GREENHOUSE_TECH_ID);ensureControlledEnvironmentAgriculture(r).greenhouseExperience=.5;c=controlledEnvironmentBreakthroughChances(r,byId);assert.ok(c.hydroponic>0,'greenhouse experience, fertiliser, advanced factories and electricity should enable hydroponic breakthrough');
 }
 
