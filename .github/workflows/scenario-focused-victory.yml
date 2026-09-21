@@ -1,0 +1,29 @@
+name: Scenario Focused Victory
+
+on:
+  pull_request:
+    paths:
+      - 'js/core/scenarioState.js'
+      - 'js/core/scenarioVictory.js'
+      - 'data/scenarios/**'
+      - 'tools/test-scenario-focused-victory.mjs'
+      - '.github/workflows/scenario-focused-victory.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'js/core/scenarioState.js'
+      - 'js/core/scenarioVictory.js'
+      - 'data/scenarios/**'
+      - 'tools/test-scenario-focused-victory.mjs'
+      - '.github/workflows/scenario-focused-victory.yml'
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tools/test-scenario-focused-victory.mjs
