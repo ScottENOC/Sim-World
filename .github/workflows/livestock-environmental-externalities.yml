@@ -40,7 +40,7 @@ jobs:
         run: node tools/test-livestock-environmental-externalities.mjs
       - name: Re-run livestock agriculture regression
         run: node tools/test-livestock-agriculture.mjs
-      - name: Re-run modern water regression
+      - name: Re-run modern water quantity regression
         run: node tools/test-modern-water-quantity.mjs
-      - name: Re-run urban water regression
-        run: node tools/test-urban-water.mjs
+      - name: Re-run modern urban water regression
+        run: node tools/test-modern-urban-water.mjs
