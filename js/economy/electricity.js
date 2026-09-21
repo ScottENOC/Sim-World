@@ -38,8 +38,9 @@ export function electricityDemand(region, elapsedDays = 7) {
   const modernEnergyDemand = modernEnergyElectricityDemand(region);
   const fertiliserDemand = nonNegative(region.agriculturalFertiliser?.electricityLoad);
   const controlledAgricultureDemand = nonNegative(region.controlledEnvironmentAgriculture?.electricityLoad);
-  const industrialDemand = baseIndustrialDemand + lightMetalsDemand + strategicNuclearDemand + modernEnergyDemand + fertiliserDemand + controlledAgricultureDemand;
-  return { householdDemand, industrialDemand, total: householdDemand + industrialDemand, lightMetalsDemand, strategicNuclearDemand, modernEnergyDemand, fertiliserDemand, controlledAgricultureDemand };
+  const waterPumpingDemand = nonNegative(region.waterResources?.pumpingElectricityLoad);
+  const industrialDemand = baseIndustrialDemand + lightMetalsDemand + strategicNuclearDemand + modernEnergyDemand + fertiliserDemand + controlledAgricultureDemand + waterPumpingDemand;
+  return { householdDemand, industrialDemand, total: householdDemand + industrialDemand, lightMetalsDemand, strategicNuclearDemand, modernEnergyDemand, fertiliserDemand, controlledAgricultureDemand, waterPumpingDemand };
 }
 
 export function dispatchElectricityPortfolio(outputs = {}, demand = Infinity) {
@@ -175,6 +176,7 @@ export function tickElectricity(region, elapsedDays = 7) {
   state.modernEnergyDemand = demand.modernEnergyDemand || 0;
   state.fertiliserDemand = demand.fertiliserDemand || 0;
   state.controlledAgricultureDemand = demand.controlledAgricultureDemand || 0;
+  state.waterPumpingDemand = demand.waterPumpingDemand || 0;
   state.gasConsumed = gasConsumed;
   state.storageCharge = storageDispatch.chargeInput;
   state.storageDischarge = storageDispatch.discharged;
