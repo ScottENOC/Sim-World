@@ -17,6 +17,14 @@ def replace_once(path, old, new):
 
 def patch_demographics():
     path = 'js/society/demographics.js'
+    p = ROOT / path
+    text = p.read_text()
+    # Demographic sustainability supersedes the old education-as-a-direct-birth-
+    # penalty formula, while retaining tickMassEducation in the normal demographic
+    # cadence. Treat that newer integrated state as complete rather than trying to
+    # restore the obsolete fertility multiplier.
+    if "demographicFertilityAssessment" in text and "tickMassEducation" in text:
+        return
     replace_once(path,
         "import { tickEducation } from './education.js?v=20260906-education1';",
         "import { tickEducation } from './education.js?v=20260906-education1';\nimport { educationFertilityMultiplier, tickMassEducation } from './massEducation.js?v=20260914-mass-education1';")
