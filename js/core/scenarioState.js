@@ -132,6 +132,20 @@ export function hydrateScenarioInitialState(world, definition, options = {}) {
   return report;
 }
 
+function mappedSovereignActorIds(world) {
+  const ids = new Set();
+  const actorByPolityId = new Map(Object.entries(world?.scenarioActorToPolityId || {}).map(([actorId, polityId]) => [polityId, actorId]));
+  for (const region of asArray(world?.regions)) {
+    if (region?.scenarioCountryId) ids.add(region.scenarioCountryId);
+    const polityId = region?.governance?.sovereignPolityId || region?.polityId || null;
+    if (!polityId) continue;
+    ids.add(polityId);
+    const actorId = actorByPolityId.get(polityId);
+    if (actorId) ids.add(actorId);
+  }
+  return ids;
+}
+
 export function scenarioPlayablePolities(world, playability = {}) {
   const policy = playability?.policy || {};
   const playableKinds = new Set(policy.playableActorKinds || ['country']);
@@ -140,13 +154,16 @@ export function scenarioPlayablePolities(world, playability = {}) {
   const polities = asArray(world?.polities);
 
   if (policy.allMappedSovereignCountriesPlayable === true) {
+    const mappedSovereigns = mappedSovereignActorIds(world);
     return polities.filter((candidate) => {
       if (!candidate?.id || candidate.extinct === true) return false;
-      const actor = actorById.get(candidate.scenarioActorId || candidate.id);
-      if (actor) return playableKinds.has(actor.kind || 'country');
-      if (candidate.scenarioActorKind) return playableKinds.has(candidate.scenarioActorKind);
       if (candidate.kind === 'coalition' || candidate.isCoalition === true || candidate.isInternationalOrganisation === true) return false;
-      return candidate.scenarioPlayable === true;
+      const actorId = candidate.scenarioActorId || candidate.id;
+      const actor = actorById.get(actorId);
+      if (actor && !playableKinds.has(actor.kind || 'country')) return false;
+      if (candidate.scenarioActorKind && !playableKinds.has(candidate.scenarioActorKind)) return false;
+      if (candidate.scenarioPlayable === true) return true;
+      return mappedSovereigns.has(actorId) || mappedSovereigns.has(candidate.id);
     });
   }
 
