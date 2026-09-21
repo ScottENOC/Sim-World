@@ -18,6 +18,6 @@ jobs:
         run: |
           node --check js/economy/agriculturalPests.js
           node --check js/economy/foodDiversity.js
-          node --check js/world/weather.js
+          node --check js/economy/householdFoodSecurity.js
       - name: Run pest regression
         run: node tools/test-agricultural-pests.mjs
