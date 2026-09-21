@@ -59,7 +59,8 @@ function hydrateCamps(world, state, definition) {
 }
 
 function hydrateRelationships(world, state, definition) {
-  state.relationships = asArray(definition.relationships).map((relationship) => ({ ...relationship }));
+  const relationships = asArray(definition.relationships).length ? definition.relationships : definition.diplomaticPostures;
+  state.relationships = asArray(relationships).map((relationship) => ({ ...relationship }));
   world.scenarioRelationships = state.relationships;
 }
 
@@ -127,9 +128,24 @@ export function hydrateScenarioInitialState(world, definition, options = {}) {
 }
 
 export function scenarioPlayablePolities(world, playability = {}) {
-  const playableKinds = new Set(playability?.policy?.playableActorKinds || ['country']);
+  const policy = playability?.policy || {};
+  const playableKinds = new Set(policy.playableActorKinds || ['country']);
   const actors = asArray(world?.scenarioState?.actors);
-  const byId = indexById(world?.polities);
+  const actorById = indexById(actors);
+  const polities = asArray(world?.polities);
+
+  if (policy.allMappedSovereignCountriesPlayable === true) {
+    return polities.filter((candidate) => {
+      if (!candidate?.id || candidate.extinct === true) return false;
+      const actor = actorById.get(candidate.id);
+      if (actor) return playableKinds.has(actor.kind || 'country');
+      if (candidate.scenarioActorKind) return playableKinds.has(candidate.scenarioActorKind);
+      if (candidate.kind === 'coalition' || candidate.isCoalition === true || candidate.isInternationalOrganisation === true) return false;
+      return true;
+    });
+  }
+
+  const byId = indexById(polities);
   return actors
     .filter((actor) => playableKinds.has(actor.kind || 'country'))
     .map((actor) => byId.get(actor.id) || null)
