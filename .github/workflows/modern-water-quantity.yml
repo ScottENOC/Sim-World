@@ -1,0 +1,28 @@
+name: Modern water quantity
+
+on:
+  pull_request:
+  push:
+    branches:
+      - feature/modern-water-quantity-v2
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check water quantity integration
+        run: |
+          node --check js/world/waterResources.js
+          node --check js/world/hydrology.js
+          node --check js/economy/agriculturalWater.js
+          node --check js/economy/electricity.js
+          node --check js/economy/controlledEnvironmentAgriculture.js
+      - name: Run water quantity regressions
+        run: |
+          node tools/test-modern-water-quantity.mjs
+          node tools/test-agricultural-machinery.mjs
+          node tools/test-controlled-environment-agriculture.mjs
