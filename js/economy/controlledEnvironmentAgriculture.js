@@ -1,0 +1,112 @@
+const DAYS_PER_YEAR=365.2425;
+const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
+const nonNegative=v=>Math.max(0,Number(v)||0);
+
+export const COMMERCIAL_GREENHOUSE_TECH_ID='commercial_greenhouse_horticulture';
+export const HYDROPONIC_CEA_TECH_ID='hydroponic_controlled_environment';
+
+const GREENHOUSE_CAPEX_PER_HA=7.5;
+const HYDROPONIC_CAPEX_PER_HA=19;
+const GREENHOUSE_STEEL_PER_HA=.42;
+const GREENHOUSE_COMPONENTS_PER_HA=.16;
+const HYDROPONIC_STEEL_PER_HA=.66;
+const HYDROPONIC_COMPONENTS_PER_HA=.58;
+const HYDROPONIC_FERTILISER_PER_HA_YEAR=.018;
+const HYDROPONIC_ELECTRICITY_PER_HA_YEAR=1.8;
+const GREENHOUSE_OUTPUT_PER_HA_YEAR=.24;
+const HYDROPONIC_OUTPUT_PER_HA_YEAR=.58;
+
+export function ensureControlledEnvironmentAgriculture(region){
+  region.controlledEnvironmentAgriculture||={};
+  const s=region.controlledEnvironmentAgriculture;
+  for(const [k,v] of Object.entries({greenhouseHa:0,hydroponicHa:0,greenhouseExperience:0,hydroponicExperience:0,privateInvestment:0,publicInvestment:0,publicSupportIntensity:0,lastPublicSpend:0,lastPrivateSpend:0,electricityLoad:0,lastFoodOutput:0,lastProduceOutput:0,lastPulseOutput:0,operatingMargin:0,privateViability:0,capitalCostIndex:1,weatherProtection:0,pestProtection:0,waterSaving:0,landDisplacement:0}))if(!Number.isFinite(s[k]))s[k]=v;
+  if(!['adaptive','none','strategic'].includes(s.publicSupportPolicy))s.publicSupportPolicy='adaptive';
+  return s;
+}
+
+function cultivatedHa(region){const v=nonNegative(region.agriculturalLand?.cultivatedHa);return v>0?v:nonNegative(region.agriculturalLand?.availableArableHa)*clamp(region.agriculturalLand?.cultivationShare||0);}
+function industrialReadiness(region){const manufacture=clamp(region.structuralTransformation?.capability?.manufacture||0),machining=clamp(region.industrialSupply?.capability?.precision_machining||0),factory=clamp(nonNegative(region.industrialPlants?.factoryCapacity)/45),finance=clamp(region.corporateCapital?.financialDepth||0);return clamp(manufacture*.35+machining*.24+factory*.21+finance*.20);}
+function shortageSignal(region){const d=region.foodDiversity?.shortage||{};const dietary=clamp(((d.fruit_vegetables||0)*.55+(d.pulses||0)*.25+(d.staple_grains||0)*.10+(d.animal_foods||0)*.10));const calorie=clamp(region.householdFoodSecurity?.shortage||region.report?.householdFoodSecurity?.shortage||0);return clamp(dietary*.72+calorie*.28);}
+function climateRisk(region){const weatherLoss=clamp(1-(region.weather?.yieldMultiplier??1),0,1),pest=clamp(region.agriculturalPests?.aggregateExtraLoss||0),water=clamp(1-(region.hydrology?.waterAvailability??1));return clamp(weatherLoss*.38+pest*.36+water*.26);}
+function powerCost(region){const service=clamp(region.electricity?.industrialService||0);const scarcity=clamp(1-service);const gridScale=clamp(nonNegative(region.electricity?.delivered)/Math.max(1,nonNegative(region.electricity?.demand)));return clamp(.35+scarcity*.5+(1-gridScale)*.15,.25,1);}
+function marketValueSignal(region){const scarcity=shortageSignal(region),population=Math.max(1,Number(region.population)||1),urban=clamp(region.medievalSociety?.urban?.urbanisation||region.settlements?.urbanShare||0);return .55+scarcity*1.45+urban*.32+clamp(Math.log1p(population)/15)*.18;}
+
+function economics(region,s){
+  const power=powerCost(region),market=marketValueSignal(region),greenLearning=1-clamp(s.greenhouseExperience)*.32,hydroLearning=1-clamp(s.hydroponicExperience)*.38,scale=Math.log1p(s.greenhouseHa+s.hydroponicHa);
+  const greenhouseCapital=GREENHOUSE_CAPEX_PER_HA*greenLearning/(1+scale*.035),hydroCapital=HYDROPONIC_CAPEX_PER_HA*hydroLearning/(1+scale*.05);
+  const greenhouseOperating=.105+power*.035,hydroOperating=.12+power*.25;
+  const greenhouseRevenue=GREENHOUSE_OUTPUT_PER_HA_YEAR*market,hydroRevenue=HYDROPONIC_OUTPUT_PER_HA_YEAR*market;
+  const greenhouseReturn=greenhouseRevenue-greenhouseOperating-greenhouseCapital*.085;
+  const hydroReturn=hydroRevenue-hydroOperating-hydroCapital*.09;
+  const blendedCapacity=s.greenhouseHa+s.hydroponicHa||1;
+  const margin=(greenhouseReturn*s.greenhouseHa+hydroReturn*s.hydroponicHa)/blendedCapacity;
+  const viability=clamp(.5+Math.max(greenhouseReturn,hydroReturn)*2.6,0,1);
+  return {power,market,greenhouseCapital,hydroCapital,greenhouseReturn,hydroReturn,margin,viability};
+}
+
+function supportIntensity(region,s,econ){
+  if(s.publicSupportPolicy==='none')return 0;
+  const treasury=nonNegative(region.treasury),foodNeed=shortageSignal(region),resilience=climateRisk(region),learningGap=1-clamp((s.greenhouseExperience+s.hydroponicExperience)*.5),capitalGap=1-econ.viability;
+  const strategic=s.publicSupportPolicy==='strategic'?.20:0;
+  const fiscal=clamp(treasury/Math.max(1,(region.population||1)*.015));
+  return clamp((foodNeed*.30+resilience*.24+learningGap*.18+capitalGap*.32+strategic)*fiscal,0,.72);
+}
+
+function spendMaterials(region,{steel,components}){region.stockpile||={};const steelAvailable=nonNegative(region.stockpile.steel),componentAvailable=nonNegative(region.stockpile.machine_components);const ratio=Math.min(1,steel>0?steelAvailable/steel:1,components>0?componentAvailable/components:1);if(ratio<=0)return 0;region.stockpile.steel=Math.max(0,steelAvailable-steel*ratio);region.stockpile.machine_components=Math.max(0,componentAvailable-components*ratio);return ratio;}
+
+function expandCapacity(region,s,econ,years){
+  const tech=region.unlockedTechIds||new Set(),finance=clamp(region.corporateCapital?.financialDepth||0),wealth=nonNegative(region.corporateCapital?.investibleWealth)+nonNegative(region.wallet)*.02;
+  const need=clamp(shortageSignal(region)*.55+climateRisk(region)*.30+clamp(Math.log1p(region.population||0)/15)*.15);
+  s.publicSupportIntensity=supportIntensity(region,s,econ);
+  const privateAppetite=clamp(econ.viability*.60+finance*.25+need*.15);
+  const maxPrivateSpend=Math.min(wealth*.035*years,Math.max(0,privateAppetite-.34)*18*years);
+  const subsidyBudget=Math.min(nonNegative(region.treasury)*.025*years,s.publicSupportIntensity*12*years);
+  let privateSpend=maxPrivateSpend,publicSpend=subsidyBudget;
+  let totalSpend=privateSpend+publicSpend;
+  if(totalSpend<=0){s.lastPrivateSpend=0;s.lastPublicSpend=0;return;}
+
+  const hydroReady=tech.has(HYDROPONIC_CEA_TECH_ID)&&clamp(region.electricity?.industrialService||0)>.38;
+  const preferHydro=hydroReady&&(econ.hydroReturn+s.publicSupportIntensity*.18>econ.greenhouseReturn+.015);
+  const capex=preferHydro?econ.hydroCapital:econ.greenhouseCapital;
+  let proposedHa=totalSpend/Math.max(.01,capex);
+  const materialRatio=spendMaterials(region,{steel:proposedHa*(preferHydro?HYDROPONIC_STEEL_PER_HA:GREENHOUSE_STEEL_PER_HA),components:proposedHa*(preferHydro?HYDROPONIC_COMPONENTS_PER_HA:GREENHOUSE_COMPONENTS_PER_HA)});
+  proposedHa*=materialRatio;privateSpend*=materialRatio;publicSpend*=materialRatio;
+  if(proposedHa<=0){s.lastPrivateSpend=0;s.lastPublicSpend=0;return;}
+  if(preferHydro)s.hydroponicHa+=proposedHa;else s.greenhouseHa+=proposedHa;
+  region.treasury=Math.max(0,nonNegative(region.treasury)-publicSpend);
+  region.wallet=Math.max(0,nonNegative(region.wallet)-privateSpend*.35);
+  s.privateInvestment+=privateSpend;s.publicInvestment+=publicSpend;s.lastPrivateSpend=privateSpend;s.lastPublicSpend=publicSpend;
+}
+
+function operate(region,s,years){
+  region.stockpile||={};
+  const electricityService=clamp(region.electricity?.industrialService||0),fertiliser=nonNegative(region.stockpile.fertiliser);
+  const hydroFertiliserNeed=s.hydroponicHa*HYDROPONIC_FERTILISER_PER_HA_YEAR*years,hydroFertiliserRatio=hydroFertiliserNeed>0?clamp(fertiliser/hydroFertiliserNeed):1;
+  const fertiliserUsed=hydroFertiliserNeed*hydroFertiliserRatio;region.stockpile.fertiliser=Math.max(0,fertiliser-fertiliserUsed);
+  s.electricityLoad=s.hydroponicHa*HYDROPONIC_ELECTRICITY_PER_HA_YEAR*years;
+  const greenhouseReliability=.78+.22*clamp(region.electricity?.industrialService||.4),hydroReliability=clamp((.20+.80*electricityService)*(.25+.75*hydroFertiliserRatio));
+  const greenhouseOutput=s.greenhouseHa*GREENHOUSE_OUTPUT_PER_HA_YEAR*years*greenhouseReliability,hydroOutput=s.hydroponicHa*HYDROPONIC_OUTPUT_PER_HA_YEAR*years*hydroReliability,total=greenhouseOutput+hydroOutput;
+  const produce=total*.78,pulses=total*.14,genericFood=total*.92;
+  region.stockpile.food=nonNegative(region.stockpile.food)+genericFood;region.stockpile.fruit_vegetables=nonNegative(region.stockpile.fruit_vegetables)+produce;region.stockpile.pulses=nonNegative(region.stockpile.pulses)+pulses;
+  s.lastFoodOutput=genericFood;s.lastProduceOutput=produce;s.lastPulseOutput=pulses;
+  s.weatherProtection=clamp((s.greenhouseHa*.72+s.hydroponicHa*.96)/Math.max(1,s.greenhouseHa+s.hydroponicHa));s.pestProtection=clamp((s.greenhouseHa*.58+s.hydroponicHa*.92)/Math.max(1,s.greenhouseHa+s.hydroponicHa));s.waterSaving=clamp((s.greenhouseHa*.35+s.hydroponicHa*.82)/Math.max(1,s.greenhouseHa+s.hydroponicHa));
+  s.landDisplacement=clamp((s.greenhouseHa+s.hydroponicHa*2.8)/Math.max(1,cultivatedHa(region)));
+  if(greenhouseOutput>0)s.greenhouseExperience=clamp(s.greenhouseExperience+years*(.025+.055*clamp(greenhouseOutput/Math.max(.01,total)))*(1-s.greenhouseExperience));
+  if(hydroOutput>0)s.hydroponicExperience=clamp(s.hydroponicExperience+years*(.035+.075*clamp(hydroOutput/Math.max(.01,total)))*(1-s.hydroponicExperience));
+}
+
+export function tickControlledEnvironmentAgriculture(region,elapsedDays=7){
+  const s=ensureControlledEnvironmentAgriculture(region),years=Math.max(0,Number(elapsedDays)||0)/DAYS_PER_YEAR,tech=region.unlockedTechIds||new Set();s.lastPrivateSpend=0;s.lastPublicSpend=0;s.electricityLoad=0;s.lastFoodOutput=0;s.lastProduceOutput=0;s.lastPulseOutput=0;
+  if(!tech.has(COMMERCIAL_GREENHOUSE_TECH_ID)){region.report||={};region.report.controlledEnvironmentAgriculture={workers:0,...s};return s;}
+  let econ=economics(region,s);expandCapacity(region,s,econ,years);operate(region,s,years);econ=economics(region,s);s.operatingMargin=econ.margin;s.privateViability=econ.viability;s.capitalCostIndex=clamp((econ.greenhouseCapital/GREENHOUSE_CAPEX_PER_HA+econ.hydroCapital/HYDROPONIC_CAPEX_PER_HA)*.5,.45,1.2);
+  region.report||={};region.report.controlledEnvironmentAgriculture={workers:0,greenhouseHa:s.greenhouseHa,hydroponicHa:s.hydroponicHa,greenhouseExperience:s.greenhouseExperience,hydroponicExperience:s.hydroponicExperience,lastFoodOutput:s.lastFoodOutput,lastProduceOutput:s.lastProduceOutput,lastPulseOutput:s.lastPulseOutput,electricityLoad:s.electricityLoad,operatingMargin:s.operatingMargin,privateViability:s.privateViability,publicSupportIntensity:s.publicSupportIntensity,lastPublicSpend:s.lastPublicSpend,lastPrivateSpend:s.lastPrivateSpend,totalPublicInvestment:s.publicInvestment,totalPrivateInvestment:s.privateInvestment,weatherProtection:s.weatherProtection,pestProtection:s.pestProtection,waterSaving:s.waterSaving,landDisplacement:s.landDisplacement};return s;
+}
+
+function contactCount(region,byId,id){const ids=new Set([...(region.neighbors||[]),...(region.tradePartnerIds||[])]);if(region.recentTradePartners instanceof Map)for(const x of region.recentTradePartners.keys())ids.add(x);return [...ids].filter(x=>byId.get(x)?.unlockedTechIds?.has?.(id)).length;}
+export function controlledEnvironmentBreakthroughChances(region,byId){
+  const tech=region.unlockedTechIds||new Set(),industry=industrialReadiness(region),urban=clamp(region.medievalSociety?.urban?.urbanisation||region.settlements?.urbanShare||0),scarcity=shortageSignal(region),risk=climateRisk(region),electricity=clamp(region.electricity?.industrialService||0),fert=tech.has('synthetic_nitrogen_fertiliser'),advanced=tech.has('advanced_factories');
+  const greenhouse=tech.has(COMMERCIAL_GREENHOUSE_TECH_ID)?0:industry*(.34+.22*urban+.22*scarcity+.22*risk)*0.000006+(1-Math.pow(1-.00016,contactCount(region,byId,COMMERCIAL_GREENHOUSE_TECH_ID)));
+  const hydroReady=tech.has(COMMERCIAL_GREENHOUSE_TECH_ID)&&fert&&advanced&&electricity>.28;
+  const hydroponic=tech.has(HYDROPONIC_CEA_TECH_ID)||!hydroReady?0:industry*(.22+.28*electricity+.18*scarcity+.14*risk+.18*clamp(ensureControlledEnvironmentAgriculture(region).greenhouseExperience))*0.000005+(1-Math.pow(1-.00012,contactCount(region,byId,HYDROPONIC_CEA_TECH_ID)));
+  return {greenhouse:clamp(greenhouse),hydroponic:clamp(hydroponic)};
+}
