@@ -1,4 +1,5 @@
 import { localPrice } from './prices.js?v=20260905-goods1';
+import { recordMaterialUse } from './circularEconomy.js?v=20260922-circular1';
 
 // Tools are physical counts, not a permanent development score. NEW tools sit
 // in region.stockpile under their tool id and can be traded. Once issued they
@@ -149,5 +150,8 @@ export function investInTools(region, occupation, want, materialAvailableForThis
     region.stockpile[toolId] -= newlyIssued;
     region.equipment[occupation][toolId] = (region.equipment[occupation][toolId] || 0) + newlyIssued;
   }
-  return toolsMade * materialCost;
+  const embodied = toolsMade * materialCost;
+  if (want.material === 'bronze') { recordMaterialUse(region, 'copper', embodied * .9, 'tools'); recordMaterialUse(region, 'tin', embodied * .1, 'tools'); }
+  else if (want.material === 'iron') recordMaterialUse(region, 'iron', embodied, 'tools');
+  return embodied;
 }
