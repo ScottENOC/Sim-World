@@ -1,3 +1,5 @@
+import { precisionFertiliserDemandMultiplier, precisionRunoffMultiplier } from './precisionAgriculture.js?v=20260921-precision-ag1';
+
 const DAYS_PER_YEAR=365.2425;
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const nonNegative=v=>Math.max(0,Number(v)||0);
@@ -5,8 +7,6 @@ const nonNegative=v=>Math.max(0,Number(v)||0);
 export const INDUSTRIAL_AMMONIA_TECH_ID='industrial_ammonia_synthesis';
 export const SYNTHETIC_FERTILISER_TECH_ID='synthetic_nitrogen_fertiliser';
 
-// Gameplay units are deliberately abstract. One fertiliser unit is the annual
-// nitrogen requirement for roughly 100 hectares under ordinary intensive use.
 const HECTARES_PER_FERTILISER_UNIT=100;
 const AMMONIA_PER_FERTILISER=.82;
 const GAS_PER_AMMONIA=1.15;
@@ -21,126 +21,14 @@ export function ensureAgriculturalFertiliser(region){
   return s;
 }
 
-function cultivatedHa(region){
-  const cultivated=nonNegative(region.agriculturalLand?.cultivatedHa);
-  if(cultivated>0)return cultivated;
-  return nonNegative(region.agriculturalLand?.availableArableHa)*clamp(region.agriculturalLand?.cultivationShare||0);
-}
-
-export function fertiliserAnnualDemand(region){
-  if(!region.unlockedTechIds?.has?.(SYNTHETIC_FERTILISER_TECH_ID))return 0;
-  return cultivatedHa(region)/HECTARES_PER_FERTILISER_UNIT;
-}
-
-function industrialReadiness(region){
-  const manufacture=clamp(region.structuralTransformation?.capability?.manufacture||0);
-  const machining=clamp(region.industrialSupply?.capability?.precision_machining||0);
-  const electricity=clamp(region.electricity?.industrialService||0);
-  const factory=nonNegative(region.industrialPlants?.factoryCapacity||0);
-  const factoryFactor=clamp(factory/45);
-  return clamp(manufacture*.30+machining*.22+electricity*.30+factoryFactor*.18);
-}
-
-export function fertiliserProductionCapability(region){
-  const s=ensureAgriculturalFertiliser(region),tech=region.unlockedTechIds||new Set();
-  if(!tech.has(INDUSTRIAL_AMMONIA_TECH_ID))return 0;
-  const base=industrialReadiness(region);
-  const ammonia=clamp(base*.78+s.ammoniaExperience*.22);
-  if(!tech.has(SYNTHETIC_FERTILISER_TECH_ID))return ammonia*.72;
-  return clamp(ammonia*.82+s.fertiliserExperience*.18);
-}
-
-function feedstockAvailability(region){
-  const gas=nonNegative(region.stockpile?.natural_gas),coal=nonNegative(region.stockpile?.coal);
-  if(gas>0)return {type:'gas',available:gas,perAmmonia:GAS_PER_AMMONIA};
-  return {type:'coal',available:coal,perAmmonia:COAL_PER_AMMONIA};
-}
-
-function produceAmmonia(region,wanted,elapsedDays){
-  const s=ensureAgriculturalFertiliser(region),tech=region.unlockedTechIds||new Set();
-  if(!tech.has(INDUSTRIAL_AMMONIA_TECH_ID)||wanted<=0)return 0;
-  region.stockpile||={};
-  const years=Math.max(0,Number(elapsedDays)||0)/DAYS_PER_YEAR;
-  const capability=fertiliserProductionCapability(region),electricity=clamp(region.electricity?.industrialService||0);
-  const factory=nonNegative(region.industrialPlants?.factoryCapacity||0);
-  const capacity=factory*Math.max(.08,.18+.42*capability)*years;
-  const feed=feedstockAvailability(region);
-  let output=Math.min(wanted,capacity,feed.available/Math.max(.0001,feed.perAmmonia));
-  // High-pressure synthesis remains electricity/industrial-energy intensive. A
-  // weak grid does not make production impossible, but it sharply reduces rate.
-  output*=.28+.72*electricity;
-  const input=output*feed.perAmmonia;
-  if(feed.type==='gas'){region.stockpile.natural_gas=Math.max(0,feed.available-input);s.feedstockGas=input;s.feedstockCoal=0;}
-  else{region.stockpile.coal=Math.max(0,feed.available-input);s.feedstockCoal=input;s.feedstockGas=0;}
-  region.stockpile.ammonia=nonNegative(region.stockpile.ammonia)+output;
-  s.lastAmmoniaProduced=output;
-  s.electricityLoad=output*(feed.type==='gas'?.22:.34);
-  if(output>0)s.ammoniaExperience=clamp(s.ammoniaExperience+.004*clamp(output/Math.max(.001,capacity))*(1-s.ammoniaExperience));
-  return output;
-}
-
-function convertFertiliser(region,wanted,elapsedDays){
-  const s=ensureAgriculturalFertiliser(region),tech=region.unlockedTechIds||new Set();
-  if(!tech.has(SYNTHETIC_FERTILISER_TECH_ID)||wanted<=0)return 0;
-  region.stockpile||={};
-  const years=Math.max(0,Number(elapsedDays)||0)/DAYS_PER_YEAR;
-  const capability=fertiliserProductionCapability(region),factory=nonNegative(region.industrialPlants?.factoryCapacity||0);
-  const capacity=factory*Math.max(.07,.16+.34*capability)*years;
-  const ammonia=nonNegative(region.stockpile.ammonia);
-  const output=Math.min(wanted,capacity,ammonia/AMMONIA_PER_FERTILISER);
-  region.stockpile.ammonia=Math.max(0,ammonia-output*AMMONIA_PER_FERTILISER);
-  region.stockpile.fertiliser=nonNegative(region.stockpile.fertiliser)+output;
-  s.lastFertiliserProduced=output;
-  s.electricityLoad+=output*.08;
-  if(output>0)s.fertiliserExperience=clamp(s.fertiliserExperience+.0045*clamp(output/Math.max(.001,capacity))*(1-s.fertiliserExperience));
-  return output;
-}
-
-function applyFertiliser(region,elapsedDays){
-  const s=ensureAgriculturalFertiliser(region),years=Math.max(0,Number(elapsedDays)||0)/DAYS_PER_YEAR;
-  const annual=fertiliserAnnualDemand(region),needed=annual*years;
-  region.stockpile||={};
-  const available=nonNegative(region.stockpile.fertiliser),applied=Math.min(available,needed);
-  region.stockpile.fertiliser=Math.max(0,available-applied);s.lastApplied=applied;
-  const coverage=needed>0?clamp(applied/needed):0;
-  s.applicationCoverage=coverage;
-  // Response is strong at low/moderate application and saturates. Fertiliser
-  // raises biological yield per hectare; unlike tractors it does not alter land.
-  s.yieldMultiplier=1+MAX_YIELD_GAIN*(1-Math.exp(-2.15*coverage))/(1-Math.exp(-2.15));
-  // Runoff rises disproportionately near full application, especially when rain
-  // and irrigation move excess nutrients into rivers. It persists as a small
-  // environmental stock rather than disappearing every tick.
-  const waterMovement=clamp((2-(region.weather?.yieldMultiplier??1))*.28+(region.agriculturalWater?.effectiveIrrigation||region.report?.farming?.water?.effectiveIrrigation||0)*.38,0,1);
-  const newRunoff=applied*(.035+.10*coverage*coverage)*(1+.75*waterMovement);
-  const decay=1-Math.pow(.72,years);
-  s.nutrientRunoff=Math.max(0,s.nutrientRunoff*(1-decay)+newRunoff);
-  s.waterQualityPenalty=clamp(s.nutrientRunoff/Math.max(1,cultivatedHa(region)/250)*.12,0,.22);
-  region.hydrology||={};region.hydrology.report||={};region.hydrology.report.nutrientRunoff=s.nutrientRunoff;region.hydrology.report.agriculturalWaterQualityPenalty=s.waterQualityPenalty;
-  return applied;
-}
-
+function cultivatedHa(region){const cultivated=nonNegative(region.agriculturalLand?.cultivatedHa);if(cultivated>0)return cultivated;return nonNegative(region.agriculturalLand?.availableArableHa)*clamp(region.agriculturalLand?.cultivationShare||0);}
+export function fertiliserAnnualDemand(region){if(!region.unlockedTechIds?.has?.(SYNTHETIC_FERTILISER_TECH_ID))return 0;return cultivatedHa(region)/HECTARES_PER_FERTILISER_UNIT*precisionFertiliserDemandMultiplier(region);}
+function industrialReadiness(region){const manufacture=clamp(region.structuralTransformation?.capability?.manufacture||0);const machining=clamp(region.industrialSupply?.capability?.precision_machining||0);const electricity=clamp(region.electricity?.industrialService||0);const factory=nonNegative(region.industrialPlants?.factoryCapacity||0);const factoryFactor=clamp(factory/45);return clamp(manufacture*.30+machining*.22+electricity*.30+factoryFactor*.18);}
+export function fertiliserProductionCapability(region){const s=ensureAgriculturalFertiliser(region),tech=region.unlockedTechIds||new Set();if(!tech.has(INDUSTRIAL_AMMONIA_TECH_ID))return 0;const base=industrialReadiness(region);const ammonia=clamp(base*.78+s.ammoniaExperience*.22);if(!tech.has(SYNTHETIC_FERTILISER_TECH_ID))return ammonia*.72;return clamp(ammonia*.82+s.fertiliserExperience*.18);}
+function feedstockAvailability(region){const gas=nonNegative(region.stockpile?.natural_gas),coal=nonNegative(region.stockpile?.coal);if(gas>0)return {type:'gas',available:gas,perAmmonia:GAS_PER_AMMONIA};return {type:'coal',available:coal,perAmmonia:COAL_PER_AMMONIA};}
+function produceAmmonia(region,wanted,elapsedDays){const s=ensureAgriculturalFertiliser(region),tech=region.unlockedTechIds||new Set();if(!tech.has(INDUSTRIAL_AMMONIA_TECH_ID)||wanted<=0)return 0;region.stockpile||={};const years=Math.max(0,Number(elapsedDays)||0)/DAYS_PER_YEAR;const capability=fertiliserProductionCapability(region),electricity=clamp(region.electricity?.industrialService||0);const factory=nonNegative(region.industrialPlants?.factoryCapacity||0);const capacity=factory*Math.max(.08,.18+.42*capability)*years;const feed=feedstockAvailability(region);let output=Math.min(wanted,capacity,feed.available/Math.max(.0001,feed.perAmmonia));output*=.28+.72*electricity;const input=output*feed.perAmmonia;if(feed.type==='gas'){region.stockpile.natural_gas=Math.max(0,feed.available-input);s.feedstockGas=input;s.feedstockCoal=0;}else{region.stockpile.coal=Math.max(0,feed.available-input);s.feedstockCoal=input;s.feedstockGas=0;}region.stockpile.ammonia=nonNegative(region.stockpile.ammonia)+output;s.lastAmmoniaProduced=output;s.electricityLoad=output*(feed.type==='gas'?.22:.34);if(output>0)s.ammoniaExperience=clamp(s.ammoniaExperience+.004*clamp(output/Math.max(.001,capacity))*(1-s.ammoniaExperience));return output;}
+function convertFertiliser(region,wanted,elapsedDays){const s=ensureAgriculturalFertiliser(region),tech=region.unlockedTechIds||new Set();if(!tech.has(SYNTHETIC_FERTILISER_TECH_ID)||wanted<=0)return 0;region.stockpile||={};const years=Math.max(0,Number(elapsedDays)||0)/DAYS_PER_YEAR;const capability=fertiliserProductionCapability(region),factory=nonNegative(region.industrialPlants?.factoryCapacity||0);const capacity=factory*Math.max(.07,.16+.34*capability)*years;const ammonia=nonNegative(region.stockpile.ammonia);const output=Math.min(wanted,capacity,ammonia/AMMONIA_PER_FERTILISER);region.stockpile.ammonia=Math.max(0,ammonia-output*AMMONIA_PER_FERTILISER);region.stockpile.fertiliser=nonNegative(region.stockpile.fertiliser)+output;s.lastFertiliserProduced=output;s.electricityLoad+=output*.08;if(output>0)s.fertiliserExperience=clamp(s.fertiliserExperience+.0045*clamp(output/Math.max(.001,capacity))*(1-s.fertiliserExperience));return output;}
+function applyFertiliser(region,elapsedDays){const s=ensureAgriculturalFertiliser(region),years=Math.max(0,Number(elapsedDays)||0)/DAYS_PER_YEAR;const annual=fertiliserAnnualDemand(region),needed=annual*years;region.stockpile||={};const available=nonNegative(region.stockpile.fertiliser),applied=Math.min(available,needed);region.stockpile.fertiliser=Math.max(0,available-applied);s.lastApplied=applied;const coverage=needed>0?clamp(applied/needed):0;s.applicationCoverage=coverage;s.yieldMultiplier=1+MAX_YIELD_GAIN*(1-Math.exp(-2.15*coverage))/(1-Math.exp(-2.15));const waterMovement=clamp((2-(region.weather?.yieldMultiplier??1))*.28+(region.agriculturalWater?.effectiveIrrigation||region.report?.farming?.water?.effectiveIrrigation||0)*.38,0,1);const newRunoff=applied*(.035+.10*coverage*coverage)*(1+.75*waterMovement)*precisionRunoffMultiplier(region);const decay=1-Math.pow(.72,years);s.nutrientRunoff=Math.max(0,s.nutrientRunoff*(1-decay)+newRunoff);s.waterQualityPenalty=clamp(s.nutrientRunoff/Math.max(1,cultivatedHa(region)/250)*.12,0,.22);region.hydrology||={};region.hydrology.report||={};region.hydrology.report.nutrientRunoff=s.nutrientRunoff;region.hydrology.report.agriculturalWaterQualityPenalty=s.waterQualityPenalty;return applied;}
 export function fertiliserYieldMultiplier(region){return Math.max(1,Number(ensureAgriculturalFertiliser(region).yieldMultiplier)||1);}
-
-export function tickAgriculturalFertiliser(region,elapsedDays=7){
-  const s=ensureAgriculturalFertiliser(region),annual=fertiliserAnnualDemand(region),years=Math.max(0,Number(elapsedDays)||0)/DAYS_PER_YEAR;
-  s.lastAmmoniaProduced=0;s.lastFertiliserProduced=0;s.electricityLoad=0;s.feedstockGas=0;s.feedstockCoal=0;
-  if(region.unlockedTechIds?.has?.(INDUSTRIAL_AMMONIA_TECH_ID)){
-    const fertiliserStock=nonNegative(region.stockpile?.fertiliser),target=annual*RESERVE_YEARS;
-    const fertiliserShortage=Math.max(0,target-fertiliserStock),ammoniaNeed=fertiliserShortage*AMMONIA_PER_FERTILISER;
-    produceAmmonia(region,ammoniaNeed,elapsedDays);
-    convertFertiliser(region,fertiliserShortage,elapsedDays);
-  }
-  applyFertiliser(region,elapsedDays);
-  s.productionCapability=fertiliserProductionCapability(region);
-  region.report||={};region.report.agriculturalFertiliser={workers:0,ammoniaProduced:s.lastAmmoniaProduced,fertiliserProduced:s.lastFertiliserProduced,applied:s.lastApplied,applicationCoverage:s.applicationCoverage,yieldMultiplier:s.yieldMultiplier,nutrientRunoff:s.nutrientRunoff,waterQualityPenalty:s.waterQualityPenalty,electricityLoad:s.electricityLoad,feedstockGas:s.feedstockGas,feedstockCoal:s.feedstockCoal,productionCapability:s.productionCapability};
-  return s;
-}
-
-export function agriculturalChemistryBreakthroughChances(region,byId){
-  const tech=region.unlockedTechIds||new Set(),readiness=industrialReadiness(region),machining=clamp(region.industrialSupply?.capability?.precision_machining||0),electricity=clamp(region.electricity?.industrialService||0),manufacture=clamp(region.structuralTransformation?.capability?.manufacture||0),agDemand=clamp(Math.log1p(nonNegative(region.agriculturalLand?.availableArableHa))/14);
-  const contacts=(id)=>{const ids=new Set([...(region.neighbors||[]),...(region.tradePartnerIds||[])]);if(region.recentTradePartners instanceof Map)for(const x of region.recentTradePartners.keys())ids.add(x);return [...ids].filter(x=>byId.get(x)?.unlockedTechIds?.has?.(id)).length;};
-  const diffusion=(id,base)=>1-Math.pow(1-base,contacts(id));
-  const ammonia=tech.has(INDUSTRIAL_AMMONIA_TECH_ID)||!tech.has('industrial_electrification')?0:readiness*(.24+.25*machining+.28*electricity+.13*manufacture+.10*agDemand)*0.000006+diffusion(INDUSTRIAL_AMMONIA_TECH_ID,.00016);
-  const fertiliser=tech.has(SYNTHETIC_FERTILISER_TECH_ID)||!tech.has(INDUSTRIAL_AMMONIA_TECH_ID)?0:readiness*(.28+.20*electricity+.18*manufacture+.18*agDemand+.16*ensureAgriculturalFertiliser(region).ammoniaExperience)*0.000008+diffusion(SYNTHETIC_FERTILISER_TECH_ID,.00020);
-  return {ammonia:clamp(ammonia),fertiliser:clamp(fertiliser)};
-}
+export function tickAgriculturalFertiliser(region,elapsedDays=7){const s=ensureAgriculturalFertiliser(region),annual=fertiliserAnnualDemand(region);s.lastAmmoniaProduced=0;s.lastFertiliserProduced=0;s.electricityLoad=0;s.feedstockGas=0;s.feedstockCoal=0;if(region.unlockedTechIds?.has?.(INDUSTRIAL_AMMONIA_TECH_ID)){const fertiliserStock=nonNegative(region.stockpile?.fertiliser),target=annual*RESERVE_YEARS;const fertiliserShortage=Math.max(0,target-fertiliserStock),ammoniaNeed=fertiliserShortage*AMMONIA_PER_FERTILISER;produceAmmonia(region,ammoniaNeed,elapsedDays);convertFertiliser(region,fertiliserShortage,elapsedDays);}applyFertiliser(region,elapsedDays);s.productionCapability=fertiliserProductionCapability(region);region.report||={};region.report.agriculturalFertiliser={workers:0,ammoniaProduced:s.lastAmmoniaProduced,fertiliserProduced:s.lastFertiliserProduced,applied:s.lastApplied,applicationCoverage:s.applicationCoverage,yieldMultiplier:s.yieldMultiplier,nutrientRunoff:s.nutrientRunoff,waterQualityPenalty:s.waterQualityPenalty,electricityLoad:s.electricityLoad,feedstockGas:s.feedstockGas,feedstockCoal:s.feedstockCoal,productionCapability:s.productionCapability};return s;}
+export function agriculturalChemistryBreakthroughChances(region,byId){const tech=region.unlockedTechIds||new Set(),readiness=industrialReadiness(region),machining=clamp(region.industrialSupply?.capability?.precision_machining||0),electricity=clamp(region.electricity?.industrialService||0),manufacture=clamp(region.structuralTransformation?.capability?.manufacture||0),agDemand=clamp(Math.log1p(nonNegative(region.agriculturalLand?.availableArableHa))/14);const contacts=(id)=>{const ids=new Set([...(region.neighbors||[]),...(region.tradePartnerIds||[])]);if(region.recentTradePartners instanceof Map)for(const x of region.recentTradePartners.keys())ids.add(x);return [...ids].filter(x=>byId.get(x)?.unlockedTechIds?.has?.(id)).length;};const diffusion=(id,base)=>1-Math.pow(1-base,contacts(id));const ammonia=tech.has(INDUSTRIAL_AMMONIA_TECH_ID)||!tech.has('industrial_electrification')?0:readiness*(.24+.25*machining+.28*electricity+.13*manufacture+.10*agDemand)*0.000006+diffusion(INDUSTRIAL_AMMONIA_TECH_ID,.00016);const fertiliser=tech.has(SYNTHETIC_FERTILISER_TECH_ID)||!tech.has(INDUSTRIAL_AMMONIA_TECH_ID)?0:readiness*(.28+.20*electricity+.18*manufacture+.18*agDemand+.16*ensureAgriculturalFertiliser(region).ammoniaExperience)*0.000008+diffusion(SYNTHETIC_FERTILISER_TECH_ID,.00020);return {ammonia:clamp(ammonia),fertiliser:clamp(fertiliser)};}

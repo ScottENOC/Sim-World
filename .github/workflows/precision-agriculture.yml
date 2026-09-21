@@ -1,0 +1,51 @@
+name: Precision agriculture
+
+on:
+  pull_request:
+    paths:
+      - 'js/economy/precisionAgriculture.js'
+      - 'js/economy/agriculturalFertiliser.js'
+      - 'js/economy/agriculturalPesticides.js'
+      - 'js/economy/electricity.js'
+      - 'js/economy/labor.js'
+      - 'js/world/waterResources.js'
+      - 'tools/test-precision-agriculture.mjs'
+      - '.github/workflows/precision-agriculture.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'js/economy/precisionAgriculture.js'
+      - 'js/economy/agriculturalFertiliser.js'
+      - 'js/economy/agriculturalPesticides.js'
+      - 'js/economy/electricity.js'
+      - 'js/economy/labor.js'
+      - 'js/world/waterResources.js'
+      - 'tools/test-precision-agriculture.mjs'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check precision agriculture integration
+        run: |
+          node --check js/economy/precisionAgriculture.js
+          node --check js/economy/agriculturalFertiliser.js
+          node --check js/economy/agriculturalPesticides.js
+          node --check js/economy/electricity.js
+          node --check js/economy/labor.js
+          node --check js/world/waterResources.js
+          node --check tools/test-precision-agriculture.mjs
+      - name: Run precision agriculture regression
+        run: node tools/test-precision-agriculture.mjs
+      - name: Re-run modern water quantity regression
+        run: node tools/test-modern-water-quantity.mjs
+      - name: Re-run synthetic fertiliser regression
+        run: node tools/test-synthetic-fertiliser.mjs
+      - name: Re-run agricultural pesticide regression
+        run: node tools/test-agricultural-pesticides.mjs
+      - name: Re-run electricity regression
+        run: node tools/test-electricity.mjs
