@@ -1,6 +1,7 @@
 import { DIET_FOOD_IDS, regionalFoodProductionMix } from './foodDiversity.js?v=20260921-food-diversity1';
 import { pesticideControlForCategory } from './agriculturalPesticides.js?v=20260921-pesticides1';
 import { geneticPestProtection } from './agriculturalGenetics.js?v=20260921-genetics1';
+import { tickCropBreeding, breedingPestProtection } from './cropBreeding.js?v=20260921-breeding1';
 
 const DAYS_PER_YEAR = 365.2425;
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
@@ -22,6 +23,7 @@ export function ensureAgriculturalPests(region) {
   s.introductionRisk ||= {};
   s.pesticideControl ||= {};
   s.geneticProtection ||= {};
+  s.breedingProtection ||= {};
   ensureCategoryMap(s.baselinePressure, BASELINE);
   ensureCategoryMap(s.pressure, BASELINE);
   ensureCategoryMap(s.outbreakSeverity, {});
@@ -29,6 +31,7 @@ export function ensureAgriculturalPests(region) {
   ensureCategoryMap(s.introductionRisk, {});
   ensureCategoryMap(s.pesticideControl, {});
   ensureCategoryMap(s.geneticProtection, {});
+  ensureCategoryMap(s.breedingProtection, {});
   if (!Number.isFinite(s.monocultureRisk)) s.monocultureRisk = 0;
   if (!Number.isFinite(s.aggregateExtraLoss)) s.aggregateExtraLoss = 0;
   if (!Number.isFinite(s.yieldMultiplier)) s.yieldMultiplier = 1;
@@ -65,6 +68,13 @@ function cropConcentration(region) {
   return clamp((hhi - 1 / 3) / (1 - 1 / 3));
 }
 
+function combinedCropProtection(region, category) {
+  if (!PLANT_FOODS.includes(category)) return { genetics: 0, breeding: 0, total: 0 };
+  const genetics = geneticPestProtection(region, category);
+  const breeding = breedingPestProtection(region, category);
+  return { genetics, breeding, total: clamp(genetics + breeding, 0, 0.48) };
+}
+
 function annualOutbreakChance(region, category, sourceRisk) {
   const mix = region.foodDiversity?.productionMix || regionalFoodProductionMix(region);
   const exposure = clamp((Number(mix[category]) || 0) * 2.2);
@@ -72,8 +82,8 @@ function annualOutbreakChance(region, category, sourceRisk) {
   const weather = weatherRisk(region, category);
   const cultivated = Math.max(0, Number(region.agriculturalLand?.cultivatedHa) || 0);
   const scale = clamp(Math.log1p(cultivated) / 12);
-  const genetics = PLANT_FOODS.includes(category) ? geneticPestProtection(region, category) : 0;
-  return clamp((0.008 + exposure * 0.016 + monoculture * exposure * 0.055 + weather * 0.020 + sourceRisk * 0.085 + scale * 0.008) * (1 - genetics * 0.42), 0, 0.22);
+  const protection = combinedCropProtection(region, category).total;
+  return clamp((0.008 + exposure * 0.016 + monoculture * exposure * 0.055 + weather * 0.020 + sourceRisk * 0.085 + scale * 0.008) * (1 - protection * 0.42), 0, 0.22);
 }
 
 function weeklyEquivalentChance(annualChance, elapsedDays) {
@@ -84,7 +94,10 @@ function weeklyEquivalentChance(annualChance, elapsedDays) {
 export function tickAgriculturalPests(regions, elapsedDays = 7, rng = Math.random) {
   const byId = new Map((regions || []).map((region) => [region.id, region]));
   const priorPressure = new Map();
-  for (const region of regions || []) priorPressure.set(region.id, { ...ensureAgriculturalPests(region).pressure });
+  for (const region of regions || []) {
+    tickCropBreeding(region, elapsedDays);
+    priorPressure.set(region.id, { ...ensureAgriculturalPests(region).pressure });
+  }
 
   for (const region of regions || []) {
     const s = ensureAgriculturalPests(region);
@@ -116,24 +129,22 @@ export function tickAgriculturalPests(regions, elapsedDays = 7, rng = Math.rando
       let pressure = s.pressure[category] + (baseline - s.pressure[category]) * recovery;
       pressure += sourceRisk * 0.10 * Math.min(1, years * 4);
 
-      const genetics = PLANT_FOODS.includes(category) ? geneticPestProtection(region, category) : 0;
-      s.geneticProtection[category] = genetics;
+      const protection = combinedCropProtection(region, category);
+      s.geneticProtection[category] = protection.genetics;
+      s.breedingProtection[category] = protection.breeding;
       const chance = weeklyEquivalentChance(annualOutbreakChance(region, category, sourceRisk), elapsedDays);
       if (rng() < chance) {
         const weather = weatherRisk(region, category);
         const exposure = clamp((Number(mix[category]) || 0) * 2.2);
         const rawSeverity = clamp(0.18 + rng() * 0.42 + weather * 0.20 + s.monocultureRisk * exposure * 0.20, 0.12, 0.92);
-        const severity = rawSeverity * (1 - genetics * 0.58);
+        const severity = rawSeverity * (1 - protection.total * 0.58);
         pressure = Math.max(pressure, baseline + severity * (0.55 + 0.25 * exposure));
         s.outbreakCount += 1;
       }
 
-      // Crop protection and genetic diversity suppress abnormal pressure only.
-      // Endemic baseline losses remain embedded in historical yields, so neither
-      // spraying nor diverse seed creates a permanent productivity bonus.
       const control = PLANT_FOODS.includes(category) ? pesticideControlForCategory(region, category) : 0;
       s.pesticideControl[category] = control;
-      pressure = baseline + Math.max(0, pressure - baseline) * (1 - control) * (1 - genetics * 0.35);
+      pressure = baseline + Math.max(0, pressure - baseline) * (1 - control) * (1 - protection.total * 0.35);
 
       pressure = clamp(pressure, baseline * 0.75, 1);
       const abnormal = clamp((pressure - baseline) / Math.max(0.01, 1 - baseline));
@@ -161,6 +172,7 @@ export function tickAgriculturalPests(regions, elapsedDays = 7, rng = Math.rando
       introductionRisk: { ...s.introductionRisk },
       pesticideControl: { ...s.pesticideControl },
       geneticProtection: { ...s.geneticProtection },
+      breedingProtection: { ...s.breedingProtection },
       aggregateExtraLoss: s.aggregateExtraLoss,
       yieldMultiplier: s.yieldMultiplier,
       outbreakCount: s.outbreakCount,

@@ -11,6 +11,7 @@ import { tickAgriculturalPests } from './agriculturalPests.js?v=20260921-pests2'
 import { tickBatterySupplyChain } from './batterySupplyChain.js?v=20260921-battery-chain1';
 import { tickSoilDegradation, soilDegradationSummary } from './soilDegradation.js?v=20260921-soil1';
 import { tickAgriculturalGenetics, agriculturalGeneticsSummary } from './agriculturalGenetics.js?v=20260921-genetics1';
+import { cropBreedingSummary } from './cropBreeding.js?v=20260921-breeding1';
 export * from './laborCore.js?v=20260905-merchant1';
 export * from './housing.js?v=20260916-housing1';
 export * from './employmentAndHardship.js?v=20260918-employment1';
@@ -21,6 +22,7 @@ export * from './agriculturalPests.js?v=20260921-pests2';
 export * from './batterySupplyChain.js?v=20260921-battery-chain1';
 export * from './soilDegradation.js?v=20260921-soil1';
 export * from './agriculturalGenetics.js?v=20260921-genetics1';
+export * from './cropBreeding.js?v=20260921-breeding1';
 
 function committedMerchantCount(region) {
   const workingAge = Math.max(0, Number(region.demographics?.workingAge) || 0);
@@ -36,7 +38,7 @@ function committedArtistCount(region, availableAfterMerchants) {
 }
 
 function normaliseReportMetadata(region) {
-  for (const key of ['conflict', 'structuralTransformation', 'industrialSupply', 'lightMetals', 'housing', 'employment', 'landUse', 'soil', 'agriculturalGenetics', 'agriculturalPests', 'batteryIndustry']) {
+  for (const key of ['conflict', 'structuralTransformation', 'industrialSupply', 'lightMetals', 'housing', 'employment', 'landUse', 'soil', 'agriculturalGenetics', 'cropBreeding', 'agriculturalPests', 'batteryIndustry']) {
     if (region.report?.[key] && !Number.isFinite(region.report[key].workers)) region.report[key].workers = 0;
   }
 }
@@ -45,8 +47,6 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
   const reservations = [];
   for (const region of regions) {
     tickAgriculturalLand(region);
-    // Soil responds to the previous period's cultivation and weather, then its
-    // degraded/recovered effective land quality feeds this period's economy.
     tickSoilDegradation(region, elapsedDays);
     tickAgriculturalLand(region);
     const previousOccupations = { ...(region.occupations || {}) };
@@ -68,15 +68,10 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
     if (reserved > 0 && region.demographics) region.demographics.workingAge = Math.max(0, region.demographics.workingAge - reserved);
   }
 
-  // Genetic diversity and seed reserves respond to the previous period's
-  // shocks before this period's pest roll. This keeps crop resilience causal:
-  // repeated monoculture and failures erode resilience, while stored seed and
-  // exchanges can reintroduce varieties before the next outbreak.
   tickAgriculturalGenetics(regions, elapsedDays);
-
-  // Pest ecology advances once per economy tick. It reads the previous weather
-  // state plus current crop mix and established trade contacts, giving outbreaks
-  // memory rather than making them a second instantaneous weather roll.
+  // Crop breeding advances inside the pest tick before outbreaks are rolled,
+  // so deliberate selection affects this period's crop vulnerability while
+  // its narrowing of field diversity becomes part of future genetic history.
   tickAgriculturalPests(regions, elapsedDays, rng);
 
   try {
@@ -113,10 +108,12 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
       region.report.landUse = { workers: 0, ...agriculturalLandSummary(region) };
       region.report.soil = { workers: 0, ...soilDegradationSummary(region) };
       region.report.agriculturalGenetics = { workers: 0, ...agriculturalGeneticsSummary(region) };
+      region.report.cropBreeding = { workers: 0, ...cropBreedingSummary(region) };
       if (region.report.farming) {
         region.report.farming.land = { ...region.report.landUse };
         region.report.farming.soil = { ...region.report.soil };
         region.report.farming.genetics = { ...region.report.agriculturalGenetics };
+        region.report.farming.breeding = { ...region.report.cropBreeding };
         region.report.farming.pests = { ...(region.report.agriculturalPests || {}) };
       }
       normaliseReportMetadata(region);
