@@ -1,0 +1,43 @@
+name: Livestock agriculture
+
+on:
+  pull_request:
+    paths:
+      - 'js/economy/livestockAgriculture.js'
+      - 'js/economy/foodDiversity.js'
+      - 'js/economy/electricity.js'
+      - 'js/economy/labor.js'
+      - 'tools/test-livestock-agriculture.mjs'
+      - '.github/workflows/livestock-agriculture.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'js/economy/livestockAgriculture.js'
+      - 'js/economy/foodDiversity.js'
+      - 'js/economy/electricity.js'
+      - 'js/economy/labor.js'
+      - 'tools/test-livestock-agriculture.mjs'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check livestock integration
+        run: |
+          node --check js/economy/livestockAgriculture.js
+          node --check js/economy/foodDiversity.js
+          node --check js/economy/electricity.js
+          node --check js/economy/labor.js
+          node --check tools/test-livestock-agriculture.mjs
+      - name: Run livestock agriculture regression
+        run: node tools/test-livestock-agriculture.mjs
+      - name: Re-run food diversity regression
+        run: node tools/test-food-diversity.mjs
+      - name: Re-run electricity regression
+        run: node tools/test-electricity.mjs
+      - name: Re-run crop biotechnology regression
+        run: node tools/test-crop-biotechnology.mjs
