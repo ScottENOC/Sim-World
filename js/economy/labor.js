@@ -12,6 +12,7 @@ import { tickBatterySupplyChain } from './batterySupplyChain.js?v=20260921-batte
 import { tickSoilDegradation, soilDegradationSummary } from './soilDegradation.js?v=20260921-soil1';
 import { tickAgriculturalGenetics, agriculturalGeneticsSummary } from './agriculturalGenetics.js?v=20260921-genetics1';
 import { cropBreedingSummary } from './cropBreeding.js?v=20260921-breeding1';
+import { tickPrecisionAgriculture, precisionAgricultureSummary } from './precisionAgriculture.js?v=20260921-precision-ag1';
 export * from './laborCore.js?v=20260905-merchant1';
 export * from './housing.js?v=20260916-housing1';
 export * from './employmentAndHardship.js?v=20260918-employment1';
@@ -23,6 +24,7 @@ export * from './batterySupplyChain.js?v=20260921-battery-chain1';
 export * from './soilDegradation.js?v=20260921-soil1';
 export * from './agriculturalGenetics.js?v=20260921-genetics1';
 export * from './cropBreeding.js?v=20260921-breeding1';
+export * from './precisionAgriculture.js?v=20260921-precision-ag1';
 
 function committedMerchantCount(region) {
   const workingAge = Math.max(0, Number(region.demographics?.workingAge) || 0);
@@ -38,7 +40,7 @@ function committedArtistCount(region, availableAfterMerchants) {
 }
 
 function normaliseReportMetadata(region) {
-  for (const key of ['conflict', 'structuralTransformation', 'industrialSupply', 'lightMetals', 'housing', 'employment', 'landUse', 'soil', 'agriculturalGenetics', 'cropBreeding', 'agriculturalPests', 'batteryIndustry']) {
+  for (const key of ['conflict', 'structuralTransformation', 'industrialSupply', 'lightMetals', 'housing', 'employment', 'landUse', 'soil', 'agriculturalGenetics', 'cropBreeding', 'precisionAgriculture', 'agriculturalPests', 'batteryIndustry']) {
     if (region.report?.[key] && !Number.isFinite(region.report[key].workers)) region.report[key].workers = 0;
   }
 }
@@ -69,9 +71,7 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
   }
 
   tickAgriculturalGenetics(regions, elapsedDays);
-  // Crop breeding advances inside the pest tick before outbreaks are rolled,
-  // so deliberate selection affects this period's crop vulnerability while
-  // its narrowing of field diversity becomes part of future genetic history.
+  for (const region of regions) tickPrecisionAgriculture(region, elapsedDays);
   tickAgriculturalPests(regions, elapsedDays, rng);
 
   try {
@@ -109,11 +109,13 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
       region.report.soil = { workers: 0, ...soilDegradationSummary(region) };
       region.report.agriculturalGenetics = { workers: 0, ...agriculturalGeneticsSummary(region) };
       region.report.cropBreeding = { workers: 0, ...cropBreedingSummary(region) };
+      region.report.precisionAgriculture = { workers: 0, ...precisionAgricultureSummary(region) };
       if (region.report.farming) {
         region.report.farming.land = { ...region.report.landUse };
         region.report.farming.soil = { ...region.report.soil };
         region.report.farming.genetics = { ...region.report.agriculturalGenetics };
         region.report.farming.breeding = { ...region.report.cropBreeding };
+        region.report.farming.precisionAgriculture = { ...region.report.precisionAgriculture };
         region.report.farming.pests = { ...(region.report.agriculturalPests || {}) };
       }
       normaliseReportMetadata(region);
