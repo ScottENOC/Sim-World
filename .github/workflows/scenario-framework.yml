@@ -6,6 +6,8 @@ on:
       - 'js/core/scenarios.js'
       - 'js/core/clock.js'
       - 'js/ui/startupPicker.js'
+      - 'data/scenarios/**'
+      - 'tools/build-fractured-2027-map.mjs'
       - 'tools/test-scenario-framework.mjs'
       - '.github/workflows/scenario-framework.yml'
       - 'docs/SCENARIOS.md'
@@ -15,6 +17,8 @@ on:
       - 'js/core/scenarios.js'
       - 'js/core/clock.js'
       - 'js/ui/startupPicker.js'
+      - 'data/scenarios/**'
+      - 'tools/build-fractured-2027-map.mjs'
       - 'tools/test-scenario-framework.mjs'
       - '.github/workflows/scenario-framework.yml'
       - 'docs/SCENARIOS.md'
@@ -27,4 +31,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - run: node --check js/core/scenarios.js
+      - run: node --check tools/build-fractured-2027-map.mjs
+      - run: node tools/build-fractured-2027-map.mjs --check
       - run: node tools/test-scenario-framework.mjs
