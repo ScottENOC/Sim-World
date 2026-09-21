@@ -1,0 +1,21 @@
+name: Soil degradation and restoration
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check soil integration
+        run: |
+          node --check js/economy/soilDegradation.js
+          node --check js/economy/labor.js
+      - name: Run soil degradation regression
+        run: node tools/test-soil-degradation.mjs
