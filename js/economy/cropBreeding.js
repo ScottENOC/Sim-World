@@ -7,7 +7,7 @@ const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
 function literacy(region){return clamp(region?.publicEducation?.literacy??region?.education?.literacyRate??region?.massEducation?.literacyRate??region?.educationLevel??0);}
 function stateCapacity(region){return clamp(region?.militaryFinance?.stateCapacity??region?.governance?.administrativeControl??.3);}
-function recordKeeping(region){const tech=region?.unlockedTechIds||new Set();return clamp((tech.has?.('writing')?.22:0)+(tech.has?.('mathematics')?.16:0)+(tech.has?.('printing')?.18:0)+literacy(region)*.44);}
+function recordKeeping(region){const tech=region?.unlockedTechIds||new Set();return clamp((tech.has?.('writing')?.22:0));}
 function normaliseFocus(focus={}){const raw={yield:Math.max(0,Number(focus.yield)||0),droughtTolerance:Math.max(0,Number(focus.droughtTolerance)||0),heatTolerance:Math.max(0,Number(focus.heatTolerance)||0),pestResistance:Math.max(0,Number(focus.pestResistance)||0),shortSeason:Math.max(0,Number(focus.shortSeason)||0)};let total=TRAITS.reduce((n,k)=>n+raw[k],0);if(total<=0){raw.yield=.35;raw.droughtTolerance=.2;raw.heatTolerance=.15;raw.pestResistance=.2;raw.shortSeason=.1;total=1;}for(const key of TRAITS)raw[key]/=total;return raw;}
 
 export function ensureCropBreeding(region){
@@ -33,9 +33,6 @@ export function tickCropBreeding(region,elapsedDays=7){
     const focus=normaliseFocus(s.categoryFocus[category]||s.focus),live=clamp(g.liveDiversity?.[category]||0),preserved=clamp(g.preservedDiversity?.[category]||0),geneticInput=clamp(live*.68+preserved*.32),traits=s.traits[category];
     const annualProgress=(.0025+capability*.0125)*(.25+intensity*.75)*(.35+geneticInput*.65);
     for(const trait of TRAITS){const headroom=Math.max(0,1-traits[trait]);const gain=headroom*annualProgress*focus[trait]*years;traits[trait]=clamp(traits[trait]+gain,0,.8);s.progress[category][trait]=gain;}
-    // Strong directional selection improves useful traits faster but narrows the
-    // living field population. Preserved germplasm is not discarded, which is
-    // exactly why seed banks retain strategic value for future breeding.
     const concentration=Math.max(...TRAITS.map(t=>focus[t]));
     const selectionLoss=live*(.0012+concentration*.0048)*Math.pow(intensity,1.35)*(.55+capability*.45)*years;
     if(g.liveDiversity)g.liveDiversity[category]=clamp(live-selectionLoss,.08,1);
