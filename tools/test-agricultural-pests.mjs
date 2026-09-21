@@ -1,32 +1,43 @@
 import assert from 'node:assert/strict';
 import { tickAgriculturalPests } from '../js/economy/agriculturalPests.js';
-import { tickWeather } from '../js/world/weather.js';
+import { ensureFoodDiversity, tickFoodDiversity } from '../js/economy/foodDiversity.js';
 
-function region(id,mix){return {id,centroid:[10,35],areaSqKm:1000,neighbors:[],recentTradePartners:new Set(),agriculturalLand:{cultivatedHa:18000},foodDiversity:{productionMix:mix},weather:{index:.7,yieldMultiplier:1,condition:'wet'},climate:{},report:{}};}
-const mono=region('mono',{staple_grains:.82,pulses:.06,fruit_vegetables:.06,animal_foods:.06});
-const diverse=region('diverse',{staple_grains:.28,pulses:.24,fruit_vegetables:.24,animal_foods:.24});
-mono.agriculturalPests={outbreakSeverity:.72};diverse.agriculturalPests={outbreakSeverity:.72};
-tickAgriculturalPests([mono,diverse],7,()=>1);
-assert.ok(mono.agriculturalPests.monocultureRisk>diverse.agriculturalPests.monocultureRisk,'crop concentration should raise monoculture risk');
-assert.ok(mono.agriculturalPests.yieldMultiplier<diverse.agriculturalPests.yieldMultiplier,'same outbreak should hurt a monoculture more');
-assert.ok(mono.agriculturalPests.categoryYieldMultiplier.staple_grains<mono.agriculturalPests.categoryYieldMultiplier.animal_foods,'crop pests should hit the dominant crop basket more than animal foods');
+function region(id){return {id,centroid:[10,35],areaSqKm:1000,landQuality:1,population:10000,weather:{index:0,condition:'normal'},climate:{temperatureAnomalyC:0},agriculturalLand:{cultivatedHa:20000},stockpile:{food:50000},marketDemand:{},tradeEconomy:{weeklyImportsByResource:{}},recentTradePartners:new Set(),report:{}};}
 
-const source=region('source',{staple_grains:.5,pulses:.2,fruit_vegetables:.2,animal_foods:.1});
-const neighbour=region('neighbour',{staple_grains:.5,pulses:.2,fruit_vegetables:.2,animal_foods:.1});
-source.agriculturalPests={outbreakSeverity:.8};source.neighbors=['neighbour'];neighbour.neighbors=['source'];
-tickAgriculturalPests([source,neighbour],7,()=>1);
-assert.ok(neighbour.agriculturalPests.externalExposure>.5,'nearby outbreaks should create strong exposure pressure');
+const diversified=region('diverse');
+diversified.foodDiversity={productionMix:{staple_grains:.28,pulses:.24,fruit_vegetables:.24,animal_foods:.24},availability:{},consumption:{},shortage:{}};
+const mono=region('mono');
+mono.foodDiversity={productionMix:{staple_grains:.72,pulses:.08,fruit_vegetables:.08,animal_foods:.12},availability:{},consumption:{},shortage:{}};
+tickAgriculturalPests(diversified,365,()=>0);
+tickAgriculturalPests(mono,365,()=>0);
+assert.ok(mono.agriculturalPests.monocultureRisk>diversified.agriculturalPests.monocultureRisk,'monoculture must increase pest risk');
+assert.ok(mono.agriculturalPests.outbreakSeverity>=diversified.agriculturalPests.outbreakSeverity,'monoculture should not make a forced outbreak milder');
+assert.ok(mono.agriculturalPests.yieldMultiplier<diversified.agriculturalPests.yieldMultiplier,'monoculture should suffer greater abnormal yield loss');
 
-const persistent=region('persistent',{staple_grains:.6,pulses:.15,fruit_vegetables:.15,animal_foods:.1});
-persistent.agriculturalPests={outbreakSeverity:.75};
-tickAgriculturalPests([persistent],90,()=>1);const afterQuarter=persistent.agriculturalPests.outbreakSeverity;
-assert.ok(afterQuarter>.5,'bad outbreaks should persist across a season rather than vanish in one tick');
-tickAgriculturalPests([persistent],365*5,()=>1);
-assert.ok(persistent.agriculturalPests.outbreakSeverity<afterQuarter,'outbreaks should eventually recover without continued shocks');
+const traded=region('traded');
+traded.foodDiversity={productionMix:{staple_grains:.35,pulses:.25,fruit_vegetables:.2,animal_foods:.2},availability:{},consumption:{},shortage:{}};
+traded.marketDemand={staple_grains:50,pulses:30,fruit_vegetables:30};
+traded.tradeEconomy.weeklyImportsByResource={staple_grains:500,pulses:200,fruit_vegetables:300};
+traded.recentTradePartners=new Set(['a','b','c','d']);
+tickAgriculturalPests(traded,30,()=>1);
+assert.ok(traded.agriculturalPests.externalExposure>.25,'food imports and trade partners should create pest-introduction exposure');
 
-const weatherRegion=region('weather',{staple_grains:.7,pulses:.1,fruit_vegetables:.1,animal_foods:.1});
-weatherRegion.agriculturalPests={outbreakSeverity:.8};
-tickWeather([weatherRegion],100,()=>.5,7);
-assert.ok(weatherRegion.weather.pestYieldMultiplier<1,'weather tick should expose the pest yield penalty');
-assert.ok(weatherRegion.weather.yieldMultiplier<weatherRegion.weather.weatherOnlyYieldMultiplier,'farm weather yield should include abnormal pest loss');
+const wet=region('wet');
+wet.weather.index=1.4;
+wet.foodDiversity={productionMix:{staple_grains:.35,pulses:.25,fruit_vegetables:.25,animal_foods:.15},availability:{},consumption:{},shortage:{}};
+tickAgriculturalPests(wet,30,()=>1);
+assert.ok(wet.agriculturalPests.weatherRisk>0.4,'warm wet weather should materially raise pest/disease risk');
+
+const harvest=region('harvest');
+ensureFoodDiversity(harvest);
+harvest.agriculturalPests={baselinePressure:.18,currentPressure:.7,outbreakSeverity:.75,cropDiseasePressure:.5,pestDiversity:.4,yieldMultiplier:.7,categoryYieldMultiplier:{}};
+tickFoodDiversity(harvest,7,()=>1);
+assert.ok(harvest.agriculturalPests.yieldMultiplier<1,'an existing outbreak should persist into the next harvest');
+assert.ok(harvest.agriculturalPests.categoryYieldMultiplier.staple_grains<1,'outbreaks should reduce staple output');
+assert.ok(harvest.agriculturalPests.categoryYieldMultiplier.fruit_vegetables<1,'outbreaks should reduce horticultural output');
+
+const normal=region('normal');
+ensureFoodDiversity(normal);
+tickAgriculturalPests(normal,7,()=>1);
+assert.ok(normal.agriculturalPests.yieldMultiplier>0.99,'ordinary baseline pest pressure should remain baked into baseline yield');
 console.log('agricultural pest regression passed');
