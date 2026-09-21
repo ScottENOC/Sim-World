@@ -8,7 +8,7 @@ import { BATTERY_TECH_IDS } from '../js/economy/batteryStorage.js';
 function region(id,neighbours=[]){
   return {
     id,name:id,neighbors:neighbours,population:1_000_000,treasury:2000,
-    stockpile:{steel:200,aviation_fuel:20},
+    stockpile:{steel:200,aviation_fuel:20,advanced_rechargeable_cells:10},
     industrialSupply:{capability:{precision_machining:.82},inventory:{machine_components:100}},
     industrialPlants:{componentCapability:{electronics:.82,radio_navigation:.80,optics:.76}},
     structuralTransformation:{capability:{manufacture:.80}},
@@ -48,9 +48,11 @@ assert.ok(events.some(e=>e.type==='drone_strike'&&e.expendable),'one-way attack 
 assert.ok((d.warDamage?.infrastructureDamage||0)>before,'one-way attack should cause real war damage');
 assert.equal(munition.status,'destroyed','one-way attack drone should be consumed by its mission');
 
+const cellsBefore=a.stockpile.advanced_rechargeable_cells;
 const quad=buildDrone(a,DRONE_TYPES.QUADCOPTER);
 assert.ok(quad&&quad.batteryCharge===1,'battery multirotor should have a battery state');
 assert.ok(quad.endurance>.35,'existing battery technology should improve multirotor endurance');
+assert.ok(a.stockpile.advanced_rechargeable_cells<cellsBefore,'battery multirotor construction should consume manufactured battery cells');
 
 const developing=region('developing');
 developing.unlockedTechIds=new Set(['powered_flight']);
