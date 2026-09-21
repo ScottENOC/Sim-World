@@ -1,7 +1,8 @@
 import { DAYS_PER_YEAR } from '../core/simTime.js?v=20260905-time1';
 import { tickActiveHydrology } from '../world/hydrology.js?v=20260914-water1';
-import { vaccinationProtection } from '../technology/medicalProgress.js?v=20260918-medical1';
+import { vaccinationProtection } from '../technology/medicalProgress.js?v=20260922-amr1';
 import { tickPublicHealth, hospitalTreatmentEffect, publicHealthPreventionEffect } from './publicHealth.js?v=20260918-public-health1';
+import { tickAntimicrobialResistance } from './antimicrobialResistance.js?v=20260922-amr1';
 
 export const PATHOGENS = Object.freeze({
   smallpox: Object.freeze({ id: 'smallpox', label: 'Smallpox', transmission: 0.16, mortality: 0.11, durationDays: 28, resistanceGain: 0.88, resistanceHalfLifeYears: 45, tradeWeight: 0.75 }),
@@ -60,6 +61,7 @@ export function tickDisease(regions,elapsedDays=30,rng=Math.random){
   for(const region of regions){
     const playerPolity=globalThis.__worldsim?.activePlayerPolityId;const isPlayer=Boolean(playerPolity&&(region.governance?.sovereignPolityId===playerPolity||region.governance?.localPolityId===playerPolity));
     tickPublicHealth(region,days,{isPlayer});
+    tickAntimicrobialResistance(region,days);
     const state=ensureDiseaseState(region);const populationBefore=Math.max(1,Number(region.population)||1);
     const localBurden=PATHOGEN_IDS.reduce((sum,id)=>sum+state.pathogens[id].prevalence,0);const recognisedBurden=PATHOGEN_IDS.reduce((sum,id)=>sum+(state.pathogens[id].recognised?state.pathogens[id].prevalence:0),0);
     const outbreakKnown=recognisedBurden>0.003||knownNearbyOutbreak(region,regionsById,snapshot);const desiredQuarantine=outbreakKnown?state.quarantinePolicy:0;state.effectiveQuarantine+=(desiredQuarantine-state.effectiveQuarantine)*Math.min(1,days/30);
