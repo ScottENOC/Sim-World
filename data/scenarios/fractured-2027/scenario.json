@@ -6,6 +6,8 @@
   "startYear": 2027,
   "mapRoot": "world/",
   "initialStateFile": "initial-state.json",
+  "factionBalanceFile": "faction-balance.json",
+  "pressureEventsFile": "pressure-events.json",
   "rulesProfile": "modern-crisis",
   "technologyProfile": "near-future-conventional",
   "victoryModel": "military-control",
@@ -16,6 +18,7 @@
   },
   "openingPremise": {
     "description": "A deliberately fictional near-future crisis starting point. The opening situation is fixed; subsequent alignments, escalation, negotiation and territorial outcomes are simulated rather than scripted.",
+    "strategicGeometry": "three-loose-camps",
     "crises": [
       {
         "id": "greenland-war",
@@ -24,7 +27,7 @@
         "facts": [
           "The United States has invaded and occupies Greenland.",
           "Denmark is at war with the United States over Greenland.",
-          "EU participants and the United Kingdom have entered the war in support of Denmark."
+          "EU participants, the United Kingdom and Canada have entered the war in support of Denmark."
         ]
       },
       {
@@ -32,7 +35,16 @@
         "type": "war",
         "theatre": "Ukraine",
         "facts": [
-          "Russia's war in Ukraine is continuing at scenario start."
+          "Russia's war in Ukraine is continuing at scenario start.",
+          "Ukraine is supported by the European defence coalition."
+        ]
+      },
+      {
+        "id": "middle-east-war",
+        "type": "war",
+        "theatre": "Middle East",
+        "facts": [
+          "The United States and Iran are at war at scenario start."
         ]
       },
       {
@@ -40,7 +52,8 @@
         "type": "blockade",
         "theatre": "Taiwan Strait and surrounding approaches",
         "facts": [
-          "China has imposed a blockade on Taiwan."
+          "China has imposed a blockade on Taiwan.",
+          "The blockade does not automatically place China and the United States in a shooting war."
         ]
       }
     ],
