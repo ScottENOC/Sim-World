@@ -1,7 +1,8 @@
 import { currentScenario, waitForScenarioSelection } from './scenarios.js?v=20260921-scenarios2';
 import { hydrateScenarioInitialState, scenarioPlayablePolities } from './scenarioState.js?v=20260921-scenario-state2';
-import { updateFocusedCampaignResolution, canDeclareFocusedScenarioResult } from './scenarioVictory.js?v=20260921-scenario-victory1';
+import { updateFocusedCampaignResolution, canDeclareFocusedScenarioResult } from './scenarioVictory.js?v=20260921-scenario-victory2';
 import { consolidateScenarioSovereignty } from './scenarioSovereignty.js?v=20260921-scenario-sovereignty2';
+import { applyModernScenarioBaseline } from './scenarioModernStart.js?v=20260921-modern-start1';
 
 const jsonClone = (value) => JSON.parse(JSON.stringify(value));
 const arr = (value) => Array.isArray(value) ? value : [];
@@ -25,17 +26,18 @@ export async function loadScenarioPackage(scenario = currentScenario(), fetchFn 
   if (manifest.id !== scenario.id) throw new Error(`Scenario package mismatch: selected ${scenario.id}, loaded ${manifest.id}`);
 
   const loadOptional = async (file) => file ? fetchJson(`${root}${file}`, fetchFn) : null;
-  const [initialState, factionBalance, pressureEvents, playability, victory, sovereignty, navigation] = await Promise.all([
+  const [initialState, factionBalance, pressureEvents, playability, victory, sovereignty, modernStart, navigation] = await Promise.all([
     loadOptional(manifest.initialStateFile),
     loadOptional(manifest.factionBalanceFile),
     loadOptional(manifest.pressureEventsFile),
     loadOptional(manifest.playabilityFile),
     loadOptional(manifest.victoryFile),
     loadOptional(manifest.sovereigntyFile),
+    loadOptional(manifest.modernStartFile),
     fetchJson(`${scenario.mapBaseUrl}region-navigation.json`, fetchFn),
   ]);
 
-  return { root, manifest, initialState, factionBalance, pressureEvents, playability, victory, sovereignty, navigation };
+  return { root, manifest, initialState, factionBalance, pressureEvents, playability, victory, sovereignty, modernStart, navigation };
 }
 
 function inferredPolities(regions) {
@@ -78,6 +80,10 @@ export function attachScenarioPackage(sim, scenario, pkg, options = {}) {
     ? consolidateScenarioSovereignty(world, pkg.navigation, pkg.sovereignty)
     : null;
 
+  const modernBaseline = pkg.modernStart
+    ? applyModernScenarioBaseline(world, pkg.modernStart)
+    : null;
+
   const hydration = pkg.initialState
     ? hydrateScenarioInitialState(world, jsonClone(pkg.initialState), { currentTick: options.currentTick || 0 })
     : null;
@@ -89,9 +95,11 @@ export function attachScenarioPackage(sim, scenario, pkg, options = {}) {
     playability: pkg.playability,
     victory: pkg.victory,
     sovereignty: pkg.sovereignty,
+    modernStart: pkg.modernStart,
   };
   world.scenarioState.scenarioId = scenario.id;
   world.scenarioState.sovereignty = sovereignty;
+  world.scenarioState.modernBaseline = modernBaseline;
   sim.scenarioState = world.scenarioState;
   sim.scenarioVictoryState = world.scenarioVictoryState;
   sim.scenarioPackage = world.scenarioState.package;
@@ -108,6 +116,7 @@ export function attachScenarioPackage(sim, scenario, pkg, options = {}) {
     scenarioId: scenario.id,
     hydration,
     sovereignty,
+    modernBaseline,
     usedPolityFacade: world.usesPolityFacade,
     playablePolityIds: sim.scenarioPlayablePolities().map((polity) => polity.scenarioActorId || polity.id),
   };
