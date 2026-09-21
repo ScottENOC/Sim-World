@@ -26,9 +26,9 @@ assert.equal(scenarioPackageRoot(scenario), 'data/scenarios/fractured-2027/');
 assert.equal(scenarioPackageRoot(scenarioById('grand-campaign')), null);
 
 const regions = [
-  { id: 'australia-east', name: 'Eastern Australia', governance: { sovereignPolityId: 'australia', sovereignPolityName: 'Australia' }, scenarioSelectors: ['australia'] },
-  { id: 'greenland', name: 'Greenland', governance: { sovereignPolityId: 'denmark', sovereignPolityName: 'Denmark' }, scenarioSelectors: ['greenland'] },
-  { id: 'usa-east', name: 'United States East', governance: { sovereignPolityId: 'usa', sovereignPolityName: 'United States' }, scenarioSelectors: ['usa'] },
+  { id: 'australia-east', name: 'Eastern Australia', polityId: 'polity_australia-east', governance: { sovereignPolityId: 'polity_australia-east', sovereignPolityName: 'Australia' }, scenarioSelectors: ['australia'] },
+  { id: 'greenland', name: 'Greenland', polityId: 'polity_greenland', governance: { sovereignPolityId: 'polity_greenland', sovereignPolityName: 'Denmark' }, scenarioSelectors: ['greenland'] },
+  { id: 'usa-east', name: 'United States East', polityId: 'polity_usa-east', governance: { sovereignPolityId: 'polity_usa-east', sovereignPolityName: 'United States' }, scenarioSelectors: ['usa'] },
 ];
 const sim = {
   regions,
@@ -40,15 +40,16 @@ const sim = {
 
 const adapter = scenarioWorldAdapter(sim);
 assert.equal(adapter.usesPolityFacade, true);
-assert.ok(adapter.polities.some((polity) => polity.id === 'australia'), 'runtime should infer mapped sovereign countries when main does not expose polities');
+assert.ok(adapter.polities.some((polity) => polity.id === 'polity_australia-east'));
 
 const result = attachScenarioPackage(sim, scenario, pkg, { currentTick: 0 });
 assert.equal(result.attached, true);
-assert.equal(result.requiresMainPolityHook, true, 'runtime must report that full sovereignty consolidation needs the real polity array');
-assert.equal(result.sovereignty, null);
+assert.equal(result.usedPolityFacade, true);
+assert.equal(result.sovereignty.countryCount, 3);
+assert.equal(result.sovereignty.actorToPolityId.australia, 'polity_australia-east');
 assert.equal(sim.scenarioState.scenarioId, 'fractured-2027');
 assert.ok(sim.activeWars.some((war) => war.id === 'greenland-war'));
-assert.equal(regions.find((region) => region.id === 'greenland').controllingActorId, 'usa');
+assert.equal(regions.find((region) => region.id === 'greenland').controllingActorId, 'polity_usa-east');
 assert.ok(result.playablePolityIds.includes('australia'), 'mapped neutral countries should be playable without being hand-listed as opening actors');
 assert.equal(sim.scenarioPackage.victory.model, 'country-survival-and-aims');
 assert.equal(typeof sim.updateScenarioResolution, 'function');
@@ -69,9 +70,11 @@ const minimalPkg = {
   navigation: { regions: { 'au-east': [{ continent: 'Oceania', country: 'Australia' }], 'au-west': [{ continent: 'Oceania', country: 'Australia' }] } },
 };
 const realResult = attachScenarioPackage(realPolitySim, scenario, minimalPkg, { currentTick: 0 });
-assert.equal(realResult.requiresMainPolityHook, false);
+assert.equal(realResult.usedPolityFacade, false);
 assert.equal(realResult.sovereignty.countryCount, 1);
-assert.deepEqual(realPolitySim.polities.map((polity) => polity.id), ['australia']);
-assert.ok(realPolitySim.regions.every((region) => region.governance.sovereignPolityId === 'australia'));
+assert.equal(realResult.sovereignty.actorToPolityId.australia, 'polity_au-east');
+assert.deepEqual(realPolitySim.polities.map((polity) => polity.id), ['polity_au-east']);
+assert.ok(realPolitySim.regions.every((region) => region.governance.sovereignPolityId === 'polity_au-east'));
+assert.equal(realPolitySim.polities[0].scenarioActorId, 'australia');
 
-console.log('Scenario runtime regression passed: package hydration works, facade mode is explicit, and real polities consolidate into scenario countries.');
+console.log('Scenario runtime regression passed: facade and live-polity modes both consolidate countries behind stable modern actor aliases.');
