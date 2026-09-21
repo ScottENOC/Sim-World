@@ -12,6 +12,7 @@
   "victoryFile": "victory.json",
   "sovereigntyFile": "sovereignty.json",
   "modernStartFile": "modern-start.json",
+  "forceDeploymentsFile": "force-deployments.json",
   "strategicMapCatalogueFile": "world/strategic-regions.json",
   "rulesProfile": "modern-crisis",
   "technologyProfile": "near-future-conventional",
@@ -81,5 +82,5 @@
   "sharedWorldFiles": [
     "toolTypes.json"
   ],
-  "status": "independent baseline map, modern runtime calibration and country-first startup ready for CI validation"
+  "status": "independent baseline map, modern runtime calibration, country-first startup and opening force deployments ready for CI validation"
 }
