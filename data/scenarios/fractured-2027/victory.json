@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "fractured-2027",
+  "model": "country-survival-and-aims",
+  "campaignResolution": {
+    "requiresPrincipalCampWarsEnded": true,
+    "principalCampIds": [
+      "american-power",
+      "european-defence-coalition",
+      "eurasian-accommodation"
+    ],
+    "peaceStabilityDays": 180,
+    "requireEveryWorldWarEnded": false,
+    "description": "The focused campaign resolves after there has been no active war between members of the three opening strategic camps for a sustained peace period. Unrelated local wars do not prevent resolution."
+  },
+  "minimumSuccess": {
+    "sovereignContinuity": true,
+    "governmentMayBeInExile": true,
+    "permanentAnnexationCountsAsDefeat": true,
+    "description": "A country must retain a viable sovereign political claim through campaign resolution. Temporary occupation is not automatically game over."
+  },
+  "outcomeDimensions": [
+    {
+      "id": "sovereignty",
+      "weight": 0.3,
+      "description": "Preserve an independent state, government or viable government-in-exile with a credible route to restoration."
+    },
+    {
+      "id": "territorial-security",
+      "weight": 0.2,
+      "description": "Protect core territory and population centres and limit hostile occupation or destruction."
+    },
+    {
+      "id": "human-security",
+      "weight": 0.15,
+      "description": "Limit military and civilian losses, displacement and infrastructure destruction."
+    },
+    {
+      "id": "economic-resilience",
+      "weight": 0.15,
+      "description": "Retain enough productive capacity, trade access, energy and critical supply chains to recover after the conflict."
+    },
+    {
+      "id": "adopted-war-aims",
+      "weight": 0.2,
+      "description": "Fulfil the diplomatic or military objectives the government actually adopted during play. Countries that remain neutral do not receive unchosen conquest objectives."
+    }
+  ],
+  "neutralCountryDefaults": {
+    "openingStatus": "uncommitted",
+    "defaultAims": [
+      "preserve-sovereignty",
+      "protect-core-territory",
+      "maintain-essential-trade",
+      "avoid-unwanted-escalation"
+    ],
+    "joiningWarAddsCommitments": true,
+    "voluntaryGuaranteesAddCommitments": true,
+    "territorialExpansionRequired": false
+  },
+  "exampleAustralia": {
+    "openingStatus": "uncommitted",
+    "minimumSuccess": "Australia remains a viable sovereign state when the systemic three-camp conflict has been settled for the required peace period.",
+    "defaultAims": [
+      "protect-australian-core-territory",
+      "preserve-government-continuity",
+      "maintain-critical-maritime-trade",
+      "retain-postwar-economic-viability"
+    ],
+    "dynamicRule": "If Australia chooses guarantees, basing commitments, sanctions, intervention or territorial war aims, those choices become additional objectives rather than being scripted at scenario start."
+  }
+}
