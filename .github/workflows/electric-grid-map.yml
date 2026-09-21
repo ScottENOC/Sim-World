@@ -1,0 +1,34 @@
+name: Electric grid map validation
+
+on:
+  push:
+    branches: [feature/visible-grid-infrastructure]
+    paths:
+      - 'js/ui/electricGridMapUi.js'
+      - 'js/ui/electricGridMapView.js'
+      - 'js/ui/mapFirstUi.js'
+      - 'tools/test-electric-grid-map.mjs'
+      - '.github/workflows/electric-grid-map.yml'
+  pull_request:
+    paths:
+      - 'js/ui/electricGridMapUi.js'
+      - 'js/ui/electricGridMapView.js'
+      - 'js/ui/mapFirstUi.js'
+      - 'tools/test-electric-grid-map.mjs'
+      - '.github/workflows/electric-grid-map.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks
+        run: |
+          node --check js/ui/electricGridMapView.js
+          node --check js/ui/electricGridMapUi.js
+          node --check js/ui/mapFirstUi.js
+      - name: Grid overlay regressions
+        run: node tools/test-electric-grid-map.mjs
