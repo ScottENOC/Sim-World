@@ -5,6 +5,7 @@ export const DIET_FOOD_IDS=Object.freeze(['staple_grains','pulses','fruit_vegeta
 function lat(region){return Math.abs(Number(region?.centroid?.[1])||0);}
 function terrain(region,key){return clamp(region?.terrain?.[key]||0);}
 function coastal(region){return region?.isCoastal?1:0;}
+function pestCategoryMultiplier(region,id){return 1-clamp(region?.agriculturalPests?.extraYieldLoss?.[id]||0,0,.5);}
 
 export function regionalFoodProductionMix(region){
   const latitude=lat(region),quality=clamp((Number(region?.landQuality)||1)/1.4),plains=terrain(region,'plains'),hills=terrain(region,'hills'),forest=terrain(region,'forest'),wet=terrain(region,'wetland');
@@ -20,7 +21,7 @@ export function regionalFoodProductionMix(region){
 export function ensureFoodDiversity(region){
   region.foodDiversity||={};const s=region.foodDiversity;
   s.productionMix={...regionalFoodProductionMix(region),...(s.productionMix||{})};
-  s.availability||={};s.consumption||={};s.shortage||={};
+  s.availability||={};s.consumption||={};s.shortage||={};s.pestMultiplier||={};
   if(!Number.isFinite(s.diversityIndex))s.diversityIndex=0;
   if(!Number.isFinite(s.healthSupport))s.healthSupport=.9;
   return s;
@@ -33,11 +34,11 @@ export function tickFoodDiversity(region,elapsedDays=7){
   region.stockpile||={};region.marketDemand||={};
   const cultivated=Math.max(0,Number(region.agriculturalLand?.cultivatedHa)||0);
   const farmScale=Math.max(0.25,Math.min(2.2,cultivated/Math.max(1,pop*.18)));
-  // These stocks represent dietary-category availability rather than a second calorie ledger.
-  // Generic `food` remains the caloric accounting stock for compatibility.
   const categorySupply=pop*.025*weeks*farmScale;
   for(const id of DIET_FOOD_IDS){
-    const local=categorySupply*(s.productionMix[id]||0);
+    const pestMultiplier=pestCategoryMultiplier(region,id);
+    s.pestMultiplier[id]=pestMultiplier;
+    const local=categorySupply*(s.productionMix[id]||0)*pestMultiplier;
     region.stockpile[id]=Math.max(0,Number(region.stockpile[id])||0)+local;
     const desired=pop*.0065*weeks;
     const available=Math.max(0,Number(region.stockpile[id])||0);
@@ -46,16 +47,12 @@ export function tickFoodDiversity(region,elapsedDays=7){
     const availability=clamp(consumed/Math.max(.0001,desired));
     const shortage=1-availability;
     s.availability[id]=availability;s.shortage[id]=shortage;s.consumption[id]=consumed;
-    // The generic trade price model uses demand as its shortage signal. A
-    // missing dietary category therefore bids more strongly for imports while
-    // a locally abundant category remains cheap enough to export.
     region.marketDemand[id]=(desired/weeks)*(1+shortage*5);
   }
   const values=DIET_FOOD_IDS.map(id=>clamp(s.availability[id]||0));
   const minimum=Math.min(...values),mean=values.reduce((a,b)=>a+b,0)/values.length;
-  // Health cares about both breadth and bottlenecks: four adequate categories beat one huge staple surplus.
   s.diversityIndex=clamp(mean*.65+minimum*.35);
   s.healthSupport=.94+s.diversityIndex*.08;
-  region.report||={};region.report.foodDiversity={workers:0,productionMix:{...s.productionMix},availability:{...s.availability},shortage:{...s.shortage},diversityIndex:s.diversityIndex,healthSupport:s.healthSupport};
+  region.report||={};region.report.foodDiversity={workers:0,productionMix:{...s.productionMix},availability:{...s.availability},shortage:{...s.shortage},pestMultiplier:{...s.pestMultiplier},diversityIndex:s.diversityIndex,healthSupport:s.healthSupport};
   return region.report.foodDiversity;
 }
