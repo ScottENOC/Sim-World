@@ -23,7 +23,7 @@ assert.ok(fractured, '2027 scenario definition missing');
 assert.equal(fractured.startYear, 2027);
 assert.equal(fractured.mapBaseUrl, 'data/scenarios/fractured-2027/world/');
 assert.equal(fractured.victoryModel, 'country-survival-and-aims');
-assert.equal(fractured.available, false, '2027 must stay disabled until its map/state package exists');
+assert.equal(fractured.available, false, '2027 remains gated until CI validates the playable baseline');
 
 for (const scenario of SCENARIOS) {
   assert.ok(scenario.name);
@@ -48,6 +48,7 @@ const pressureEvents = JSON.parse(fs.readFileSync(new URL('../data/scenarios/fra
 const playability = JSON.parse(fs.readFileSync(new URL('../data/scenarios/fractured-2027/playability.json', import.meta.url), 'utf8'));
 const victory = JSON.parse(fs.readFileSync(new URL('../data/scenarios/fractured-2027/victory.json', import.meta.url), 'utf8'));
 const sovereignty = JSON.parse(fs.readFileSync(new URL('../data/scenarios/fractured-2027/sovereignty.json', import.meta.url), 'utf8'));
+const modernStart = JSON.parse(fs.readFileSync(new URL('../data/scenarios/fractured-2027/modern-start.json', import.meta.url), 'utf8'));
 const strategicRegions = JSON.parse(fs.readFileSync(new URL('../data/scenarios/fractured-2027/world/strategic-regions.json', import.meta.url), 'utf8'));
 
 assert.equal(scenarioManifest.id, fractured.id);
@@ -57,6 +58,7 @@ assert.equal(scenarioManifest.pressureEventsFile, 'pressure-events.json');
 assert.equal(scenarioManifest.playabilityFile, 'playability.json');
 assert.equal(scenarioManifest.victoryFile, 'victory.json');
 assert.equal(scenarioManifest.sovereigntyFile, 'sovereignty.json');
+assert.equal(scenarioManifest.modernStartFile, 'modern-start.json');
 assert.equal(scenarioManifest.strategicMapCatalogueFile, 'world/strategic-regions.json');
 assert.equal(scenarioManifest.victoryModel, victory.model);
 assert.deepEqual(new Set(scenarioManifest.requiredMapFiles), SCENARIO_MAP_FILES);
@@ -67,7 +69,14 @@ assert.equal(pressureEvents.scenarioId, fractured.id);
 assert.equal(playability.scenarioId, fractured.id);
 assert.equal(victory.scenarioId, fractured.id);
 assert.equal(sovereignty.scenarioId, fractured.id);
+assert.equal(modernStart.scenarioId, fractured.id);
 assert.equal(strategicRegions.scenarioId, fractured.id);
+
+for (const filename of scenarioManifest.requiredMapFiles) {
+  const path = new URL(`../data/scenarios/fractured-2027/world/${filename}`, import.meta.url);
+  assert.ok(fs.existsSync(path), `Fractured World map package missing ${filename}`);
+  assert.ok(fs.statSync(path).size > 0, `Fractured World map file is empty: ${filename}`);
+}
 
 const camps = new Map(initialState.strategicCamps.map((camp) => [camp.id, camp]));
 assert.equal(camps.size, 3, 'Fractured World should start with three loose strategic camps');
@@ -94,7 +103,9 @@ assert.equal(playability.policy.allMappedSovereignCountriesPlayable, true);
 assert.ok(playability.featuredCountries.includes('australia'));
 assert.equal(victory.campaignResolution.requireEveryWorldWarEnded, false);
 assert.equal(sovereignty.coalitionPolicy.euMembersRemainSovereignPolities, true);
+assert.ok(modernStart.commonTechIds.includes('lithium_ion_batteries'));
+assert.ok(modernStart.commonTechIds.includes('battery_multirotor_drones'));
 assert.ok(strategicRegions.priorityTheatres.some((theatre) => theatre.id === 'australia-and-maritime-approaches'));
 assert.ok(strategicRegions.priorityTheatres.some((theatre) => theatre.id === 'taiwan-western-pacific'));
 
-console.log(`Scenario framework regression passed for ${SCENARIOS.length} scenarios, including explicit map routing, sovereignty, playability, balance and victory scaffolds.`);
+console.log(`Scenario framework regression passed for ${SCENARIOS.length} scenarios, including independent map files, modern baseline, sovereignty, playability, balance and victory scaffolds.`);
