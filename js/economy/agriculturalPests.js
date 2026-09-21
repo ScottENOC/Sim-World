@@ -2,6 +2,7 @@ import { DIET_FOOD_IDS, regionalFoodProductionMix } from './foodDiversity.js?v=2
 import { pesticideControlForCategory } from './agriculturalPesticides.js?v=20260921-pesticides1';
 import { geneticPestProtection } from './agriculturalGenetics.js?v=20260921-genetics1';
 import { tickCropBreeding, breedingPestProtection } from './cropBreeding.js?v=20260921-breeding1';
+import { biotechnologyPestProtection } from './cropBiotechnology.js?v=20260921-biotech1';
 
 const DAYS_PER_YEAR = 365.2425;
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
@@ -9,182 +10,27 @@ const PLANT_FOODS = Object.freeze(['staple_grains', 'pulses', 'fruit_vegetables'
 const BASELINE = Object.freeze({ staple_grains: 0.16, pulses: 0.14, fruit_vegetables: 0.18, animal_foods: 0.08 });
 const MAX_EXTRA_LOSS = Object.freeze({ staple_grains: 0.42, pulses: 0.36, fruit_vegetables: 0.46, animal_foods: 0.12 });
 
-function ensureCategoryMap(target, defaults) {
-  for (const id of DIET_FOOD_IDS) if (!Number.isFinite(target[id])) target[id] = defaults[id] || 0;
-}
-
+function ensureCategoryMap(target, defaults) { for (const id of DIET_FOOD_IDS) if (!Number.isFinite(target[id])) target[id] = defaults[id] || 0; }
 export function ensureAgriculturalPests(region) {
-  region.agriculturalPests ||= {};
-  const s = region.agriculturalPests;
-  s.baselinePressure ||= {};
-  s.pressure ||= {};
-  s.outbreakSeverity ||= {};
-  s.extraYieldLoss ||= {};
-  s.introductionRisk ||= {};
-  s.pesticideControl ||= {};
-  s.geneticProtection ||= {};
-  s.breedingProtection ||= {};
-  ensureCategoryMap(s.baselinePressure, BASELINE);
-  ensureCategoryMap(s.pressure, BASELINE);
-  ensureCategoryMap(s.outbreakSeverity, {});
-  ensureCategoryMap(s.extraYieldLoss, {});
-  ensureCategoryMap(s.introductionRisk, {});
-  ensureCategoryMap(s.pesticideControl, {});
-  ensureCategoryMap(s.geneticProtection, {});
-  ensureCategoryMap(s.breedingProtection, {});
-  if (!Number.isFinite(s.monocultureRisk)) s.monocultureRisk = 0;
-  if (!Number.isFinite(s.aggregateExtraLoss)) s.aggregateExtraLoss = 0;
-  if (!Number.isFinite(s.yieldMultiplier)) s.yieldMultiplier = 1;
-  if (!Number.isFinite(s.outbreakCount)) s.outbreakCount = 0;
-  return s;
+  region.agriculturalPests ||= {}; const s=region.agriculturalPests;
+  s.baselinePressure ||= {};s.pressure ||= {};s.outbreakSeverity ||= {};s.extraYieldLoss ||= {};s.introductionRisk ||= {};s.pesticideControl ||= {};s.geneticProtection ||= {};s.breedingProtection ||= {};s.biotechnologyProtection ||= {};
+  ensureCategoryMap(s.baselinePressure,BASELINE);ensureCategoryMap(s.pressure,BASELINE);ensureCategoryMap(s.outbreakSeverity,{});ensureCategoryMap(s.extraYieldLoss,{});ensureCategoryMap(s.introductionRisk,{});ensureCategoryMap(s.pesticideControl,{});ensureCategoryMap(s.geneticProtection,{});ensureCategoryMap(s.breedingProtection,{});ensureCategoryMap(s.biotechnologyProtection,{});
+  if(!Number.isFinite(s.monocultureRisk))s.monocultureRisk=0;if(!Number.isFinite(s.aggregateExtraLoss))s.aggregateExtraLoss=0;if(!Number.isFinite(s.yieldMultiplier))s.yieldMultiplier=1;if(!Number.isFinite(s.outbreakCount))s.outbreakCount=0;return s;
 }
-
-function tradeContactIds(region) {
-  const ids = new Set(region.neighbors || []);
-  for (const id of region.tradePartnerIds || []) ids.add(id);
-  if (region.recentTradePartners instanceof Map) for (const id of region.recentTradePartners.keys()) ids.add(id);
-  else if (region.recentTradePartners instanceof Set) for (const id of region.recentTradePartners) ids.add(id);
-  return ids;
+function tradeContactIds(region){const ids=new Set(region.neighbors||[]);for(const id of region.tradePartnerIds||[])ids.add(id);if(region.recentTradePartners instanceof Map)for(const id of region.recentTradePartners.keys())ids.add(id);else if(region.recentTradePartners instanceof Set)for(const id of region.recentTradePartners)ids.add(id);return ids;}
+function weatherRisk(region,category){const index=Number(region.weather?.index)||0,temperature=Math.max(0,Number(region.climate?.temperatureAnomalyC)||0),latitude=Math.abs(Number(region.centroid?.[1])||0),warmth=clamp(1-latitude/70+temperature*.08),wet=clamp(Math.max(0,index)/1.8),dry=clamp(Math.max(0,-index)/1.8);if(category==='fruit_vegetables')return clamp(.22+wet*.52+warmth*.26);if(category==='staple_grains')return clamp(.20+wet*.34+warmth*.24+dry*.12);if(category==='pulses')return clamp(.18+wet*.30+warmth*.22+dry*.16);return clamp(.12+warmth*.08);}
+function cropConcentration(region){const mix=region.foodDiversity?.productionMix||regionalFoodProductionMix(region),plantTotal=PLANT_FOODS.reduce((sum,id)=>sum+Math.max(0,Number(mix[id])||0),0)||1,shares=PLANT_FOODS.map(id=>Math.max(0,Number(mix[id])||0)/plantTotal),hhi=shares.reduce((sum,share)=>sum+share*share,0);return clamp((hhi-1/3)/(1-1/3));}
+function combinedCropProtection(region,category){if(!PLANT_FOODS.includes(category))return {genetics:0,breeding:0,biotechnology:0,total:0};const genetics=geneticPestProtection(region,category),breeding=breedingPestProtection(region,category),biotechnology=biotechnologyPestProtection(region,category);return {genetics,breeding,biotechnology,total:clamp(genetics+breeding+biotechnology,0,.62)};}
+function annualOutbreakChance(region,category,sourceRisk){const mix=region.foodDiversity?.productionMix||regionalFoodProductionMix(region),exposure=clamp((Number(mix[category])||0)*2.2),monoculture=cropConcentration(region),weather=weatherRisk(region,category),cultivated=Math.max(0,Number(region.agriculturalLand?.cultivatedHa)||0),scale=clamp(Math.log1p(cultivated)/12),protection=combinedCropProtection(region,category).total;return clamp((.008+exposure*.016+monoculture*exposure*.055+weather*.020+sourceRisk*.085+scale*.008)*(1-protection*.42),0,.22);}
+function weeklyEquivalentChance(annualChance,elapsedDays){const years=Math.max(0,Number(elapsedDays)||0)/DAYS_PER_YEAR;return 1-Math.pow(1-clamp(annualChance),years);}
+export function tickAgriculturalPests(regions,elapsedDays=7,rng=Math.random){const byId=new Map((regions||[]).map(region=>[region.id,region])),priorPressure=new Map();for(const region of regions||[]){tickCropBreeding(region,elapsedDays);priorPressure.set(region.id,{...ensureAgriculturalPests(region).pressure});}
+  for(const region of regions||[]){const s=ensureAgriculturalPests(region),mix=region.foodDiversity?.productionMix||regionalFoodProductionMix(region);region.foodDiversity||={};region.foodDiversity.productionMix||={...mix};s.monocultureRisk=cropConcentration(region);let weightedLoss=0,cropWeight=0;
+    for(const category of DIET_FOOD_IDS){let sourceRisk=0,contactCount=0;for(const id of tradeContactIds(region)){const source=byId.get(id);if(!source)continue;const sourceState=priorPressure.get(id),excess=Math.max(0,(sourceState?.[category]||0)-BASELINE[category]);if(excess<=0)continue;sourceRisk+=excess;contactCount++;}sourceRisk=contactCount?clamp(sourceRisk/contactCount*(.65+Math.min(.7,contactCount*.08))):0;s.introductionRisk[category]=sourceRisk;
+      const baseline=s.baselinePressure[category],years=Math.max(0,Number(elapsedDays)||0)/DAYS_PER_YEAR,recovery=1-Math.exp(-1.35*years);let pressure=s.pressure[category]+(baseline-s.pressure[category])*recovery;pressure+=sourceRisk*.10*Math.min(1,years*4);
+      const protection=combinedCropProtection(region,category);s.geneticProtection[category]=protection.genetics;s.breedingProtection[category]=protection.breeding;s.biotechnologyProtection[category]=protection.biotechnology;const chance=weeklyEquivalentChance(annualOutbreakChance(region,category,sourceRisk),elapsedDays);
+      if(rng()<chance){const weather=weatherRisk(region,category),exposure=clamp((Number(mix[category])||0)*2.2),rawSeverity=clamp(.18+rng()*.42+weather*.20+s.monocultureRisk*exposure*.20,.12,.92),severity=rawSeverity*(1-protection.total*.58);pressure=Math.max(pressure,baseline+severity*(.55+.25*exposure));s.outbreakCount++;}
+      const control=PLANT_FOODS.includes(category)?pesticideControlForCategory(region,category):0;s.pesticideControl[category]=control;pressure=baseline+Math.max(0,pressure-baseline)*(1-control)*(1-protection.total*.35);pressure=clamp(pressure,baseline*.75,1);const abnormal=clamp((pressure-baseline)/Math.max(.01,1-baseline)),extraLoss=clamp(abnormal*MAX_EXTRA_LOSS[category],0,MAX_EXTRA_LOSS[category]);s.pressure[category]=pressure;s.outbreakSeverity[category]=abnormal;s.extraYieldLoss[category]=extraLoss;if(PLANT_FOODS.includes(category)){const weight=Math.max(0,Number(mix[category])||0);weightedLoss+=extraLoss*weight;cropWeight+=weight;}}
+    s.aggregateExtraLoss=cropWeight>0?clamp(weightedLoss/cropWeight,0,.42):0;s.yieldMultiplier=1-s.aggregateExtraLoss;region.report||={};region.report.agriculturalPests={workers:0,monocultureRisk:s.monocultureRisk,pressure:{...s.pressure},outbreakSeverity:{...s.outbreakSeverity},extraYieldLoss:{...s.extraYieldLoss},introductionRisk:{...s.introductionRisk},pesticideControl:{...s.pesticideControl},geneticProtection:{...s.geneticProtection},breedingProtection:{...s.breedingProtection},biotechnologyProtection:{...s.biotechnologyProtection},aggregateExtraLoss:s.aggregateExtraLoss,yieldMultiplier:s.yieldMultiplier,outbreakCount:s.outbreakCount};}
 }
-
-function weatherRisk(region, category) {
-  const index = Number(region.weather?.index) || 0;
-  const temperature = Math.max(0, Number(region.climate?.temperatureAnomalyC) || 0);
-  const latitude = Math.abs(Number(region.centroid?.[1]) || 0);
-  const warmth = clamp(1 - latitude / 70 + temperature * 0.08);
-  const wet = clamp(Math.max(0, index) / 1.8);
-  const dry = clamp(Math.max(0, -index) / 1.8);
-  if (category === 'fruit_vegetables') return clamp(0.22 + wet * 0.52 + warmth * 0.26);
-  if (category === 'staple_grains') return clamp(0.20 + wet * 0.34 + warmth * 0.24 + dry * 0.12);
-  if (category === 'pulses') return clamp(0.18 + wet * 0.30 + warmth * 0.22 + dry * 0.16);
-  return clamp(0.12 + warmth * 0.08);
-}
-
-function cropConcentration(region) {
-  const mix = region.foodDiversity?.productionMix || regionalFoodProductionMix(region);
-  const plantTotal = PLANT_FOODS.reduce((sum, id) => sum + Math.max(0, Number(mix[id]) || 0), 0) || 1;
-  const shares = PLANT_FOODS.map((id) => Math.max(0, Number(mix[id]) || 0) / plantTotal);
-  const hhi = shares.reduce((sum, share) => sum + share * share, 0);
-  return clamp((hhi - 1 / 3) / (1 - 1 / 3));
-}
-
-function combinedCropProtection(region, category) {
-  if (!PLANT_FOODS.includes(category)) return { genetics: 0, breeding: 0, total: 0 };
-  const genetics = geneticPestProtection(region, category);
-  const breeding = breedingPestProtection(region, category);
-  return { genetics, breeding, total: clamp(genetics + breeding, 0, 0.48) };
-}
-
-function annualOutbreakChance(region, category, sourceRisk) {
-  const mix = region.foodDiversity?.productionMix || regionalFoodProductionMix(region);
-  const exposure = clamp((Number(mix[category]) || 0) * 2.2);
-  const monoculture = cropConcentration(region);
-  const weather = weatherRisk(region, category);
-  const cultivated = Math.max(0, Number(region.agriculturalLand?.cultivatedHa) || 0);
-  const scale = clamp(Math.log1p(cultivated) / 12);
-  const protection = combinedCropProtection(region, category).total;
-  return clamp((0.008 + exposure * 0.016 + monoculture * exposure * 0.055 + weather * 0.020 + sourceRisk * 0.085 + scale * 0.008) * (1 - protection * 0.42), 0, 0.22);
-}
-
-function weeklyEquivalentChance(annualChance, elapsedDays) {
-  const years = Math.max(0, Number(elapsedDays) || 0) / DAYS_PER_YEAR;
-  return 1 - Math.pow(1 - clamp(annualChance), years);
-}
-
-export function tickAgriculturalPests(regions, elapsedDays = 7, rng = Math.random) {
-  const byId = new Map((regions || []).map((region) => [region.id, region]));
-  const priorPressure = new Map();
-  for (const region of regions || []) {
-    tickCropBreeding(region, elapsedDays);
-    priorPressure.set(region.id, { ...ensureAgriculturalPests(region).pressure });
-  }
-
-  for (const region of regions || []) {
-    const s = ensureAgriculturalPests(region);
-    const mix = region.foodDiversity?.productionMix || regionalFoodProductionMix(region);
-    region.foodDiversity ||= {};
-    region.foodDiversity.productionMix ||= { ...mix };
-    s.monocultureRisk = cropConcentration(region);
-    let weightedLoss = 0;
-    let cropWeight = 0;
-
-    for (const category of DIET_FOOD_IDS) {
-      let sourceRisk = 0;
-      let contactCount = 0;
-      for (const id of tradeContactIds(region)) {
-        const source = byId.get(id);
-        if (!source) continue;
-        const sourceState = priorPressure.get(id);
-        const excess = Math.max(0, (sourceState?.[category] || 0) - BASELINE[category]);
-        if (excess <= 0) continue;
-        sourceRisk += excess;
-        contactCount += 1;
-      }
-      sourceRisk = contactCount ? clamp(sourceRisk / contactCount * (0.65 + Math.min(0.7, contactCount * 0.08))) : 0;
-      s.introductionRisk[category] = sourceRisk;
-
-      const baseline = s.baselinePressure[category];
-      const years = Math.max(0, Number(elapsedDays) || 0) / DAYS_PER_YEAR;
-      const recovery = 1 - Math.exp(-1.35 * years);
-      let pressure = s.pressure[category] + (baseline - s.pressure[category]) * recovery;
-      pressure += sourceRisk * 0.10 * Math.min(1, years * 4);
-
-      const protection = combinedCropProtection(region, category);
-      s.geneticProtection[category] = protection.genetics;
-      s.breedingProtection[category] = protection.breeding;
-      const chance = weeklyEquivalentChance(annualOutbreakChance(region, category, sourceRisk), elapsedDays);
-      if (rng() < chance) {
-        const weather = weatherRisk(region, category);
-        const exposure = clamp((Number(mix[category]) || 0) * 2.2);
-        const rawSeverity = clamp(0.18 + rng() * 0.42 + weather * 0.20 + s.monocultureRisk * exposure * 0.20, 0.12, 0.92);
-        const severity = rawSeverity * (1 - protection.total * 0.58);
-        pressure = Math.max(pressure, baseline + severity * (0.55 + 0.25 * exposure));
-        s.outbreakCount += 1;
-      }
-
-      const control = PLANT_FOODS.includes(category) ? pesticideControlForCategory(region, category) : 0;
-      s.pesticideControl[category] = control;
-      pressure = baseline + Math.max(0, pressure - baseline) * (1 - control) * (1 - protection.total * 0.35);
-
-      pressure = clamp(pressure, baseline * 0.75, 1);
-      const abnormal = clamp((pressure - baseline) / Math.max(0.01, 1 - baseline));
-      const extraLoss = clamp(abnormal * MAX_EXTRA_LOSS[category], 0, MAX_EXTRA_LOSS[category]);
-      s.pressure[category] = pressure;
-      s.outbreakSeverity[category] = abnormal;
-      s.extraYieldLoss[category] = extraLoss;
-
-      if (PLANT_FOODS.includes(category)) {
-        const weight = Math.max(0, Number(mix[category]) || 0);
-        weightedLoss += extraLoss * weight;
-        cropWeight += weight;
-      }
-    }
-
-    s.aggregateExtraLoss = cropWeight > 0 ? clamp(weightedLoss / cropWeight, 0, 0.42) : 0;
-    s.yieldMultiplier = 1 - s.aggregateExtraLoss;
-    region.report ||= {};
-    region.report.agriculturalPests = {
-      workers: 0,
-      monocultureRisk: s.monocultureRisk,
-      pressure: { ...s.pressure },
-      outbreakSeverity: { ...s.outbreakSeverity },
-      extraYieldLoss: { ...s.extraYieldLoss },
-      introductionRisk: { ...s.introductionRisk },
-      pesticideControl: { ...s.pesticideControl },
-      geneticProtection: { ...s.geneticProtection },
-      breedingProtection: { ...s.breedingProtection },
-      aggregateExtraLoss: s.aggregateExtraLoss,
-      yieldMultiplier: s.yieldMultiplier,
-      outbreakCount: s.outbreakCount,
-    };
-  }
-}
-
-export function pestYieldMultiplier(region) {
-  return clamp(ensureAgriculturalPests(region).yieldMultiplier, 0.58, 1);
-}
-
-export function pestCategoryYieldMultiplier(region, category) {
-  const loss = clamp(ensureAgriculturalPests(region).extraYieldLoss?.[category] || 0, 0, 0.5);
-  return 1 - loss;
-}
+export function pestYieldMultiplier(region){return clamp(ensureAgriculturalPests(region).yieldMultiplier,.58,1);}
+export function pestCategoryYieldMultiplier(region,category){const loss=clamp(ensureAgriculturalPests(region).extraYieldLoss?.[category]||0,0,.5);return 1-loss;}
