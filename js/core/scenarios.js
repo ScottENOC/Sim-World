@@ -81,12 +81,16 @@ export function installScenarioFetchRouting() {
   if (fetchRoutingInstalled || typeof window === 'undefined' || typeof window.fetch !== 'function') return;
   fetchRoutingInstalled = true;
   originalFetch = window.fetch.bind(window);
-  window.fetch = (input, init) => {
-    const scenario = selectedScenario;
-    if (!scenario || scenario.mapBaseUrl === 'data/world/') return originalFetch(input, init);
+  window.fetch = async (input, init) => {
     const rawUrl = typeof input === 'string' || input instanceof URL ? String(input) : input?.url;
     const parts = stripWorldPrefix(rawUrl);
     if (!parts) return originalFetch(input, init);
+
+    // main.js starts loading immediately. Holding world-data requests here keeps
+    // startup deterministic without making every world loader scenario-aware.
+    const scenario = await waitForScenarioSelection();
+    if (scenario.mapBaseUrl === 'data/world/') return originalFetch(input, init);
+
     const rewritten = `${parts.prefix}${scenario.mapBaseUrl}${parts.suffix}`;
     if (typeof Request !== 'undefined' && input instanceof Request) return originalFetch(new Request(rewritten, input), init);
     return originalFetch(rewritten, init);
@@ -101,7 +105,6 @@ export function selectScenario(id) {
   if (!selectedScenario) {
     selectedScenario = scenario;
     if (typeof window !== 'undefined') window.__worldsimScenario = scenario;
-    installScenarioFetchRouting();
     resolveSelection(scenario);
   }
   return selectedScenario;
@@ -111,3 +114,7 @@ export function scenarioStartYear(fallback = -1300) {
   const value = Number(selectedScenario?.startYear ?? (typeof window !== 'undefined' ? window.__worldsimScenario?.startYear : NaN));
   return Number.isFinite(value) ? value : fallback;
 }
+
+// Install as soon as this module is imported, before main.js reaches its first
+// data/world/* fetch. The picker resolves the held requests when a scenario is chosen.
+installScenarioFetchRouting();
