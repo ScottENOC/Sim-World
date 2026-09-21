@@ -1,5 +1,5 @@
 import { attitudeToward, changeAttitude } from '../diplomacy/relations.js?v=20260921-space-access1';
-import { bestLaunchSite, launchSiteScore } from './spaceLaunchGeography.js?v=20260921-space-cooperation1';
+import { bestNationalLaunchSite } from './spaceLaunchGeography.js?v=20260921-space-cooperation1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const polityId=r=>r?.governance?.sovereignPolityId||r?.polityId||r?.id;
@@ -15,6 +15,7 @@ export const SPACE_MISSION_SENSITIVITY=Object.freeze({
 
 function programmeRegion(members){return members.filter(r=>r.spaceProgramme).sort((a,b)=>(b.spaceProgramme?.completedMilestones?.length||0)-(a.spaceProgramme?.completedMilestones?.length||0))[0]||members[0];}
 function groupedPolities(regions){const out=new Map();for(const r of regions||[]){const id=polityId(r);if(!out.has(id))out.set(id,[]);out.get(id).push(r);}return out;}
+function assessedSite(members){const assessment=bestNationalLaunchSite(members);if(!assessment)return null;const region=members.find(r=>r.id===assessment.regionId)||null;return region?{region,assessment}:null;}
 
 export function missionSensitivity(mission={}){
   if(mission.worldFirst===true)return SPACE_MISSION_SENSITIVITY.historic_first;
@@ -43,15 +44,16 @@ export function assessForeignLaunchAccess(requesterCarrier,hostCarrier,mission={
 
 export function bestAccessibleLaunchSite(requesterMembers,allRegions,mission={}){
   const requesterCarrier=programmeRegion(requesterMembers);if(!requesterCarrier)return null;
-  let best={region:bestLaunchSite(requesterMembers),hostCarrier:requesterCarrier,foreign:false,access:{allowed:true,reason:'domestic'}};
-  let bestScore=best.region?launchSiteScore(best.region):-Infinity;
+  const domestic=assessedSite(requesterMembers);
+  let best=domestic?{...domestic,hostCarrier:requesterCarrier,foreign:false,access:{allowed:true,reason:'domestic'}}:null;
+  let bestEffectiveScore=domestic?domestic.assessment.score:Infinity;
   for(const [,members] of groupedPolities(allRegions)){
     const hostCarrier=programmeRegion(members);if(!hostCarrier||polityId(hostCarrier)===polityId(requesterCarrier))continue;
     const access=assessForeignLaunchAccess(requesterCarrier,hostCarrier,mission);if(!access.allowed)continue;
-    const candidate=bestLaunchSite(members);if(!candidate)continue;
-    const score=launchSiteScore(candidate)-.015; // small coordination/friction cost for foreign operations
-    if(score<=bestScore)continue;
-    best={region:candidate,hostCarrier,foreign:true,access};bestScore=score;
+    const candidate=assessedSite(members);if(!candidate)continue;
+    const effectiveScore=candidate.assessment.score+.015; // small coordination/friction cost for foreign operations; lower is better
+    if(effectiveScore>=bestEffectiveScore)continue;
+    best={...candidate,hostCarrier,foreign:true,access};bestEffectiveScore=effectiveScore;
   }
   return best;
 }
