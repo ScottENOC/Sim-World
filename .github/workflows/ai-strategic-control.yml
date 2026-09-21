@@ -1,0 +1,22 @@
+name: Strategic AI control
+
+on:
+  pull_request:
+  push:
+    branches:
+      - feature/ai-strategic-control
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check strategic AI integration
+        run: |
+          node --check js/technology/aiControl.js
+          node --check js/military/aiStrategicCommand.js
+      - name: Run strategic AI regressions
+        run: node tests/aiStrategicControl.test.mjs
