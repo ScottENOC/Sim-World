@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "fractured-2027",
+  "year": 2027,
+  "actors": [
+    { "id": "usa", "kind": "country", "name": "United States" },
+    { "id": "denmark", "kind": "country", "name": "Denmark" },
+    { "id": "united-kingdom", "kind": "country", "name": "United Kingdom" },
+    { "id": "european-union", "kind": "coalition", "name": "European Union", "membershipSource": "scenario-map" },
+    { "id": "russia", "kind": "country", "name": "Russia" },
+    { "id": "ukraine", "kind": "country", "name": "Ukraine" },
+    { "id": "china", "kind": "country", "name": "China" },
+    { "id": "taiwan", "kind": "country", "name": "Taiwan" }
+  ],
+  "conflicts": [
+    {
+      "id": "greenland-war",
+      "kind": "war",
+      "belligerents": {
+        "sideA": ["usa"],
+        "sideB": ["denmark", "european-union", "united-kingdom"]
+      },
+      "occupation": [
+        {
+          "territorySelector": "greenland",
+          "occupier": "usa",
+          "sovereigntyClaimant": "denmark",
+          "control": "occupied"
+        }
+      ]
+    },
+    {
+      "id": "russia-ukraine-war",
+      "kind": "war",
+      "belligerents": {
+        "sideA": ["russia"],
+        "sideB": ["ukraine"]
+      },
+      "frontControlSource": "scenario-map"
+    },
+    {
+      "id": "taiwan-blockade",
+      "kind": "blockade",
+      "blockadingActors": ["china"],
+      "targetActors": ["taiwan"],
+      "affectedSeaSelectors": ["taiwan-approaches"],
+      "enforcement": "active"
+    }
+  ],
+  "defaultExternalAlignment": {
+    "state": "uncommitted",
+    "scriptedFutureAlignment": false
+  },
+  "notes": [
+    "This file encodes the fictional scenario premise, not assertions about real-world events.",
+    "Territory and sea selectors will be resolved when the dedicated modern strategic map is authored.",
+    "The simulation should determine future alliances, neutrality, mediation, escalation and settlement from game systems rather than event scripting."
+  ]
+}
