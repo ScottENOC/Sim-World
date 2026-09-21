@@ -1,6 +1,6 @@
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const positive=v=>Math.max(0,Number(v)||0);
-const KEYS=['households','agriculture','industry','controlledEnvironment'];
+const KEYS=['households','agriculture','livestock','industry','controlledEnvironment'];
 
 function activeAssets(region,typeId){return (region?.construction?.assets||[]).filter(a=>a?.typeId===typeId&&(a.condition??1)>.2).length;}
 function hasTech(region,id){return Boolean(region?.unlockedTechIds?.has?.(id));}
@@ -11,7 +11,7 @@ function coastal(region){return Boolean(region?.isCoastal||(region?.seaRegionIds
 export function ensureUrbanWater(region){
   region.urbanWater||={};const s=region.urbanWater;
   for(const [k,v] of Object.entries({distributionCoverage:0,potableTreatment:0,wastewaterCollection:0,wastewaterTreatment:0,reuseCapability:0,desalinationCapability:0,recycledStorage:0,recycledSupply:0,desalinatedSupply:0,wastewaterGenerated:0,wastewaterTreated:0,untreatedWastewater:0,potableQuality:1,waterborneRiskMultiplier:1,electricityLoad:0,nonRevenueWater:0.18,demandEfficiency:0}))if(!Number.isFinite(s[k]))s[k]=v;
-  s.lastSupplementalAllocation||={households:0,agriculture:0,industry:0,controlledEnvironment:0};
+  s.lastSupplementalAllocation||={households:0,agriculture:0,livestock:0,industry:0,controlledEnvironment:0};
   return s;
 }
 
@@ -31,31 +31,31 @@ export function prepareUrbanWater(region){
   const s=ensureUrbanWater(region),c=urbanWaterCapabilities(region),p=region.waterPolicy||{};
   const efficiencyPolicy=clamp(p.demandEfficiency??.08),networkEfficiency=1-clamp(s.nonRevenueWater,0,.45);
   s.demandEfficiency=clamp(efficiencyPolicy*(.25+c.distributionCoverage*.75)*(.65+networkEfficiency*.35),0,.42);
-  s.lastSupplementalAllocation={households:0,agriculture:0,industry:0,controlledEnvironment:0};
+  s.lastSupplementalAllocation={households:0,agriculture:0,livestock:0,industry:0,controlledEnvironment:0};
   s.recycledSupply=0;s.desalinatedSupply=0;s.electricityLoad=0;
   return s;
 }
 
 export function urbanDemandMultiplier(region,sector){
-  const s=ensureUrbanWater(region);if(sector==='agriculture')return 1;
+  const s=ensureUrbanWater(region);if(sector==='agriculture'||sector==='livestock')return 1;
   const sectorFactor=sector==='households'?1:sector==='industry'?.82:.55;
   return 1-s.demandEfficiency*sectorFactor;
 }
 
 function allocatePreferred(residual,available,order){
-  const out={households:0,agriculture:0,industry:0,controlledEnvironment:0};let remaining=positive(available);
+  const out={households:0,agriculture:0,livestock:0,industry:0,controlledEnvironment:0};let remaining=positive(available);
   for(const key of order){const take=Math.min(positive(residual[key]),remaining);out[key]=take;remaining-=take;if(remaining<=0)break;}
   return out;
 }
 function mergeResidual(residual,allocation){const next={};for(const k of KEYS)next[k]=Math.max(0,positive(residual[k])-positive(allocation[k]));return next;}
 
 export function supplementalUrbanWater(region,residual,elapsedDays=7){
-  const s=ensureUrbanWater(region),p=region.waterPolicy||{},power=electricityService(region),days=Math.max(.01,positive(elapsedDays)),out={households:0,agriculture:0,industry:0,controlledEnvironment:0};
+  const s=ensureUrbanWater(region),p=region.waterPolicy||{},power=electricityService(region),days=Math.max(.01,positive(elapsedDays)),out={households:0,agriculture:0,livestock:0,industry:0,controlledEnvironment:0};
   const reusePolicy=clamp(p.waterReuse??.25),reusable=Math.min(s.recycledStorage, s.reuseCapability*reusePolicy*(.035+.095*power)*days/7);
-  const reuseAllocation=allocatePreferred(residual,reusable,['agriculture','industry','controlledEnvironment']);
+  const reuseAllocation=allocatePreferred(residual,reusable,['agriculture','livestock','industry','controlledEnvironment']);
   const reused=Object.values(reuseAllocation).reduce((a,b)=>a+b,0);for(const k of KEYS)out[k]+=reuseAllocation[k];s.recycledStorage=Math.max(0,s.recycledStorage-reused);s.recycledSupply=reused;s.electricityLoad+=reused*(.10+.18*(1-power));
   const afterReuse=mergeResidual(residual,reuseAllocation),desalPolicy=clamp(p.desalination??.12),desalPotential=s.desalinationCapability*desalPolicy*(.025+.11*power)*days/7;
-  const desalAllocation=allocatePreferred(afterReuse,desalPotential,['households','industry','controlledEnvironment','agriculture']);const desalinated=Object.values(desalAllocation).reduce((a,b)=>a+b,0);for(const k of KEYS)out[k]+=desalAllocation[k];s.desalinatedSupply=desalinated;s.electricityLoad+=desalinated*(.42+.48*(1-power));
+  const desalAllocation=allocatePreferred(afterReuse,desalPotential,['households','industry','controlledEnvironment','livestock','agriculture']);const desalinated=Object.values(desalAllocation).reduce((a,b)=>a+b,0);for(const k of KEYS)out[k]+=desalAllocation[k];s.desalinatedSupply=desalinated;s.electricityLoad+=desalinated*(.42+.48*(1-power));
   s.lastSupplementalAllocation={...out};return out;
 }
 
