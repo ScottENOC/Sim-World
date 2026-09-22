@@ -41,7 +41,7 @@ jobs:
       - name: Re-run livestock regression
         run: node tools/test-livestock-agriculture.mjs
       - name: Re-run modern water regression
-        run: node tools/test-water-quantity.mjs
+        run: node tools/test-modern-water-quantity.mjs
       - name: Re-run electricity regression
         run: node tools/test-electricity.mjs
       - name: Re-run food diversity regression
