@@ -1,0 +1,92 @@
+name: Temporary advisors steward repair
+
+on:
+  push:
+    branches:
+      - fix/advisors-steward-parser
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/advisors-steward-parser
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Repair Steward education rendering
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('js/ui/advisors.js')
+          s = p.read_text()
+          block = """    const educationSection =
+      '<label class=\"advisor-field advisor-slider\"><span>Mandatory public education <b id=\"education-years-label\">' + education.mandatoryYears + ' years</b></span><input id=\"mandatory-education-years\" type=\"range\" min=\"0\" max=\"13\" step=\"1\" value=\"' + education.mandatoryYears + '\"></label>' +
+      row('Law requires', education.mandatoryYears + ' years') +
+      row('System can presently deliver', education.deliveredYears.toFixed(1) + ' years') +
+      row('School capacity', education.capacityYears.toFixed(1) + ' years') +
+      row('Teachers in service', number(education.teachers)) +
+      row('Pupils enrolled', number(education.students)) +
+      row('Education spending / week', education.weeklyCost.toFixed(1)) +
+      row('Adult average schooling', education.adultAverageYears.toFixed(1) + ' years') +
+      (education.rampYearsEstimate > 0.5 ? row('Estimated time to build capacity', 'about ' + Math.ceil(education.rampYearsEstimate) + ' years', education.rampYearsEstimate > 12 ? 'warning' : '') : '') +
+      '<p class=\"advisor-note\">The law can change at once; teachers and schools cannot. Teachers are drawn from the adult workforce, and pupils forgo work they would otherwise contribute at home or in workshops.</p>' +
+      educationWarnings + educationBenefits;
+"""
+          if block not in s:
+              raise SystemExit('educationSection block not found')
+          s = s.replace(block, '', 1)
+          anchor = """    const educationWarnings = education.warnings.map((text) => '<p class=\"advisor-note warning\">' + text + '</p>').join('');
+    const educationBenefits = education.benefits.map((text) => '<p class=\"advisor-note\">' + text + '</p>').join('');
+"""
+          if anchor not in s:
+              raise SystemExit('Steward education anchor not found')
+          s = s.replace(anchor, anchor + block, 1)
+          old = """    return `<p class=\"advisor-voice\">“The realm is more than its warriors. These are the people, harvests and dangers that will still matter next winter.”</p>
+      ${section('Realm at home', row('Population', number(player.population)) + row('Stability', percent(player.stability), player.stability < .6 ? 'warning' : '') + row('Safety', percent(player.safetyRating), player.safetyRating < .6 ? 'warning' : '') + row('Bandits', number(player.banditPopulation), player.banditPopulation > 50 ? 'warning' : '') + row('Food stores', number(food)))}
+      ${section('This season', row('Weather', player.weather?.condition || 'normal') + row('Crop yield effect', percent(player.weather?.yieldMultiplier ?? 1)) + row('Food import dependence', percent(player.foodImportDependence || player.report?.foodPlan?.importDependence || 0)))}
+      ${section('Public education', educationSection)}
+      ${section('Construction', active && type ? `
+"""
+          new = """    const stewardVoice = '<p class=\"advisor-voice\">“The realm is more than its warriors. These are the people, harvests and dangers that will still matter next winter.”</p>';
+    return stewardVoice +
+      section('Realm at home', row('Population', number(player.population)) + row('Stability', percent(player.stability), player.stability < .6 ? 'warning' : '') + row('Safety', percent(player.safetyRating), player.safetyRating < .6 ? 'warning' : '') + row('Bandits', number(player.banditPopulation), player.banditPopulation > 50 ? 'warning' : '') + row('Food stores', number(food))) +
+      section('This season', row('Weather', player.weather?.condition || 'normal') + row('Crop yield effect', percent(player.weather?.yieldMultiplier ?? 1)) + row('Food import dependence', percent(player.foodImportDependence || player.report?.foodPlan?.importDependence || 0))) +
+      section('Public education', educationSection) +
+      section('Construction', active && type ? `
+"""
+          if old not in s:
+              raise SystemExit('Steward return prefix not found')
+          s = s.replace(old, new, 1)
+          old_tail = """        : '<p class=\"advisor-note\">No known project is available. New forms of construction emerge through need, accumulated skill and contact with other builders.</p>')}
+      ${construction.assets.length ? section('Infrastructure condition', construction.assets.map((asset) => {
+"""
+          new_tail = """        : '<p class=\"advisor-note\">No known project is available. New forms of construction emerge through need, accumulated skill and contact with other builders.</p>') +
+      (construction.assets.length ? section('Infrastructure condition', construction.assets.map((asset) => {
+"""
+          if old_tail not in s:
+              raise SystemExit('Steward return tail anchor not found')
+          s = s.replace(old_tail, new_tail, 1)
+          old_end = """      }).join('') + '<p class=\"advisor-note\">Maintenance is paid automatically. If labour, materials or treasury funds are unavailable, condition and benefits decline.</p>') : ''}`;
+"""
+          new_end = """      }).join('') + '<p class=\"advisor-note\">Maintenance is paid automatically. If labour, materials or treasury funds are unavailable, condition and benefits decline.</p>') : '');
+"""
+          if old_end not in s:
+              raise SystemExit('Steward return end not found')
+          s = s.replace(old_end, new_end, 1)
+          p.write_text(s)
+          PY
+          node --check js/ui/advisors.js
+          node --check js/main.js
+      - name: Commit repair
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/ui/advisors.js
+          git commit -m 'Repair Steward advisor rendering'
+          git push origin HEAD:fix/advisors-steward-parser
