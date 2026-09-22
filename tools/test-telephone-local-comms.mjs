@@ -86,6 +86,6 @@ const industrialSource = fs.readFileSync(new URL('../js/economy/industrialSupply
 const breakthroughSource = fs.readFileSync(new URL('../js/technology/breakthroughs.js', import.meta.url), 'utf8');
 assert.match(mainSource, /tickLocalCommunications\(region, time\.elapsedDays\)/, 'regional telephone service must run in the live simulation');
 assert.match(industrialSource, /telephoneIndustrialMultiplier\(region\)/, 'industrial output must consume the local communications signal');
-assert.match(breakthroughSource, /tickTelephoneBreakthroughs\(regions, currentTick, rng, elapsedDays\)/, 'telephone breakthroughs must be integrated into the technology tick');
+assert.match(breakthroughSource, /tickTelephoneBreakthroughs\(regions, currentTick, rng, [A-Za-z_$][\w$]*\)/, 'telephone breakthroughs must be integrated into the technology tick with an elapsed-time argument');
 
 console.log('Telephone and local communications regressions passed.');
