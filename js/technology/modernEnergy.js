@@ -68,16 +68,21 @@ export function tickModernEnergyBreakthroughs(regions,currentTick,rng=Math.rando
   const guidedActive=hasAnyTech(world,['rocket_stabilisation',...GUIDED_TECH_IDS_FAST]);
   if(guidedActive){events.push(...tickGuidedAirDefenceBreakthroughs(world,currentTick,rng,elapsedDays));if(hasAnyTech(world,['surface_to_air_missiles']))events.push(...tickGuidedAirDefenceIndustry(world,currentTick,rng,elapsedDays));}
 
+  // Keep the original family order: guided air defence -> electronic warfare ->
+  // directed energy -> carrier/AEW -> precision strike -> drones.
+  events.push(...tickElectronicWarfareBreakthroughs(world,currentTick,rng,elapsedDays));
+  events.push(...tickElectronicWarfare(world,currentTick,rng,elapsedDays));
+
   const directedActive=hasAnyTech(world,['surface_to_air_missiles',...DIRECTED_TECH_IDS_FAST]);
   if(directedActive)events.push(...tickDirectedEnergyBreakthroughs(world,currentTick,rng,elapsedDays));
+
+  events.push(...tickCarrierBreakthroughs(world,currentTick,rng,elapsedDays));
+  events.push(...tickAirborneEarlyWarningBreakthroughs(world,currentTick,rng,elapsedDays));
+  events.push(...tickPrecisionStrikeBreakthroughs(world,currentTick,rng,elapsedDays));
+  events.push(...tickPrecisionStrikeIndustry(world,currentTick,rng,elapsedDays));
 
   const droneActive=hasAnyTech(world,['powered_flight',...DRONE_TECH_IDS_FAST]);
   if(droneActive)events.push(...tickDroneBreakthroughs(world,currentTick,rng,elapsedDays));
   if(world.some(r=>(r.droneForces?.inventory?.length||0)>0))events.push(...tickDrones(world,currentTick,elapsedDays,rng));
-
-  // These remaining families have their own prerequisites but still need
-  // dedicated world-level gates. Keep them active for now rather than risk
-  // suppressing legitimate first discoveries; the next profile will identify
-  // which should be converted next.
-  events.push(...tickElectronicWarfareBreakthroughs(world,currentTick,rng,elapsedDays));events.push(...tickElectronicWarfare(world,currentTick,rng,elapsedDays));events.push(...tickCarrierBreakthroughs(world,currentTick,rng,elapsedDays));events.push(...tickAirborneEarlyWarningBreakthroughs(world,currentTick,rng,elapsedDays));events.push(...tickPrecisionStrikeBreakthroughs(world,currentTick,rng,elapsedDays));events.push(...tickPrecisionStrikeIndustry(world,currentTick,rng,elapsedDays));return events;
+  return events;
 }
