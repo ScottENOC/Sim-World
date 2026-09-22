@@ -1,4 +1,4 @@
-import { ensureInformationIntegrity } from '../diplomacy/informationIntegrity.js?v=20260922-info1';
+import { ensureInformationIntegrity, recordInformationIncident, publishCompetingNarrative } from '../diplomacy/informationIntegrity.js?v=20260922-info1';
 import { ensureCounterIntelligence } from '../diplomacy/counterIntelligence.js?v=20260917-intervention1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
@@ -82,6 +82,69 @@ function legacyInterferencePressure(polity){
 }
 function propogandaScale(value){return 1-Math.exp(-Math.max(0,value));}
 
+function publishElectionInterferenceClaim(target,regions,operation,mode,defence){
+  if(!operation.detected)return null;
+  const observer=capitalRegion(target,regions);
+  if(!observer)return null;
+  const digitalEvidence=Boolean(mode.digital);
+  const publicActorId=operation.attributed?operation.claimedActorId:null;
+  const attributionEvidence=operation.attributed
+    ? clamp(.58+defence.counterintelligence*.24+defence.verification*.18)
+    : clamp(.10+defence.counterintelligence*.12+defence.verification*.10);
+  const incident=recordInformationIncident(observer,{
+    id:`public-${operation.id}`,
+    type:'election_interference',
+    headline:`Evidence of ${mode.label.toLowerCase()} targeting the election`,
+    tick:operation.currentTick,
+    receivedTick:operation.currentTick,
+    allegedActorId:publicActorId,
+    evidenceType:digitalEvidence?'digital':'mixed',
+    sourceReliability:clamp(.44+defence.counterintelligence*.24+defence.verification*.16),
+    provenance:clamp(digitalEvidence?defence.verification*.58:defence.counterintelligence*.34),
+    corroboration:clamp(.20+defence.counterintelligence*.28),
+    forensicSupport:clamp(digitalEvidence?defence.verification*.60:defence.counterintelligence*.28),
+    attributionEvidence,
+    evidence:[{
+      sourceId:`counterintelligence-${target.id}`,
+      evidenceType:digitalEvidence?'digital':'document',
+      sourceReliability:clamp(.50+defence.counterintelligence*.32),
+      provenance:clamp(digitalEvidence?defence.verification*.62:.28+defence.counterintelligence*.24),
+      forensicSupport:clamp(digitalEvidence?defence.verification*.64:.18+defence.counterintelligence*.20),
+      forensicPotential:digitalEvidence?.82:.48,
+      attributionEvidence,
+      receivedTick:operation.currentTick,
+    }],
+  });
+  if(publicActorId&&publicActorId!=='unknown_third_party'){
+    publishCompetingNarrative(observer,incident.id,{
+      kind:'denial_actor',
+      reach:clamp(.22+operation.effect*.36),
+      sourceReliability:.42,
+      evidenceSupport:operation.attributed?.12:.28,
+      publishedTick:operation.currentTick,
+    });
+  }
+  if(operation.mode==='synthetic_media'||operation.aiAssisted){
+    publishCompetingNarrative(observer,incident.id,{
+      kind:'denial_synthetic',
+      reach:clamp(.18+operation.effect*.30),
+      sourceReliability:.34,
+      evidenceSupport:.08,
+      publishedTick:operation.currentTick,
+    });
+  }
+  if(operation.mode==='false_flag'){
+    publishCompetingNarrative(observer,incident.id,{
+      kind:'alternative_actor',
+      reach:clamp(.34+operation.effect*.28),
+      sourceReliability:.45,
+      evidenceSupport:.20,
+      publishedTick:operation.currentTick,
+    });
+  }
+  return incident;
+}
+
 export function launchElectionInterference(sponsor,target,regions,currentTick=0,options={},rng=Math.random){
   const mode=ELECTION_INTERFERENCE_MODES[options.mode||'propaganda'];
   if(!sponsor||!target||sponsor.id===target.id||!mode)return {launched:false,reason:'invalid_parties_or_mode'};
@@ -135,6 +198,7 @@ export function launchElectionInterference(sponsor,target,regions,currentTick=0,
     detectionChance,attributionChance,currentTick,
   };
   state.operations.push(operation);if(state.operations.length>30)state.operations.shift();
+  publishElectionInterferenceClaim(target,regions,operation,mode,defence);
   return {launched:true,...operation};
 }
 
