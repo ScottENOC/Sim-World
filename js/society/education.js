@@ -22,6 +22,8 @@ const WRITING_SEEDS = Object.freeze({
   CYP: 'Cypro-Minoan',
   GRC: 'Linear B',
 });
+const HIGH_RECORDING_FIT = new Set(['smithing', 'mining', 'pottery', 'textiles', 'boatbuilding']);
+const MID_RECORDING_FIT = new Set(['farming', 'horseHusbandry']);
 
 function clamp(value, low = 0, high = 1) {
   return Math.max(low, Math.min(high, Number(value) || 0));
@@ -69,6 +71,18 @@ export function setScribalStudentTarget(region, target) {
   return true;
 }
 
+function scribalCapacityFromState(region, e) {
+  if (!e?.writingSystem) return 0;
+  const weighted = e.juniorScribes * 0.45 + e.experiencedScribes + e.masterScribes * 2.2;
+  const populationScale = Math.max(8, Math.sqrt(Math.max(1, region.population || 1)) * 0.18);
+  return clamp(weighted / populationScale);
+}
+
+function archiveEffectivenessFromState(region, e) {
+  if (!e?.writingSystem) return 0;
+  return clamp(e.archiveLevel * 0.55 + scribalCapacityFromState(region, e) * 0.45);
+}
+
 export function educatedSpecialists(region) {
   const e = ensureEducation(region);
   return e ? e.juniorScribes + e.experiencedScribes + e.masterScribes : 0;
@@ -76,41 +90,42 @@ export function educatedSpecialists(region) {
 
 export function scribalCapacity(region) {
   const e = ensureEducation(region);
-  if (!e?.writingSystem) return 0;
-  const weighted = e.juniorScribes * 0.45 + e.experiencedScribes + e.masterScribes * 2.2;
-  const populationScale = Math.max(8, Math.sqrt(Math.max(1, region.population || 1)) * 0.18);
-  return clamp(weighted / populationScale);
+  return scribalCapacityFromState(region, e);
 }
 
 export function archiveEffectiveness(region) {
   const e = ensureEducation(region);
-  if (!e?.writingSystem) return 0;
-  return clamp(e.archiveLevel * 0.55 + scribalCapacity(region) * 0.45);
+  return archiveEffectivenessFromState(region, e);
+}
+
+function subjectRecordingFit(activity) {
+  if (HIGH_RECORDING_FIT.has(activity)) return 0.5;
+  if (MID_RECORDING_FIT.has(activity)) return 0.42;
+  return 0.28;
 }
 
 export function recordingFraction(region, activity = null) {
   const e = ensureEducation(region);
   if (!e?.writingSystem) return 0;
-  let subjectFit = 0.28;
-  if (['smithing', 'mining', 'pottery', 'textiles', 'boatbuilding'].includes(activity)) subjectFit = 0.5;
-  else if (['farming', 'horseHusbandry'].includes(activity)) subjectFit = 0.42;
   // Even a sophisticated archive records only a minority of craft knowledge:
   // much remains embodied skill. Rare-event observations and reproducible
   // recipes are precisely the sort of knowledge that writing preserves well.
-  return clamp(archiveEffectiveness(region) * subjectFit, 0, 0.55);
+  return clamp(archiveEffectivenessFromState(region, e) * subjectRecordingFit(activity), 0, 0.55);
 }
 
 export function recordPractice(region, activity, workerEffort) {
   if (!region || workerEffort <= 0) return;
-  const e = ensureEducation(region);
-  const fraction = recordingFraction(region, activity);
+  // Learning-by-doing calls this extremely often. Current world creation/ticks own
+  // schema initialisation, so practice recording does not rerun ensureEducation().
+  const e = region.education;
+  if (!e?.writingSystem) return;
+  const fraction = clamp(archiveEffectivenessFromState(region, e) * subjectRecordingFit(activity), 0, 0.55);
   if (fraction <= 0) return;
   e.recordedExperience[activity] = (e.recordedExperience[activity] || 0) + workerEffort * fraction;
 }
 
 export function effectiveRecordedExperience(region, activity) {
-  const e = ensureEducation(region);
-  return Math.max(0, e?.recordedExperience?.[activity] || 0);
+  return Math.max(0, region.education?.recordedExperience?.[activity] || 0);
 }
 
 export function informationQualityMultiplier(region) {
