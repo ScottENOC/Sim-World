@@ -40,7 +40,7 @@ function publicEvidence(details,currentTick){
   const provenance=clamp(details.provenance??.52);
   const corroboration=clamp(details.corroboration??.12);
   const forensicSupport=clamp(details.forensicSupport??.18);
-  const attributionEvidence=clamp(details.attributionEvidence??(details.allegedActorId?.35:.08));
+  const attributionEvidence=clamp(details.attributionEvidence??(details.allegedActorId ? .35 : .08));
   return {evidenceType,sourceReliability,provenance,corroboration,forensicSupport,attributionEvidence,
     evidence:[{
       sourceId:details.sourceId||`warning-sensor-${currentTick}`,
