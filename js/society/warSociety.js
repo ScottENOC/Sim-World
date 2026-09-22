@@ -1,4 +1,5 @@
 import { addInformationEvidence, ensureInformationIntegrity, publishCompetingNarrative, recordInformationIncident } from '../diplomacy/informationIntegrity.js?v=20260922-info3';
+import { measureActivePerformanceDetail, recordActivePerformanceMetric } from '../core/performanceProfiler.js?v=20260912-deep-profiler1';
 
 const DAYS_PER_YEAR=365.2425;
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
@@ -26,116 +27,57 @@ function hardship(r){return clamp(r.employment?.hardship??r.popularWellbeing?.gr
 function warPressure(r){return clamp(r.report?.conflict?.pressure??r.conflictPressure??0);}
 function artilleryTrauma(r){const t=r.modernTactics||{};const exposure=clamp(t.machineGunExposure||0);const shell=clamp(r.report?.conflict?.artilleryIntensity??r.report?.military?.artilleryIntensity??0);return clamp(shell*.6+exposure*.4);}
 function participant(war,actorId){return war?.participants?.find?.(p=>p.actorId===actorId)||null;}
-function polityCampaignBurden(polity,regions,activeCampaigns=[]){
-  const byId=new Map((regions||[]).map(r=>[r.id,r]));let militaryCasualties=0,civilianDeaths=0,weeks=0,artilleryExposure=0;
-  for(const c of activeCampaigns||[]){
-    const attacker=byId.get(c.attackerId),defender=byId.get(c.defenderId);const attackerMine=polityId(attacker)===polity.id,defenderMine=polityId(defender)===polity.id;if(!attackerMine&&!defenderMine)continue;
-    militaryCasualties+=attackerMine?Number(c.attackerCasualties)||0:Number(c.defenderCasualties)||0;civilianDeaths+=defenderMine?Number(c.civilianDeaths)||0:0;weeks+=Number(c.weeksEngaged)||0;
-    const artillery=Number(c.lastWeek?.artilleryFireControl?.targetingQuality??c.lastWeek?.modernArtillery?.combatMultiplier??0);artilleryExposure+=clamp(artillery/2);
-  }
-  const population=Math.max(1,territories(polity,regions).reduce((n,r)=>n+(Number(r.population)||0),0));
+
+function emptyCampaignBurden(){return{casualtySignal:0,civilianSignal:0,durationSignal:0,artillerySignal:0};}
+
+function polityCampaignBurden(polity,regions,activeCampaigns=[],context=null){
+  const cached=context?.campaignBurdenByPolity?.get(polity.id);if(cached)return cached;
+  const byId=context?.regionById||new Map((regions||[]).map(r=>[r.id,r]));let militaryCasualties=0,civilianDeaths=0,weeks=0,artilleryExposure=0;
+  for(const c of activeCampaigns||[]){const attacker=byId.get(c.attackerId),defender=byId.get(c.defenderId);const attackerMine=polityId(attacker)===polity.id,defenderMine=polityId(defender)===polity.id;if(!attackerMine&&!defenderMine)continue;militaryCasualties+=attackerMine?Number(c.attackerCasualties)||0:Number(c.defenderCasualties)||0;civilianDeaths+=defenderMine?Number(c.civilianDeaths)||0:0;weeks+=Number(c.weeksEngaged)||0;const artillery=Number(c.lastWeek?.artilleryFireControl?.targetingQuality??c.lastWeek?.modernArtillery?.combatMultiplier??0);artilleryExposure+=clamp(artillery/2);}
+  const population=Math.max(1,(context?.populationByPolity?.get(polity.id))??territories(polity,regions).reduce((n,r)=>n+(Number(r.population)||0),0));
   return{casualtySignal:clamp((militaryCasualties+civilianDeaths*.1)/population*18),civilianSignal:clamp(civilianDeaths/population*30),durationSignal:clamp(weeks/156),artillerySignal:clamp(artilleryExposure/Math.max(1,(activeCampaigns||[]).length))};
 }
 
-export function ensureWarSociety(polity){
-  polity.warSociety||={};const s=polity.warSociety;s.version=1;s.policy||={};
-  if(!WAR_INFORMATION_POLICIES[s.policy.information])s.policy.information='accredited';
-  if(typeof s.policy.playerLocked!=='boolean')s.policy.playerLocked=false;
-  for(const [k,v] of Object.entries({warWeariness:0,combatTraumaBurden:0,publicWarKnowledge:0,warLegitimacy:.5,censorshipPressure:0,credibility:.78,concealedReality:0,mobilisationMemory:0,publicShock:0}))if(!Number.isFinite(s[k]))s[k]=v;
-  s.civilianReportState||={};
-  return s;
+function buildWarSocietyContext(regions,activeWars=[],activeCampaigns=[]){
+  const territoriesByPolity=new Map(),populationByPolity=new Map(),regionById=new Map();
+  for(const region of regions||[]){regionById.set(region.id,region);const id=polityId(region);if(id==null)continue;let list=territoriesByPolity.get(id);if(!list)territoriesByPolity.set(id,list=[]);list.push(region);populationByPolity.set(id,(populationByPolity.get(id)||0)+(Number(region.population)||0));}
+  const warsByPolity=new Map();
+  for(const war of activeWars||[]){if(war?.active===false)continue;for(const p of war?.participants||[]){if(p?.actorId==null)continue;let list=warsByPolity.get(p.actorId);if(!list)warsByPolity.set(p.actorId,list=[]);list.push(war);}}
+  const rawCampaignByPolity=new Map(),campaignsDefendedByPolity=new Map();
+  const addRaw=(id,military=0,civilian=0,weeks=0,artillery=0)=>{if(id==null)return;let raw=rawCampaignByPolity.get(id);if(!raw)rawCampaignByPolity.set(id,raw={militaryCasualties:0,civilianDeaths:0,weeks:0,artilleryExposure:0});raw.militaryCasualties+=military;raw.civilianDeaths+=civilian;raw.weeks+=weeks;raw.artilleryExposure+=artillery;};
+  for(const c of activeCampaigns||[]){const attacker=regionById.get(c.attackerId),defender=regionById.get(c.defenderId),attackerPolity=polityId(attacker),defenderPolity=polityId(defender),weeks=Number(c.weeksEngaged)||0,artillery=clamp(Number(c.lastWeek?.artilleryFireControl?.targetingQuality??c.lastWeek?.modernArtillery?.combatMultiplier??0)/2);addRaw(attackerPolity,Number(c.attackerCasualties)||0,0,weeks,artillery);addRaw(defenderPolity,Number(c.defenderCasualties)||0,Number(c.civilianDeaths)||0,weeks,artillery);if(defenderPolity!=null){let list=campaignsDefendedByPolity.get(defenderPolity);if(!list)campaignsDefendedByPolity.set(defenderPolity,list=[]);list.push(c);}}
+  const campaignBurdenByPolity=new Map(),campaignCount=Math.max(1,(activeCampaigns||[]).length);
+  for(const [id,raw] of rawCampaignByPolity){const population=Math.max(1,populationByPolity.get(id)||0);campaignBurdenByPolity.set(id,{casualtySignal:clamp((raw.militaryCasualties+raw.civilianDeaths*.1)/population*18),civilianSignal:clamp(raw.civilianDeaths/population*30),durationSignal:clamp(raw.weeks/156),artillerySignal:clamp(raw.artilleryExposure/campaignCount)});}
+  return{territoriesByPolity,populationByPolity,regionById,warsByPolity,campaignBurdenByPolity,campaignsDefendedByPolity};
 }
 
-export function setWarInformationPolicy(polity,policy,{playerIssued=false}={}){
-  if(!WAR_INFORMATION_POLICIES[policy])return{changed:false,reason:'unknown_policy'};
-  const s=ensureWarSociety(polity),previous=s.policy.information;s.policy.information=policy;if(playerIssued)s.policy.playerLocked=true;return{changed:previous!==policy,previous,policy};
-}
+export function ensureWarSociety(polity){polity.warSociety||={};const s=polity.warSociety;s.version=1;s.policy||={};if(!WAR_INFORMATION_POLICIES[s.policy.information])s.policy.information='accredited';if(typeof s.policy.playerLocked!=='boolean')s.policy.playerLocked=false;for(const [k,v] of Object.entries({warWeariness:0,combatTraumaBurden:0,publicWarKnowledge:0,warLegitimacy:.5,censorshipPressure:0,credibility:.78,concealedReality:0,mobilisationMemory:0,publicShock:0}))if(!Number.isFinite(s[k]))s[k]=v;s.civilianReportState||={};return s;}
+export function setWarInformationPolicy(polity,policy,{playerIssued=false}={}){if(!WAR_INFORMATION_POLICIES[policy])return{changed:false,reason:'unknown_policy'};const s=ensureWarSociety(polity),previous=s.policy.information;s.policy.information=policy;if(playerIssued)s.policy.playerLocked=true;return{changed:previous!==policy,previous,policy};}
 
-function publishCivilianHarmReports(polity,regions,activeCampaigns,currentTick,s){
-  const byId=new Map((regions||[]).map(r=>[r.id,r]));
-  const policy=WAR_INFORMATION_POLICIES[s.policy.information];
-  for(const campaign of activeCampaigns||[]){
-    const defender=byId.get(campaign.defenderId),attacker=byId.get(campaign.attackerId);
-    if(!defender||polityId(defender)!==polity.id)continue;
-    const deaths=Math.max(0,Math.round(Number(campaign.civilianDeaths)||0));
-    if(deaths<=0)continue;
-    const key=String(campaign.id);
-    const prior=s.civilianReportState[key]||{reportedDeaths:0,lastEvidenceTick:-Infinity,incidentId:null};
-    if(deaths<=prior.reportedDeaths)continue;
-    const info=ensureInformationIntegrity(defender);
-    const mediaReach=clamp(literacy(defender)*.34+communications(defender)*.34+visualMedia(defender)*.32);
-    const visibility=clamp(.12+policy.visibility*.55+mediaReach*.33);
-    const reliability=clamp(.36+visibility*.36+info.independentCorroboration*.18);
-    const attackerActor=polityId(attacker);
-    if(!prior.incidentId){
-      const incident=recordInformationIncident(defender,{
-        id:`war-civilian-harm-${campaign.id}`,
-        type:'civilian_harm',
-        headline:`Reports of civilian deaths during fighting in ${defender.name||'the region'}`,
-        tick:currentTick,receivedTick:currentTick,subjectRegionId:defender.id,
-        allegedActorId:attackerActor,
-        evidenceType:visualMedia(defender)>.25?'mixed':'report',
-        sourceReliability:reliability,
-        corroboration:clamp(.14+visibility*.32),
-        provenance:clamp(info.provenanceCoverage*.45+visibility*.12),
-        forensicSupport:clamp(info.mediaForensics*.38),
-        attributionEvidence:attackerActor?.72:.18,
-        evidence:[{
-          sourceId:`local-war-report-${defender.id}`,
-          sourceType:'local_reporting',
-          evidenceType:visualMedia(defender)>.25?'image':'report',
-          sourceReliability:reliability,
-          provenance:clamp(info.provenanceCoverage*.48),
-          forensicSupport:clamp(info.mediaForensics*.36),
-          forensicPotential:visualMedia(defender)>.25?.72:.40,
-          attributionEvidence:attackerActor?.72:.18,
-          receivedTick:currentTick,
-        }],
-      });
-      prior.incidentId=incident.id;
-      if(attackerActor)publishCompetingNarrative(defender,incident.id,{kind:'denial_responsibility',reach:.38,sourceReliability:.42,evidenceSupport:.12,publishedTick:currentTick});
-      if(info.syntheticMediaPressure>.30)publishCompetingNarrative(defender,incident.id,{kind:'denial_synthetic',reach:clamp(.16+info.syntheticMediaPressure*.42),sourceReliability:.35,evidenceSupport:.06,publishedTick:currentTick});
-    }else if(currentTick-prior.lastEvidenceTick>=4||deaths>=Math.max(2,prior.reportedDeaths*1.5)){
-      addInformationEvidence(defender,prior.incidentId,{
-        sourceId:`followup-${defender.id}-${currentTick}`,
-        sourceType:'followup_reporting',evidenceType:visualMedia(defender)>.25?'image':'report',
-        sourceReliability:reliability,provenance:clamp(info.provenanceCoverage*.52),
-        forensicSupport:clamp(info.mediaForensics*.42),forensicPotential:visualMedia(defender)>.25?.78:.45,
-        attributionEvidence:attackerActor?.72:.18,receivedTick:currentTick,
-      });
-    }
+function publishCivilianHarmReports(polity,regions,activeCampaigns,currentTick,s,context=null){
+  const campaigns=context?.campaignsDefendedByPolity?.get(polity.id)??activeCampaigns??[];if(!campaigns.length)return;
+  const byId=context?.regionById||new Map((regions||[]).map(r=>[r.id,r]));const policy=WAR_INFORMATION_POLICIES[s.policy.information];
+  for(const campaign of campaigns){const defender=byId.get(campaign.defenderId),attacker=byId.get(campaign.attackerId);if(!defender||polityId(defender)!==polity.id)continue;const deaths=Math.max(0,Math.round(Number(campaign.civilianDeaths)||0));if(deaths<=0)continue;const key=String(campaign.id);const prior=s.civilianReportState[key]||{reportedDeaths:0,lastEvidenceTick:-Infinity,incidentId:null};if(deaths<=prior.reportedDeaths)continue;const info=ensureInformationIntegrity(defender);const mediaReach=clamp(literacy(defender)*.34+communications(defender)*.34+visualMedia(defender)*.32);const visibility=clamp(.12+policy.visibility*.55+mediaReach*.33);const reliability=clamp(.36+visibility*.36+info.independentCorroboration*.18);const attackerActor=polityId(attacker);
+    if(!prior.incidentId){const incident=recordInformationIncident(defender,{id:`war-civilian-harm-${campaign.id}`,type:'civilian_harm',headline:`Reports of civilian deaths during fighting in ${defender.name||'the region'}`,tick:currentTick,receivedTick:currentTick,subjectRegionId:defender.id,allegedActorId:attackerActor,evidenceType:visualMedia(defender)>.25?'mixed':'report',sourceReliability:reliability,corroboration:clamp(.14+visibility*.32),provenance:clamp(info.provenanceCoverage*.45+visibility*.12),forensicSupport:clamp(info.mediaForensics*.38),attributionEvidence:attackerActor?.72:.18,evidence:[{sourceId:`local-war-report-${defender.id}`,sourceType:'local_reporting',evidenceType:visualMedia(defender)>.25?'image':'report',sourceReliability:reliability,provenance:clamp(info.provenanceCoverage*.48),forensicSupport:clamp(info.mediaForensics*.36),forensicPotential:visualMedia(defender)>.25?.72:.40,attributionEvidence:attackerActor?.72:.18,receivedTick:currentTick}]});prior.incidentId=incident.id;if(attackerActor)publishCompetingNarrative(defender,incident.id,{kind:'denial_responsibility',reach:.38,sourceReliability:.42,evidenceSupport:.12,publishedTick:currentTick});if(info.syntheticMediaPressure>.30)publishCompetingNarrative(defender,incident.id,{kind:'denial_synthetic',reach:clamp(.16+info.syntheticMediaPressure*.42),sourceReliability:.35,evidenceSupport:.06,publishedTick:currentTick});}
+    else if(currentTick-prior.lastEvidenceTick>=4||deaths>=Math.max(2,prior.reportedDeaths*1.5)){addInformationEvidence(defender,prior.incidentId,{sourceId:`followup-${defender.id}-${currentTick}`,sourceType:'followup_reporting',evidenceType:visualMedia(defender)>.25?'image':'report',sourceReliability:reliability,provenance:clamp(info.provenanceCoverage*.52),forensicSupport:clamp(info.mediaForensics*.42),forensicPotential:visualMedia(defender)>.25?.78:.45,attributionEvidence:attackerActor?.72:.18,receivedTick:currentTick});}
     prior.reportedDeaths=deaths;prior.lastEvidenceTick=currentTick;s.civilianReportState[key]=prior;
   }
 }
 
-export function assessWarSociety(polity,regions,activeWars=[],activeCampaigns=[]){
-  const rs=territories(polity,regions);if(!rs.length)return{};const s=ensureWarSociety(polity);const info=WAR_INFORMATION_POLICIES[s.policy.information];
-  const pop=rs.reduce((n,r)=>n+Math.max(1,Number(r.population)||1),0);const working=Math.max(1,rs.reduce((n,r)=>n+(Number(r.demographics?.workingAge)||Number(r.population||0)*.55),0));
-  const arms=rs.reduce((n,r)=>n+underArms(r),0);const mobilisation=clamp(arms/working*3.2);const campaign=polityCampaignBurden(polity,regions,activeCampaigns);const casualties=Math.max(avg(rs,reportCasualtySignal),campaign.casualtySignal);const conflict=avg(rs,warPressure);const poverty=avg(rs,hardship);const trauma=clamp(Math.max(avg(rs,artilleryTrauma),campaign.artillerySignal*.7)+campaign.durationSignal*.18+campaign.civilianSignal*.08);
-  const mediaReach=clamp(avg(rs,literacy)*.36+avg(rs,communications)*.34+avg(rs,visualMedia)*.30);
-  const wars=(activeWars||[]).filter(w=>w.active!==false&&participant(w,polity.id));
-  const defensive=wars.some(w=>participant(w,polity.id)?.warAim==='defend');
-  const existential=clamp(rs.some(r=>warPressure(r)>.8)?1:0);
-  const battlefieldSuccess=clamp(avg(rs,r=>r.report?.conflict?.momentum??.5));
-  const legitimacy=clamp(.30+(defensive?.26:0)+existential*.22+battlefieldSuccess*.12-poverty*.12-casualties*.10);
-  const reality=clamp(casualties*.26+mobilisation*.18+conflict*.16+poverty*.12+trauma*.20+campaign.civilianSignal*.08);
-  const visible=clamp(reality*mediaReach*info.visibility + mobilisation*.08);
-  const concealed=clamp(reality-visible);
-  const weariness=clamp(reality*.60+visible*.18+s.mobilisationMemory*.10+campaign.durationSignal*.12-legitimacy*.35);
-  const traumaTarget=clamp(trauma*.44+casualties*.20+conflict*.16+mobilisation*.08+campaign.durationSignal*.12);
-  return{population:pop,mobilisation,casualties,conflict,poverty,traumaTarget,mediaReach,legitimacy,reality,visible,concealed,weariness,campaignDuration:campaign.durationSignal};
+export function assessWarSociety(polity,regions,activeWars=[],activeCampaigns=[],context=null){
+  const rs=context?.territoriesByPolity?.get(polity.id)??territories(polity,regions);if(!rs.length)return{};const s=ensureWarSociety(polity);const info=WAR_INFORMATION_POLICIES[s.policy.information];
+  const pop=rs.reduce((n,r)=>n+Math.max(1,Number(r.population)||1),0);const working=Math.max(1,rs.reduce((n,r)=>n+(Number(r.demographics?.workingAge)||Number(r.population||0)*.55),0));const arms=rs.reduce((n,r)=>n+underArms(r),0);const mobilisation=clamp(arms/working*3.2);const campaign=polityCampaignBurden(polity,regions,activeCampaigns,context);const casualties=Math.max(avg(rs,reportCasualtySignal),campaign.casualtySignal);const conflict=avg(rs,warPressure);const poverty=avg(rs,hardship);const trauma=clamp(Math.max(avg(rs,artilleryTrauma),campaign.artillerySignal*.7)+campaign.durationSignal*.18+campaign.civilianSignal*.08);const mediaReach=clamp(avg(rs,literacy)*.36+avg(rs,communications)*.34+avg(rs,visualMedia)*.30);
+  const wars=context?.warsByPolity?.get(polity.id)??(activeWars||[]).filter(w=>w.active!==false&&participant(w,polity.id));const defensive=wars.some(w=>participant(w,polity.id)?.warAim==='defend');const existential=clamp(rs.some(r=>warPressure(r)>.8)?1:0);const battlefieldSuccess=clamp(avg(rs,r=>r.report?.conflict?.momentum??.5));const legitimacy=clamp(.30+(defensive?.26:0)+existential*.22+battlefieldSuccess*.12-poverty*.12-casualties*.10);const reality=clamp(casualties*.26+mobilisation*.18+conflict*.16+poverty*.12+trauma*.20+campaign.civilianSignal*.08);const visible=clamp(reality*mediaReach*info.visibility + mobilisation*.08);const concealed=clamp(reality-visible);const weariness=clamp(reality*.60+visible*.18+s.mobilisationMemory*.10+campaign.durationSignal*.12-legitimacy*.35);const traumaTarget=clamp(trauma*.44+casualties*.20+conflict*.16+mobilisation*.08+campaign.durationSignal*.12);return{population:pop,mobilisation,casualties,conflict,poverty,traumaTarget,mediaReach,legitimacy,reality,visible,concealed,weariness,campaignDuration:campaign.durationSignal};
 }
 
 export function tickWarSociety(polities,regions,activeWars,currentTick=0,elapsedDays=7,{playerPolityId=null,activeCampaigns=[]}={}){
-  const events=[];for(const polity of polities||[]){const s=ensureWarSociety(polity),a=assessWarSociety(polity,regions,activeWars,activeCampaigns);if(!Number.isFinite(a.weariness))continue;const info=WAR_INFORMATION_POLICIES[s.policy.information];
-    publishCivilianHarmReports(polity,regions,activeCampaigns,currentTick,s);
-    s.warLegitimacy=smooth(s.warLegitimacy,a.legitimacy,elapsedDays,.9);s.publicWarKnowledge=smooth(s.publicWarKnowledge,a.visible,elapsedDays,1.4);s.combatTraumaBurden=smooth(s.combatTraumaBurden,a.traumaTarget,elapsedDays,a.traumaTarget>s.combatTraumaBurden?1.2:.18);s.mobilisationMemory=smooth(s.mobilisationMemory,a.mobilisation,elapsedDays,a.mobilisation>s.mobilisationMemory?.8:.14);
-    s.concealedReality=smooth(s.concealedReality,a.concealed,elapsedDays,1.1);s.censorshipPressure=clamp(info.control*a.mediaReach);const credibilityTarget=clamp(.86-info.credibilityRisk*s.concealedReality*.9);s.credibility=smooth(s.credibility,credibilityTarget,elapsedDays,.55);
-    const revelation=clamp(Math.max(0,s.publicWarKnowledge-s.concealedReality*.15)*Math.max(0,.62-s.credibility));s.publicShock=smooth(s.publicShock,revelation,elapsedDays,1.3);
-    s.warWeariness=smooth(s.warWeariness,clamp(a.weariness+s.publicShock*.28),elapsedDays,1.1);
-    if(s.warWeariness>.65&&currentTick-(s.lastWearinessEventTick||-1e9)>26){s.lastWearinessEventTick=currentTick;events.push({type:'war_weariness_crisis',polityId:polity.id,weariness:s.warWeariness,legitimacy:s.warLegitimacy,playerRelevant:polity.id===playerPolityId});}
-    if(s.publicShock>.45&&currentTick-(s.lastCredibilityEventTick||-1e9)>26){s.lastCredibilityEventTick=currentTick;events.push({type:'wartime_credibility_crisis',polityId:polity.id,credibility:s.credibility,playerRelevant:polity.id===playerPolityId});}
-  }return events;
+  const polityList=polities||[],regionList=regions||[],campaignList=activeCampaigns||[];
+  const context=measureActivePerformanceDetail('War and society · build indexes',()=>buildWarSocietyContext(regionList,activeWars||[],campaignList));
+  recordActivePerformanceMetric('War and society regions indexed',regionList.length);recordActivePerformanceMetric('War and society polity groups',context.territoriesByPolity.size);recordActivePerformanceMetric('War and society polities evaluated',polityList.length);recordActivePerformanceMetric('War and society active campaigns',campaignList.length);
+  const events=[];
+  measureActivePerformanceDetail('War and society · polity assessment',()=>{for(const polity of polityList){const s=ensureWarSociety(polity),a=assessWarSociety(polity,regionList,activeWars,campaignList,context);if(!Number.isFinite(a.weariness))continue;const info=WAR_INFORMATION_POLICIES[s.policy.information];s.warLegitimacy=smooth(s.warLegitimacy,a.legitimacy,elapsedDays,.9);s.publicWarKnowledge=smooth(s.publicWarKnowledge,a.visible,elapsedDays,1.4);s.combatTraumaBurden=smooth(s.combatTraumaBurden,a.traumaTarget,elapsedDays,a.traumaTarget>s.combatTraumaBurden?1.2:.18);s.mobilisationMemory=smooth(s.mobilisationMemory,a.mobilisation,elapsedDays,a.mobilisation>s.mobilisationMemory?.8:.14);s.concealedReality=smooth(s.concealedReality,a.concealed,elapsedDays,1.1);s.censorshipPressure=clamp(info.control*a.mediaReach);const credibilityTarget=clamp(.86-info.credibilityRisk*s.concealedReality*.9);s.credibility=smooth(s.credibility,credibilityTarget,elapsedDays,.55);const revelation=clamp(Math.max(0,s.publicWarKnowledge-s.concealedReality*.15)*Math.max(0,.62-s.credibility));s.publicShock=smooth(s.publicShock,revelation,elapsedDays,1.3);s.warWeariness=smooth(s.warWeariness,clamp(a.weariness+s.publicShock*.28),elapsedDays,1.1);if(s.warWeariness>.65&&currentTick-(s.lastWearinessEventTick||-1e9)>26){s.lastWearinessEventTick=currentTick;events.push({type:'war_weariness_crisis',polityId:polity.id,weariness:s.warWeariness,legitimacy:s.warLegitimacy,playerRelevant:polity.id===playerPolityId});}if(s.publicShock>.45&&currentTick-(s.lastCredibilityEventTick||-1e9)>26){s.lastCredibilityEventTick=currentTick;events.push({type:'wartime_credibility_crisis',polityId:polity.id,credibility:s.credibility,playerRelevant:polity.id===playerPolityId});}}});
+  measureActivePerformanceDetail('War and society · civilian harm reporting',()=>{if(!campaignList.length)return;for(const polity of polityList){const s=ensureWarSociety(polity);publishCivilianHarmReports(polity,regionList,campaignList,currentTick,s,context);}});
+  return events;
 }
 
 export function warSocietySummary(polity){const s=ensureWarSociety(polity);return{informationPolicy:s.policy.information,informationLabel:WAR_INFORMATION_POLICIES[s.policy.information].label,warWeariness:s.warWeariness,combatTraumaBurden:s.combatTraumaBurden,publicWarKnowledge:s.publicWarKnowledge,warLegitimacy:s.warLegitimacy,credibility:s.credibility,publicShock:s.publicShock};}

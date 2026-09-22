@@ -1,11 +1,26 @@
 import assert from 'node:assert/strict';
-import { declareNuclearRedLine, estimateRedLineRisk, actualRedLineCrossing, recordRedLineProbe, beginOrUpdateNuclearCrisis, npcNuclearProbeDecision, nuclearTriadReadiness, RED_LINE_CATEGORIES } from '../js/diplomacy/nuclearDeterrence.js';
+import { declareNuclearRedLine, estimateRedLineRisk, actualRedLineCrossing, recordRedLineProbe, beginOrUpdateNuclearCrisis, npcNuclearProbeDecision, nuclearTriadReadiness, tickNuclearDeterrence, RED_LINE_CATEGORIES } from '../js/diplomacy/nuclearDeterrence.js';
+import { nuclearDeterrenceIsActive } from '../js/military/nuclearActivation.js';
 import { ensureNuclearWeaponState } from '../js/military/nuclearWeaponisation.js';
 import { AERIAL_REFUELLING_TECH_ID, aerialRefuellingSupport } from '../js/military/aviation.js';
 import { STRATEGIC_BOMBER_DELIVERY_TECH_ID } from '../js/military/strategicDelivery.js';
 import { KnowledgeLedger, KNOWLEDGE_TOPICS, KNOWLEDGE_SOURCES } from '../js/core/knowledge.js';
 
 function region(id){return {id,name:id,population:100000,unlockedTechIds:new Set(),stockpile:{aviation_fuel:20,strategic_uranium_material:1,separated_plutonium:0},aviation:{aircraft:[]},knowledge:new KnowledgeLedger(id),governance:{administrativeControl:.8,administration:{recordKeeping:.8}},industrialSupply:{capability:{precision_machining:.8}},structuralTransformation:{capability:{manufacture:.8}},massEducation:{literacy:.8},strategicNuclear:{policy:{posture:'strategic',safeguards:.3,secrecy:.5,declared:false}}};}
+
+const dormantWorld=[region('pre-nuclear-a'),region('pre-nuclear-b')];
+assert.equal(nuclearDeterrenceIsActive(dormantWorld),false,'deterrence should remain dormant before the first completed test or use');
+assert.deepEqual(tickNuclearDeterrence(dormantWorld,1,7),[],'dormant deterrence tick should do no world-level deterrence work');
+const testState=ensureNuclearWeaponState(dormantWorld[0]);
+testState.tests.push({completed:true,publiclyDeclared:false});
+assert.equal(nuclearDeterrenceIsActive(dormantWorld),true,'a completed nuclear test should activate deterrence world-wide');
+testState.tests.length=0;
+assert.equal(nuclearDeterrenceIsActive(dormantWorld),true,'activation should remain latched for the loaded world after first detonation');
+const freshWorld=[region('fresh-a')];
+assert.equal(nuclearDeterrenceIsActive(freshWorld),false,'a fresh world must not inherit another loaded world activation latch');
+const loadedPostUse=[region('loaded-post-use')];
+loadedPostUse[0].nuclearUse={history:[{type:'nuclear_use_executed'}],globalShock:{firstUseObserved:true}};
+assert.equal(nuclearDeterrenceIsActive(loadedPostUse),true,'persisted nuclear use should reactivate deterrence when loading a post-nuclear save');
 
 const defender=region('defender'),challenger=region('challenger');
 challenger.knowledge.addObservation({subjectId:defender.id,topic:KNOWLEDGE_TOPICS.MILITARY,source:KNOWLEDGE_SOURCES.SPY,confidence:.88,specificity:.86,observedTick:90,receivedTick:90,details:{nuclearSignals:true}});

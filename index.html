@@ -146,6 +146,10 @@
           './js/technology/petroleum.js?v=20260917-oil1',
           './js/technology/spaceLaunchGeography.js?v=20260920-modern-energy1',
           './js/technology/telephone.js?v=20260918-telephone1',
+          './js/diplomacy/nuclearDeterrence.js?v=20260920-nuclear-deterrence1',
+          './js/military/nuclearWarRisk.js?v=20260921-nuclear-risk1',
+          './js/military/nuclearExchange.js?v=20260921-nuclear-exchange1',
+          './js/society/warSociety.js?v=20260922-war-society1',
         ];
         await Promise.all(urls.map((url) => fetch(url, { cache: 'reload' }).catch(() => null)));
       };

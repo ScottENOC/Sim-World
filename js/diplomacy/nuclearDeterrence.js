@@ -1,5 +1,6 @@
 import { estimateForeignNuclearWeaponCapability, nuclearDeterrentStatus } from '../military/nuclearWeaponisation.js?v=20260923-nuclear-hotpath1';
 import { secondStrikeAssessment, strategicForceReadiness } from '../military/strategicDelivery.js?v=20260920-strategic-delivery1';
+import { nuclearDeterrenceIsActive } from '../military/nuclearActivation.js?v=20260923-nuclear-activation1';
 import { tickNuclearArmsControl } from './nuclearArmsControl.js?v=20260920-arms-control1';
 import { tickNuclearDiplomacy } from './nuclearDiplomacy.js?v=20260920-nuclear-diplomacy1';
 import { tickNuclearUse } from '../military/nuclearUse.js?v=20260920-nuclear-use1';
@@ -28,7 +29,10 @@ export function coolNuclearCrises(region,elapsedDays=7){const s=ensureNuclearDet
 export function npcNuclearProbeDecision(actor,target,action={}){const self=ensureNuclearDeterrence(actor),risk=estimateRedLineRisk(actor,target,action),appetite=clamp(self.riskTolerance+(action.deniability||0)*.20+(action.reversible||0)*.12-risk.perceivedRisk);return{attempt:appetite>.25,appetite,...risk};}
 export function nuclearTriadReadiness(region,{fleets=[]}={}){const demonstrated=nuclearDeterrentStatus(region)==='demonstrated_device_capability',force=strategicForceReadiness(region,{fleets}),gate=(leg)=>({...leg,available:Boolean(demonstrated&&leg.available)}),air=gate(force.air),land=gate(force.land),sea=gate(force.sea),legs=[air,land,sea];return{air,land,sea,legsAvailable:legs.filter(x=>x.available).length,survivableLegs:legs.filter(x=>x.available&&x.survivability>=.5).length,fullTriad:demonstrated&&legs.every(x=>x.available),retaliationConfidence:demonstrated?force.retaliationConfidence:0,firstStrikeVulnerability:demonstrated?force.firstStrikeVulnerability:1,warning:force.warning,commandResilience:force.commandResilience};}
 export function tickNuclearDeterrence(regions,currentTick,elapsedDays=7){
-  const world=regions||[],events=[];
+  const world=regions||[];
+  if(!nuclearDeterrenceIsActive(world)){recordActivePerformanceMetric('Nuclear deterrence active',0);return[];}
+  const events=[];
+  recordActivePerformanceMetric('Nuclear deterrence active',1);
   recordActivePerformanceMetric('Nuclear deterrence regions evaluated',world.length);
   measureActivePerformanceDetail('Nuclear deterrence · crisis cooling',()=>{for(const r of world){ensureNuclearDeterrence(r);coolNuclearCrises(r,elapsedDays);}});
   events.push(...measureActivePerformanceDetail('Nuclear deterrence · allied deployments',()=>tickAlliedNuclearDeployments(world,currentTick,elapsedDays)));
