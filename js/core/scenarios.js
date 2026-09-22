@@ -67,15 +67,30 @@ export const SCENARIOS = Object.freeze([
 ]);
 
 const byId = new Map(SCENARIOS.map((scenario) => [scenario.id, scenario]));
-let selectedScenario = null;
-let resolveSelection;
-const selectionPromise = new Promise((resolve) => { resolveSelection = resolve; });
-let fetchRoutingInstalled = false;
-let originalFetch = null;
+
+// Cache-busting query strings can cause this ES module source to be evaluated
+// more than once. Keep selection and routing state browser-global so every
+// module instance observes the same locked scenario and one fetch wrapper.
+const scenarioRouterState = (() => {
+  const host = typeof globalThis !== 'undefined' ? globalThis : {};
+  const key = '__worldsimScenarioRouterState';
+  if (!host[key]) {
+    let resolveSelection;
+    const selectionPromise = new Promise((resolve) => { resolveSelection = resolve; });
+    host[key] = {
+      selectedScenario: null,
+      resolveSelection,
+      selectionPromise,
+      fetchRoutingInstalled: false,
+      originalFetch: null,
+    };
+  }
+  return host[key];
+})();
 
 export function scenarioById(id) { return byId.get(id) || null; }
-export function currentScenario() { return selectedScenario; }
-export function waitForScenarioSelection() { return selectedScenario ? Promise.resolve(selectedScenario) : selectionPromise; }
+export function currentScenario() { return scenarioRouterState.selectedScenario; }
+export function waitForScenarioSelection() { return scenarioRouterState.selectedScenario ? Promise.resolve(scenarioRouterState.selectedScenario) : scenarioRouterState.selectionPromise; }
 
 function stripWorldPrefix(url) {
   const value = String(url || '');
@@ -91,35 +106,35 @@ export function isScenarioMapAsset(relativePath) {
   return SCENARIO_MAP_FILES.has(String(relativePath || '').split(/[?#]/, 1)[0]);
 }
 
-export function scenarioAssetUrl(relativePath, scenario = selectedScenario) {
+export function scenarioAssetUrl(relativePath, scenario = scenarioRouterState.selectedScenario) {
   if (!scenario) throw new Error('A scenario must be selected before scenario assets can be resolved.');
   return `${scenario.mapBaseUrl}${String(relativePath || '').replace(/^\/+/, '')}`;
 }
 
 export function fetchScenarioAssetDirect(relativePath, scenario, init) {
   const url = scenarioAssetUrl(relativePath, scenario);
-  const directFetch = originalFetch || (typeof window !== 'undefined' && typeof window.fetch === 'function' ? window.fetch.bind(window) : null);
+  const directFetch = scenarioRouterState.originalFetch || (typeof window !== 'undefined' && typeof window.fetch === 'function' ? window.fetch.bind(window) : null);
   if (!directFetch) throw new Error('Browser fetch is not available for scenario assets.');
   return directFetch(url, init);
 }
 
 export function installScenarioFetchRouting() {
-  if (fetchRoutingInstalled || typeof window === 'undefined' || typeof window.fetch !== 'function') return;
-  fetchRoutingInstalled = true;
-  originalFetch = window.fetch.bind(window);
+  if (scenarioRouterState.fetchRoutingInstalled || typeof window === 'undefined' || typeof window.fetch !== 'function') return;
+  scenarioRouterState.fetchRoutingInstalled = true;
+  scenarioRouterState.originalFetch = window.fetch.bind(window);
   window.fetch = async (input, init) => {
     const rawUrl = typeof input === 'string' || input instanceof URL ? String(input) : input?.url;
     const parts = stripWorldPrefix(rawUrl);
-    if (!parts || !isScenarioMapAsset(parts.path)) return originalFetch(input, init);
+    if (!parts || !isScenarioMapAsset(parts.path)) return scenarioRouterState.originalFetch(input, init);
 
     // main.js starts loading immediately. Holding only map-data requests here keeps
     // startup deterministic without accidentally redirecting shared definitions.
     const scenario = await waitForScenarioSelection();
-    if (scenario.mapBaseUrl === 'data/world/') return originalFetch(input, init);
+    if (scenario.mapBaseUrl === 'data/world/') return scenarioRouterState.originalFetch(input, init);
 
     const rewritten = `${parts.prefix}${scenario.mapBaseUrl}${parts.suffix}`;
-    if (typeof Request !== 'undefined' && input instanceof Request) return originalFetch(new Request(rewritten, input), init);
-    return originalFetch(rewritten, init);
+    if (typeof Request !== 'undefined' && input instanceof Request) return scenarioRouterState.originalFetch(new Request(rewritten, input), init);
+    return scenarioRouterState.originalFetch(rewritten, init);
   };
 }
 
@@ -127,17 +142,17 @@ export function selectScenario(id) {
   const scenario = scenarioById(id);
   if (!scenario) throw new Error(`Unknown scenario: ${id}`);
   if (!scenario.available) throw new Error(`${scenario.name} is not playable yet. ${scenario.status || ''}`.trim());
-  if (selectedScenario && selectedScenario.id !== scenario.id) throw new Error('Scenario is already locked for this game session. Reload to choose another scenario.');
-  if (!selectedScenario) {
-    selectedScenario = scenario;
+  if (scenarioRouterState.selectedScenario && scenarioRouterState.selectedScenario.id !== scenario.id) throw new Error('Scenario is already locked for this game session. Reload to choose another scenario.');
+  if (!scenarioRouterState.selectedScenario) {
+    scenarioRouterState.selectedScenario = scenario;
     if (typeof window !== 'undefined') window.__worldsimScenario = scenario;
-    resolveSelection(scenario);
+    scenarioRouterState.resolveSelection(scenario);
   }
-  return selectedScenario;
+  return scenarioRouterState.selectedScenario;
 }
 
 export function scenarioStartYear(fallback = -1300) {
-  const value = Number(selectedScenario?.startYear ?? (typeof window !== 'undefined' ? window.__worldsimScenario?.startYear : NaN));
+  const value = Number(scenarioRouterState.selectedScenario?.startYear ?? (typeof window !== 'undefined' ? window.__worldsimScenario?.startYear : NaN));
   return Number.isFinite(value) ? value : fallback;
 }
 
