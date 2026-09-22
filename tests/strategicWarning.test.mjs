@@ -95,10 +95,11 @@ function nuclearRegion(id='n'){
   },60);
   const during=assessNuclearWarRisk(r,{regions:[r],activeWars:[]});
   assert(during.crisisPressure>0,'commanders should react to a credible observed warning even when the simulation knows it is false');
+  const duringPressure=during.crisisPressure;
   const duringRisk=during.miscalculationRisk;
   resolveStrategicWarning(r,warning.id,{kind:'stood_down'},61);
   const after=assessNuclearWarRisk(r,{regions:[r],activeWars:[]});
-  assert(after.crisisPressure<during.crisisPressure,'resolving the warning should reduce observed strategic pressure');
+  assert(after.crisisPressure<duringPressure,'resolving the warning should reduce observed strategic pressure');
   assert(after.miscalculationRisk<duringRisk,'standing down an ambiguous warning should reduce miscalculation risk');
 }
 
