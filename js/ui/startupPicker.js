@@ -1,5 +1,5 @@
 // Lightweight startup picker. Scenario selection happens before world loading.
-import { SCENARIOS, currentScenario, scenarioAssetUrl, selectScenario } from '../core/scenarios.js?v=20260921-scenarios2';
+import { SCENARIOS, currentScenario, fetchScenarioAssetDirect, scenarioAssetUrl, selectScenario } from '../core/scenarios.js?v=20260922-picker-deadlock1';
 
 const CLOCK_MS_PER_TICK_AT_1X = 2200;
 const collator = new Intl.Collator('en', { sensitivity: 'base', numeric: true });
@@ -93,7 +93,7 @@ async function loadMapEntries(scenario, report = () => {}) {
     const started = performance.now();
     report(`Requesting ${label}…`);
     try {
-      const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
+      const response = await fetchScenarioAssetDirect(relativePath, scenario, { signal: controller.signal, cache: 'no-store' });
       const elapsed = ((performance.now() - started) / 1000).toFixed(1);
       const length = response.headers.get('content-length');
       report(`${label}: HTTP ${response.status} after ${elapsed}s${length ? ` · ${Number(length).toLocaleString()} bytes` : ''}`);
