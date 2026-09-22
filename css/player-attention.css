@@ -1,0 +1,83 @@
+.player-attention-feed {
+  position: absolute;
+  z-index: 14;
+  top: max(60px, calc(env(safe-area-inset-top) + 50px));
+  right: 12px;
+  width: min(90vw, 380px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.player-attention-card {
+  pointer-events: auto;
+  padding: 10px 11px 9px;
+  border: 1px solid var(--bronze-dim);
+  border-radius: 10px;
+  background: rgba(23, 29, 41, 0.95);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
+  animation: player-attention-in 180ms ease-out;
+}
+
+.player-attention-card.leaving {
+  opacity: 0;
+  transform: translateX(12px);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.player-attention-title {
+  display: block;
+  margin-right: 28px;
+  color: var(--parchment);
+  font-size: 13px;
+}
+
+.player-attention-card p {
+  margin: 5px 0 0;
+  color: var(--parchment-dim);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.player-attention-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.player-attention-actions button {
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 1px solid var(--bronze-dim);
+  border-radius: 7px;
+  background: var(--ink);
+  color: var(--parchment);
+  font-size: 11px;
+}
+
+.player-attention-actions button:first-child:not(:last-child) {
+  border-color: var(--bronze);
+}
+
+.player-attention-dismiss {
+  min-width: 30px;
+  padding: 0 !important;
+  font-size: 18px !important;
+  line-height: 1;
+}
+
+@keyframes player-attention-in {
+  from { opacity: 0; transform: translateX(14px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@media (max-width: 520px) {
+  .player-attention-feed {
+    left: 10px;
+    right: 10px;
+    width: auto;
+  }
+}

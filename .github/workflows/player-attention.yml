@@ -1,0 +1,29 @@
+name: Player attention and auto-pause
+
+on:
+  pull_request:
+    paths:
+      - 'js/core/clock.js'
+      - 'js/ui/playerAttentionUi.js'
+      - 'js/ui/diseasePolicyUi.js'
+      - 'css/player-attention.css'
+      - 'tools/test-player-attention.mjs'
+      - '.github/workflows/player-attention.yml'
+  workflow_dispatch:
+
+jobs:
+  player-attention:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check
+        run: |
+          node --check js/core/clock.js
+          node --check js/ui/playerAttentionUi.js
+          node --check js/ui/diseasePolicyUi.js
+          node --check tools/test-player-attention.mjs
+      - name: Player attention regressions
+        run: node tools/test-player-attention.mjs
