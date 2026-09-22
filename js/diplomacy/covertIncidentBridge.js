@@ -25,6 +25,7 @@ function headlineFor(incident){
 function publishObservedCovertClaim(region,incident,currentTick){
   if(!incident?.detected)return null;
   const attributed=Boolean(incident.attributed||incident.attributedActorId);
+  const publicActorId=incident.attributedActorId||(incident.attributed?incident.sourceActorId:null)||null;
   const attributionProbability=clamp(incident.attributionProbability??(attributed?.72:.22));
   const digital=String(incident.mission||'').includes('cyber');
   const physical=String(incident.mission||'').includes('assassination')||String(incident.mission||'').includes('capture')||String(incident.mission||'').includes('sabotage');
@@ -34,7 +35,7 @@ function publishObservedCovertClaim(region,incident,currentTick){
     headline:headlineFor(incident),
     tick:incident.createdTick??currentTick,
     receivedTick:incident.createdTick??currentTick,
-    allegedActorId:incident.attributedActorId||incident.sourceActorId||null,
+    allegedActorId:publicActorId,
     evidenceType:digital?'digital':physical?'mixed':'mixed',
     sourceReliability:incident.success===false?.44:.62,
     corroboration:incident.success===false?.22:.42,
@@ -52,7 +53,7 @@ function publishObservedCovertClaim(region,incident,currentTick){
       receivedTick:incident.createdTick??currentTick,
     }],
   });
-  if(publicIncident?.id&&publicIncident.allegedActorId){
+  if(publicIncident?.id&&publicActorId){
     publishCompetingNarrative(region,publicIncident.id,{
       kind:'denial_actor',
       reach:attributed?.52:.30,
