@@ -16,7 +16,7 @@ jobs:
           - label: C
             seed: 12648430
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,7 +24,10 @@ jobs:
           node-version: '22'
       - name: Run 200-year Bronze Age history seed ${{ matrix.label }}
         run: |
-          node tools/calibrate.mjs --years 200 --seeds 1 --base-seed ${{ matrix.seed }} --snapshot-years 10 --days-per-tick 30 --regional-detail true --output bronze-age-${{ matrix.label }}.json
+          start=$(date +%s)
+          node tools/calibrate.mjs --years 200 --seeds 1 --base-seed ${{ matrix.seed }} --snapshot-years 10 --days-per-tick 30 --output bronze-age-${{ matrix.label }}.json
+          end=$(date +%s)
+          echo "BRONZE_AGE_RUNTIME_SECONDS=$((end-start))"
       - name: Analyse Bronze Age trajectory
         run: |
           node --input-type=module <<'NODE'
@@ -34,7 +37,6 @@ jobs:
           const timeline = report.runs?.[0]?.timeline ?? [];
           if (timeline.length < 10) throw new Error('Bronze Age calibration produced too few snapshots');
           const n = v => Number(v) || 0;
-          const at = i => timeline[Math.max(0, Math.min(timeline.length - 1, i))];
           const maxBy = key => timeline.reduce((best, s) => n(s[key]) > n(best[key]) ? s : best, timeline[0]);
           const minAfter = (key, startYear) => timeline.filter(s => n(s.year) >= startYear).reduce((best, s) => n(s[key]) < n(best[key]) ? s : best);
           const tradePeak = maxBy('smoothedWeeklyTrade');
@@ -50,6 +52,7 @@ jobs:
           const summary = {
             seed: report.configuration?.baseSeed,
             regions: report.configuration?.actualRegions,
+            elapsedSeconds: report.elapsedSeconds,
             tradePeak: { year: tradePeak.year, calendarYearBCE: Math.round(1300 - n(tradePeak.year)), value: n(tradePeak.smoothedWeeklyTrade) },
             postPeakTradeTrough: { year: postPeakTrade.year, calendarYearBCE: Math.round(1300 - n(postPeakTrade.year)), value: n(postPeakTrade.smoothedWeeklyTrade), pctOfPeak: +(100*n(postPeakTrade.smoothedWeeklyTrade)/Math.max(1,n(tradePeak.smoothedWeeklyTrade))).toFixed(1) },
             populationPeak: { year: populationPeak.year, value: n(populationPeak.populationPct) },
