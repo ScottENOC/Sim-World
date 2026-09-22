@@ -87,6 +87,7 @@ function publishElectionInterferenceClaim(target,regions,operation,mode,defence)
   const observer=capitalRegion(target,regions);
   if(!observer)return null;
   const digitalEvidence=Boolean(mode.digital);
+  const publicActorId=operation.attributed?operation.claimedActorId:null;
   const attributionEvidence=operation.attributed
     ? clamp(.58+defence.counterintelligence*.24+defence.verification*.18)
     : clamp(.10+defence.counterintelligence*.12+defence.verification*.10);
@@ -96,7 +97,7 @@ function publishElectionInterferenceClaim(target,regions,operation,mode,defence)
     headline:`Evidence of ${mode.label.toLowerCase()} targeting the election`,
     tick:operation.currentTick,
     receivedTick:operation.currentTick,
-    allegedActorId:operation.claimedActorId||null,
+    allegedActorId:publicActorId,
     evidenceType:digitalEvidence?'digital':'mixed',
     sourceReliability:clamp(.44+defence.counterintelligence*.24+defence.verification*.16),
     provenance:clamp(digitalEvidence?defence.verification*.58:defence.counterintelligence*.34),
@@ -114,7 +115,7 @@ function publishElectionInterferenceClaim(target,regions,operation,mode,defence)
       receivedTick:operation.currentTick,
     }],
   });
-  if(operation.claimedActorId&&operation.claimedActorId!=='unknown_third_party'){
+  if(publicActorId&&publicActorId!=='unknown_third_party'){
     publishCompetingNarrative(observer,incident.id,{
       kind:'denial_actor',
       reach:clamp(.22+operation.effect*.36),
