@@ -133,7 +133,36 @@
   <script type="module" src="js/ui/progressiveVisuals.js?v=20260907-progressive2"></script>
   <script type="module" src="js/ui/hazardPolicyUi.js?v=20260907-hazard1"></script>
   <script type="module" src="js/ui/culturalLifeUi.js?v=20260907-art1"></script>
-  <script type="module" src="js/main.js?v=20260922-startup-progress2"></script>
+  <script type="module">
+    (() => {
+      let started = false;
+      const report = (message) => {
+        if (typeof window.__reportWorldStartup === 'function') window.__reportWorldStartup(message);
+        console.info('[main-loader]', message);
+      };
+      const startMain = async () => {
+        if (started || !window.__worldsimScenario) return;
+        started = true;
+        report('Loading simulation module graph…');
+        const timeout = setTimeout(() => report('Simulation module graph is still loading after 15 seconds…'), 15000);
+        try {
+          await import('./js/main.js?v=20260922-main-graph1');
+          clearTimeout(timeout);
+          report('Simulation module loaded · starting world setup…');
+        } catch (error) {
+          clearTimeout(timeout);
+          const message = error?.stack || error?.message || String(error);
+          report(`Simulation module failed: ${message}`);
+          console.error('Could not load simulation module graph', error);
+        }
+      };
+      const poll = () => {
+        startMain();
+        if (!started) setTimeout(poll, 25);
+      };
+      poll();
+    })();
+  </script>
   <script type="module" src="js/ui/spymasterContestedClaimsUi.js?v=20260922-contested-claims1"></script>
   <script type="module" src="js/ui/scenarioRuntimeAuto.js?v=20260921-scenario-runtime1"></script>
   <script type="module" src="js/ui/electricGridAutoUi.js?v=20260921-grid-ui1"></script>
