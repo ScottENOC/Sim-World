@@ -1,0 +1,25 @@
+name: Strategic warning and ambiguous provocations
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  strategic-warning:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check
+        run: |
+          node --check js/diplomacy/strategicWarning.js
+          node --check js/military/nuclearWarRisk.js
+      - name: Strategic warning regressions
+        run: node tests/strategicWarning.test.mjs
+      - name: Nuclear risk regressions
+        run: node tests/nuclearWarRisk.test.mjs
+      - name: Information integrity regressions
+        run: node tests/informationIntegrity.test.mjs
