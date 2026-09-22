@@ -55,11 +55,16 @@ const GUNPOWDER_DIFFUSION_CHANCE_PER_PARTNER = 0.0012;
 const MAX_RIFLING_INNOVATION_CHANCE = 0.00002;
 const RIFLING_NEIGHBOUR_DIFFUSION_CHANCE = 0.0045;
 const RIFLING_TRADE_DIFFUSION_CHANCE = 0.0015;
+const GUNPOWDER_INGREDIENTS = Object.freeze(['saltpetre', 'sulfur', 'wood']);
 
 function clamp01(v) { return Math.max(0, Math.min(1, Number(v) || 0)); }
 
 function neighbourKnowledgeCount(region, regionsById, techId) {
-  return (region.neighbors || []).filter((id) => regionsById.get(id)?.unlockedTechIds.has(techId)).length;
+  let count = 0;
+  for (const id of region.neighbors || []) {
+    if (regionsById.get(id)?.unlockedTechIds.has(techId)) count += 1;
+  }
+  return count;
 }
 
 function neighbourDiffusion(region, regionsById, techId, chance = CIVIL_ENGINEERING_DIFFUSION_CHANCE, comprehension = 1) {
@@ -83,7 +88,10 @@ export function waterManagementChance(region, regionsById) {
 export function shaftMiningChance(region, regionsById) {
   if (region.unlockedTechIds.has(SHAFT_MINING_TECH_ID)) return 0;
   const experience = Math.max(0, effectiveExperience(region, 'mining'));
-  const hasOre = Object.keys(region.deposits || {}).some((key) => key !== 'clay' && key !== 'stone');
+  let hasOre = false;
+  for (const key in region.deposits || {}) {
+    if (key !== 'clay' && key !== 'stone') { hasOre = true; break; }
+  }
   const practice = experienceReadiness(experience, 100_000);
   const independent = hasOre ? practice * 0.000035 : 0;
   const comprehension = technologyComprehension({ practice, minimumPractice: 0.02 });
@@ -131,13 +139,31 @@ export function catapultChance(region, regionsById, currentTick) {
   return combineIndependentChances(independent, diffusion);
 }
 
-function recentTradePartnerRegions(region, regionsById, currentTick = null) {
-  const ids = region.recentTradePartners instanceof Map
-    ? [...region.recentTradePartners.entries()]
-        .filter(([, lastTradeTick]) => currentTick === null || currentTick - lastTradeTick <= TRADE_DIFFUSION_MEMORY_WEEKS)
-        .map(([id]) => id)
-    : [...(region.tradePartnerIds || [])];
-  return ids.map((id) => regionsById.get(id)).filter(Boolean);
+function recentTradePartnerRegions(region, regionsById, currentTick = null, cache = null) {
+  if (cache?.has(region)) return cache.get(region);
+  const partners = [];
+  if (region.recentTradePartners instanceof Map) {
+    for (const [id, lastTradeTick] of region.recentTradePartners) {
+      if (currentTick !== null && currentTick - lastTradeTick > TRADE_DIFFUSION_MEMORY_WEEKS) continue;
+      const partner = regionsById.get(id);
+      if (partner) partners.push(partner);
+    }
+  } else {
+    for (const id of region.tradePartnerIds || []) {
+      const partner = regionsById.get(id);
+      if (partner) partners.push(partner);
+    }
+  }
+  cache?.set(region, partners);
+  return partners;
+}
+
+function countPartnersWithTech(partners, techId, excludedIds = null) {
+  let count = 0;
+  for (const partner of partners) {
+    if ((!excludedIds || !excludedIds.has(partner.id)) && partner.unlockedTechIds.has(techId)) count += 1;
+  }
+  return count;
 }
 
 function hasGunpowderIngredient(region, ingredient) {
@@ -145,13 +171,22 @@ function hasGunpowderIngredient(region, ingredient) {
   return (region.stockpile?.[ingredient] || 0) > 1 || Boolean(region.deposits?.[ingredient]);
 }
 
-export function gunpowderBreakthroughChance(region, regionsById, currentTick = null) {
+export function gunpowderBreakthroughChance(region, regionsById, currentTick = null, partnerCache = null) {
   if (region.unlockedTechIds.has(GUNPOWDER_TECH_ID)) return 0;
-  const partners = recentTradePartnerRegions(region, regionsById, currentTick);
-  const ingredients = ['saltpetre', 'sulfur', 'wood'];
-  const localComplete = ingredients.every((ingredient) => hasGunpowderIngredient(region, ingredient));
-  const networkComplete = ingredients.every((ingredient) =>
-    hasGunpowderIngredient(region, ingredient) || partners.some((partner) => hasGunpowderIngredient(partner, ingredient)));
+  const partners = recentTradePartnerRegions(region, regionsById, currentTick, partnerCache);
+  let localComplete = true;
+  let networkComplete = true;
+  for (const ingredient of GUNPOWDER_INGREDIENTS) {
+    const local = hasGunpowderIngredient(region, ingredient);
+    if (!local) {
+      localComplete = false;
+      let networkHasIngredient = false;
+      for (const partner of partners) {
+        if (hasGunpowderIngredient(partner, ingredient)) { networkHasIngredient = true; break; }
+      }
+      if (!networkHasIngredient) networkComplete = false;
+    }
+  }
   const experimentalExperience = Math.max(0, effectiveExperience(region, 'mining')) * 0.35 +
     Math.max(0, effectiveExperience(region, 'smithing')) * 0.35 +
     Math.max(0, effectiveExperience(region, 'pottery')) * 0.30;
@@ -161,7 +196,7 @@ export function gunpowderBreakthroughChance(region, regionsById, currentTick = n
     : networkComplete
       ? (0.08 + experimentation * 0.92) * MAX_NETWORK_GUNPOWDER_DISCOVERY_CHANCE
       : 0;
-  const knowledgeablePartners = partners.filter((partner) => partner.unlockedTechIds.has(GUNPOWDER_TECH_ID)).length;
+  const knowledgeablePartners = countPartnersWithTech(partners, GUNPOWDER_TECH_ID);
   const comprehension = technologyComprehension({ prerequisitesMet: networkComplete, practice: experimentation, minimumPractice: 0.015 });
   const diffusion = boundedDiffusionChance(GUNPOWDER_DIFFUSION_CHANCE_PER_PARTNER, knowledgeablePartners, comprehension);
   return combineIndependentChances(independent, diffusion);
@@ -175,12 +210,12 @@ function boatbuildingKnowledge(region) {
   return experienceReadiness(effectiveExperience(region, 'boatbuilding'), BOATBUILDING_EXPERIENCE_SCALE);
 }
 
-export function advancedBoatbuildingChance(region, regionsById, currentTick = null) {
+export function advancedBoatbuildingChance(region, regionsById, currentTick = null, partnerCache = null) {
   if (region.unlockedTechIds.has(ADVANCED_BOATBUILDING_TECH_ID) || !region.isCoastal) return 0;
   const practice = boatbuildingKnowledge(region);
   const independentChance = practice * MAX_ADVANCED_BOAT_CHANCE;
-  const recentPartners = recentTradePartnerRegions(region, regionsById, currentTick);
-  const knowledgeablePartners = recentPartners.filter((partner) => partner.unlockedTechIds.has(ADVANCED_BOATBUILDING_TECH_ID)).length;
+  const recentPartners = recentTradePartnerRegions(region, regionsById, currentTick, partnerCache);
+  const knowledgeablePartners = countPartnersWithTech(recentPartners, ADVANCED_BOATBUILDING_TECH_ID);
   const comprehension = technologyComprehension({ prerequisitesMet: region.isCoastal, practice, minimumPractice: 0.02 });
   const partnerChance = boundedDiffusionChance(CHANCE_PER_ADVANCED_BOAT_PARTNER, knowledgeablePartners, comprehension);
   return combineIndependentChances(independentChance, partnerChance);
@@ -194,14 +229,14 @@ function bronzeScarcityPressure(region) {
   return replacementPressure / (replacementPressure + bronze + 1);
 }
 
-export function ironSmeltingChance(region, regionsById, currentTick = null) {
+export function ironSmeltingChance(region, regionsById, currentTick = null, partnerCache = null) {
   if (region.unlockedTechIds.has(IRON_SMELTING_TECH_ID)) return 0;
   const smithing = smithingKnowledge(region);
   const independentChance = BASE_WEEKLY_IRON_CHANCE +
     smithing * MAX_SMITHING_EXPERIENCE_BONUS +
     bronzeScarcityPressure(region) * (0.1 + 0.9 * smithing) * MAX_SCARCITY_EXPERIMENT_CHANCE;
-  const recentPartners = recentTradePartnerRegions(region, regionsById, currentTick);
-  const knowledgeablePartners = recentPartners.filter((partner) => partner.unlockedTechIds.has(IRON_SMELTING_TECH_ID)).length;
+  const recentPartners = recentTradePartnerRegions(region, regionsById, currentTick, partnerCache);
+  const knowledgeablePartners = countPartnersWithTech(recentPartners, IRON_SMELTING_TECH_ID);
   const observation = technologyObservation(region, IRON_SMELTING_TECH_ID).familiarity;
   const comprehension = technologyComprehension({ practice: smithing, minimumPractice: 0.015, observation });
   const partnerChance = boundedDiffusionChance(CHANCE_PER_IRONWORKING_TRADE_PARTNER, knowledgeablePartners, comprehension);
@@ -230,33 +265,39 @@ export function riflingComprehension(region) {
   });
 }
 
-function riflingKnowledgeSources(region, regionsById, currentTick = null) {
-  const neighbours = (region.neighbors || []).map((id) => regionsById.get(id)).filter(Boolean)
-    .filter((other) => other.unlockedTechIds.has(RIFLING_TECH_ID));
-  const neighbourIds = new Set(neighbours.map((other) => other.id));
-  const tradePartners = recentTradePartnerRegions(region, regionsById, currentTick)
-    .filter((other) => other.unlockedTechIds.has(RIFLING_TECH_ID) && !neighbourIds.has(other.id));
-  return { neighbours, tradePartners };
+function riflingKnowledgeSourceCounts(region, regionsById, currentTick = null, partnerCache = null) {
+  let neighbourCount = 0;
+  const neighbourIds = new Set();
+  for (const id of region.neighbors || []) {
+    neighbourIds.add(id);
+    if (regionsById.get(id)?.unlockedTechIds.has(RIFLING_TECH_ID)) neighbourCount += 1;
+  }
+  const tradeCount = countPartnersWithTech(
+    recentTradePartnerRegions(region, regionsById, currentTick, partnerCache),
+    RIFLING_TECH_ID,
+    neighbourIds,
+  );
+  return { neighbourCount, tradeCount };
 }
 
-function observeAdvancedTechnologyContacts(regions, regionsById, currentTick, weekScale) {
+function observeAdvancedTechnologyContacts(regions, regionsById, currentTick, weekScale, partnerCache) {
   for (const region of regions) {
     if (!region.unlockedTechIds.has(IRON_SMELTING_TECH_ID)) {
-      const ironSources = recentTradePartnerRegions(region, regionsById, currentTick)
-        .filter((partner) => partner.unlockedTechIds.has(IRON_SMELTING_TECH_ID)).length;
+      const ironSources = countPartnersWithTech(
+        recentTradePartnerRegions(region, regionsById, currentTick, partnerCache), IRON_SMELTING_TECH_ID);
       if (ironSources) observeTechnology(region, IRON_SMELTING_TECH_ID, Math.min(0.04, ironSources * 0.004 * weekScale), 'trade');
     }
     if (!region.unlockedTechIds.has(RIFLING_TECH_ID)) {
-      const sources = riflingKnowledgeSources(region, regionsById, currentTick);
-      if (sources.neighbours.length) observeTechnology(region, RIFLING_TECH_ID,
-        Math.min(0.08, sources.neighbours.length * 0.008 * weekScale), 'neighbour');
-      if (sources.tradePartners.length) observeTechnology(region, RIFLING_TECH_ID,
-        Math.min(0.04, sources.tradePartners.length * 0.003 * weekScale), 'trade');
+      const sources = riflingKnowledgeSourceCounts(region, regionsById, currentTick, partnerCache);
+      if (sources.neighbourCount) observeTechnology(region, RIFLING_TECH_ID,
+        Math.min(0.08, sources.neighbourCount * 0.008 * weekScale), 'neighbour');
+      if (sources.tradeCount) observeTechnology(region, RIFLING_TECH_ID,
+        Math.min(0.04, sources.tradeCount * 0.003 * weekScale), 'trade');
     }
   }
 }
 
-export function riflingBreakthroughChance(region, regionsById, currentTick = null) {
+export function riflingBreakthroughChance(region, regionsById, currentTick = null, partnerCache = null) {
   if (region.unlockedTechIds.has(RIFLING_TECH_ID)) return 0;
   const comprehension = riflingComprehension(region);
   if (comprehension <= 0) return 0;
@@ -265,9 +306,9 @@ export function riflingBreakthroughChance(region, regionsById, currentTick = nul
   const experimentation = manufacturing * 0.45 + clamp01(firearms.readiness) * 0.30 +
     smithingKnowledge(region) * 0.15 + clamp01(firearms.combatExperience) * 0.10;
   const independent = experimentation * MAX_RIFLING_INNOVATION_CHANCE;
-  const sources = riflingKnowledgeSources(region, regionsById, currentTick);
-  const neighbour = boundedDiffusionChance(RIFLING_NEIGHBOUR_DIFFUSION_CHANCE, sources.neighbours.length, comprehension);
-  const trade = boundedDiffusionChance(RIFLING_TRADE_DIFFUSION_CHANCE, sources.tradePartners.length, comprehension);
+  const sources = riflingKnowledgeSourceCounts(region, regionsById, currentTick, partnerCache);
+  const neighbour = boundedDiffusionChance(RIFLING_NEIGHBOUR_DIFFUSION_CHANCE, sources.neighbourCount, comprehension);
+  const trade = boundedDiffusionChance(RIFLING_TRADE_DIFFUSION_CHANCE, sources.tradeCount, comprehension);
   return combineIndependentChances(independent, neighbour, trade);
 }
 
@@ -285,20 +326,24 @@ export function tickBreakthroughs(regions, currentTick, rng = Math.random, elaps
   const weekScale = Math.max(0.01, elapsedDays / 7);
   const chance = (p) => 1 - Math.pow(1 - Math.max(0, Math.min(1, p)), weekScale);
   const regionsById = new Map(regions.map((region) => [region.id, region]));
+  const partnerCache = new Map();
   const events = [];
 
-  observeAdvancedTechnologyContacts(regions, regionsById, currentTick, weekScale);
+  observeAdvancedTechnologyContacts(regions, regionsById, currentTick, weekScale, partnerCache);
 
-  const ironDiscoveries = regions.filter((region) => rng() < chance(ironSmeltingChance(region, regionsById, currentTick)));
-  const boatDiscoveries = regions.filter((region) => rng() < chance(advancedBoatbuildingChance(region, regionsById, currentTick)));
+  // Keep these passes in their existing order: seeded simulations depend on the
+  // technology-major RNG sequence. The cache removes repeated graph construction
+  // without changing which random number belongs to which breakthrough check.
+  const ironDiscoveries = regions.filter((region) => rng() < chance(ironSmeltingChance(region, regionsById, currentTick, partnerCache)));
+  const boatDiscoveries = regions.filter((region) => rng() < chance(advancedBoatbuildingChance(region, regionsById, currentTick, partnerCache)));
   const hillFortDiscoveries = regions.filter((region) => rng() < chance(hillFortChance(region, regionsById)));
   const catapultDiscoveries = regions.filter((region) => rng() < chance(catapultChance(region, regionsById, currentTick)));
   const waterDiscoveries = regions.filter((region) => rng() < chance(waterManagementChance(region, regionsById)));
   const shaftDiscoveries = regions.filter((region) => rng() < chance(shaftMiningChance(region, regionsById)));
   const drainageDiscoveries = regions.filter((region) => rng() < chance(mineDrainageChance(region, regionsById)));
-  const gunpowderDiscoveries = regions.filter((region) => rng() < chance(gunpowderBreakthroughChance(region, regionsById, currentTick)));
+  const gunpowderDiscoveries = regions.filter((region) => rng() < chance(gunpowderBreakthroughChance(region, regionsById, currentTick, partnerCache)));
   const steelDiscoveries = regions.filter((region) => rng() < chance(steelmakingBreakthroughChance(region, regionsById, currentTick)));
-  const riflingDiscoveries = regions.filter((region) => rng() < chance(riflingBreakthroughChance(region, regionsById, currentTick)));
+  const riflingDiscoveries = regions.filter((region) => rng() < chance(riflingBreakthroughChance(region, regionsById, currentTick, partnerCache)));
 
   for (const region of ironDiscoveries) {
     region.unlockedTechIds.add(IRON_SMELTING_TECH_ID);
