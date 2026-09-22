@@ -20,6 +20,7 @@ import { tickLateIndustrialNavalBreakthroughs } from '../military/lateIndustrial
 import { GUNPOWDER_TECH_ID, RIFLING_TECH_ID } from '../military/firearms.js?v=20260914-rifling1';
 import { STEELMAKING_TECH_ID, steelmakingBreakthroughChance } from './steel.js?v=20260912-steel1';
 import { boundedDiffusionChance, combineIndependentChances, observeTechnology, technologyComprehension, technologyObservation } from './technologyComprehension.js?v=20260914-rifling1';
+import { measureActivePerformanceDetail, recordActivePerformanceMetric } from '../core/performanceProfiler.js?v=20260912-deep-profiler1';
 
 export { GUNPOWDER_TECH_ID, RIFLING_TECH_ID, STEELMAKING_TECH_ID };
 
@@ -283,14 +284,15 @@ function riflingKnowledgeSourceCounts(region, regionsById, currentTick = null, p
   return { neighbourCount, tradeCount };
 }
 
-function observeAdvancedTechnologyContacts(regions, regionsById, currentTick, weekScale, partnerCache) {
+function observeAdvancedTechnologyContacts(regions, regionsById, currentTick, weekScale, partnerCache, hasIronSource, hasRiflingSource) {
+  if (!hasIronSource && !hasRiflingSource) return;
   for (const region of regions) {
-    if (!region.unlockedTechIds.has(IRON_SMELTING_TECH_ID)) {
+    if (hasIronSource && !region.unlockedTechIds.has(IRON_SMELTING_TECH_ID)) {
       const ironSources = countPartnersWithTech(
         recentTradePartnerRegions(region, regionsById, currentTick, partnerCache), IRON_SMELTING_TECH_ID);
       if (ironSources) observeTechnology(region, IRON_SMELTING_TECH_ID, Math.min(0.04, ironSources * 0.004 * weekScale), 'trade');
     }
-    if (!region.unlockedTechIds.has(RIFLING_TECH_ID)) {
+    if (hasRiflingSource && !region.unlockedTechIds.has(RIFLING_TECH_ID)) {
       const sources = riflingKnowledgeSourceCounts(region, regionsById, currentTick, partnerCache);
       if (sources.neighbourCount) observeTechnology(region, RIFLING_TECH_ID,
         Math.min(0.08, sources.neighbourCount * 0.008 * weekScale), 'neighbour');
@@ -325,6 +327,20 @@ function advanceIronIndustry(region) {
   region.ironWorkingReadiness = Math.min(1, readiness + weeklyRate * (1 - readiness));
 }
 
+const techDetail = (label, fn) => measureActivePerformanceDetail(`Technology · ${label}`, fn);
+
+function unknownTechRegions(regions, techId, predicate = null) {
+  return regions.filter((region) => !region.unlockedTechIds.has(techId) && (!predicate || predicate(region)));
+}
+
+function riflingCandidate(region) {
+  if (!region.unlockedTechIds.has(GUNPOWDER_TECH_ID)) return false;
+  const firearms = region.firearms || {};
+  const totalBuilt = Math.max(0, firearms.totalBuilt || 0);
+  const arsenal = Math.max(0, region.stockpile?.firearms || 0);
+  return totalBuilt >= 5 || (arsenal >= 10 && clamp01(firearms.readiness) >= 0.08);
+}
+
 export function tickBreakthroughs(regions, currentTick, rng = Math.random, elapsedDays = 7) {
   let evaluationDays = elapsedDays;
   if (regions.length >= LARGE_WORLD_REGION_THRESHOLD) {
@@ -336,25 +352,39 @@ export function tickBreakthroughs(regions, currentTick, rng = Math.random, elaps
 
   const weekScale = Math.max(0.01, evaluationDays / 7);
   const chance = (p) => 1 - Math.pow(1 - Math.max(0, Math.min(1, p)), weekScale);
-  const regionsById = new Map(regions.map((region) => [region.id, region]));
+  const regionsById = techDetail('shared indexes', () => new Map(regions.map((region) => [region.id, region])));
   const partnerCache = new Map();
   const events = [];
 
-  observeAdvancedTechnologyContacts(regions, regionsById, currentTick, weekScale, partnerCache);
+  const hasIronSource = regions.some((region) => region.unlockedTechIds.has(IRON_SMELTING_TECH_ID));
+  const hasRiflingSource = regions.some((region) => region.unlockedTechIds.has(RIFLING_TECH_ID));
+  techDetail('advanced-contact observation', () =>
+    observeAdvancedTechnologyContacts(regions, regionsById, currentTick, weekScale, partnerCache, hasIronSource, hasRiflingSource));
 
-  // Keep these passes in their existing order: seeded simulations depend on the
-  // technology-major RNG sequence. The cache removes repeated graph construction
-  // without changing which random number belongs to which breakthrough check.
-  const ironDiscoveries = regions.filter((region) => rng() < chance(ironSmeltingChance(region, regionsById, currentTick, partnerCache)));
-  const boatDiscoveries = regions.filter((region) => rng() < chance(advancedBoatbuildingChance(region, regionsById, currentTick, partnerCache)));
-  const hillFortDiscoveries = regions.filter((region) => rng() < chance(hillFortChance(region, regionsById)));
-  const catapultDiscoveries = regions.filter((region) => rng() < chance(catapultChance(region, regionsById, currentTick)));
-  const waterDiscoveries = regions.filter((region) => rng() < chance(waterManagementChance(region, regionsById)));
-  const shaftDiscoveries = regions.filter((region) => rng() < chance(shaftMiningChance(region, regionsById)));
-  const drainageDiscoveries = regions.filter((region) => rng() < chance(mineDrainageChance(region, regionsById)));
-  const gunpowderDiscoveries = regions.filter((region) => rng() < chance(gunpowderBreakthroughChance(region, regionsById, currentTick, partnerCache)));
-  const steelDiscoveries = regions.filter((region) => rng() < chance(steelmakingBreakthroughChance(region, regionsById, currentTick)));
-  const riflingDiscoveries = regions.filter((region) => rng() < chance(riflingBreakthroughChance(region, regionsById, currentTick, partnerCache)));
+  const candidates = techDetail('legacy candidate frontier', () => ({
+    iron: unknownTechRegions(regions, IRON_SMELTING_TECH_ID),
+    boat: unknownTechRegions(regions, ADVANCED_BOATBUILDING_TECH_ID, (region) => region.isCoastal),
+    hillFort: unknownTechRegions(regions, HILL_FORT_TECH_ID),
+    catapult: currentTick < CATAPULT_EARLIEST_TICK ? [] : unknownTechRegions(regions, CATAPULT_TECH_ID),
+    water: unknownTechRegions(regions, WATER_MANAGEMENT_TECH_ID),
+    shaft: unknownTechRegions(regions, SHAFT_MINING_TECH_ID),
+    drainage: unknownTechRegions(regions, MINE_DRAINAGE_TECH_ID, (region) => region.unlockedTechIds.has(SHAFT_MINING_TECH_ID)),
+    gunpowder: unknownTechRegions(regions, GUNPOWDER_TECH_ID),
+    steel: unknownTechRegions(regions, STEELMAKING_TECH_ID, (region) => region.unlockedTechIds.has(IRON_SMELTING_TECH_ID)),
+    rifling: unknownTechRegions(regions, RIFLING_TECH_ID, riflingCandidate),
+  }));
+
+  const discover = (label, list, chanceFor) => techDetail(label, () => list.filter((region) => rng() < chance(chanceFor(region))));
+  const ironDiscoveries = discover('iron smelting', candidates.iron, (region) => ironSmeltingChance(region, regionsById, currentTick, partnerCache));
+  const boatDiscoveries = discover('advanced boatbuilding', candidates.boat, (region) => advancedBoatbuildingChance(region, regionsById, currentTick, partnerCache));
+  const hillFortDiscoveries = discover('hill forts', candidates.hillFort, (region) => hillFortChance(region, regionsById));
+  const catapultDiscoveries = discover('catapults', candidates.catapult, (region) => catapultChance(region, regionsById, currentTick));
+  const waterDiscoveries = discover('water management', candidates.water, (region) => waterManagementChance(region, regionsById));
+  const shaftDiscoveries = discover('shaft mining', candidates.shaft, (region) => shaftMiningChance(region, regionsById));
+  const drainageDiscoveries = discover('mine drainage', candidates.drainage, (region) => mineDrainageChance(region, regionsById));
+  const gunpowderDiscoveries = discover('gunpowder', candidates.gunpowder, (region) => gunpowderBreakthroughChance(region, regionsById, currentTick, partnerCache));
+  const steelDiscoveries = discover('steelmaking', candidates.steel, (region) => steelmakingBreakthroughChance(region, regionsById, currentTick));
+  const riflingDiscoveries = discover('rifling', candidates.rifling, (region) => riflingBreakthroughChance(region, regionsById, currentTick, partnerCache));
 
   for (const region of ironDiscoveries) {
     region.unlockedTechIds.add(IRON_SMELTING_TECH_ID);
@@ -402,33 +432,62 @@ export function tickBreakthroughs(regions, currentTick, rng = Math.random, elaps
     events.push({ type, regionId: region.id, regionName: region.name, tick: currentTick });
   }
 
-  for (const region of regions) {
-    for (let i = 0; i < Math.max(1, Math.floor(weekScale)); i++) advanceIronIndustry(region);
-    const readinessRemainder = weekScale - Math.floor(weekScale);
-    if (readinessRemainder > 0 && region.unlockedTechIds.has(IRON_SMELTING_TECH_ID)) {
-      const before = region.ironWorkingReadiness; advanceIronIndustry(region);
-      region.ironWorkingReadiness = before + (region.ironWorkingReadiness - before) * readinessRemainder;
+  techDetail('iron-industry advancement', () => {
+    for (const region of regions) {
+      if (region.unlockedTechIds.has(IRON_SMELTING_TECH_ID)) {
+        for (let i = 0; i < Math.max(1, Math.floor(weekScale)); i++) advanceIronIndustry(region);
+        const readinessRemainder = weekScale - Math.floor(weekScale);
+        if (readinessRemainder > 0) {
+          const before = region.ironWorkingReadiness; advanceIronIndustry(region);
+          region.ironWorkingReadiness = before + (region.ironWorkingReadiness - before) * readinessRemainder;
+        }
+      }
+      if ((region.ironWorkingExposure || 0) > 0) {
+        region.ironWorkingExposure = Math.max(0, region.ironWorkingExposure * Math.pow(0.99, weekScale));
+      }
     }
-    region.ironWorkingExposure = Math.max(0, (region.ironWorkingExposure || 0) * Math.pow(0.99, weekScale));
-  }
-  events.push(...tickClassicalBreakthroughs(regions, currentTick, rng, evaluationDays));
-  events.push(...tickMedievalBreakthroughs(regions, currentTick, rng, evaluationDays));
-  events.push(...tickPetroleumBreakthroughs(regions, currentTick, rng, evaluationDays));
-  events.push(...tickElectrificationBreakthroughs(regions, currentTick, rng, evaluationDays));
-  events.push(...tickModernEnergyBreakthroughs(regions, currentTick, rng, evaluationDays));
-  events.push(...tickNuclearBreakthroughs(regions, currentTick, rng, evaluationDays));
-  events.push(...tickStrategicNuclearBreakthroughs(regions, currentTick, rng, evaluationDays));
-  events.push(...tickNuclearWeaponisationBreakthroughs(regions, currentTick, rng, evaluationDays));
-  events.push(...tickStrategicDeliveryBreakthroughs(regions, currentTick, rng, evaluationDays));
-  for (const region of regions) events.push(...tickNuclearWeaponProgramme(region, currentTick, evaluationDays, rng));
-  events.push(...tickStrategicDelivery(regions, currentTick, evaluationDays));
-  events.push(...tickNuclearDeterrence(regions, currentTick, evaluationDays));
-  events.push(...tickTelegraphBreakthroughs(regions, currentTick, rng, evaluationDays));
-  events.push(...tickTelephoneBreakthroughs(regions, currentTick, rng, evaluationDays));
-  events.push(...tickMedicalBreakthroughs(regions, currentTick, rng, evaluationDays));
-  events.push(...tickIndustrialProductionBreakthroughs(regions, currentTick, rng, evaluationDays));
-  events.push(...tickModernLandBreakthroughs(regions, currentTick, rng, evaluationDays));
-  events.push(...tickAviationBreakthroughs(regions, currentTick, rng, evaluationDays));
-  events.push(...tickLateIndustrialNavalBreakthroughs(regions, currentTick, rng, evaluationDays));
+  });
+
+  const runFamily = (label, fn) => techDetail(label, () => events.push(...fn()));
+  runFamily('Classical', () => tickClassicalBreakthroughs(regions, currentTick, rng, evaluationDays));
+  runFamily('Medieval', () => tickMedievalBreakthroughs(regions, currentTick, rng, evaluationDays));
+  runFamily('Petroleum', () => tickPetroleumBreakthroughs(regions, currentTick, rng, evaluationDays));
+  runFamily('Electrification', () => tickElectrificationBreakthroughs(regions, currentTick, rng, evaluationDays));
+  runFamily('Modern Energy', () => tickModernEnergyBreakthroughs(regions, currentTick, rng, evaluationDays));
+  runFamily('Nuclear', () => tickNuclearBreakthroughs(regions, currentTick, rng, evaluationDays));
+  runFamily('Strategic Nuclear', () => tickStrategicNuclearBreakthroughs(regions, currentTick, rng, evaluationDays));
+  runFamily('Nuclear weaponisation', () => tickNuclearWeaponisationBreakthroughs(regions, currentTick, rng, evaluationDays));
+  runFamily('Strategic delivery breakthroughs', () => tickStrategicDeliveryBreakthroughs(regions, currentTick, rng, evaluationDays));
+  runFamily('Nuclear programmes', () => {
+    const familyEvents = [];
+    for (const region of regions) familyEvents.push(...tickNuclearWeaponProgramme(region, currentTick, evaluationDays, rng));
+    return familyEvents;
+  });
+  runFamily('Strategic delivery', () => tickStrategicDelivery(regions, currentTick, evaluationDays));
+  runFamily('Nuclear deterrence', () => tickNuclearDeterrence(regions, currentTick, evaluationDays));
+  runFamily('Telegraph', () => tickTelegraphBreakthroughs(regions, currentTick, rng, evaluationDays));
+  runFamily('Telephone', () => tickTelephoneBreakthroughs(regions, currentTick, rng, evaluationDays));
+  runFamily('Medical', () => tickMedicalBreakthroughs(regions, currentTick, rng, evaluationDays));
+  runFamily('Industrial Production', () => tickIndustrialProductionBreakthroughs(regions, currentTick, rng, evaluationDays));
+  runFamily('Modern Land Warfare', () => tickModernLandBreakthroughs(regions, currentTick, rng, evaluationDays));
+  runFamily('Aviation breakthroughs', () => tickAviationBreakthroughs(regions, currentTick, rng, evaluationDays));
+  runFamily('Late Industrial Navy', () => tickLateIndustrialNavalBreakthroughs(regions, currentTick, rng, evaluationDays));
+
+  const frontierSize = Object.values(candidates).reduce((sum, list) => sum + list.length, 0);
+  const universalFamilies = [IRON_SMELTING_TECH_ID, ADVANCED_BOATBUILDING_TECH_ID, HILL_FORT_TECH_ID, CATAPULT_TECH_ID,
+    WATER_MANAGEMENT_TECH_ID, SHAFT_MINING_TECH_ID, MINE_DRAINAGE_TECH_ID, GUNPOWDER_TECH_ID, STEELMAKING_TECH_ID, RIFLING_TECH_ID]
+    .filter((techId) => regions.every((region) => region.unlockedTechIds.has(techId))).length;
+  const dormantFamilies = (currentTick < CATAPULT_EARLIEST_TICK ? 1 : 0) +
+    (candidates.drainage.length === 0 ? 1 : 0) + (candidates.steel.length === 0 ? 1 : 0) + (candidates.rifling.length === 0 ? 1 : 0);
+  recordActivePerformanceMetric('Technology regions evaluated', regions.length);
+  recordActivePerformanceMetric('Technology legacy frontier size', frontierSize);
+  recordActivePerformanceMetric('Technology dormant legacy families', dormantFamilies);
+  recordActivePerformanceMetric('Technology universal legacy families', universalFamilies);
+  recordActivePerformanceMetric('Technology iron candidates', candidates.iron.length);
+  recordActivePerformanceMetric('Technology boat candidates', candidates.boat.length);
+  recordActivePerformanceMetric('Technology catapult candidates', candidates.catapult.length);
+  recordActivePerformanceMetric('Technology drainage candidates', candidates.drainage.length);
+  recordActivePerformanceMetric('Technology steel candidates', candidates.steel.length);
+  recordActivePerformanceMetric('Technology rifling candidates', candidates.rifling.length);
   return events;
 }
