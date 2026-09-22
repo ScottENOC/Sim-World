@@ -1,8 +1,10 @@
 import { nuclearDeterrentStatus, ensureNuclearWeaponState } from '../military/nuclearWeaponisation.js?v=20260923-nuclear-hotpath1';
 import { ensureStrategicDelivery, secondStrikeAssessment, STRATEGIC_POSTURES } from '../military/strategicDelivery.js?v=20260920-arms-control1';
+import { measureActivePerformanceDetail, recordActivePerformanceMetric } from '../core/performanceProfiler.js?v=20260912-deep-profiler1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const actorId=(r)=>r?.governance?.sovereignPolityId||r?.controllingActorId||r?.id||null;
+const actorKey=(r)=>String(actorId(r)??'');
 
 export const NUCLEAR_TREATY_TYPES=Object.freeze({
   NON_PROLIFERATION:'non_proliferation',
@@ -67,29 +69,87 @@ export function leaveNuclearTreaty(region,treatyId,{currentTick=null,immediate=f
   return structuredClone(m);
 }
 
-function activeTreaties(region){return Object.values(ensureNuclearArmsControl(region).treaties).filter(t=>t.status==='active'||t.status==='withdrawing');}
+function activeTreatiesFromState(s){
+  const active=[];
+  for(const t of Object.values(s?.treaties||{}))if(t.status==='active'||t.status==='withdrawing')active.push(t);
+  return active;
+}
+function activeTreaties(region){return activeTreatiesFromState(ensureNuclearArmsControl(region));}
 
-export function nuclearTreatyConstraints(region){
-  const active=activeTreaties(region),out={prohibitAcquisition:false,prohibitTesting:false,safeguards:false,prohibitForeignNuclearBasing:false,maxLandLaunchers:null,maxStrategicSubmarines:null,maxPrototypes:null,verification:0,inspectionAccess:0,securityAssurance:0};
-  for(const m of active){const t=m.terms;out.prohibitAcquisition ||= t.prohibitAcquisition;out.prohibitTesting ||= t.prohibitTesting;out.safeguards ||= t.safeguards;out.prohibitForeignNuclearBasing ||= t.prohibitForeignNuclearBasing;out.verification=Math.max(out.verification,t.verification);out.inspectionAccess=Math.max(out.inspectionAccess,t.inspectionAccess);out.securityAssurance=Math.max(out.securityAssurance,t.securityAssurance);for(const k of ['maxLandLaunchers','maxStrategicSubmarines','maxPrototypes'])if(t[k]!=null)out[k]=out[k]==null?t[k]:Math.min(out[k],t[k]);}
+function constraintsFromMemberships(active){
+  const out={prohibitAcquisition:false,prohibitTesting:false,safeguards:false,prohibitForeignNuclearBasing:false,maxLandLaunchers:null,maxStrategicSubmarines:null,maxPrototypes:null,verification:0,inspectionAccess:0,securityAssurance:0};
+  for(const m of active||[]){const t=m.terms;out.prohibitAcquisition ||= t.prohibitAcquisition;out.prohibitTesting ||= t.prohibitTesting;out.safeguards ||= t.safeguards;out.prohibitForeignNuclearBasing ||= t.prohibitForeignNuclearBasing;out.verification=Math.max(out.verification,t.verification);out.inspectionAccess=Math.max(out.inspectionAccess,t.inspectionAccess);out.securityAssurance=Math.max(out.securityAssurance,t.securityAssurance);for(const k of ['maxLandLaunchers','maxStrategicSubmarines','maxPrototypes'])if(t[k]!=null)out[k]=out[k]==null?t[k]:Math.min(out[k],t[k]);}
   return out;
 }
 
+export function nuclearTreatyConstraints(region){return constraintsFromMemberships(activeTreaties(region));}
+
+function strategicThreatBase(deterrent,strike){
+  const device=deterrent==='demonstrated_device_capability'?1:deterrent==='untested_device_capability'?.55:0;
+  return clamp(device*.45+clamp(strike?.retaliationConfidence||0)*.35);
+}
+
+function insertActorBest(map,key,entry){
+  const list=map.get(key);
+  if(!list){map.set(key,[entry]);return;}
+  if(entry.base>list[0].base){list.unshift(entry);if(list.length>2)list.length=2;return;}
+  if(list.length<2||entry.base>list[1].base){list[1]=entry;if(list.length>2)list.length=2;}
+}
+
+function explicitRelationshipKeys(region){
+  const keys=new Set(Object.keys(region.relations||{}));
+  for(const key of Object.keys(region.diplomacy?.relations||{}))keys.add(key);
+  return keys;
+}
+
+function strongestExcluding(list,region){
+  if(!list?.length)return null;
+  if(list[0].region!==region)return list[0];
+  return list[1]||null;
+}
+
 function observedRivalPressure(region,rivals=[],context=null){
+  if(context?.rankedThreats&&context?.actorBest){
+    const primary=region.relations||{},secondary=region.diplomacy?.relations||{},explicit=explicitRelationshipKeys(region);
+    let pressure=0;
+
+    // Every rival actor without an explicit relationship uses the same default
+    // hostility (.3), so one ranked world list gives the exact best candidate.
+    for(const entry of context.rankedThreats){
+      context.defaultCandidatesScanned++;
+      if(entry.region===region||explicit.has(entry.actorKey))continue;
+      pressure=clamp(entry.base+.3*.35);
+      break;
+    }
+
+    // Explicit relationships can raise or lower hostility. All regions for the
+    // same actor share that hostility lookup, so only that actor's strongest
+    // strategic baseline can possibly win the max calculation.
+    for(const key of explicit){
+      const entry=strongestExcluding(context.actorBest.get(String(key)),region);
+      if(!entry)continue;
+      context.explicitRelationshipsEvaluated++;
+      const hostility=clamp(primary?.[key]?.hostility??secondary?.[key]?.hostility??.3);
+      pressure=Math.max(pressure,clamp(entry.base+hostility*.35));
+    }
+    return pressure;
+  }
+
   let pressure=0;
   for(const rival of rivals||[]){
     if(!rival||rival===region)continue;
     const deterrent=context?.statusByRegion?.get(rival)??nuclearDeterrentStatus(rival);
     const strike=context?.strikeByRegion?.get(rival)??secondStrikeAssessment(rival,{fleets:rival.fleets||[]});
-    const device=deterrent==='demonstrated_device_capability'?1:deterrent==='untested_device_capability'?.55:0;
     const hostility=clamp(region.relations?.[actorId(rival)]?.hostility??region.diplomacy?.relations?.[actorId(rival)]?.hostility??.3);
-    pressure=Math.max(pressure,clamp(device*.45+strike.retaliationConfidence*.35+hostility*.35));
+    pressure=Math.max(pressure,clamp(strategicThreatBase(deterrent,strike)+hostility*.35));
   }
   return pressure;
 }
 
-export function npcStrategicArmsDecision(region,{rivals=[],currentTick=null,context=null}={}){
-  const arms=ensureNuclearArmsControl(region),delivery=ensureStrategicDelivery(region),weapons=ensureNuclearWeaponState(region),constraints=nuclearTreatyConstraints(region);
+export function npcStrategicArmsDecision(region,{rivals=[],currentTick=null,context=null,memberships=null,constraints=null}={}){
+  const arms=ensureNuclearArmsControl(region),delivery=ensureStrategicDelivery(region);
+  memberships ||= activeTreatiesFromState(arms);
+  constraints ||= constraintsFromMemberships(memberships);
   const threat=observedRivalPressure(region,rivals,context),own=context?.strikeByRegion?.get(region)??secondStrikeAssessment(region,{fleets:region.fleets||[]});
   const assurance=clamp(Math.max(constraints.securityAssurance,region.nuclearAlliance?.extendedDeterrenceAssurance||0));
   const effectiveThreat=clamp(threat*(1-assurance*.55));
@@ -101,8 +161,8 @@ export function npcStrategicArmsDecision(region,{rivals=[],currentTick=null,cont
   const temptation=clamp(effectiveThreat*.58+riskTolerance*.24+(1-arms.treatyReliability)*.18);
   const detectionRisk=clamp(constraints.verification*.55+constraints.inspectionAccess*.45);
   let treatyPosture=COMPLIANCE_POSTURES.COMPLY;
-  if(activeTreaties(region).length&&temptation>.72&&detectionRisk<.45)treatyPosture=COMPLIANCE_POSTURES.VIOLATE;
-  else if(activeTreaties(region).length&&temptation>.48)treatyPosture=COMPLIANCE_POSTURES.HEDGE;
+  if(memberships.length&&temptation>.72&&detectionRisk<.45)treatyPosture=COMPLIANCE_POSTURES.VIOLATE;
+  else if(memberships.length&&temptation>.48)treatyPosture=COMPLIANCE_POSTURES.HEDGE;
 
   arms.armsRace={threatPressure:effectiveThreat,lastAssessmentTick:currentTick,desiredPosture:desired,treatyPosture};
   delivery.policy.posture=desired;
@@ -116,7 +176,7 @@ export function npcStrategicArmsDecision(region,{rivals=[],currentTick=null,cont
   if(treatyPosture===COMPLIANCE_POSTURES.COMPLY){
     if(constraints.maxLandLaunchers!=null)target=Math.min(target,constraints.maxLandLaunchers);
     if(constraints.maxStrategicSubmarines!=null)seaTarget=Math.min(seaTarget,constraints.maxStrategicSubmarines);
-    if(constraints.prohibitAcquisition&&weapons.prototypeCount===0){target=0;seaTarget=0;}
+    if(constraints.prohibitAcquisition&&(region.nuclearWeapons?.prototypeCount||0)===0){target=0;seaTarget=0;}
   } else if(treatyPosture===COMPLIANCE_POSTURES.HEDGE){target=Math.min(target,Math.max(1,constraints.maxLandLaunchers??target));seaTarget=Math.min(seaTarget,Math.max(0,constraints.maxStrategicSubmarines??seaTarget));}
   delivery.procurement.landTarget=target;delivery.procurement.seaTarget=seaTarget;delivery.procurement.mobileShare=desired===STRATEGIC_POSTURES.SURVIVABLE?.72:.4;
   return {threatPressure:effectiveThreat,desiredPosture:desired,treatyPosture,landTarget:target,seaTarget,detectionRisk};
@@ -143,37 +203,53 @@ export function inspectNuclearTreaty(inspector,subject,treatyId,{currentTick=nul
   return{performed:true,violations,detected,detectChance,clean:violations.length===0};
 }
 
-function applyCompliantReductions(region,currentTick,elapsedDays){
-  const events=[],constraints=nuclearTreatyConstraints(region),delivery=ensureStrategicDelivery(region),weapons=ensureNuclearWeaponState(region),years=Math.max(0,Number(elapsedDays)||0)/365.2425;
-  if(!activeTreaties(region).length||years<=0)return events;
-  const memberships=activeTreaties(region),comply=memberships.every(m=>m.compliance===COMPLIANCE_POSTURES.COMPLY||m.status==='withdrawing');
-  if(!comply)return events;
-  const landTotal=delivery.land.fixedLaunchers+delivery.land.mobileLaunchers;
-  if(constraints.maxLandLaunchers!=null&&landTotal>constraints.maxLandLaunchers){
-    const remove=Math.min(landTotal-constraints.maxLandLaunchers,Math.max(1,Math.floor(years*8)));
-    let left=remove;const fromFixed=Math.min(left,delivery.land.fixedLaunchers);delivery.land.fixedLaunchers-=fromFixed;left-=fromFixed;delivery.land.mobileLaunchers=Math.max(0,delivery.land.mobileLaunchers-left);events.push({type:'nuclear_disarmament',regionId:region.id,tick:currentTick,category:'land_launchers',removed:remove});
+function applyCompliantReductions(region,currentTick,elapsedDays,memberships=null,constraints=null){
+  const events=[],years=Math.max(0,Number(elapsedDays)||0)/365.2425;
+  if(years<=0)return events;
+  memberships ||= activeTreaties(region);
+  if(!memberships.length||!memberships.every(m=>m.compliance===COMPLIANCE_POSTURES.COMPLY||m.status==='withdrawing'))return events;
+  constraints ||= constraintsFromMemberships(memberships);
+  if(constraints.maxLandLaunchers!=null){
+    const delivery=ensureStrategicDelivery(region),landTotal=delivery.land.fixedLaunchers+delivery.land.mobileLaunchers;
+    if(landTotal>constraints.maxLandLaunchers){
+      const remove=Math.min(landTotal-constraints.maxLandLaunchers,Math.max(1,Math.floor(years*8)));
+      let left=remove;const fromFixed=Math.min(left,delivery.land.fixedLaunchers);delivery.land.fixedLaunchers-=fromFixed;left-=fromFixed;delivery.land.mobileLaunchers=Math.max(0,delivery.land.mobileLaunchers-left);events.push({type:'nuclear_disarmament',regionId:region.id,tick:currentTick,category:'land_launchers',removed:remove});
+    }
   }
-  if(constraints.maxPrototypes!=null&&weapons.prototypeCount>constraints.maxPrototypes){
-    const remove=Math.min(weapons.prototypeCount-constraints.maxPrototypes,Math.max(1,Math.floor(years*2)));weapons.prototypeCount-=remove;events.push({type:'nuclear_disarmament',regionId:region.id,tick:currentTick,category:'prototype_devices',removed:remove});
+  if(constraints.maxPrototypes!=null){
+    const weapons=ensureNuclearWeaponState(region);
+    if(weapons.prototypeCount>constraints.maxPrototypes){const remove=Math.min(weapons.prototypeCount-constraints.maxPrototypes,Math.max(1,Math.floor(years*2)));weapons.prototypeCount-=remove;events.push({type:'nuclear_disarmament',regionId:region.id,tick:currentTick,category:'prototype_devices',removed:remove});}
   }
   return events;
 }
 
 export function tickNuclearArmsControl(regions,currentTick,elapsedDays=7){
-  const events=[],world=regions||[],statusByRegion=new Map(),strikeByRegion=new Map();
-  // Build the expensive strategic/nuclear capability view once per tick. The
-  // per-region arms decision still runs for every region; it simply reuses the
-  // same rival facts rather than recalculating them O(N^2) times.
-  for(const region of world){
-    statusByRegion.set(region,nuclearDeterrentStatus(region));
-    strikeByRegion.set(region,secondStrikeAssessment(region,{fleets:region.fleets||[]}));
-  }
-  const context={statusByRegion,strikeByRegion};
-  for(const region of world){
-    const s=ensureNuclearArmsControl(region);
-    for(const m of Object.values(s.treaties)){if(m.status==='withdrawing'&&Number.isFinite(m.withdrawalEffectiveTick)&&currentTick>=m.withdrawalEffectiveTick){m.status='withdrawn';events.push({type:'nuclear_treaty_withdrawal_effective',regionId:region.id,treatyId:m.id,tick:currentTick});}}
-    npcStrategicArmsDecision(region,{rivals:world,currentTick,context});
-    events.push(...applyCompliantReductions(region,currentTick,elapsedDays));
-  }
+  const events=[],world=regions||[],statusByRegion=new Map(),strikeByRegion=new Map(),actorBest=new Map();
+  const rankedThreats=measureActivePerformanceDetail('Nuclear arms control · strategic context',()=>{
+    const ranked=[];
+    for(const region of world){
+      const status=nuclearDeterrentStatus(region),strike=secondStrikeAssessment(region,{fleets:region.fleets||[]}),entry={region,actorKey:actorKey(region),base:strategicThreatBase(status,strike)};
+      statusByRegion.set(region,status);strikeByRegion.set(region,strike);ranked.push(entry);insertActorBest(actorBest,entry.actorKey,entry);
+    }
+    ranked.sort((a,b)=>b.base-a.base);
+    return ranked;
+  });
+  const context={statusByRegion,strikeByRegion,actorBest,rankedThreats,defaultCandidatesScanned:0,explicitRelationshipsEvaluated:0};
+  let activeMemberships=0;
+
+  measureActivePerformanceDetail('Nuclear arms control · rival decisions',()=>{
+    for(const region of world){
+      const s=ensureNuclearArmsControl(region);
+      for(const m of Object.values(s.treaties)){if(m.status==='withdrawing'&&Number.isFinite(m.withdrawalEffectiveTick)&&currentTick>=m.withdrawalEffectiveTick){m.status='withdrawn';events.push({type:'nuclear_treaty_withdrawal_effective',regionId:region.id,treatyId:m.id,tick:currentTick});}}
+      const memberships=activeTreatiesFromState(s);activeMemberships+=memberships.length;
+      const constraints=constraintsFromMemberships(memberships);
+      npcStrategicArmsDecision(region,{rivals:world,currentTick,context,memberships,constraints});
+      events.push(...applyCompliantReductions(region,currentTick,elapsedDays,memberships,constraints));
+    }
+  });
+
+  recordActivePerformanceMetric('Nuclear arms control active treaty memberships',activeMemberships);
+  recordActivePerformanceMetric('Nuclear arms control explicit rival relationships',context.explicitRelationshipsEvaluated);
+  recordActivePerformanceMetric('Nuclear arms control default rival candidates scanned',context.defaultCandidatesScanned);
   return events;
 }
