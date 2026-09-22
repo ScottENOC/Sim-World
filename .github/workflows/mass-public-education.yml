@@ -36,7 +36,11 @@ jobs:
         with:
           python-version: '3.12'
 
+      # The integration script is only for the original feature branch. PRs to
+      # main already contain the integrated source and must validate that source
+      # directly rather than trying to reapply historical text patches.
       - name: Apply mass education integration
+        if: github.event_name == 'push' && github.ref_name == 'mass-public-education-v1'
         run: python tools/apply-mass-education-integration.py
 
       - name: Syntax checks
