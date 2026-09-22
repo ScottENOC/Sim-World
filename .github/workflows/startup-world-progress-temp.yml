@@ -1,0 +1,32 @@
+name: Startup world progress diagnostics
+
+on:
+  push:
+    branches: [fix/startup-world-progress]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/startup-world-progress
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python tools/patch-startup-world-progress.py
+      - run: node --check js/ui/startupPicker.js
+      - run: node --check js/main.js
+      - run: node tools/test-country-picker.mjs
+      - run: git diff --check
+      - name: Commit diagnostics
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/ui/startupPicker.js js/main.js
+          git commit -m 'Report post-selection world startup stages'
+          git push origin HEAD:fix/startup-world-progress
