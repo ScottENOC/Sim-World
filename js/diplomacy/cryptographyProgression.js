@@ -22,7 +22,7 @@ function radio(r){return has(r,'radio')||has(r,'radio_broadcasting')||has(r,'wir
 function telegraph(r){return has(r,'electrical_telegraphy')||has(r,'telegraph');}
 function networking(r){return has(r,'computer_networks')||has(r,'internet')||has(r,'packet_switching')||has(r,'digital_communications');}
 function electronic(r){return has(r,'electronic_computing')||has(r,'digital_computing')||has(r,'semiconductors')||has(r,'integrated_circuits')||computing(r)>.38;}
-function quantumThreat(r){return has(r,'quantum_computing')||has(r,'fault_tolerant_quantum_computing')||computing(r)>.82&&clamp(r.aiLabour?.capability||0)>.72;}
+function quantumThreat(r){return has(r,'quantum_computing')||has(r,'fault_tolerant_quantum_computing')||(computing(r)>.82&&clamp(r.aiLabour?.capability||0)>.72);}
 function annualChance(base,readiness,elapsedDays){const years=Math.max(0,Number(elapsedDays)||0)/365.2425;return 1-Math.pow(1-clamp(base*clamp(readiness),0,.95),years);}
 function unlock(region,id,title,currentTick,events){if(has(region,id))return false;region.unlockedTechIds?.add?.(id);events.push({type:'cryptography_breakthrough',techId:id,title,regionId:region.id,polityId:region.governance?.sovereignPolityId||region.polityId||null,currentTick});return true;}
 
