@@ -136,22 +136,30 @@
   <script type="module">
     (() => {
       let started = false;
-      const report = (message) => {
-        if (typeof window.__reportWorldStartup === 'function') window.__reportWorldStartup(message);
-        console.info('[main-loader]', message);
+      const refreshTechnologyModules = async () => {
+        const urls = [
+          './js/technology/breakthroughs.js?v=20260912-medieval1',
+          './js/technology/classicalTransition.js?v=20260907-classical1',
+          './js/technology/electrification.js?v=20260917-electric1',
+          './js/technology/modernEnergy.js?v=20260920-modern-energy1',
+          './js/technology/petroleum.js?v=20260917-oil1',
+          './js/technology/spaceLaunchGeography.js?v=20260920-modern-energy1',
+          './js/technology/telephone.js?v=20260918-telephone1',
+        ];
+        await Promise.all(urls.map((url) => fetch(url, { cache: 'reload' }).catch(() => null)));
       };
       const startMain = async () => {
         if (started || !window.__worldsimScenario) return;
         started = true;
-        report('Loading simulation module graph…');
-        const timeout = setTimeout(() => report('Simulation module graph is still loading after 15 seconds…'), 15000);
+        const status = document.querySelector('.startup-picker-status');
+        if (status) status.textContent = 'Loading world…';
+        window.__reportWorldStartup = () => {};
         try {
-          await import('./js/main.js?v=20260922-land-loader2');
-          clearTimeout(timeout);
+          await refreshTechnologyModules();
+          await import('./js/main.js?v=20260922-tech-frontier3');
         } catch (error) {
-          clearTimeout(timeout);
           const message = error?.stack || error?.message || String(error);
-          report(`Simulation module failed: ${message}`);
+          if (status) status.textContent = `Simulation module failed: ${message}`;
           console.error('Could not load simulation module graph', error);
         }
       };
