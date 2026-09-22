@@ -1,0 +1,48 @@
+name: Alternative proteins
+
+on:
+  pull_request:
+    paths:
+      - 'js/economy/alternativeProteins.js'
+      - 'js/economy/livestockAgriculture.js'
+      - 'js/economy/electricity.js'
+      - 'js/economy/labor.js'
+      - 'js/world/waterResources.js'
+      - 'tools/test-alternative-proteins.mjs'
+      - '.github/workflows/alternative-proteins.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'js/economy/alternativeProteins.js'
+      - 'js/economy/livestockAgriculture.js'
+      - 'js/economy/electricity.js'
+      - 'js/economy/labor.js'
+      - 'js/world/waterResources.js'
+      - 'tools/test-alternative-proteins.mjs'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check alternative protein integration
+        run: |
+          node --check js/economy/alternativeProteins.js
+          node --check js/economy/livestockAgriculture.js
+          node --check js/economy/electricity.js
+          node --check js/economy/labor.js
+          node --check js/world/waterResources.js
+          node --check tools/test-alternative-proteins.mjs
+      - name: Run alternative protein regression
+        run: node tools/test-alternative-proteins.mjs
+      - name: Re-run livestock regression
+        run: node tools/test-livestock-agriculture.mjs
+      - name: Re-run modern water regression
+        run: node tools/test-water-quantity.mjs
+      - name: Re-run electricity regression
+        run: node tools/test-electricity.mjs
+      - name: Re-run food diversity regression
+        run: node tools/test-food-diversity.mjs
