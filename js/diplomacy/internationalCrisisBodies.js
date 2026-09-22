@@ -1,6 +1,7 @@
 import { submitInternationalMotion, ORGANISATION_LEVELS } from './internationalOrganisations.js?v=20260920-intl-crisis1';
 import { relationToward } from './relations.js?v=20260920-intl-crisis1';
 import { tickPeaceNegotiations, respondPeaceNegotiation, resolveImplementationAction } from './peaceNegotiations.js?v=20260920-peace3';
+import { tickAiStatecraftRuntime } from './aiStatecraftRuntime.js?v=20260923-ai-statecraft1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const actorId=(r)=>r?.governance?.sovereignPolityId||r?.polityId||r?.controllingActorId||r?.id||null;
@@ -120,5 +121,6 @@ export function tickInternationalCrisisBodies(world,currentTick=0,rng=Math.rando
     }
   }
   events.push(...peaceEvents,...compatibilityEvents);
+  events.push(...tickAiStatecraftRuntime(world,currentTick,7,rng));
   return events;
 }
