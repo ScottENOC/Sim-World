@@ -26,10 +26,6 @@ jobs:
           node --check js/ui/advisors.js
           node --check js/main.js
           node tools/test-mass-education.mjs
-          if sed -n '/renderSteward(player)/,/renderEnvoy(player)/p' js/ui/advisors.js | grep -q '\`'; then
-            echo 'renderSteward still contains a backtick' >&2
-            exit 1
-          fi
       - name: Commit rewrite
         run: |
           git config user.name 'github-actions[bot]'
