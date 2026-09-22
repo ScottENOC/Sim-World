@@ -20,8 +20,8 @@ export function tickFisheriesAquaculture(region,elapsedDays=7){
   const s=ensureFisheriesAquaculture(region),years=positive(elapsedDays)/DAYS_PER_YEAR,access=coastalAccess(region),fishCap=fishingCapability(region),management=managementCapability(region),eco=environmentalQuality(region),aquaCap=aquacultureCapability(region),pop=Math.max(1,positive(region?.population)),scale=Math.pow(pop/100000,.72);
   s.wildCarryingCapacity=clamp(.45+access*.35+eco*.28,.25,1);
   s.enforcement=clamp(management*(.25+.75*s.managementInvestment));
-  const effectiveQuota=clamp(s.quotaStrictness*s.enforcement),effectiveEffort=clamp(s.fishingEffort*(1-effectiveQuota*.78)),catchability=fishCap*(.35+.65*s.wildStock),potentialCatch=scale*access*effectiveEffort*catchability*.12*Math.max(.05,positive(elapsedDays)/7),sustainableCatch=scale*access*s.wildStock*s.wildCarryingCapacity*.045*Math.max(.05,positive(elapsedDays)/7);
-  s.wildCatch=Math.max(0,Math.min(potentialCatch,s.wildStock*scale*.20));
+  const effectiveQuota=clamp(s.quotaStrictness*s.enforcement),effectiveEffort=clamp(s.fishingEffort*(1-effectiveQuota*.78)),catchability=fishCap*(.35+.65*s.wildStock),potentialCatch=scale*access*effectiveEffort*catchability*.12*Math.max(.05,positive(elapsedDays)/7),sustainableCatch=scale*access*s.wildStock*s.wildCarryingCapacity*.045*Math.max(.05,positive(elapsedDays)/7),harvestCap=s.wildStock*scale*.20*(1-effectiveQuota*.72);
+  s.wildCatch=Math.max(0,Math.min(potentialCatch,harvestCap));
   s.overfishingPressure=clamp((s.wildCatch-sustainableCatch)/Math.max(.001,sustainableCatch),0,2);
   const logisticRecovery=.24*s.wildStock*(1-s.wildStock/Math.max(.05,s.wildCarryingCapacity))*years,harvestLoss=(s.wildCatch/Math.max(.25,scale))*years*1.8,pollutionLoss=(1-eco)*.08*years;s.wildStock=clamp(s.wildStock+logisticRecovery-harvestLoss-pollutionLoss,.02,s.wildCarryingCapacity);
   s.stockCollapseRisk=clamp((.32-s.wildStock)/.32*.65+s.overfishingPressure*.35);
