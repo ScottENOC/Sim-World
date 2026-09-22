@@ -95,7 +95,17 @@ export async function loadWorld() {
   const fetchJson = async (url, label) => {
     const started = typeof performance !== 'undefined' ? performance.now() : Date.now();
     report(`Land regions · requesting ${label}…`);
-    const response = await fetch(url);
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeout = controller ? setTimeout(() => controller.abort(), 20000) : null;
+    let response;
+    try {
+      response = await fetch(url, { cache: 'no-store', ...(controller ? { signal: controller.signal } : {}) });
+    } catch (error) {
+      if (error?.name === 'AbortError') throw new Error(`${label} request timed out after 20 seconds (${url})`);
+      throw error;
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
     const elapsed = ((typeof performance !== 'undefined' ? performance.now() : Date.now()) - started) / 1000;
     report(`Land regions · ${label} HTTP ${response.status} after ${elapsed.toFixed(1)}s · reading body…`);
     if (!response.ok) throw new Error(`${label} request failed: HTTP ${response.status}`);
