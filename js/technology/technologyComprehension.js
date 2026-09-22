@@ -1,4 +1,5 @@
 const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
+const EMPTY_OBSERVATION = Object.freeze({ familiarity: 0, sources: Object.freeze({}) });
 
 export function ensureTechnologyKnowledge(region) {
   region.technologyKnowledge ||= {};
@@ -17,7 +18,11 @@ export function observeTechnology(region, techId, amount = 0.01, source = 'conta
 }
 
 export function technologyObservation(region, techId) {
-  return ensureTechnologyKnowledge(region).observations[techId] || { familiarity: 0, sources: {} };
+  // This is an extremely hot read path during breakthrough checks. Reading an
+  // unseen technology must not initialise region state or allocate a new empty
+  // observation object every time; the immutable singleton is equivalent to the
+  // previous fallback for callers that only inspect familiarity/sources.
+  return region.technologyKnowledge?.observations?.[techId] || EMPTY_OBSERVATION;
 }
 
 // A technology may be seen long before it can be understood. Hard prerequisites
