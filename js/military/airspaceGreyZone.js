@@ -52,7 +52,7 @@ function actorState(region,intruderActorId){
 }
 
 function surveillanceQuality(region){
-  const radar=has(region,'radar')?.42:0;
+  const radar=has(region,'radar') ? .42 : 0;
   const aew=clamp(region.airborneEarlyWarning?.coverage||region.airborneEarlyWarning?.capability||0)*.28;
   const airDef=clamp(region.airDefence?.detection||region.airDefence?.readiness||region.airDefenceIndustry?.readiness||0)*.18;
   const intelligence=clamp(region.militaryIntelligence?.airSurveillance||region.intelligence?.airSurveillance||0)*.12;
@@ -134,7 +134,7 @@ export function conductAirspaceProbe(attacker,defender,options={},currentTick=0,
     if(responds)response=responseCost(defender,intensity,interceptors);
 
     const routinePattern=purpose===AIRSPACE_PROBE_PURPOSES.NORMALISE||purpose===AIRSPACE_PROBE_PURPOSES.PROBE;
-    const habituationDelta=(routinePattern?.035:.012)*(1-intensity*.55)*(1+depth*.25);
+    const habituationDelta=(routinePattern ? .035 : .012)*(1-intensity*.55)*(1+depth*.25);
     as.habituation=clamp(as.habituation+habituationDelta);
     if(purpose===AIRSPACE_PROBE_PURPOSES.SIGNAL||purpose===AIRSPACE_PROBE_PURPOSES.FEINT)as.hostilityExpectation=clamp(as.hostilityExpectation+.04+.04*depth);
     else if(routinePattern)as.hostilityExpectation=clamp(as.hostilityExpectation-.008);
@@ -142,13 +142,13 @@ export function conductAirspaceProbe(attacker,defender,options={},currentTick=0,
 
     attacker.airspaceIntelligence||={};
     const intel=attacker.airspaceIntelligence[defender.id]||={radarMapping:0,responseKnowledge:0,roeKnowledge:0,lastProbeTick:null};
-    intelligenceGain=clamp(.025+surveillance*.07+(responds?.08:.025)+depth*.04);
+    intelligenceGain=clamp(.025+surveillance*.07+(responds ? .08 : .025)+depth*.04);
     intel.radarMapping=clamp(intel.radarMapping+intelligenceGain*(.7+.3*identify));
     intel.responseKnowledge=clamp(intel.responseKnowledge+intelligenceGain*(responds?1:.45));
     intel.roeKnowledge=clamp(intel.roeKnowledge+intelligenceGain*(posture===AIRSPACE_RESPONSE_POSTURES.AGGRESSIVE?1:.65));
     intel.lastProbeTick=currentTick;
 
-    incidentRisk=clamp(.005+depth*.035+intensity*.045+(posture===AIRSPACE_RESPONSE_POSTURES.AGGRESSIVE?.04:0));
+    incidentRisk=clamp(.005+depth*.035+intensity*.045+(posture===AIRSPACE_RESPONSE_POSTURES.AGGRESSIVE ? .04 : 0));
     warning=recordMilitaryProvocation(defender,{
       type:STRATEGIC_WARNING_TYPES.AIRSPACE_INCURSION,
       allegedActorId:identify>=ds.policy.identificationThreshold?actorId(attacker):null,
