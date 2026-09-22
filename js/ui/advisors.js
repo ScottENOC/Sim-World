@@ -290,7 +290,7 @@ export class AdvisorCouncil {
         <button id="add-trade-embargo" class="advisor-order danger">Prohibit trade</button>
         ${tariffs.length ? `<div class="advisor-list">${tariffs.map((rule) => `<button data-remove-trade-rule="${rule.id}"><span>${ruleLabel(rule)}</span><small>${Math.round((rule.tariffRate || 0) * 100)}% tariff · remove</small></button>`).join('')}</div>` : '<p class="advisor-note">No tariffs are currently in force.</p>'}
         ${restrictions.length ? `<div class="advisor-list">${restrictions.map((rule) => `<button data-remove-trade-rule="${rule.id}"><span>${ruleLabel(rule)}</span><small>Embargo · lift restriction</small></button>`).join('')}</div>` : '<p class="advisor-note">No additional embargoes are in force.</p>'}
-        <p class="advisor-note">For a list of goods or countries, add several specific rules. The phone-first control avoids awkward multi-select gestures. Very high tariffs can choke off the trade entirely and can provoke diplomatic resentment.</p>`)};
+        <p class="advisor-note">For a list of goods or countries, add several specific rules. The phone-first control avoids awkward multi-select gestures. Very high tariffs can choke off the trade entirely and can provoke diplomatic resentment.</p>`)}`;
   }
 
   renderSteward(player) {
