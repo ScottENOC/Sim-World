@@ -54,8 +54,10 @@ export function setCircularEconomyPolicy(region, patch = {}) {
 }
 
 export function recordMaterialUse(region, material, amount, sector = 'general') {
-  const s = ensureCircularEconomy(region); if (!MATERIAL_SPECS[material]) return 0;
-  const used = nonNegative(amount); if (!used) return 0;
+  if (!MATERIAL_SPECS[material]) return 0;
+  const used = nonNegative(amount);
+  if (!used) return 0;
+  const s = ensureCircularEconomy(region);
   s.pendingUse[material] = nonNegative(s.pendingUse[material]) + used;
   s.materials[material] ||= {}; s.materials[material].lastSector = sector;
   return used;
