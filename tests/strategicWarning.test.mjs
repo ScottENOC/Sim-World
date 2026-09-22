@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { informationIntegritySummary } from '../js/diplomacy/informationIntegrity.js';
+import { assessNuclearWarRisk } from '../js/military/nuclearWarRisk.js';
 import {
   STRATEGIC_WARNING_TYPES,
   addStrategicWarningEvidence,
@@ -7,6 +8,7 @@ import {
   queueStrategicSignal,
   recordMilitaryProvocation,
   recordStrategicWarning,
+  resolveStrategicWarning,
   strategicWarningSummary,
   tickStrategicWarnings,
 } from '../js/diplomacy/strategicWarning.js';
@@ -18,6 +20,13 @@ function region(id='a'){
     counterIntelligence:{credentialSecurity:.6,codePractice:.5,verificationCaution:.65,compromisedCredentialActors:[],detectedForgeries:[]},
     report:{},unlockedTechIds:new Set(['electronic_computing','computer_networks']),
   };
+}
+function nuclearRegion(id='n'){
+  const r=region(id);
+  r.nuclearWeapons={operationalWarheads:120,prototypeCount:1,validationConfidence:.9,tests:[{completed:true}]};
+  r.nuclearForces={operationalWarheads:120,reserveWarheads:40};
+  r.strategicAi={effects:{warningQuality:.5,falseAlarmFiltering:.5,secondStrikeResilience:.2,commandRisk:.01,humanReleaseAuthority:1}};
+  return r;
 }
 
 {
@@ -75,6 +84,22 @@ function region(id='a'){
   const hidden=ensureStrategicWarningState(fragile).incidents.at(-1);
   assert.equal(hidden.actualThreat,false,'automatic false alarms retain hidden physical truth for the simulation');
   assert(!JSON.stringify(strategicWarningSummary(fragile)).includes('actualThreat'),'false-alarm truth is not exposed to the player report');
+}
+
+{
+  const r=nuclearRegion('decision');
+  const warning=recordStrategicWarning(r,{
+    type:STRATEGIC_WARNING_TYPES.MISSILE_LAUNCH,
+    actualThreat:false,
+    sensorConfidence:.8,sourceReliability:.86,provenance:.8,corroboration:.7,forensicSupport:.55,
+  },60);
+  const during=assessNuclearWarRisk(r,{regions:[r],activeWars:[]});
+  assert(during.crisisPressure>0,'commanders should react to a credible observed warning even when the simulation knows it is false');
+  const duringRisk=during.miscalculationRisk;
+  resolveStrategicWarning(r,warning.id,{kind:'stood_down'},61);
+  const after=assessNuclearWarRisk(r,{regions:[r],activeWars:[]});
+  assert(after.crisisPressure<during.crisisPressure,'resolving the warning should reduce observed strategic pressure');
+  assert(after.miscalculationRisk<duringRisk,'standing down an ambiguous warning should reduce miscalculation risk');
 }
 
 console.log('Strategic warning and ambiguous provocation regressions passed.');
