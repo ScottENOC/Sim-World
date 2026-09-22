@@ -46,6 +46,12 @@ const EXPERIENCE_HALFLIFE = {
 };
 
 const RECORDED_EXPERIENCE_WEIGHT = 0.7;
+const EDUCATION_SKILL_WEIGHTS = Object.freeze({
+  farming: 0.03, gathering: 0.02, fishing: 0.05, horseHusbandry: 0.04,
+  lumberjack: 0.06, mining: 0.14, pottery: 0.10, textiles: 0.16,
+  smithing: 0.22, boatbuilding: 0.18, administration: 0.32,
+  manufacture: 0.24, engineering: 0.28, science: 0.38, general: 0.12,
+});
 
 export const LEARNABLE_ACTIVITIES = Object.keys(CEILING);
 
@@ -56,10 +62,30 @@ export function accumulateExperience(region, activity, workers) {
   recordPractice(region, activity, workers);
 }
 
+function hotEducationSkillMultiplier(region, activity) {
+  const s = region.publicEducation;
+  // publicEducation is initialised by the mass-education tick. Once present,
+  // reading three bounded scalar fields is equivalent to repeatedly running
+  // ensureMassEducation(), but avoids its long validation chain in the hottest
+  // technology/economy path. Fall back defensively for old/incomplete saves.
+  if (!s || !Number.isFinite(s.literacy) || !Number.isFinite(s.numeracy) || !Number.isFinite(s.technicalHumanCapital)) {
+    return educationSkillMultiplier(region, activity);
+  }
+  const weight = EDUCATION_SKILL_WEIGHTS[activity] ?? EDUCATION_SKILL_WEIGHTS.general;
+  return 1 + s.literacy * weight * 0.35 + s.numeracy * weight * 0.4 + s.technicalHumanCapital * weight * 0.55;
+}
+
 export function effectiveExperience(region, activity) {
   const tacit = Math.max(0, region.experience?.[activity] || 0);
-  const recorded = effectiveRecordedExperience(region, activity);
-  return (tacit + recorded * RECORDED_EXPERIENCE_WEIGHT) * educationSkillMultiplier(region, activity);
+  // Reading recorded experience must not initialise or validate the complete
+  // education model. If it has not been initialised yet, the recorded amount is
+  // simply zero; the existing helper remains the defensive fallback for malformed
+  // state rather than the normal per-call path.
+  const recordedValue = region.education?.recordedExperience?.[activity];
+  const recorded = Number.isFinite(recordedValue)
+    ? Math.max(0, recordedValue)
+    : effectiveRecordedExperience(region, activity);
+  return (tacit + recorded * RECORDED_EXPERIENCE_WEIGHT) * hotEducationSkillMultiplier(region, activity);
 }
 
 export function skillMultiplier(region, activity) {
