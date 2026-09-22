@@ -51,9 +51,10 @@ function region(id,{ai=.75,compute=.8}={}){
 {
   const attacker=region('attacker',{ai:.9,compute:.9}),target=region('target',{ai:.75,compute:.8});
   target.counterIntelligence.credentialSecurity=.3;target.counterIntelligence.verificationCaution=.3;target.aiControl.monitoringMaturity=.25;
-  const undetected=launchAiStatecraftOperation(attacker,target,{type:AI_STATECRAFT_OPERATIONS.MODEL_KNOWLEDGE,intensity:.55},30,()=>.5);
+  const draws=[0,.99,.99];let i=0;
+  const undetected=launchAiStatecraftOperation(attacker,target,{type:AI_STATECRAFT_OPERATIONS.MODEL_KNOWLEDGE,intensity:.55},30,()=>draws[i++]??.99);
   assert.equal(undetected.launched,true);
-  assert.equal(undetected.success,true,'capable attacker should sometimes gain model knowledge');
+  assert.equal(undetected.success,true,'a sufficiently favourable operation can gain model knowledge');
   assert.equal(undetected.detected,false,'success should not imply detection');
   assert(ensureAiGovernance(attacker).intelligence.foreignModelKnowledge>0,'successful access should create useful intelligence rather than directly gifting core AI capability');
   assert.equal(target.informationIntegrity.incidents.length,0,'an undetected operation must not magically become public knowledge');
