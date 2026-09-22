@@ -302,8 +302,8 @@ export class AdvisorCouncil {
     const progress = active && type ? active.workDone / requiredWork : 0;
     const available = availableConstructionTypes(player);
     const education = educationAdvisorReport(player);
-    const educationWarnings = education.warnings.map((text) => `<p class=\"advisor-note warning\">${text}</p>`).join('');
-    const educationBenefits = education.benefits.map((text) => `<p class=\"advisor-note\">${text}</p>`).join('');
+    const educationWarnings = education.warnings.map((text) => '<p class="advisor-note warning">' + text + '</p>').join('');
+    const educationBenefits = education.benefits.map((text) => '<p class="advisor-note">' + text + '</p>').join('');
     return `<p class="advisor-voice">“The realm is more than its warriors. These are the people, harvests and dangers that will still matter next winter.”</p>
       ${section('Realm at home', row('Population', number(player.population)) + row('Stability', percent(player.stability), player.stability < .6 ? 'warning' : '') + row('Safety', percent(player.safetyRating), player.safetyRating < .6 ? 'warning' : '') + row('Bandits', number(player.banditPopulation), player.banditPopulation > 50 ? 'warning' : '') + row('Food stores', number(food)))}
       ${section('This season', row('Weather', player.weather?.condition || 'normal') + row('Crop yield effect', percent(player.weather?.yieldMultiplier ?? 1)) + row('Food import dependence', percent(player.foodImportDependence || player.report?.foodPlan?.importDependence || 0)))}

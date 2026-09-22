@@ -19,10 +19,6 @@ def patch_demographics():
     path = 'js/society/demographics.js'
     p = ROOT / path
     text = p.read_text()
-    # Demographic sustainability supersedes the old education-as-a-direct-birth-
-    # penalty formula, while retaining tickMassEducation in the normal demographic
-    # cadence. Treat that newer integrated state as complete rather than trying to
-    # restore the obsolete fertility multiplier.
     if "demographicFertilityAssessment" in text and "tickMassEducation" in text:
         return
     replace_once(path,
@@ -84,12 +80,41 @@ def patch_proto_industry():
 
 def patch_advisors():
     path = 'js/ui/advisors.js'
+    p = ROOT / path
+    text = p.read_text()
+    lines = []
+    repaired = False
+    for line in text.splitlines():
+        if 'const educationWarnings =' in line:
+            replacement = '    const educationWarnings = education.warnings.map((text) => \'<p class="advisor-note warning">\' + text + \'</p>\').join(\'\');'
+            lines.append(replacement)
+            repaired = repaired or line != replacement
+            continue
+        if 'const educationBenefits =' in line:
+            replacement = '    const educationBenefits = education.benefits.map((text) => \'<p class="advisor-note">\' + text + \'</p>\').join(\'\');'
+            lines.append(replacement)
+            repaired = repaired or line != replacement
+            continue
+        lines.append(line)
+    if repaired:
+        p.write_text('\n'.join(lines) + ('\n' if text.endswith('\n') else ''))
+        text = p.read_text()
+
+    markers = (
+        "educationAdvisorReport, setMandatoryEducationYears",
+        "const education = educationAdvisorReport(player);",
+        "id=\"mandatory-education-years\"",
+        "setMandatoryEducationYears(player, educationYears.value",
+    )
+    if all(marker in text for marker in markers):
+        return
+
     replace_once(path,
         "import { upcomingPlayerJointOperations } from '../military/playerJointOperationAdvisor.js?v=20260909-joint-player1';",
         "import { upcomingPlayerJointOperations } from '../military/playerJointOperationAdvisor.js?v=20260909-joint-player1';\nimport { educationAdvisorReport, setMandatoryEducationYears } from '../society/massEducation.js?v=20260914-mass-education1';")
     replace_once(path,
         "    const available = availableConstructionTypes(player);\n    return `<p class=\"advisor-voice\">",
-        "    const available = availableConstructionTypes(player);\n    const education = educationAdvisorReport(player);\n    const educationWarnings = education.warnings.map((text) => `<p class=\\\"advisor-note warning\\\">${text}</p>`).join('');\n    const educationBenefits = education.benefits.map((text) => `<p class=\\\"advisor-note\\\">${text}</p>`).join('');\n    return `<p class=\"advisor-voice\">")
+        "    const available = availableConstructionTypes(player);\n    const education = educationAdvisorReport(player);\n    const educationWarnings = education.warnings.map((text) => '<p class=\"advisor-note warning\">' + text + '</p>').join('');\n    const educationBenefits = education.benefits.map((text) => '<p class=\"advisor-note\">' + text + '</p>').join('');\n    return `<p class=\"advisor-voice\">")
     replace_once(path,
         "      ${section('This season', row('Weather', player.weather?.condition || 'normal') + row('Crop yield effect', percent(player.weather?.yieldMultiplier ?? 1)) + row('Food import dependence', percent(player.foodImportDependence || player.report?.foodPlan?.importDependence || 0)))}",
         "      ${section('This season', row('Weather', player.weather?.condition || 'normal') + row('Crop yield effect', percent(player.weather?.yieldMultiplier ?? 1)) + row('Food import dependence', percent(player.foodImportDependence || player.report?.foodPlan?.importDependence || 0)))}\n      ${section('Public education', `\n        <label class=\"advisor-field advisor-slider\"><span>Mandatory public education <b id=\"education-years-label\">${education.mandatoryYears} years</b></span><input id=\"mandatory-education-years\" type=\"range\" min=\"0\" max=\"13\" step=\"1\" value=\"${education.mandatoryYears}\"></label>\n        ${row('Law requires', `${education.mandatoryYears} years`)}\n        ${row('System can presently deliver', `${education.deliveredYears.toFixed(1)} years`)}\n        ${row('School capacity', `${education.capacityYears.toFixed(1)} years`)}\n        ${row('Teachers in service', number(education.teachers))}\n        ${row('Pupils enrolled', number(education.students))}\n        ${row('Education spending / week', education.weeklyCost.toFixed(1))}\n        ${row('Adult average schooling', `${education.adultAverageYears.toFixed(1)} years`)}\n        ${education.rampYearsEstimate > 0.5 ? row('Estimated time to build capacity', `about ${Math.ceil(education.rampYearsEstimate)} years`, education.rampYearsEstimate > 12 ? 'warning' : '') : ''}\n        <p class=\"advisor-note\">The law can change at once; teachers and schools cannot. Teachers are drawn from the adult workforce, and pupils forgo work they would otherwise contribute at home or in workshops.</p>\n        ${educationWarnings}${educationBenefits}`)}")
