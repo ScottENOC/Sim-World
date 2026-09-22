@@ -40,6 +40,7 @@ const CLASSICAL_FRONTIER_SPECS = Object.freeze([
   [COLONISATION_TECH_ID, (r) => r.unlockedTechIds?.has('advanced_boatbuilding') &&
     (r.population || 0) >= 12000 && Boolean(r.isCoastal)],
 ]);
+const CLASSICAL_TECH_IDS = Object.freeze(CLASSICAL_FRONTIER_SPECS.map(([techId]) => techId));
 
 function probability(independent, diffusion) {
   return 1 - (1 - clamp01(independent)) * (1 - clamp01(diffusion));
@@ -119,7 +120,7 @@ export function classicalBreakthroughChances(region, regionsById) {
 }
 
 export function tickClassicalBreakthroughs(regions, currentTick, rng = Math.random, elapsedDays = 7) {
-  const frontier = createInnovationFrontier(regions);
+  const frontier = createInnovationFrontier(regions, { trackTechIds: CLASSICAL_TECH_IDS });
   const regionsById = frontier.regionsById;
   const weekScale = Math.max(0.01, elapsedDays / 7);
   const adjusted = (p) => 1 - Math.pow(1 - clamp01(p), weekScale);
@@ -139,8 +140,6 @@ export function tickClassicalBreakthroughs(regions, currentTick, rng = Math.rand
 
   for (const region of regions) {
     if (!candidateRegions.has(region)) {
-      // Preserve the old technology-major RNG stream for locked zero-chance checks
-      // without calculating experience, administration, urban pressure or diffusion.
       for (const [techId] of CLASSICAL_FRONTIER_SPECS) if (!region.unlockedTechIds.has(techId)) rng();
       continue;
     }
