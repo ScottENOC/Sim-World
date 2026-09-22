@@ -5,8 +5,11 @@ on:
     branches:
       - fix/advisors-full-template-audit
 
+permissions:
+  contents: write
+
 jobs:
-  diagnose:
+  repair:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
@@ -16,33 +19,48 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Parse each class method independently with Babel
+      - name: Repair Treasurer outer template
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('js/ui/advisors.js')
+          s=p.read_text()
+          old="""        <p class=\"advisor-note\">For a list of goods or countries, add several specific rules. The phone-first control avoids awkward multi-select gestures. Very high tariffs can choke off the trade entirely and can provoke diplomatic resentment.</p>`)};\n  }\n\n  renderSteward(player) {"""
+          new="""        <p class=\"advisor-note\">For a list of goods or countries, add several specific rules. The phone-first control avoids awkward multi-select gestures. Very high tariffs can choke off the trade entirely and can provoke diplomatic resentment.</p>`)}`;\n  }\n\n  renderSteward(player) {"""
+          if old not in s:
+              raise SystemExit('Treasurer template tail anchor not found')
+          s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+      - name: Validate with Node and Babel
         run: |
           npm install --no-save --no-package-lock @babel/parser
+          node --check js/ui/advisors.js
+          node --check js/main.js
+          node tools/test-mass-education.mjs
           node - <<'JS'
           const fs=require('fs');
           const parser=require('@babel/parser');
           const src=fs.readFileSync('js/ui/advisors.js','utf8');
+          parser.parse(src,{sourceType:'module'});
+          console.log('Babel full-file parse passed');
           const classStart=src.indexOf('export class AdvisorCouncil {');
           const body=src.slice(classStart + 'export class AdvisorCouncil {'.length);
           const re=/^  ([A-Za-z_$][\w$]*)\s*\([^\n]*\)\s*\{/gm;
           const matches=[...body.matchAll(re)];
-          console.log('methods:', matches.map(m=>m[1]).join(', '));
-          let failures=0;
           for(let i=0;i<matches.length;i++){
             const name=matches[i][1];
             const start=matches[i].index;
             const end=i+1<matches.length ? matches[i+1].index : body.lastIndexOf('\n}');
             const method=body.slice(start,end);
-            try {
-              parser.parse('class X {\n'+method+'\n}',{sourceType:'module'});
-              console.log('PASS',name);
-            } catch(e){
-              failures++;
-              console.log('FAIL',name,e.message,'local',e.loc);
-            }
+            parser.parse('class X {\n'+method+'\n}',{sourceType:'module'});
+            console.log('PASS',name);
           }
-          try { parser.parse(src,{sourceType:'module'}); console.log('FULL PASS'); }
-          catch(e){ console.log('FULL FAIL',e.message,e.loc); }
-          if(failures) process.exit(1);
           JS
+      - name: Commit root fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/ui/advisors.js
+          git commit -m 'Close Treasurer advisor template correctly'
+          git push origin HEAD:fix/advisors-full-template-audit
