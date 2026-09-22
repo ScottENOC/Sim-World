@@ -1,4 +1,5 @@
 import { recordPractice } from '../society/education.js?v=20260906-education1';
+import { educationSkillMultiplier } from '../society/massEducation.js?v=20260914-mass-education1';
 
 // Bronze Age technology isn't a tree of discrete unlocks yet — mostly it's
 // tacit knowledge that accumulates from actually doing the work: soil
@@ -45,12 +46,6 @@ const EXPERIENCE_HALFLIFE = {
 };
 
 const RECORDED_EXPERIENCE_WEIGHT = 0.7;
-const EDUCATION_SKILL_WEIGHTS = Object.freeze({
-  farming: 0.03, gathering: 0.02, fishing: 0.05, horseHusbandry: 0.04,
-  lumberjack: 0.06, mining: 0.14, pottery: 0.10, textiles: 0.16,
-  smithing: 0.22, boatbuilding: 0.18, administration: 0.32,
-  manufacture: 0.24, engineering: 0.28, science: 0.38, general: 0.12,
-});
 
 export const LEARNABLE_ACTIVITIES = Object.keys(CEILING);
 
@@ -61,25 +56,12 @@ export function accumulateExperience(region, activity, workers) {
   recordPractice(region, activity, workers);
 }
 
-function hotEducationSkillMultiplier(region, activity) {
-  // Runtime world initialisation is now the contract. Old/incomplete saves are
-  // intentionally unsupported during development, so this hot path performs no
-  // validation or repair. Missing education state therefore behaves as zero
-  // mass-education benefit rather than invoking ensureMassEducation().
-  const s = region.publicEducation;
-  const weight = EDUCATION_SKILL_WEIGHTS[activity] ?? EDUCATION_SKILL_WEIGHTS.general;
-  if (!s) return 1;
-  return 1 + (s.literacy || 0) * weight * 0.35 +
-    (s.numeracy || 0) * weight * 0.4 +
-    (s.technicalHumanCapital || 0) * weight * 0.55;
-}
-
 export function effectiveExperience(region, activity) {
   const tacit = Math.max(0, region.experience?.[activity] || 0);
-  // No save repair here: current worlds initialise education before simulation
-  // ticks. A genuinely absent recorded value is simply zero.
+  // Current runtime state is the contract during development. Hot reads do not
+  // repair legacy saves; absent recorded experience simply contributes zero.
   const recorded = Math.max(0, region.education?.recordedExperience?.[activity] || 0);
-  return (tacit + recorded * RECORDED_EXPERIENCE_WEIGHT) * hotEducationSkillMultiplier(region, activity);
+  return (tacit + recorded * RECORDED_EXPERIENCE_WEIGHT) * educationSkillMultiplier(region, activity);
 }
 
 export function skillMultiplier(region, activity) {
