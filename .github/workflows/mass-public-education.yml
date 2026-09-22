@@ -2,7 +2,7 @@ name: Mass public education validation
 
 on:
   push:
-    branches: [mass-public-education-v1]
+    branches: [mass-public-education-v1, fix/advisors-syntax]
     paths:
       - 'js/society/massEducation.js'
       - 'js/society/demographics.js'
