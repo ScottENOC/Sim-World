@@ -4,15 +4,19 @@ on:
   pull_request:
     paths:
       - 'js/military/airspaceGreyZone.js'
+      - 'js/military/aviation.js'
       - 'js/diplomacy/strategicWarning.js'
       - 'js/diplomacy/informationIntegrity.js'
       - 'tests/airspaceGreyZone.test.mjs'
+      - 'tests/airspaceCombatCoupling.test.mjs'
       - '.github/workflows/airspace-grey-zone.yml'
   push:
     branches: [main]
     paths:
       - 'js/military/airspaceGreyZone.js'
+      - 'js/military/aviation.js'
       - 'tests/airspaceGreyZone.test.mjs'
+      - 'tests/airspaceCombatCoupling.test.mjs'
       - '.github/workflows/airspace-grey-zone.yml'
 
 jobs:
@@ -24,8 +28,12 @@ jobs:
         with:
           node-version: 22
       - name: Syntax check
-        run: node --check js/military/airspaceGreyZone.js
+        run: |
+          node --check js/military/airspaceGreyZone.js
+          node --check js/military/aviation.js
       - name: Grey-zone airspace regressions
         run: node tests/airspaceGreyZone.test.mjs
+      - name: Air combat coupling regressions
+        run: node tests/airspaceCombatCoupling.test.mjs
       - name: Strategic warning regressions
         run: node tests/strategicWarning.test.mjs
