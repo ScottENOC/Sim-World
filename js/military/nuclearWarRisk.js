@@ -1,4 +1,5 @@
 import { ensureNuclearWeaponState, nuclearDeterrentStatus } from './nuclearWeaponisation.js?v=20260920-nuclear-weaponisation1';
+import { tickStrategicWarnings } from '../diplomacy/strategicWarning.js?v=20260922-warning1';
 
 const DAYS_PER_YEAR=365.2425;
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
@@ -65,6 +66,20 @@ function destructiveCapacity(region){
   return clamp(Math.max(explicit,demonstrated,clamp(weapons.prototypeCount||0)*.08));
 }
 
+function observedWarningPressure(region){
+  const warnings=(region.strategicWarning?.incidents||[]).filter(i=>i.status==='unresolved');
+  if(!warnings.length)return 0;
+  const claims=new Map((region.informationIntegrity?.incidents||[]).map(i=>[i.id,i]));
+  let pressure=0;
+  for(const warning of warnings){
+    const claim=claims.get(warning.publicClaimId);
+    const confidence=clamp(claim?.assessment?.confidence??warning.sensorConfidence??0);
+    const typeWeight=warning.type==='missile_launch'?1:warning.type==='airspace_incursion'?.72:warning.type==='naval_incident'?.62:warning.type==='border_incident'?.58:.42;
+    pressure=Math.max(pressure,confidence*typeWeight);
+  }
+  return clamp(pressure);
+}
+
 function crisisPressureFor(region,activeWars=[]){
   const id=polityId(region);
   let pressure=clamp(region.strategicCrisisPressure||region.internationalCrisis?.pressure||0);
@@ -76,6 +91,7 @@ function crisisPressureFor(region,activeWars=[]){
     if(participants.has(id)||participants.has(region.id))pressure=Math.max(pressure,.72);
   }
   pressure=Math.max(pressure,clamp(region.hostilityPressure||region.militaryStrategy?.threatPressure||0)*.75);
+  pressure=Math.max(pressure,observedWarningPressure(region));
   return clamp(pressure);
 }
 
@@ -154,6 +170,7 @@ export function tickNuclearWarRisk(regions,activeWars=[],currentTick=0,elapsedDa
     s.periodExchangeProbability=clamp(1-Math.pow(1-s.annualCatastrophicExchangeRisk,years));
     s.riskSample=(rng?.()??Math.random());
   }
+  events.push(...tickStrategicWarnings(regions,currentTick,elapsedDays,rng));
   return events;
 }
 
