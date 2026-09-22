@@ -127,12 +127,19 @@ const LAYERS = {
 
 let activePlayerPolityId = null;
 
+const reportWorldStartup = (message) => {
+  if (typeof window !== 'undefined' && typeof window.__reportWorldStartup === 'function') window.__reportWorldStartup(message);
+};
+
 async function main() {
+  reportWorldStartup('Starting world simulation…');
   const bus = new EventBus();
   const clock = new Clock();
   const profiler = createPerformanceProfiler();
   profiler.mount();
+  reportWorldStartup('Loading land regions…');
   const regions = await loadWorld();
+  reportWorldStartup(`Loaded ${regions.length.toLocaleString()} land regions · initialising societies…`);
   syncNextLngCarrierId(regions);
   clock.setWorldTempo(assessWorldTempo(regions));
   console.log(`Simulation map loaded: ${regions.length} permanent land regions`);
@@ -140,14 +147,19 @@ async function main() {
   const religiousWorld = initialiseReligions(regions, createReligiousWorld());
   const polities = initialisePolities(regions);
   initialisePoliticalContinuity(polities, regions, 0);
+  reportWorldStartup('Societies and polities ready · loading sea regions…');
   const seaRegions = await loadSeaWorld();
   linkSeaAdjacency(regions, seaRegions);
+  reportWorldStartup(`Loaded ${seaRegions.length.toLocaleString()} sea regions · loading spatial graph…`);
   const spatialGraph = await loadWorldSpatialGraph(regions);
+  reportWorldStartup('Spatial graph ready · initialising hydrology…');
   initialiseHydrology(spatialGraph, regions);
   for (const region of regions) syncRegionSpatialSites(spatialGraph, region, ensureSubregionalControl(region).places);
+  reportWorldStartup('Hydrology ready · building local sites and knowledge…');
   const fishingContactPairs = buildFishingContactPairs(regions, seaRegions);
   initialiseKnowledge(regions, seaRegions);
   for (const region of regions) { ensureCommunicationState(region); ensureDiplomaticService(region); ensureCounterIntelligence(region); }
+  reportWorldStartup('Knowledge ready · loading tools and navigation…');
   const [toolTypes, regionNavigation] = await Promise.all([
     fetch('data/world/toolTypes.json?v=20260904-weather1').then((response) => response.json()),
     fetch('data/world/region-navigation.json?v=20260913-country-picker1').then((response) => response.json()),
@@ -159,6 +171,7 @@ async function main() {
   );
   console.log(`Loaded ${seaRegions.length} sea regions:`, seaRegions.map((s) => s.name).join(', '));
 
+  reportWorldStartup('Tools and navigation ready · creating map and council…');
   const fogOfWar = new FogOfWar(regions);
   const canvas = document.getElementById('map-canvas');
 
@@ -702,6 +715,7 @@ async function main() {
     });
   }
 
+  reportWorldStartup('World systems ready · preparing region handoff…');
   showRegionPicker(regions, regionNavigation, (chosen) => {
     playerRegionId = chosen.id;
     activePlayerPolityId = chosen.polityId || chosen.governance?.localPolityId || chosen.governance?.sovereignPolityId;
@@ -720,6 +734,7 @@ async function main() {
     clock.start();
   });
 
+  reportWorldStartup('World ready · opening selected region…');
   window.__worldsim = {
     bus,
     clock,

@@ -85,45 +85,21 @@ function scenarioDetail(scenario) {
   return `${scenario.subtitle} · ${timing}`;
 }
 
-async function loadMapEntries(scenario, report = () => {}) {
-  const fetchJson = async (relativePath, label) => {
-    const url = scenarioAssetUrl(relativePath, scenario);
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-    const started = performance.now();
-    report(`Requesting ${label}…`);
-    try {
-      const response = await fetchScenarioAssetDirect(relativePath, scenario, { signal: controller.signal, cache: 'no-store' });
-      const elapsed = ((performance.now() - started) / 1000).toFixed(1);
-      const length = response.headers.get('content-length');
-      report(`${label}: HTTP ${response.status} after ${elapsed}s${length ? ` · ${Number(length).toLocaleString()} bytes` : ''}`);
-      if (!response.ok) throw new Error(`${label} HTTP ${response.status}`);
-      report(`${label}: downloading body…`);
-      const text = await response.text();
-      report(`${label}: received ${text.length.toLocaleString()} characters · parsing JSON…`);
-      const parsed = JSON.parse(text);
-      report(`${label}: JSON parsed.`);
-      return parsed;
-    } catch (error) {
-      if (error?.name === 'AbortError') throw new Error(`${label} timed out after 15 seconds (${url})`);
-      throw error;
-    } finally {
-      clearTimeout(timeout);
-    }
-  };
-
-  const [metadata, navigation] = await Promise.all([
-    fetchJson('regions.meta.json?v=20260922-picker-telemetry1', 'Region metadata'),
-    fetchJson('region-navigation.json?v=20260922-picker-telemetry1', 'Region navigation'),
+async function loadMapEntries(scenario) {
+  const [metaResponse, navResponse] = await Promise.all([
+    fetchScenarioAssetDirect('regions.meta.json?v=20260922-picker-direct1', scenario, { cache: 'no-store' }),
+    fetchScenarioAssetDirect('region-navigation.json?v=20260922-picker-direct1', scenario, { cache: 'no-store' }),
   ]);
-  report('Both map files parsed · building region index…');
+  if (!metaResponse.ok) throw new Error(`region metadata HTTP ${metaResponse.status}`);
+  if (!navResponse.ok) throw new Error(`navigation metadata HTTP ${navResponse.status}`);
+  const metadata = await metaResponse.json();
+  const navigation = await navResponse.json();
   const regions = [...(metadata.regions || [])].sort((a, b) => alphabetical(a.name, b.name));
   const regionById = new Map(regions.map((region) => [region.id, region]));
   const entries = [];
   for (const region of regions) {
     for (const membership of navigation.regions?.[region.id] || []) entries.push({ region, ...membership });
   }
-  report(`Region index ready: ${regions.length.toLocaleString()} regions · ${entries.length.toLocaleString()} navigation memberships.`);
   return { regions, regionById, entries };
 }
 
@@ -152,9 +128,19 @@ async function installEarlyPicker() {
     pickerHelp.textContent = `${scenario.name} · finishing world setup in the background.`;
     const status = document.createElement('div');
     status.className = 'startup-picker-status';
-    status.textContent = countryFirst
-      ? `Loading world… ${country} is selected. The game will open on ${region.name} when the scenario state is ready.`
-      : `Loading world… ${region.name} is selected and will start automatically when ready.`;
+    const startedAt = performance.now();
+    const reportWorldStartup = (message) => {
+      const elapsed = ((performance.now() - startedAt) / 1000).toFixed(1);
+      status.textContent = `${elapsed}s · ${message}`;
+      pickerHelp.textContent = `${scenario.name} · ${message}`;
+      console.info('[world-startup]', message);
+    };
+    window.__reportWorldStartup = reportWorldStartup;
+    window.addEventListener('error', (event) => reportWorldStartup(`Startup error: ${event.message || 'unknown error'}`), { once: true });
+    window.addEventListener('unhandledrejection', (event) => reportWorldStartup(`Startup rejection: ${event.reason?.message || event.reason || 'unknown rejection'}`), { once: true });
+    reportWorldStartup(countryFirst
+      ? `Loading world… ${country} is selected. Preparing ${region.name}.`
+      : `Loading world… ${region.name} is selected.`);
     pickerList.appendChild(status);
   };
 
@@ -188,28 +174,12 @@ async function installEarlyPicker() {
   const renderRegionPicker = async (scenario) => {
     pickerTitle.textContent = 'Choose your region';
     pickerHelp.textContent = `${scenario.name} · loading region names…`;
-    const status = document.createElement('div');
-    status.className = 'startup-picker-status';
-    pickerList.replaceChildren(status);
-    const telemetryStarted = performance.now();
-    const telemetryLines = [];
-    const report = (message) => {
-      const elapsed = ((performance.now() - telemetryStarted) / 1000).toFixed(1);
-      telemetryLines.push(`${elapsed}s · ${message}`);
-      status.replaceChildren(...telemetryLines.slice(-10).map((line) => {
-        const row = document.createElement('div');
-        row.textContent = line;
-        return row;
-      }));
-      pickerHelp.textContent = `${scenario.name} · ${message}`;
-      console.info('[startup-picker]', message);
-    };
-    report('Preparing region list…');
+    pickerList.innerHTML = '<div class="startup-picker-status">Preparing region list…</div>';
 
     let entries;
     let regionById;
     try {
-      ({ entries, regionById } = await loadMapEntries(scenario, report));
+      ({ entries, regionById } = await loadMapEntries(scenario));
     } catch (error) {
       console.error('Could not prepare early country picker', error);
       pickerHelp.textContent = 'The scenario map could not be loaded.';
