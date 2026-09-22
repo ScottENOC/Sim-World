@@ -1,9 +1,8 @@
-import { cryptographicCapabilities, ensureInformationIntegrity, recordInformationIncident } from './informationIntegrity.js?v=20260922-info1';
+import { cryptographicCapabilities, recordInformationIncident } from './informationIntegrity.js?v=20260922-info1';
 import { ensureCounterIntelligence } from './counterIntelligence.js?v=20260909-counterintel1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const polityId=(r)=>r?.governance?.sovereignPolityId||r?.polityId||r?.controllingActorId||r?.id||null;
-const has=(r,id)=>Boolean(r?.unlockedTechIds?.has?.(id));
 let nextAccordId=1;
 let nextOperationId=1;
 
@@ -54,7 +53,6 @@ export function setAiGovernancePolicy(region,patch={}){
 }
 
 function aiCapability(region){return clamp(region?.aiLabour?.capability??region?.aiEconomy?.capability??0);}
-function aiAdoption(region){return clamp(region?.aiLabour?.adoption??0);}
 function computeCapability(region){return clamp(Math.max(region?.computingIndustry?.capability||0,region?.computingIndustry?.digitalCapability||0,region?.digitalInfrastructure?.coverage||0));}
 function governanceCapacity(region){return clamp(region?.governance?.administrativeControl??region?.polityAdministration?.recordKeeping??.3);}
 function territories(polityIdValue,regions=[]){return regions.filter(r=>polityId(r)===polityIdValue);}
@@ -76,12 +74,12 @@ export function registerFrontierAi(region,{compute=0,datacentres=0,frontierModel
   return {...g.registry};
 }
 
-export function establishAiGovernanceAccord(world,{name='Frontier AI Accord',memberPolityIds=[],measures=[],verificationStrength=.5,reportingStrength=.5,exportControlCoordination=.25}={},currentTick=0){
+export function establishAiGovernanceAccord(world,{name='Frontier AI Accord',organisationId=null,memberPolityIds=[],measures=[],verificationStrength=.5,reportingStrength=.5,exportControlCoordination=.25}={},currentTick=0){
   world.aiGovernanceAccords||=[];
   const members=[...new Set(memberPolityIds)].filter(id=>world.polities?.some?.(p=>p.id===id));
   const validMeasures=[...new Set(measures)].filter(m=>Object.values(AI_GOVERNANCE_MEASURES).includes(m));
   if(members.length<2||!validMeasures.length)return{formed:false,reason:'insufficient_members_or_measures'};
-  const accord={id:`ai-accord-${nextAccordId++}`,name,foundedTick:currentTick,memberPolityIds:members,measures:validMeasures,verificationStrength:clamp(verificationStrength),reportingStrength:clamp(reportingStrength),exportControlCoordination:clamp(exportControlCoordination),active:true,inspections:[],incidents:[]};
+  const accord={id:`ai-accord-${nextAccordId++}`,organisationId,name,foundedTick:currentTick,memberPolityIds:members,measures:validMeasures,verificationStrength:clamp(verificationStrength),reportingStrength:clamp(reportingStrength),exportControlCoordination:clamp(exportControlCoordination),active:true,inspections:[],incidents:[]};
   world.aiGovernanceAccords.push(accord);
   return{formed:true,accord};
 }
@@ -98,7 +96,7 @@ export function conductAiInspection(world,accord,targetPolityId,currentTick=0,rn
   const concealment=weightedCapability(rs,r=>ensureAiGovernance(r).policy.concealment);
   const cryptoDefence=weightedCapability(rs,r=>cryptographicCapabilities(r).authentication);
   const verification=clamp(accord.verificationStrength*.48+targetReadiness*.22+acceptance*.18+cryptoDefence*.12-concealment*.38);
-  const discrepancy=clamp(concealment*(.35+.45*aiCapability(rs[0]))*(1-verification*.55));
+  const discrepancy=clamp(concealment*(.35+.45*weightedCapability(rs,aiCapability))*(1-verification*.55));
   const detected=(rng?.()??Math.random())<clamp(verification*.28+discrepancy*.55);
   for(const r of rs){const g=ensureAiGovernance(r);g.verification.inspectionCount++;g.verification.lastInspectionTick=currentTick;g.verification.confidence=clamp(g.verification.confidence*.65+verification*.35);if(detected)g.verification.detectedDiscrepancies++;}
   const inspection={tick:currentTick,targetPolityId,verificationConfidence:verification,discrepancyDetected:detected};accord.inspections.push(inspection);if(accord.inspections.length>60)accord.inspections.shift();
@@ -179,7 +177,7 @@ export function tickInternationalAiStatecraft(world,currentTick=0,elapsedDays=30
       if(currentTick>0&&currentTick%interval===0){
         for(const id of accord.memberPolityIds){
           const result=conductAiInspection(world,accord,id,currentTick,rng);
-          if(result.inspected&&result.discrepancyDetected)events.push({type:'ai_governance_discrepancy_detected',organisationId:accord.id,accordId:accord.id,polityId:id,targetPolityId:id,playerRelevant:true,verificationConfidence:result.verificationConfidence});
+          if(result.inspected&&result.discrepancyDetected)events.push({type:'ai_governance_discrepancy_detected',organisationId:accord.organisationId||accord.id,accordId:accord.id,polityId:id,targetPolityId:id,playerRelevant:true,verificationConfidence:result.verificationConfidence});
         }
       }
     }
