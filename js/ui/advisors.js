@@ -1,3 +1,4 @@
+// Deployment diagnostic: line-shift marker 2026-09-22.
 import { canRaid, launchRaid, maxSeaRaidersAvailable } from '../military/raiding.js?v=20260905-projects1';
 import { attitudeLabel, attitudeToward } from '../diplomacy/relations.js?v=20260904-save1';
 import { governanceLabel } from '../politics/polities.js?v=20260904-kingdom1';
