@@ -122,9 +122,8 @@ export function pushPlayerNotice({ title = 'Report', body = '', actionLabel = nu
   card.appendChild(actions);
 
   host.prepend(card);
-  while (host.children.length > MAX_VISIBLE_NOTICES) removeNotice(host.lastElementChild);
-  const timer = setTimeout(() => removeNotice(card), Math.max(2500, Number(ttlMs) || DEFAULT_NOTICE_TTL_MS));
-  card.addEventListener('pointerenter', () => clearTimeout(timer), { once: true });
+  while (host.children.length > MAX_VISIBLE_NOTICES) host.lastElementChild?.remove();
+  setTimeout(() => removeNotice(card), Math.max(2500, Number(ttlMs) || DEFAULT_NOTICE_TTL_MS));
   return card;
 }
 
