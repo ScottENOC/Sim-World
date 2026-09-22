@@ -1,4 +1,4 @@
-import { nuclearDeterrentStatus } from '../military/nuclearWeaponisation.js?v=20260920-nuclear-diplomacy1';
+import { nuclearDeterrentStatus } from '../military/nuclearWeaponisation.js?v=20260923-nuclear-hotpath1';
 import { secondStrikeAssessment } from '../military/strategicDelivery.js?v=20260920-nuclear-diplomacy1';
 import {
   NUCLEAR_TREATY_TYPES, ensureNuclearArmsControl, joinNuclearTreaty,
@@ -140,13 +140,16 @@ export function npcNuclearDiplomacyPreference(region,others=[]){
 }
 
 export function tickNuclearDiplomacy(regions,currentTick,elapsedDays=7){
-  const events=[];
-  for(const region of regions||[]){
+  const events=[],world=regions||[];
+  // Nuclear peer membership is a world fact for this tick. Compute it once;
+  // npcNuclearDiplomacyPreference still runs for every region and applies the
+  // same self-exclusion and bargaining rules.
+  const nuclearPeers=world.filter(r=>nuclearDeterrentStatus(r)!=='none');
+  for(const region of world){
     const s=ensureNuclearDiplomacy(region);
     for(const p of Object.values(s.proposals))if(p.status==='open'&&Number.isFinite(p.expiresTick)&&currentTick>=p.expiresTick){p.status='expired';events.push({type:'nuclear_proposal_expired',regionId:region.id,proposalId:p.id,tick:currentTick});}
-    // NPC proposal creation is deliberately rate-limited; actual acceptance still uses bargaining logic.
     if(currentTick-s.lastNpcProposalTick<180)continue;
-    const pref=npcNuclearDiplomacyPreference(region,(regions||[]).filter(r=>r!==region));
+    const pref=npcNuclearDiplomacyPreference(region,nuclearPeers);
     if(pref.priority<.62||!pref.targets.length)continue;
     const target=pref.targets[0];
     if(pref.kind==='arms_limitation'){
