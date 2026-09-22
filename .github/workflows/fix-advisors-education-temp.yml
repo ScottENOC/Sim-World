@@ -1,0 +1,69 @@
+name: Temporary advisor education repair
+
+on:
+  push:
+    branches: [fix/advisors-education-template]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/advisors-education-template
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Rewrite education panel without nested template literal
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('js/ui/advisors.js')
+          lines = p.read_text().splitlines()
+          start = next(i for i,l in enumerate(lines) if "${section('Public education', `" in l)
+          end = next(i for i in range(start, len(lines)) if "${educationWarnings}${educationBenefits}`)}" in lines[i])
+          ret = next(i for i,l in enumerate(lines[:start]) if "return `<p class=\"advisor-voice\"" in l)
+          education = [
+            "    const educationSection =",
+            "      '<label class=\"advisor-field advisor-slider\"><span>Mandatory public education <b id=\"education-years-label\">' + education.mandatoryYears + ' years</b></span><input id=\"mandatory-education-years\" type=\"range\" min=\"0\" max=\"13\" step=\"1\" value=\"' + education.mandatoryYears + '\"></label>' +",
+            "      row('Law requires', education.mandatoryYears + ' years') +",
+            "      row('System can presently deliver', education.deliveredYears.toFixed(1) + ' years') +",
+            "      row('School capacity', education.capacityYears.toFixed(1) + ' years') +",
+            "      row('Teachers in service', number(education.teachers)) +",
+            "      row('Pupils enrolled', number(education.students)) +",
+            "      row('Education spending / week', education.weeklyCost.toFixed(1)) +",
+            "      row('Adult average schooling', education.adultAverageYears.toFixed(1) + ' years') +",
+            "      (education.rampYearsEstimate > 0.5 ? row('Estimated time to build capacity', 'about ' + Math.ceil(education.rampYearsEstimate) + ' years', education.rampYearsEstimate > 12 ? 'warning' : '') : '') +",
+            "      '<p class=\"advisor-note\">The law can change at once; teachers and schools cannot. Teachers are drawn from the adult workforce, and pupils forgo work they would otherwise contribute at home or in workshops.</p>' +",
+            "      educationWarnings + educationBenefits;",
+          ]
+          lines[ret:ret] = education
+          start += len(education)
+          end += len(education)
+          lines[start:end+1] = ["      ${section('Public education', educationSection)}"]
+          p.write_text('\n'.join(lines) + '\n')
+
+          p = Path('js/main.js')
+          s = p.read_text().replace("./ui/advisors.js?v=20260922-advisors-syntax2", "./ui/advisors.js?v=20260922-advisors-syntax3")
+          p.write_text(s)
+          p = Path('index.html')
+          s = p.read_text().replace("js/main.js?v=20260922-advisors-cache1", "js/main.js?v=20260922-advisors-cache2")
+          p.write_text(s)
+          PY
+      - name: Focused validation
+        run: |
+          node --check js/ui/advisors.js
+          node --check js/main.js
+          node tools/test-mass-education.mjs
+          grep -F "section('Public education', educationSection)" js/ui/advisors.js
+          ! grep -F "section('Public education', \`" js/ui/advisors.js
+      - name: Commit repair
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/ui/advisors.js js/main.js index.html
+          git commit -m 'Simplify advisor education rendering and refresh cache keys'
+          git push origin HEAD:fix/advisors-education-template
