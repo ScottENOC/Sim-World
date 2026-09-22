@@ -109,6 +109,44 @@ export function airspaceProbeIntelligence(attacker,defender){
   return attacker.airspaceIntelligence[id]||null;
 }
 
+export function airCombatAssessment(attacker,defender,{hostile=true,mission='attack'}={}){
+  const intruderActorId=actorId(attacker);
+  const s=ensureAirspaceSecurity(defender),pattern=actorState(defender,intruderActorId);
+  const intel=airspaceProbeIntelligence(attacker,defender)||{};
+  const radarMapping=clamp(intel.radarMapping||0),responseKnowledge=clamp(intel.responseKnowledge||0),roeKnowledge=clamp(intel.roeKnowledge||0);
+  const preparation=clamp(radarMapping*.45+responseKnowledge*.35+roeKnowledge*.20);
+  const reactionMultiplier=airspaceReactionMultiplier(defender,intruderActorId,{hostile});
+  const routeAvoidance=clamp(preparation*.22);
+  const defenceRiskMultiplier=clamp(reactionMultiplier*(1-routeAvoidance),.50,1.40);
+  const missionKnowledge=mission==='scout'?clamp(radarMapping*.60+responseKnowledge*.40):preparation;
+  const reconConfidenceMultiplier=clamp(.94+missionKnowledge*.20+clamp(pattern.habituation)*.06-s.training*.04,.82,1.20);
+  const strikeEffectivenessMultiplier=clamp(.94+preparation*.16+clamp(pattern.habituation)*.10-s.training*.07,.78,1.20);
+  return{
+    intruderActorId,
+    preparation,
+    radarMapping,
+    responseKnowledge,
+    roeKnowledge,
+    defenderHabituation:clamp(pattern.habituation),
+    defenderTraining:clamp(s.training),
+    defenderAlertness:clamp(s.alertness),
+    reactionMultiplier,
+    defenceRiskMultiplier,
+    reconConfidenceMultiplier,
+    strikeEffectivenessMultiplier,
+  };
+}
+
+export function recordHostileAirMission(defender,intruderActorId,{detected=true,currentTick=null}={}){
+  const s=ensureAirspaceSecurity(defender),pattern=actorState(defender,intruderActorId);
+  pattern.hostilityExpectation=clamp(pattern.hostilityExpectation+(detected?.24:.14));
+  pattern.habituation=clamp(pattern.habituation*(detected?.52:.72));
+  if(currentTick!=null)pattern.lastSeenTick=currentTick;
+  s.alertness=clamp(s.alertness+(detected?.10:.05));
+  if(detected)s.training=clamp(s.training+.012*(1-s.training));
+  return{hostilityExpectation:pattern.hostilityExpectation,habituation:pattern.habituation,alertness:s.alertness,training:s.training};
+}
+
 export function conductAirspaceProbe(attacker,defender,options={},currentTick=0,rng=Math.random){
   if(!attacker||!defender||actorId(attacker)===actorId(defender))return{conducted:false,reason:'invalid_target'};
   const purpose=Object.values(AIRSPACE_PROBE_PURPOSES).includes(options.purpose)?options.purpose:AIRSPACE_PROBE_PURPOSES.PROBE;
