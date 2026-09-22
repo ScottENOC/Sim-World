@@ -11,6 +11,12 @@ const PUPIL_SUPPLIES_PER_WEEK = 0.0025;
 
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
 const clampYears = (v) => Math.max(0, Math.min(MAX_MANDATORY_YEARS, Math.round(Number(v) || 0)));
+const EDUCATION_SKILL_WEIGHTS = Object.freeze({
+  farming: 0.03, gathering: 0.02, fishing: 0.05, horseHusbandry: 0.04,
+  lumberjack: 0.06, mining: 0.14, pottery: 0.10, textiles: 0.16,
+  smithing: 0.22, boatbuilding: 0.18, administration: 0.32,
+  manufacture: 0.24, engineering: 0.28, science: 0.38, general: 0.12,
+});
 
 function eliteSeed(region) {
   const e = ensureEducation(region);
@@ -140,24 +146,28 @@ function updateHumanCapital(region, s, years) {
 }
 
 export function educationLaborReservation(region) {
-  const s = ensureMassEducation(region);
+  // Core economy calls this for every region. Runtime world initialisation owns
+  // schema normalisation; hot reads must not rerun the full ensure chain.
+  const s = region.publicEducation;
+  if (!s) return { teachers: 0, childLaborEquivalent: 0, total: 0 };
+  const teachers = Math.max(0, s.teacherWorkersReserved || 0);
+  const childLaborEquivalent = Math.max(0, s.childLaborWithdrawn || 0);
   return {
-    teachers: Math.max(0, s.teacherWorkersReserved || 0),
-    childLaborEquivalent: Math.max(0, s.childLaborWithdrawn || 0),
-    total: Math.max(0, (s.teacherWorkersReserved || 0) + (s.childLaborWithdrawn || 0)),
+    teachers,
+    childLaborEquivalent,
+    total: teachers + childLaborEquivalent,
   };
 }
 
 export function educationSkillMultiplier(region, activity = 'general') {
-  const s = ensureMassEducation(region);
-  const weights = {
-    farming: 0.03, gathering: 0.02, fishing: 0.05, horseHusbandry: 0.04,
-    lumberjack: 0.06, mining: 0.14, pottery: 0.10, textiles: 0.16,
-    smithing: 0.22, boatbuilding: 0.18, administration: 0.32,
-    manufacture: 0.24, engineering: 0.28, science: 0.38, general: 0.12,
-  };
-  const weight = weights[activity] ?? weights.general;
-  return 1 + s.literacy * weight * 0.35 + s.numeracy * weight * 0.4 + s.technicalHumanCapital * weight * 0.55;
+  // This is used by technology and industrial productivity hot paths. Do not
+  // validate or repair state here; current worlds are initialised before ticks.
+  const s = region.publicEducation;
+  if (!s) return 1;
+  const weight = EDUCATION_SKILL_WEIGHTS[activity] ?? EDUCATION_SKILL_WEIGHTS.general;
+  return 1 + (s.literacy || 0) * weight * 0.35 +
+    (s.numeracy || 0) * weight * 0.4 +
+    (s.technicalHumanCapital || 0) * weight * 0.55;
 }
 
 export function educationAdministrativeCapacity(region) {
