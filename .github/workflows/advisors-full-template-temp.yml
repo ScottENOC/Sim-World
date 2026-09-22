@@ -5,9 +5,6 @@ on:
     branches:
       - fix/advisors-full-template-audit
 
-permissions:
-  contents: write
-
 jobs:
   diagnose:
     if: github.actor != 'github-actions[bot]'
@@ -19,27 +16,33 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Inspect bytes and parser state
+      - name: Parse each class method independently with Babel
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          p=Path('js/ui/advisors.js')
-          lines=p.read_text().splitlines()
-          for n in range(374,383):
-              s=lines[n-1]
-              print(n, repr(s))
-              if n == 380:
-                  print('line380 codepoints:', ' '.join(f'U+{ord(c):04X}' for c in s[:24]))
-                  print('line380 bytes:', s.encode('utf-8').hex())
-          PY
-          node --check js/ui/advisors.js
-      - name: Compare Babel parser
-        run: |
-          npm install --no-save --no-package-lock @babel/core @babel/parser
+          npm install --no-save --no-package-lock @babel/parser
           node - <<'JS'
           const fs=require('fs');
           const parser=require('@babel/parser');
           const src=fs.readFileSync('js/ui/advisors.js','utf8');
-          try { parser.parse(src,{sourceType:'module'}); console.log('Babel parser accepted full file'); }
-          catch(e) { console.error(e.message); console.error(e.loc); process.exit(1); }
+          const classStart=src.indexOf('export class AdvisorCouncil {');
+          const body=src.slice(classStart + 'export class AdvisorCouncil {'.length);
+          const re=/^  ([A-Za-z_$][\w$]*)\s*\([^\n]*\)\s*\{/gm;
+          const matches=[...body.matchAll(re)];
+          console.log('methods:', matches.map(m=>m[1]).join(', '));
+          let failures=0;
+          for(let i=0;i<matches.length;i++){
+            const name=matches[i][1];
+            const start=matches[i].index;
+            const end=i+1<matches.length ? matches[i+1].index : body.lastIndexOf('\n}');
+            const method=body.slice(start,end);
+            try {
+              parser.parse('class X {\n'+method+'\n}',{sourceType:'module'});
+              console.log('PASS',name);
+            } catch(e){
+              failures++;
+              console.log('FAIL',name,e.message,'local',e.loc);
+            }
+          }
+          try { parser.parse(src,{sourceType:'module'}); console.log('FULL PASS'); }
+          catch(e){ console.log('FULL FAIL',e.message,e.loc); }
+          if(failures) process.exit(1);
           JS
