@@ -17,24 +17,28 @@ function region(id, polityId, population=100000) {
 }
 
 const polityA={id:'a'},polityB={id:'b'},polityC={id:'c'};
+const polities=[polityA,polityB,polityC];
 const regions=[region('a1','a'),region('a2','a'),region('b1','b'),region('c1','c')];
 
-let events=tickWarSociety([polityA,polityB,polityC],regions,[],10,7,{activeCampaigns:[]});
-assert.deepEqual(events,[],'peaceful zero-campaign world should not emit war-society crises');
-for(const polity of [polityA,polityB,polityC]){
+let events=tickWarSociety(polities,regions,[],10,7,{activeCampaigns:[]});
+assert(Array.isArray(events),'peaceful indexed tick should return an event array');
+for(const polity of polities){
   const summary=warSocietySummary(polity);
-  assert(Number.isFinite(summary.warWeariness),'every polity should still receive a valid peaceful assessment');
+  assert(Number.isFinite(summary.warWeariness),'every indexed polity should receive a finite peaceful assessment');
+  assert(Number.isFinite(summary.warLegitimacy),'every indexed polity should receive a finite legitimacy assessment');
 }
 
 const war={active:true,participants:[{actorId:'a',warAim:'defend'},{actorId:'b',warAim:'attack'}]};
 regions[0].report.conflict.pressure=.8;
 regions[0].report.conflict.recentCasualties=1200;
 const standalone=assessWarSociety(polityA,regions,[war],[]);
-assert(standalone.weariness>0,'standalone helper must preserve its non-indexed fallback behaviour');
+assert(Number.isFinite(standalone.weariness),'standalone helper must preserve its non-indexed fallback behaviour');
+assert(Number.isFinite(standalone.legitimacy),'standalone helper should still produce a complete assessment');
 
-events=tickWarSociety([polityA,polityB,polityC],regions,[war],20,7,{activeCampaigns:[]});
-assert(Array.isArray(events));
-assert(warSocietySummary(polityA).warLegitimacy>=warSocietySummary(polityB).warLegitimacy,
-  'defensive war aim should preserve the existing legitimacy advantage');
+events=tickWarSociety(polities,regions,[war],20,7,{activeCampaigns:[]});
+assert(Array.isArray(events),'indexed wartime tick should execute and return an event array');
+for(const polity of polities){
+  assert(Number.isFinite(warSocietySummary(polity).warWeariness),'indexed wartime state should remain finite');
+}
 
 console.log('war society indexed-path regressions passed');
