@@ -1,0 +1,24 @@
+name: War and society indexed performance
+
+on:
+  pull_request:
+    paths:
+      - 'js/society/warSociety.js'
+      - 'tools/test-war-society-performance.mjs'
+      - '.github/workflows/war-society-performance.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks
+        run: |
+          node --check js/society/warSociety.js
+          node --check tools/test-war-society-performance.mjs
+      - name: War and society regressions
+        run: node tools/test-war-society-performance.mjs
