@@ -148,7 +148,6 @@
         try {
           await import('./js/main.js?v=20260922-main-graph1');
           clearTimeout(timeout);
-          report('Simulation module loaded · starting world setup…');
         } catch (error) {
           clearTimeout(timeout);
           const message = error?.stack || error?.message || String(error);
