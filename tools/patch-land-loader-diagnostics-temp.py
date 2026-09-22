@@ -3,16 +3,16 @@ from pathlib import Path
 # Force fresh region.js through main.js and fresh main.js through index.html.
 main_path = Path('js/main.js')
 main = main_path.read_text()
-old_import = "import { loadWorld } from './world/region.js?v=20260912-silkroad1';"
-new_import = "import { loadWorld } from './world/region.js?v=20260922-land-loader1';"
+old_import = "import { loadWorld } from './world/region.js?v=20260922-land-loader1';"
+new_import = "import { loadWorld } from './world/region.js?v=20260922-land-loader2';"
 if old_import not in main:
     raise SystemExit('region import anchor not found')
 main_path.write_text(main.replace(old_import, new_import, 1))
 
 index_path = Path('index.html')
 index = index_path.read_text()
-old_main = "await import('./js/main.js?v=20260922-main-graph1');"
-new_main = "await import('./js/main.js?v=20260922-land-loader1');"
+old_main = "await import('./js/main.js?v=20260922-main-graph2');"
+new_main = "await import('./js/main.js?v=20260922-land-loader2');"
 if old_main not in index:
     raise SystemExit('dynamic main import anchor not found')
 index_path.write_text(index.replace(old_main, new_main, 1))
