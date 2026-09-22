@@ -56,6 +56,9 @@ const MAX_RIFLING_INNOVATION_CHANCE = 0.00002;
 const RIFLING_NEIGHBOUR_DIFFUSION_CHANCE = 0.0045;
 const RIFLING_TRADE_DIFFUSION_CHANCE = 0.0015;
 const GUNPOWDER_INGREDIENTS = Object.freeze(['saltpetre', 'sulfur', 'wood']);
+const LARGE_WORLD_REGION_THRESHOLD = 500;
+const LARGE_WORLD_BREAKTHROUGH_INTERVAL_DAYS = 90;
+let accumulatedLargeWorldBreakthroughDays = 0;
 
 function clamp01(v) { return Math.max(0, Math.min(1, Number(v) || 0)); }
 
@@ -323,7 +326,15 @@ function advanceIronIndustry(region) {
 }
 
 export function tickBreakthroughs(regions, currentTick, rng = Math.random, elapsedDays = 7) {
-  const weekScale = Math.max(0.01, elapsedDays / 7);
+  let evaluationDays = elapsedDays;
+  if (regions.length >= LARGE_WORLD_REGION_THRESHOLD) {
+    accumulatedLargeWorldBreakthroughDays += Math.max(0, Number(elapsedDays) || 0);
+    if (accumulatedLargeWorldBreakthroughDays < LARGE_WORLD_BREAKTHROUGH_INTERVAL_DAYS) return [];
+    evaluationDays = accumulatedLargeWorldBreakthroughDays;
+    accumulatedLargeWorldBreakthroughDays = 0;
+  }
+
+  const weekScale = Math.max(0.01, evaluationDays / 7);
   const chance = (p) => 1 - Math.pow(1 - Math.max(0, Math.min(1, p)), weekScale);
   const regionsById = new Map(regions.map((region) => [region.id, region]));
   const partnerCache = new Map();
@@ -400,24 +411,24 @@ export function tickBreakthroughs(regions, currentTick, rng = Math.random, elaps
     }
     region.ironWorkingExposure = Math.max(0, (region.ironWorkingExposure || 0) * Math.pow(0.99, weekScale));
   }
-  events.push(...tickClassicalBreakthroughs(regions, currentTick, rng, elapsedDays));
-  events.push(...tickMedievalBreakthroughs(regions, currentTick, rng, elapsedDays));
-  events.push(...tickPetroleumBreakthroughs(regions, currentTick, rng, elapsedDays));
-  events.push(...tickElectrificationBreakthroughs(regions, currentTick, rng, elapsedDays));
-  events.push(...tickModernEnergyBreakthroughs(regions, currentTick, rng, elapsedDays));
-  events.push(...tickNuclearBreakthroughs(regions, currentTick, rng, elapsedDays));
-  events.push(...tickStrategicNuclearBreakthroughs(regions, currentTick, rng, elapsedDays));
-  events.push(...tickNuclearWeaponisationBreakthroughs(regions, currentTick, rng, elapsedDays));
-  events.push(...tickStrategicDeliveryBreakthroughs(regions, currentTick, rng, elapsedDays));
-  for (const region of regions) events.push(...tickNuclearWeaponProgramme(region, currentTick, elapsedDays, rng));
-  events.push(...tickStrategicDelivery(regions, currentTick, elapsedDays));
-  events.push(...tickNuclearDeterrence(regions, currentTick, elapsedDays));
-  events.push(...tickTelegraphBreakthroughs(regions, currentTick, rng, elapsedDays));
-  events.push(...tickTelephoneBreakthroughs(regions, currentTick, rng, elapsedDays));
-  events.push(...tickMedicalBreakthroughs(regions, currentTick, rng, elapsedDays));
-  events.push(...tickIndustrialProductionBreakthroughs(regions, currentTick, rng, elapsedDays));
-  events.push(...tickModernLandBreakthroughs(regions, currentTick, rng, elapsedDays));
-  events.push(...tickAviationBreakthroughs(regions, currentTick, rng, elapsedDays));
-  events.push(...tickLateIndustrialNavalBreakthroughs(regions, currentTick, rng, elapsedDays));
+  events.push(...tickClassicalBreakthroughs(regions, currentTick, rng, evaluationDays));
+  events.push(...tickMedievalBreakthroughs(regions, currentTick, rng, evaluationDays));
+  events.push(...tickPetroleumBreakthroughs(regions, currentTick, rng, evaluationDays));
+  events.push(...tickElectrificationBreakthroughs(regions, currentTick, rng, evaluationDays));
+  events.push(...tickModernEnergyBreakthroughs(regions, currentTick, rng, evaluationDays));
+  events.push(...tickNuclearBreakthroughs(regions, currentTick, rng, evaluationDays));
+  events.push(...tickStrategicNuclearBreakthroughs(regions, currentTick, rng, evaluationDays));
+  events.push(...tickNuclearWeaponisationBreakthroughs(regions, currentTick, rng, evaluationDays));
+  events.push(...tickStrategicDeliveryBreakthroughs(regions, currentTick, rng, evaluationDays));
+  for (const region of regions) events.push(...tickNuclearWeaponProgramme(region, currentTick, evaluationDays, rng));
+  events.push(...tickStrategicDelivery(regions, currentTick, evaluationDays));
+  events.push(...tickNuclearDeterrence(regions, currentTick, evaluationDays));
+  events.push(...tickTelegraphBreakthroughs(regions, currentTick, rng, evaluationDays));
+  events.push(...tickTelephoneBreakthroughs(regions, currentTick, rng, evaluationDays));
+  events.push(...tickMedicalBreakthroughs(regions, currentTick, rng, evaluationDays));
+  events.push(...tickIndustrialProductionBreakthroughs(regions, currentTick, rng, evaluationDays));
+  events.push(...tickModernLandBreakthroughs(regions, currentTick, rng, evaluationDays));
+  events.push(...tickAviationBreakthroughs(regions, currentTick, rng, evaluationDays));
+  events.push(...tickLateIndustrialNavalBreakthroughs(regions, currentTick, rng, evaluationDays));
   return events;
 }
