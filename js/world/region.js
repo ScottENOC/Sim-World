@@ -86,15 +86,37 @@ export class Region {
 }
 
 export async function loadWorld() {
-  const [geoRes, metaRes, resourcesRes, terrainRes] = await Promise.all([
-    fetch('data/world/regions.geo.json'), fetch('data/world/regions.meta.json'),
-    fetch('data/world/resources.initial.json?v=20260912-silkroad1'),
-    fetch('data/world/terrain.initial.json?v=20260912-silkroad1'),
+  const report = (message) => {
+    if (typeof window !== 'undefined' && typeof window.__reportWorldStartup === 'function') {
+      window.__reportWorldStartup(message);
+    }
+    console.info('[land-loader]', message);
+  };
+  const fetchJson = async (url, label) => {
+    const started = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    report(`Land regions · requesting ${label}…`);
+    const response = await fetch(url);
+    const elapsed = ((typeof performance !== 'undefined' ? performance.now() : Date.now()) - started) / 1000;
+    report(`Land regions · ${label} HTTP ${response.status} after ${elapsed.toFixed(1)}s · reading body…`);
+    if (!response.ok) throw new Error(`${label} request failed: HTTP ${response.status}`);
+    const text = await response.text();
+    report(`Land regions · ${label} received ${(text.length / 1024 / 1024).toFixed(1)} MB · parsing JSON…`);
+    const parsed = JSON.parse(text);
+    report(`Land regions · ${label} parsed`);
+    return parsed;
+  };
+
+  const [geo, meta, resources, terrain] = await Promise.all([
+    fetchJson('data/world/regions.geo.json', 'geometry'),
+    fetchJson('data/world/regions.meta.json', 'metadata'),
+    fetchJson('data/world/resources.initial.json?v=20260912-silkroad1', 'resources'),
+    fetchJson('data/world/terrain.initial.json?v=20260912-silkroad1', 'terrain'),
   ]);
-  const geo = await geoRes.json(); const meta = await metaRes.json(); const resources = await resourcesRes.json();
-  const terrain = await terrainRes.json();
   const metaById = new Map(meta.regions.map((r) => [r.id, r]));
-  const regions = geo.features.map((feature) => {
+  const regions = [];
+  report(`Land regions · constructing ${geo.features.length.toLocaleString()} regions…`);
+  for (let featureIndex = 0; featureIndex < geo.features.length; featureIndex += 1) {
+    const feature = geo.features[featureIndex];
     const id = feature.properties.id; const m = metaById.get(id);
     const region = new Region({ id, name: feature.properties.name, feature, centroid: m.centroid,
       areaSqKm: m.areaSqKm, neighbors: m.neighbors });
@@ -175,7 +197,12 @@ export async function loadWorld() {
         maxWorkers: Math.max(20, Math.round(region.areaSqKm * 0.2)),
       }] };
     }
-    return region;
-  });
+    regions.push(region);
+    if ((featureIndex + 1) % 100 === 0 && featureIndex + 1 < geo.features.length) {
+      report(`Land regions · constructed ${(featureIndex + 1).toLocaleString()} / ${geo.features.length.toLocaleString()}…`);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  }
+  report(`Land regions · constructed ${regions.length.toLocaleString()} regions`);
   return regions;
 }
