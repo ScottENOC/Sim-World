@@ -1,4 +1,5 @@
 import { effectiveExperience } from './learningByDoing.js?v=20260906-education1';
+import { createInnovationFrontier } from './innovationFrontier.js?v=20260922-frontier1';
 import { operationalInfrastructure, effectiveInfrastructureCount } from '../economy/construction.js?v=20260907-classical1';
 
 export const LIGHT_CHARIOTRY_TECH_ID = 'light_chariotry';
@@ -21,6 +22,24 @@ const diffuse = (region, regionsById, techId, chance) => {
   for (const id of region.tradePartnerIds || []) if (regionsById.get(id)?.unlockedTechIds?.has(techId)) exposed += 0.6;
   return 1 - Math.pow(1 - chance, exposed);
 };
+
+const CLASSICAL_FRONTIER_SPECS = Object.freeze([
+  [LIGHT_CHARIOTRY_TECH_ID, (r) => (r.horseEconomy?.war || 0) >= 20],
+  [MOUNTED_CAVALRY_TECH_ID, (r) => r.unlockedTechIds?.has(LIGHT_CHARIOTRY_TECH_ID) && (r.horseEconomy?.war || 0) >= 30],
+  [HYDRAULIC_ENGINEERING_TECH_ID, (r) => r.unlockedTechIds?.has('water_management') && (r.population || 0) >= 7000],
+  [URBAN_DRAINAGE_TECH_ID, (r) => r.unlockedTechIds?.has(HYDRAULIC_ENGINEERING_TECH_ID) && (r.population || 0) >= 10000],
+  [STANDARD_WEIGHTS_TECH_ID, (r) => (r.population || 0) >= 4000],
+  [COINAGE_TECH_ID, (r) => r.unlockedTechIds?.has(STANDARD_WEIGHTS_TECH_ID) &&
+    ((r.stockpile?.silver || 0) + (r.stockpile?.gold || 0) * 0.45) > 5],
+  [MASS_HEAVY_INFANTRY_TECH_ID, (r) => r.unlockedTechIds?.has('iron_smelting') &&
+    (r.ironWorkingReadiness || 0) > 0.35 && (r.population || 0) >= 8000],
+  [MILITARY_DRILL_TECH_ID, (r) => r.unlockedTechIds?.has(MASS_HEAVY_INFANTRY_TECH_ID) && (r.army?.personnel || 0) >= 250],
+  [NAVAL_WARFARE_TECH_ID, (r) => r.unlockedTechIds?.has('advanced_boatbuilding') && (r.navy?.boats || 0) >= 5],
+  [FORMAL_TAXATION_TECH_ID, (r) => r.unlockedTechIds?.has(STANDARD_WEIGHTS_TECH_ID)],
+  [RELAY_ADMINISTRATION_TECH_ID, (r) => (r.horseEconomy?.transport || 0) >= 20],
+  [COLONISATION_TECH_ID, (r) => r.unlockedTechIds?.has('advanced_boatbuilding') &&
+    (r.population || 0) >= 12000 && Boolean(r.isCoastal)],
+]);
 
 function probability(independent, diffusion) {
   return 1 - (1 - clamp01(independent)) * (1 - clamp01(diffusion));
@@ -66,9 +85,6 @@ export function classicalBreakthroughChances(region, regionsById) {
     : 0;
   const weightsIndependent = operationalInfrastructure(region, 'market_customs') && population >= 4000
     ? 0.00001 + admin * 0.000035 : 0;
-  // Early coinage need not wait for a map-wide silver pass: historically
-  // electrum/gold and silver all supplied early monetary systems. Silver is
-  // preferred once present, but existing gold-rich regions can originate it.
   const preciousMetal = Math.max(0, region.stockpile?.silver || 0) + Math.max(0, region.stockpile?.gold || 0) * 0.45;
   const coinageIndependent = region.unlockedTechIds.has(STANDARD_WEIGHTS_TECH_ID) &&
       preciousMetal > 5 && admin > 0.25
@@ -103,15 +119,36 @@ export function classicalBreakthroughChances(region, regionsById) {
 }
 
 export function tickClassicalBreakthroughs(regions, currentTick, rng = Math.random, elapsedDays = 7) {
-  const regionsById = new Map(regions.map((r) => [r.id, r]));
+  const frontier = createInnovationFrontier(regions);
+  const regionsById = frontier.regionsById;
   const weekScale = Math.max(0.01, elapsedDays / 7);
   const adjusted = (p) => 1 - Math.pow(1 - clamp01(p), weekScale);
   const events = [];
   const discoveries = [];
+  const candidatesByTech = new Map();
+  const candidateRegions = new Set();
+
+  for (const [techId, independentEligible] of CLASSICAL_FRONTIER_SPECS) {
+    if (frontier.isUniversal(techId)) continue;
+    const candidates = frontier.candidateRegions(techId, { independentEligible });
+    if (!candidates.length) continue;
+    const set = new Set(candidates);
+    candidatesByTech.set(techId, set);
+    for (const region of candidates) candidateRegions.add(region);
+  }
+
   for (const region of regions) {
+    if (!candidateRegions.has(region)) {
+      // Preserve the old technology-major RNG stream for locked zero-chance checks
+      // without calculating experience, administration, urban pressure or diffusion.
+      for (const [techId] of CLASSICAL_FRONTIER_SPECS) if (!region.unlockedTechIds.has(techId)) rng();
+      continue;
+    }
     const chances = classicalBreakthroughChances(region, regionsById);
     for (const [techId, chance] of Object.entries(chances)) {
-      if (!region.unlockedTechIds.has(techId) && rng() < adjusted(chance)) discoveries.push([region, techId]);
+      if (region.unlockedTechIds.has(techId)) continue;
+      const roll = rng();
+      if (candidatesByTech.get(techId)?.has(region) && roll < adjusted(chance)) discoveries.push([region, techId]);
     }
   }
   for (const [region, techId] of discoveries) {
