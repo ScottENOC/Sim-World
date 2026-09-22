@@ -1,3 +1,5 @@
+import { addInformationEvidence, ensureInformationIntegrity, publishCompetingNarrative, recordInformationIncident } from '../diplomacy/informationIntegrity.js?v=20260922-info3';
+
 const DAYS_PER_YEAR=365.2425;
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
@@ -40,12 +42,70 @@ export function ensureWarSociety(polity){
   if(!WAR_INFORMATION_POLICIES[s.policy.information])s.policy.information='accredited';
   if(typeof s.policy.playerLocked!=='boolean')s.policy.playerLocked=false;
   for(const [k,v] of Object.entries({warWeariness:0,combatTraumaBurden:0,publicWarKnowledge:0,warLegitimacy:.5,censorshipPressure:0,credibility:.78,concealedReality:0,mobilisationMemory:0,publicShock:0}))if(!Number.isFinite(s[k]))s[k]=v;
+  s.civilianReportState||={};
   return s;
 }
 
 export function setWarInformationPolicy(polity,policy,{playerIssued=false}={}){
   if(!WAR_INFORMATION_POLICIES[policy])return{changed:false,reason:'unknown_policy'};
   const s=ensureWarSociety(polity),previous=s.policy.information;s.policy.information=policy;if(playerIssued)s.policy.playerLocked=true;return{changed:previous!==policy,previous,policy};
+}
+
+function publishCivilianHarmReports(polity,regions,activeCampaigns,currentTick,s){
+  const byId=new Map((regions||[]).map(r=>[r.id,r]));
+  const policy=WAR_INFORMATION_POLICIES[s.policy.information];
+  for(const campaign of activeCampaigns||[]){
+    const defender=byId.get(campaign.defenderId),attacker=byId.get(campaign.attackerId);
+    if(!defender||polityId(defender)!==polity.id)continue;
+    const deaths=Math.max(0,Math.round(Number(campaign.civilianDeaths)||0));
+    if(deaths<=0)continue;
+    const key=String(campaign.id);
+    const prior=s.civilianReportState[key]||{reportedDeaths:0,lastEvidenceTick:-Infinity,incidentId:null};
+    if(deaths<=prior.reportedDeaths)continue;
+    const info=ensureInformationIntegrity(defender);
+    const mediaReach=clamp(literacy(defender)*.34+communications(defender)*.34+visualMedia(defender)*.32);
+    const visibility=clamp(.12+policy.visibility*.55+mediaReach*.33);
+    const reliability=clamp(.36+visibility*.36+info.independentCorroboration*.18);
+    const attackerActor=polityId(attacker);
+    if(!prior.incidentId){
+      const incident=recordInformationIncident(defender,{
+        id:`war-civilian-harm-${campaign.id}`,
+        type:'civilian_harm',
+        headline:`Reports of civilian deaths during fighting in ${defender.name||'the region'}`,
+        tick:currentTick,receivedTick:currentTick,subjectRegionId:defender.id,
+        allegedActorId:attackerActor,
+        evidenceType:visualMedia(defender)>.25?'mixed':'report',
+        sourceReliability:reliability,
+        corroboration:clamp(.14+visibility*.32),
+        provenance:clamp(info.provenanceCoverage*.45+visibility*.12),
+        forensicSupport:clamp(info.mediaForensics*.38),
+        attributionEvidence:attackerActor?.72:.18,
+        evidence:[{
+          sourceId:`local-war-report-${defender.id}`,
+          sourceType:'local_reporting',
+          evidenceType:visualMedia(defender)>.25?'image':'report',
+          sourceReliability:reliability,
+          provenance:clamp(info.provenanceCoverage*.48),
+          forensicSupport:clamp(info.mediaForensics*.36),
+          forensicPotential:visualMedia(defender)>.25?.72:.40,
+          attributionEvidence:attackerActor?.72:.18,
+          receivedTick:currentTick,
+        }],
+      });
+      prior.incidentId=incident.id;
+      if(attackerActor)publishCompetingNarrative(defender,incident.id,{kind:'denial_responsibility',reach:.38,sourceReliability:.42,evidenceSupport:.12,publishedTick:currentTick});
+      if(info.syntheticMediaPressure>.30)publishCompetingNarrative(defender,incident.id,{kind:'denial_synthetic',reach:clamp(.16+info.syntheticMediaPressure*.42),sourceReliability:.35,evidenceSupport:.06,publishedTick:currentTick});
+    }else if(currentTick-prior.lastEvidenceTick>=4||deaths>=Math.max(2,prior.reportedDeaths*1.5)){
+      addInformationEvidence(defender,prior.incidentId,{
+        sourceId:`followup-${defender.id}-${currentTick}`,
+        sourceType:'followup_reporting',evidenceType:visualMedia(defender)>.25?'image':'report',
+        sourceReliability:reliability,provenance:clamp(info.provenanceCoverage*.52),
+        forensicSupport:clamp(info.mediaForensics*.42),forensicPotential:visualMedia(defender)>.25?.78:.45,
+        attributionEvidence:attackerActor?.72:.18,receivedTick:currentTick,
+      });
+    }
+    prior.reportedDeaths=deaths;prior.lastEvidenceTick=currentTick;s.civilianReportState[key]=prior;
+  }
 }
 
 export function assessWarSociety(polity,regions,activeWars=[],activeCampaigns=[]){
@@ -68,6 +128,7 @@ export function assessWarSociety(polity,regions,activeWars=[],activeCampaigns=[]
 
 export function tickWarSociety(polities,regions,activeWars,currentTick=0,elapsedDays=7,{playerPolityId=null,activeCampaigns=[]}={}){
   const events=[];for(const polity of polities||[]){const s=ensureWarSociety(polity),a=assessWarSociety(polity,regions,activeWars,activeCampaigns);if(!Number.isFinite(a.weariness))continue;const info=WAR_INFORMATION_POLICIES[s.policy.information];
+    publishCivilianHarmReports(polity,regions,activeCampaigns,currentTick,s);
     s.warLegitimacy=smooth(s.warLegitimacy,a.legitimacy,elapsedDays,.9);s.publicWarKnowledge=smooth(s.publicWarKnowledge,a.visible,elapsedDays,1.4);s.combatTraumaBurden=smooth(s.combatTraumaBurden,a.traumaTarget,elapsedDays,a.traumaTarget>s.combatTraumaBurden?1.2:.18);s.mobilisationMemory=smooth(s.mobilisationMemory,a.mobilisation,elapsedDays,a.mobilisation>s.mobilisationMemory?.8:.14);
     s.concealedReality=smooth(s.concealedReality,a.concealed,elapsedDays,1.1);s.censorshipPressure=clamp(info.control*a.mediaReach);const credibilityTarget=clamp(.86-info.credibilityRisk*s.concealedReality*.9);s.credibility=smooth(s.credibility,credibilityTarget,elapsedDays,.55);
     const revelation=clamp(Math.max(0,s.publicWarKnowledge-s.concealedReality*.15)*Math.max(0,.62-s.credibility));s.publicShock=smooth(s.publicShock,revelation,elapsedDays,1.3);
