@@ -19,9 +19,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Install temporary Babel transformer
+        run: npm install --no-save --no-package-lock @babel/core @babel/cli @babel/plugin-transform-template-literals
       - name: Transform all template literals in advisors
         run: |
-          npx --yes -p @babel/core -p @babel/cli -p @babel/plugin-transform-template-literals babel js/ui/advisors.js --plugins @babel/plugin-transform-template-literals --out-file /tmp/advisors.js
+          npx babel js/ui/advisors.js --plugins @babel/plugin-transform-template-literals --out-file /tmp/advisors.js
           mv /tmp/advisors.js js/ui/advisors.js
       - name: Validate transformed advisors
         run: |
