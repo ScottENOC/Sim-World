@@ -5,18 +5,22 @@ on:
     paths:
       - 'js/diplomacy/aiStatecraft.js'
       - 'js/diplomacy/aiStatecraftRuntime.js'
+      - 'js/diplomacy/aiGovernanceMeasures.js'
       - 'js/diplomacy/cryptographyProgression.js'
       - 'js/diplomacy/internationalCrisisBodies.js'
       - 'tests/aiInternationalStatecraft.test.mjs'
+      - 'tests/aiGovernanceMeasures.test.mjs'
       - '.github/workflows/ai-international-statecraft.yml'
   push:
     branches: [main]
     paths:
       - 'js/diplomacy/aiStatecraft.js'
       - 'js/diplomacy/aiStatecraftRuntime.js'
+      - 'js/diplomacy/aiGovernanceMeasures.js'
       - 'js/diplomacy/cryptographyProgression.js'
       - 'js/diplomacy/internationalCrisisBodies.js'
       - 'tests/aiInternationalStatecraft.test.mjs'
+      - 'tests/aiGovernanceMeasures.test.mjs'
       - '.github/workflows/ai-international-statecraft.yml'
 
 jobs:
@@ -31,10 +35,13 @@ jobs:
         run: |
           node --check js/diplomacy/aiStatecraft.js
           node --check js/diplomacy/aiStatecraftRuntime.js
+          node --check js/diplomacy/aiGovernanceMeasures.js
           node --check js/diplomacy/cryptographyProgression.js
           node --check js/diplomacy/internationalCrisisBodies.js
       - name: International AI governance regressions
         run: node tests/aiInternationalStatecraft.test.mjs
+      - name: Additional treaty-clause regressions
+        run: node tests/aiGovernanceMeasures.test.mjs
       - name: Information-integrity compatibility
         run: node tests/informationIntegrity.test.mjs
       - name: Strategic-warning compatibility
