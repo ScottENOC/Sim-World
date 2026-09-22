@@ -1,4 +1,4 @@
-import { nuclearDeterrentStatus, ensureNuclearWeaponState } from '../military/nuclearWeaponisation.js?v=20260920-arms-control1';
+import { nuclearDeterrentStatus, ensureNuclearWeaponState } from '../military/nuclearWeaponisation.js?v=20260923-nuclear-hotpath1';
 import { ensureStrategicDelivery, secondStrikeAssessment, STRATEGIC_POSTURES } from '../military/strategicDelivery.js?v=20260920-arms-control1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
@@ -75,11 +75,12 @@ export function nuclearTreatyConstraints(region){
   return out;
 }
 
-function observedRivalPressure(region,rivals=[]){
+function observedRivalPressure(region,rivals=[],context=null){
   let pressure=0;
   for(const rival of rivals||[]){
     if(!rival||rival===region)continue;
-    const deterrent=nuclearDeterrentStatus(rival),strike=secondStrikeAssessment(rival,{fleets:rival.fleets||[]});
+    const deterrent=context?.statusByRegion?.get(rival)??nuclearDeterrentStatus(rival);
+    const strike=context?.strikeByRegion?.get(rival)??secondStrikeAssessment(rival,{fleets:rival.fleets||[]});
     const device=deterrent==='demonstrated_device_capability'?1:deterrent==='untested_device_capability'?.55:0;
     const hostility=clamp(region.relations?.[actorId(rival)]?.hostility??region.diplomacy?.relations?.[actorId(rival)]?.hostility??.3);
     pressure=Math.max(pressure,clamp(device*.45+strike.retaliationConfidence*.35+hostility*.35));
@@ -87,9 +88,9 @@ function observedRivalPressure(region,rivals=[]){
   return pressure;
 }
 
-export function npcStrategicArmsDecision(region,{rivals=[],currentTick=null}={}){
+export function npcStrategicArmsDecision(region,{rivals=[],currentTick=null,context=null}={}){
   const arms=ensureNuclearArmsControl(region),delivery=ensureStrategicDelivery(region),weapons=ensureNuclearWeaponState(region),constraints=nuclearTreatyConstraints(region);
-  const threat=observedRivalPressure(region,rivals),own=secondStrikeAssessment(region,{fleets:region.fleets||[]});
+  const threat=observedRivalPressure(region,rivals,context),own=context?.strikeByRegion?.get(region)??secondStrikeAssessment(region,{fleets:region.fleets||[]});
   const assurance=clamp(Math.max(constraints.securityAssurance,region.nuclearAlliance?.extendedDeterrenceAssurance||0));
   const effectiveThreat=clamp(threat*(1-assurance*.55));
   const riskTolerance=clamp(region.nuclearDeterrence?.riskTolerance??.28);
@@ -159,12 +160,19 @@ function applyCompliantReductions(region,currentTick,elapsedDays){
 }
 
 export function tickNuclearArmsControl(regions,currentTick,elapsedDays=7){
-  const events=[];
-  for(const region of regions||[]){
+  const events=[],world=regions||[],statusByRegion=new Map(),strikeByRegion=new Map();
+  // Build the expensive strategic/nuclear capability view once per tick. The
+  // per-region arms decision still runs for every region; it simply reuses the
+  // same rival facts rather than recalculating them O(N^2) times.
+  for(const region of world){
+    statusByRegion.set(region,nuclearDeterrentStatus(region));
+    strikeByRegion.set(region,secondStrikeAssessment(region,{fleets:region.fleets||[]}));
+  }
+  const context={statusByRegion,strikeByRegion};
+  for(const region of world){
     const s=ensureNuclearArmsControl(region);
     for(const m of Object.values(s.treaties)){if(m.status==='withdrawing'&&Number.isFinite(m.withdrawalEffectiveTick)&&currentTick>=m.withdrawalEffectiveTick){m.status='withdrawn';events.push({type:'nuclear_treaty_withdrawal_effective',regionId:region.id,treatyId:m.id,tick:currentTick});}}
-    const rivals=(regions||[]).filter(r=>r!==region);
-    npcStrategicArmsDecision(region,{rivals,currentTick});
+    npcStrategicArmsDecision(region,{rivals:world,currentTick,context});
     events.push(...applyCompliantReductions(region,currentTick,elapsedDays));
   }
   return events;

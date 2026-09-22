@@ -1,5 +1,6 @@
-import { ensureNuclearWeaponState, nuclearDeterrentStatus } from './nuclearWeaponisation.js?v=20260920-nuclear-weaponisation1';
+import { nuclearDeterrentStatus } from './nuclearWeaponisation.js?v=20260923-nuclear-hotpath1';
 import { tickStrategicWarnings } from '../diplomacy/strategicWarning.js?v=20260922-warning1';
+import { measureActivePerformanceDetail, recordActivePerformanceMetric } from '../core/performanceProfiler.js?v=20260912-deep-profiler1';
 
 const DAYS_PER_YEAR=365.2425;
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
@@ -57,13 +58,15 @@ export function setNuclearRiskPolicy(region,patch={}){
 }
 
 function destructiveCapacity(region){
-  const weapons=ensureNuclearWeaponState(region);
-  const operational=nonNegative(region.nuclearForces?.operationalWarheads||region.nuclearWeapons?.operationalWarheads||0);
-  const reserve=nonNegative(region.nuclearForces?.reserveWarheads||0);
+  // Read-only hot path. Do not initialise nuclear/strategic state merely to
+  // discover that a dormant region has zero destructive capacity.
+  const weapons=region?.nuclearWeapons;
+  const operational=nonNegative(region?.nuclearForces?.operationalWarheads||weapons?.operationalWarheads||0);
+  const reserve=nonNegative(region?.nuclearForces?.reserveWarheads||0);
   const explicit=clamp(Math.log1p(operational+reserve)/Math.log(501));
-  const demonstrated=nuclearDeterrentStatus(region)==='demonstrated_device_capability'?.22:
-    nuclearDeterrentStatus(region)==='untested_device_capability'?.10:0;
-  return clamp(Math.max(explicit,demonstrated,clamp(weapons.prototypeCount||0)*.08));
+  const status=nuclearDeterrentStatus(region);
+  const demonstrated=status==='demonstrated_device_capability'?.22:status==='untested_device_capability'?.10:0;
+  return clamp(Math.max(explicit,demonstrated,clamp(weapons?.prototypeCount||0)*.08));
 }
 
 function observedWarningPressure(region){
@@ -116,9 +119,11 @@ function commandQuality(region,s){
 
 export function assessNuclearWarRisk(region,context={}){
   const s=ensureNuclearRiskState(region),p=s.policy;
-  const capacity=destructiveCapacity(region);
+  const capacity=context.capacityByRegion?.get(region)??destructiveCapacity(region);
   const nuclearPower=capacity>0;
-  const nuclearPowers=(context.regions||[]).filter(r=>destructiveCapacity(r)>0).length;
+  const nuclearPowers=Number.isFinite(context.nuclearPowerCount)
+    ? context.nuclearPowerCount
+    : (context.regions||[]).filter(r=>destructiveCapacity(r)>0).length;
   const crisis=crisisPressureFor(region,context.activeWars||[]);
   const second=secondStrike(region,s);
   const vulnerability=clamp(1-second);
@@ -153,24 +158,34 @@ export function assessNuclearWarRisk(region,context={}){
 
 export function tickNuclearWarRisk(regions,activeWars=[],currentTick=0,elapsedDays=7,rng=Math.random){
   const events=[];
+  const world=regions||[];
   const years=Math.max(0,Number(elapsedDays)||0)/DAYS_PER_YEAR;
-  for(const region of regions||[]){
-    const previous=ensureNuclearRiskState(region).annualCatastrophicExchangeRisk;
-    const s=assessNuclearWarRisk(region,{regions,activeWars});
-    region.report||={};
-    region.report.nuclearRisk=nuclearRiskSummary(region);
-    if(!s.nuclearPower)continue;
-    const crossedHigh=previous<.01&&s.annualCatastrophicExchangeRisk>=.01;
-    const materiallyWorse=s.annualCatastrophicExchangeRisk>=.004&&s.annualCatastrophicExchangeRisk>Math.max(previous*1.5,previous+.002);
-    if(crossedHigh||materiallyWorse){
-      events.push({type:'nuclear_risk_warning',regionId:region.id,regionName:region.name,polityId:polityId(region),tick:currentTick,playerRelevant:false,
-        title:'Nuclear command risk rising',message:`${region.name}'s nuclear posture is becoming less stable as crisis, alert and command pressures reinforce one another.`});
+  const {capacityByRegion,nuclearPowerCount}=measureActivePerformanceDetail('Nuclear economy · capability index',()=>{
+    const capacityByRegion=new Map();let nuclearPowerCount=0;
+    for(const region of world){const capacity=destructiveCapacity(region);capacityByRegion.set(region,capacity);if(capacity>0)nuclearPowerCount++;}
+    return {capacityByRegion,nuclearPowerCount};
+  });
+  recordActivePerformanceMetric('Nuclear economy regions evaluated',world.length);
+  recordActivePerformanceMetric('Nuclear economy nuclear powers',nuclearPowerCount);
+  measureActivePerformanceDetail('Nuclear economy · risk assessment',()=>{
+    const context={regions:world,activeWars,capacityByRegion,nuclearPowerCount};
+    for(const region of world){
+      const previous=ensureNuclearRiskState(region).annualCatastrophicExchangeRisk;
+      const s=assessNuclearWarRisk(region,context);
+      region.report||={};
+      region.report.nuclearRisk=nuclearRiskSummary(region);
+      if(!s.nuclearPower)continue;
+      const crossedHigh=previous<.01&&s.annualCatastrophicExchangeRisk>=.01;
+      const materiallyWorse=s.annualCatastrophicExchangeRisk>=.004&&s.annualCatastrophicExchangeRisk>Math.max(previous*1.5,previous+.002);
+      if(crossedHigh||materiallyWorse){
+        events.push({type:'nuclear_risk_warning',regionId:region.id,regionName:region.name,polityId:polityId(region),tick:currentTick,playerRelevant:false,
+          title:'Nuclear command risk rising',message:`${region.name}'s nuclear posture is becoming less stable as crisis, alert and command pressures reinforce one another.`});
+      }
+      s.periodExchangeProbability=clamp(1-Math.pow(1-s.annualCatastrophicExchangeRisk,years));
+      s.riskSample=(rng?.()??Math.random());
     }
-    // This layer estimates exchange risk but leaves actual war initiation/resolution to the war system.
-    s.periodExchangeProbability=clamp(1-Math.pow(1-s.annualCatastrophicExchangeRisk,years));
-    s.riskSample=(rng?.()??Math.random());
-  }
-  events.push(...tickStrategicWarnings(regions,currentTick,elapsedDays,rng));
+  });
+  events.push(...measureActivePerformanceDetail('Nuclear economy · strategic warnings',()=>tickStrategicWarnings(world,currentTick,elapsedDays,rng)));
   return events;
 }
 
