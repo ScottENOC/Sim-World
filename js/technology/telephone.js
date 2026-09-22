@@ -58,6 +58,9 @@ function sharePolityKnowledge(actor) {
 
 export function tickTelephoneBreakthroughs(regions, currentTick = 0, rng = Math.random, elapsedDays = 7) {
   const frontier = createInnovationFrontier(regions, { mode: 'polity' });
+  const telephoneExists = frontier.anyActorKnows(TELEPHONE_TECH_ID);
+  if (!telephoneExists && !frontier.anyActorKnows('electrical_telegraphy')) return [];
+
   const weekScale = Math.max(0.01, Math.max(0, Number(elapsedDays) || 0) / 7);
   const events = [];
   let unresolvedActors = 0;
