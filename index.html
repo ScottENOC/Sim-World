@@ -146,7 +146,7 @@
         report('Loading simulation module graph…');
         const timeout = setTimeout(() => report('Simulation module graph is still loading after 15 seconds…'), 15000);
         try {
-          await import('./js/main.js?v=20260922-main-graph1');
+          await import('./js/main.js?v=20260922-main-graph2');
           clearTimeout(timeout);
         } catch (error) {
           clearTimeout(timeout);
