@@ -1,4 +1,13 @@
 const MAX_SAMPLES = 240;
+let activeProfiler = null;
+
+export function measureActivePerformanceDetail(label, fn) {
+  return activeProfiler?.measureDetail ? activeProfiler.measureDetail(label, fn) : fn();
+}
+
+export function recordActivePerformanceMetric(label, value) {
+  activeProfiler?.metric?.(label, value);
+}
 
 function percentile(values, p) {
   if (!values.length) return 0;
@@ -320,7 +329,7 @@ export function createPerformanceProfiler() {
     render();
   }
 
-  return {
+  const profiler = {
     mount,
     beginTick,
     measure,
@@ -334,4 +343,6 @@ export function createPerformanceProfiler() {
     get active() { return active; },
     get sampleCount() { return samples.length; },
   };
+  activeProfiler = profiler;
+  return profiler;
 }
