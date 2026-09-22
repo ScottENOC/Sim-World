@@ -38,16 +38,13 @@ export function petroleumBreakthroughChances(region, regionsById, worldHasShallo
   const tech = region.unlockedTechIds || new Set();
   const hasOil = Boolean(region.deposits?.oil);
 
-  // Before the world's first petroleum well, every petroleum technology except
-  // shallow drilling is impossible and shallow-drilling diffusion is exactly
-  // zero. Avoid administration, finance, industry and contact-graph work for
-  // the overwhelmingly common non-oil region while preserving the same chance.
   if (!worldHasShallow) {
     if (!hasOil || tech.has(SHALLOW_OIL_DRILLING_TECH_ID)) return ZERO_CHANCES;
     const mining = readiness(effectiveExperience(region, 'mining'), 400_000);
     if (mining <= 0) return ZERO_CHANCES;
     const smithing = readiness(effectiveExperience(region, 'smithing'), 300_000);
-    return { ...ZERO_CHANCES, shallow: clamp01(mining * (0.25 + smithing * 0.75) * 0.000018) };
+    const shallow = clamp01(mining * (0.25 + smithing * 0.75) * 0.000018);
+    return shallow > 0 ? { shallow, deep:0, fracking:0, offshore:0, refining:0, cracking:0, desulfurisation:0, aviation:0 } : ZERO_CHANCES;
   }
 
   const mining = readiness(effectiveExperience(region, 'mining'), 400_000);
@@ -83,7 +80,6 @@ export function petroleumBreakthroughChances(region, regionsById, worldHasShallo
 export function tickPetroleumBreakthroughs(regions, currentTick, rng = Math.random, elapsedDays = 7) {
   const events = [];
   const worldHasShallow = regions.some((r) => r.unlockedTechIds?.has(SHALLOW_OIL_DRILLING_TECH_ID));
-  // The region index is only useful once diffusion can actually occur.
   const byId = worldHasShallow ? new Map(regions.map((r) => [r.id, r])) : null;
   const scale = Math.max(0, Number(elapsedDays) || 0) / 7;
   const attempts = [
@@ -103,8 +99,6 @@ export function tickPetroleumBreakthroughs(regions, currentTick, rng = Math.rand
       if (region.unlockedTechIds.has(techId)) continue;
       const weekly = chances[key] || 0;
       const chance = 1 - Math.pow(1 - weekly, scale);
-      // Deliberately retain the RNG call even when chance is zero so seeded
-      // technology-major histories keep their existing random-number sequence.
       if ((rng?.() ?? Math.random()) >= chance) continue;
       region.unlockedTechIds.add(techId);
       events.push({ type, regionId: region.id, regionName: region.name, tick: currentTick, title: `${label} developed`, message: `${region.name} can now exploit a new class of petroleum deposits.` });
