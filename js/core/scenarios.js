@@ -96,6 +96,13 @@ export function scenarioAssetUrl(relativePath, scenario = selectedScenario) {
   return `${scenario.mapBaseUrl}${String(relativePath || '').replace(/^\/+/, '')}`;
 }
 
+export function fetchScenarioAssetDirect(relativePath, scenario, init) {
+  const url = scenarioAssetUrl(relativePath, scenario);
+  const directFetch = originalFetch || (typeof window !== 'undefined' && typeof window.fetch === 'function' ? window.fetch.bind(window) : null);
+  if (!directFetch) throw new Error('Browser fetch is not available for scenario assets.');
+  return directFetch(url, init);
+}
+
 export function installScenarioFetchRouting() {
   if (fetchRoutingInstalled || typeof window === 'undefined' || typeof window.fetch !== 'function') return;
   fetchRoutingInstalled = true;
