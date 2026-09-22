@@ -1,5 +1,4 @@
-import { recordPractice, effectiveRecordedExperience } from '../society/education.js?v=20260906-education1';
-import { educationSkillMultiplier } from '../society/massEducation.js?v=20260914-mass-education1';
+import { recordPractice } from '../society/education.js?v=20260906-education1';
 
 // Bronze Age technology isn't a tree of discrete unlocks yet — mostly it's
 // tacit knowledge that accumulates from actually doing the work: soil
@@ -63,28 +62,23 @@ export function accumulateExperience(region, activity, workers) {
 }
 
 function hotEducationSkillMultiplier(region, activity) {
+  // Runtime world initialisation is now the contract. Old/incomplete saves are
+  // intentionally unsupported during development, so this hot path performs no
+  // validation or repair. Missing education state therefore behaves as zero
+  // mass-education benefit rather than invoking ensureMassEducation().
   const s = region.publicEducation;
-  // publicEducation is initialised by the mass-education tick. Once present,
-  // reading three bounded scalar fields is equivalent to repeatedly running
-  // ensureMassEducation(), but avoids its long validation chain in the hottest
-  // technology/economy path. Fall back defensively for old/incomplete saves.
-  if (!s || !Number.isFinite(s.literacy) || !Number.isFinite(s.numeracy) || !Number.isFinite(s.technicalHumanCapital)) {
-    return educationSkillMultiplier(region, activity);
-  }
   const weight = EDUCATION_SKILL_WEIGHTS[activity] ?? EDUCATION_SKILL_WEIGHTS.general;
-  return 1 + s.literacy * weight * 0.35 + s.numeracy * weight * 0.4 + s.technicalHumanCapital * weight * 0.55;
+  if (!s) return 1;
+  return 1 + (s.literacy || 0) * weight * 0.35 +
+    (s.numeracy || 0) * weight * 0.4 +
+    (s.technicalHumanCapital || 0) * weight * 0.55;
 }
 
 export function effectiveExperience(region, activity) {
   const tacit = Math.max(0, region.experience?.[activity] || 0);
-  // Reading recorded experience must not initialise or validate the complete
-  // education model. If it has not been initialised yet, the recorded amount is
-  // simply zero; the existing helper remains the defensive fallback for malformed
-  // state rather than the normal per-call path.
-  const recordedValue = region.education?.recordedExperience?.[activity];
-  const recorded = Number.isFinite(recordedValue)
-    ? Math.max(0, recordedValue)
-    : effectiveRecordedExperience(region, activity);
+  // No save repair here: current worlds initialise education before simulation
+  // ticks. A genuinely absent recorded value is simply zero.
+  const recorded = Math.max(0, region.education?.recordedExperience?.[activity] || 0);
   return (tacit + recorded * RECORDED_EXPERIENCE_WEIGHT) * hotEducationSkillMultiplier(region, activity);
 }
 
