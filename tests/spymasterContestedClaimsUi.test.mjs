@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { renderContestedClaimsBrief } from '../js/ui/spymasterContestedClaimsUi.js';
+import { renderContestedClaimsBrief } from '../js/ui/contestedClaimsBrief.js';
 
 const player={
   report:{informationIntegrity:{
