@@ -265,6 +265,18 @@ export class AdvisorCouncil {
       const partnerText = rule.counterparties?.length ? rule.counterparties.map((id) => actors.find((r) => tradeActorId(r) === id)?.name || id).join(', ') : 'all countries';
       return `${direction}: ${goodText} · ${partnerText}`;
     };
+    const educationSection =
+      '<label class="advisor-field advisor-slider"><span>Mandatory public education <b id="education-years-label">' + education.mandatoryYears + ' years</b></span><input id="mandatory-education-years" type="range" min="0" max="13" step="1" value="' + education.mandatoryYears + '"></label>' +
+      row('Law requires', education.mandatoryYears + ' years') +
+      row('System can presently deliver', education.deliveredYears.toFixed(1) + ' years') +
+      row('School capacity', education.capacityYears.toFixed(1) + ' years') +
+      row('Teachers in service', number(education.teachers)) +
+      row('Pupils enrolled', number(education.students)) +
+      row('Education spending / week', education.weeklyCost.toFixed(1)) +
+      row('Adult average schooling', education.adultAverageYears.toFixed(1) + ' years') +
+      (education.rampYearsEstimate > 0.5 ? row('Estimated time to build capacity', 'about ' + Math.ceil(education.rampYearsEstimate) + ' years', education.rampYearsEstimate > 12 ? 'warning' : '') : '') +
+      '<p class="advisor-note">The law can change at once; teachers and schools cannot. Teachers are drawn from the adult workforce, and pupils forgo work they would otherwise contribute at home or in workshops.</p>' +
+      educationWarnings + educationBenefits;
     return `<p class="advisor-voice">“Coin is stored labour, Majesty. I count where it comes from, and which promises are consuming it.”</p>
       ${section('Treasury', row('Treasury', number(player.treasury)) + row('Household wealth', number(player.wallet)) + row('Revenue this week', revenue.toFixed(1)) + row('Military payroll paid', percent(finance.payRatio ?? 1), (finance.payRatio ?? 1) < .9 ? 'warning' : '') + row('Administration capacity', percent(finance.stateCapacity ?? 1)))}
       ${section('Trade', row('Exports this week', number(trade.weeklyExports)) + row('Imports this week', number(trade.weeklyImports)) + row('Tariff revenue this week', Number(trade.weeklyTariffRevenue || 0).toFixed(1)) + row('Import tariff burden', percent(trade.importTariffBurdenEma || 0)) + row('Trade debt', `${number(trade.debt)} / ${number(trade.creditLimit)}`) + row('Known partners', number(player.tradePartnerIds?.size)))}
@@ -307,18 +319,7 @@ export class AdvisorCouncil {
     return `<p class="advisor-voice">“The realm is more than its warriors. These are the people, harvests and dangers that will still matter next winter.”</p>
       ${section('Realm at home', row('Population', number(player.population)) + row('Stability', percent(player.stability), player.stability < .6 ? 'warning' : '') + row('Safety', percent(player.safetyRating), player.safetyRating < .6 ? 'warning' : '') + row('Bandits', number(player.banditPopulation), player.banditPopulation > 50 ? 'warning' : '') + row('Food stores', number(food)))}
       ${section('This season', row('Weather', player.weather?.condition || 'normal') + row('Crop yield effect', percent(player.weather?.yieldMultiplier ?? 1)) + row('Food import dependence', percent(player.foodImportDependence || player.report?.foodPlan?.importDependence || 0)))}
-      ${section('Public education', `
-        <label class="advisor-field advisor-slider"><span>Mandatory public education <b id="education-years-label">${education.mandatoryYears} years</b></span><input id="mandatory-education-years" type="range" min="0" max="13" step="1" value="${education.mandatoryYears}"></label>
-        ${row('Law requires', `${education.mandatoryYears} years`)}
-        ${row('System can presently deliver', `${education.deliveredYears.toFixed(1)} years`)}
-        ${row('School capacity', `${education.capacityYears.toFixed(1)} years`)}
-        ${row('Teachers in service', number(education.teachers))}
-        ${row('Pupils enrolled', number(education.students))}
-        ${row('Education spending / week', education.weeklyCost.toFixed(1))}
-        ${row('Adult average schooling', `${education.adultAverageYears.toFixed(1)} years`)}
-        ${education.rampYearsEstimate > 0.5 ? row('Estimated time to build capacity', `about ${Math.ceil(education.rampYearsEstimate)} years`, education.rampYearsEstimate > 12 ? 'warning' : '') : ''}
-        <p class="advisor-note">The law can change at once; teachers and schools cannot. Teachers are drawn from the adult workforce, and pupils forgo work they would otherwise contribute at home or in workshops.</p>
-        ${educationWarnings}${educationBenefits}`)}
+      ${section('Public education', educationSection)}
       ${section('Construction', active && type ? `
         <div class="construction-project"><strong>${active.kind === 'repair' ? `Repair ${type.name}` : type.name}</strong><span>${Math.round(progress * 100)}%</span>
           <div class="construction-progress"><i style="width:${Math.round(progress * 100)}%"></i></div></div>
