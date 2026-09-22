@@ -22,6 +22,33 @@ function diseaseSymptomDescription(title) {
   return 'sickness';
 }
 
+export function quarantineAdviceForBurden(prevalencePct, deaths) {
+  const prevalence = Math.max(0, Number(prevalencePct) || 0);
+  const recentDeaths = Math.max(0, Number(deaths) || 0);
+  if (prevalence >= 7 || recentDeaths >= 25) {
+    return {
+      policy: 1,
+      label: 'Cordon and close markets',
+      sentence: 'The Steward recommends cordoning affected areas and closing markets until the outbreak eases.',
+    };
+  }
+  if (prevalence >= 4 || recentDeaths >= 5) {
+    return {
+      policy: 0.65,
+      label: 'Quarantine travellers',
+      sentence: 'The Steward recommends quarantining travellers and tightening movement controls while the outbreak is active.',
+    };
+  }
+  if (prevalence >= 2) {
+    return {
+      policy: 0.3,
+      label: 'Inspect and isolate',
+      sentence: 'The Steward recommends inspecting travellers and isolating suspected cases before the sickness spreads further.',
+    };
+  }
+  return null;
+}
+
 export function diseaseAttentionNotice(title, body) {
   const { prevalencePct, deaths } = parseDiseaseNumbers(body);
   if (prevalencePct < 2 && deaths < 5) return null;
@@ -29,16 +56,19 @@ export function diseaseAttentionNotice(title, body) {
   const symptom = diseaseSymptomDescription(title);
   const severe = prevalencePct >= 7 || deaths >= 25;
   const substantial = prevalencePct >= 4 || deaths >= 5;
+  const advice = quarantineAdviceForBurden(prevalencePct, deaths);
   let message;
   if (severe) message = `The Steward reports that ${symptom} is causing serious disruption and an unusual number of deaths.`;
   else if (substantial) message = `The Steward reports that ${symptom} is spreading noticeably through the populace.`;
   else message = `The populace appears to be suffering through a particularly bad spell of ${symptom}.`;
+  if (advice) message = `${message} ${advice.sentence}`;
 
   return {
     title: severe ? 'Serious illness in the realm' : 'Illness reported',
     body: message,
-    actionLabel: 'Review with Steward',
+    actionLabel: advice ? `Review: ${advice.label}` : 'Review with Steward',
     action: 'open-steward',
+    recommendedQuarantinePolicy: advice?.policy ?? null,
   };
 }
 
