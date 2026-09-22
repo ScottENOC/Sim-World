@@ -3,6 +3,7 @@ import { createInnovationFrontier } from './innovationFrontier.js?v=20260922-fro
 import { TELEPHONE_TECH_ID } from '../economy/localCommunications.js?v=20260918-telephone1';
 
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
+const TELEPHONE_FRONTIER_TECHS = Object.freeze([TELEPHONE_TECH_ID, 'electrical_telegraphy']);
 
 function readiness(region) {
   if (!region.unlockedTechIds?.has?.('electrical_telegraphy')) return 0;
@@ -57,7 +58,7 @@ function sharePolityKnowledge(actor) {
 }
 
 export function tickTelephoneBreakthroughs(regions, currentTick = 0, rng = Math.random, elapsedDays = 7) {
-  const frontier = createInnovationFrontier(regions, { mode: 'polity' });
+  const frontier = createInnovationFrontier(regions, { mode: 'polity', trackTechIds: TELEPHONE_FRONTIER_TECHS });
   const telephoneExists = frontier.anyActorKnows(TELEPHONE_TECH_ID);
   if (!telephoneExists && !frontier.anyActorKnows('electrical_telegraphy')) return [];
 
@@ -65,8 +66,6 @@ export function tickTelephoneBreakthroughs(regions, currentTick = 0, rng = Math.
   const events = [];
   let unresolvedActors = 0;
 
-  // Migrate any older region-scoped telephone knowledge into the polity knowledge
-  // model before deciding whether this technology is globally complete.
   for (const actor of frontier.actorsById.values()) {
     if (actor.knownTechIds.has(TELEPHONE_TECH_ID)) sharePolityKnowledge(actor);
     else unresolvedActors++;
