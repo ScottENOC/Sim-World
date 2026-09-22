@@ -116,6 +116,9 @@ async function installEarlyPicker() {
   };
 
   const markPendingStart = (scenario, region, continent, country, countryFirst = false) => {
+    // Keep the lightweight picker responsive. Only release the full world loader once
+    // the player has actually chosen a starting region/country.
+    selectScenario(scenario.id);
     window.__pendingStartRegionId = region.id;
     window.__pendingStartRegionName = region.name;
     window.__pendingStartNavigation = { continent, country };
@@ -223,7 +226,8 @@ async function installEarlyPicker() {
 
   const chooseScenario = (scenario) => {
     try {
-      selectScenario(scenario.id);
+      // Do not lock/release the scenario yet: main.js holds heavy map fetches until
+      // the player chooses a start. The picker can read its small metadata directly.
       if (scenario.rulesProfile === 'modern-crisis') renderFocusedCountryPicker(scenario);
       else renderRegionPicker(scenario);
     } catch (error) {
