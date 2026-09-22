@@ -137,7 +137,7 @@ export function launchAiStatecraftOperation(attacker,target,{type=AI_STATECRAFT_
   const operation={id:`ai-op-${nextOperationId++}`,tick:currentTick,type,intensity:clamp(intensity),targetPolityId:polityId(target),success,detected,attributed,successChance,detectionChance,attributionChance,gain};
   a.operations.push(operation);if(a.operations.length>50)a.operations.shift();
   if(detected){
-    recordInformationIncident(target,{type:'ai_statecraft_intrusion',headline:`Suspected foreign AI intrusion detected in ${target.name||target.id}`,tick:currentTick,allegedActorId:attributed?polityId(attacker):null,sourceReliability:.66,provenance:.58,corroboration:.42,forensicSupport:.48,attributionEvidence:attributed?.62:.18,evidenceType:'digital',narratives:attributed?[]:[{kind:'alternative_attribution',reach:.32,sourceReliability:.42,evidenceSupport:.18,publishedTick:currentTick}]});
+    recordInformationIncident(target,{type:'ai_statecraft_intrusion',headline:`Suspected foreign AI intrusion detected in ${target.name||target.id}`,tick:currentTick,allegedActorId:attributed?polityId(attacker):null,sourceReliability:.66,provenance:.58,corroboration:.42,forensicSupport:.48,attributionEvidence:attributed ? .62 : .18,evidenceType:'digital',narratives:attributed?[]:[{kind:'alternative_attribution',reach:.32,sourceReliability:.42,evidenceSupport:.18,publishedTick:currentTick}]});
   }
   return{launched:true,...operation};
 }
