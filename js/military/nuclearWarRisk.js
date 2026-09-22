@@ -1,4 +1,5 @@
 import { ensureNuclearWeaponState, nuclearDeterrentStatus } from './nuclearWeaponisation.js?v=20260920-nuclear-weaponisation1';
+import { tickStrategicWarnings } from '../diplomacy/strategicWarning.js?v=20260922-warning1';
 
 const DAYS_PER_YEAR=365.2425;
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
@@ -154,6 +155,7 @@ export function tickNuclearWarRisk(regions,activeWars=[],currentTick=0,elapsedDa
     s.periodExchangeProbability=clamp(1-Math.pow(1-s.annualCatastrophicExchangeRisk,years));
     s.riskSample=(rng?.()??Math.random());
   }
+  events.push(...tickStrategicWarnings(regions,currentTick,elapsedDays,rng));
   return events;
 }
 
