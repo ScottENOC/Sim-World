@@ -266,18 +266,6 @@ export class AdvisorCouncil {
       const partnerText = rule.counterparties?.length ? rule.counterparties.map((id) => actors.find((r) => tradeActorId(r) === id)?.name || id).join(', ') : 'all countries';
       return `${direction}: ${goodText} · ${partnerText}`;
     };
-    const educationSection =
-      '<label class="advisor-field advisor-slider"><span>Mandatory public education <b id="education-years-label">' + education.mandatoryYears + ' years</b></span><input id="mandatory-education-years" type="range" min="0" max="13" step="1" value="' + education.mandatoryYears + '"></label>' +
-      row('Law requires', education.mandatoryYears + ' years') +
-      row('System can presently deliver', education.deliveredYears.toFixed(1) + ' years') +
-      row('School capacity', education.capacityYears.toFixed(1) + ' years') +
-      row('Teachers in service', number(education.teachers)) +
-      row('Pupils enrolled', number(education.students)) +
-      row('Education spending / week', education.weeklyCost.toFixed(1)) +
-      row('Adult average schooling', education.adultAverageYears.toFixed(1) + ' years') +
-      (education.rampYearsEstimate > 0.5 ? row('Estimated time to build capacity', 'about ' + Math.ceil(education.rampYearsEstimate) + ' years', education.rampYearsEstimate > 12 ? 'warning' : '') : '') +
-      '<p class="advisor-note">The law can change at once; teachers and schools cannot. Teachers are drawn from the adult workforce, and pupils forgo work they would otherwise contribute at home or in workshops.</p>' +
-      educationWarnings + educationBenefits;
     return `<p class="advisor-voice">“Coin is stored labour, Majesty. I count where it comes from, and which promises are consuming it.”</p>
       ${section('Treasury', row('Treasury', number(player.treasury)) + row('Household wealth', number(player.wallet)) + row('Revenue this week', revenue.toFixed(1)) + row('Military payroll paid', percent(finance.payRatio ?? 1), (finance.payRatio ?? 1) < .9 ? 'warning' : '') + row('Administration capacity', percent(finance.stateCapacity ?? 1)))}
       ${section('Trade', row('Exports this week', number(trade.weeklyExports)) + row('Imports this week', number(trade.weeklyImports)) + row('Tariff revenue this week', Number(trade.weeklyTariffRevenue || 0).toFixed(1)) + row('Import tariff burden', percent(trade.importTariffBurdenEma || 0)) + row('Trade debt', `${number(trade.debt)} / ${number(trade.creditLimit)}`) + row('Known partners', number(player.tradePartnerIds?.size)))}
@@ -317,11 +305,24 @@ export class AdvisorCouncil {
     const education = educationAdvisorReport(player);
     const educationWarnings = education.warnings.map((text) => '<p class="advisor-note warning">' + text + '</p>').join('');
     const educationBenefits = education.benefits.map((text) => '<p class="advisor-note">' + text + '</p>').join('');
-    return `<p class="advisor-voice">“The realm is more than its warriors. These are the people, harvests and dangers that will still matter next winter.”</p>
-      ${section('Realm at home', row('Population', number(player.population)) + row('Stability', percent(player.stability), player.stability < .6 ? 'warning' : '') + row('Safety', percent(player.safetyRating), player.safetyRating < .6 ? 'warning' : '') + row('Bandits', number(player.banditPopulation), player.banditPopulation > 50 ? 'warning' : '') + row('Food stores', number(food)))}
-      ${section('This season', row('Weather', player.weather?.condition || 'normal') + row('Crop yield effect', percent(player.weather?.yieldMultiplier ?? 1)) + row('Food import dependence', percent(player.foodImportDependence || player.report?.foodPlan?.importDependence || 0)))}
-      ${section('Public education', educationSection)}
-      ${section('Construction', active && type ? `
+    const educationSection =
+      '<label class="advisor-field advisor-slider"><span>Mandatory public education <b id="education-years-label">' + education.mandatoryYears + ' years</b></span><input id="mandatory-education-years" type="range" min="0" max="13" step="1" value="' + education.mandatoryYears + '"></label>' +
+      row('Law requires', education.mandatoryYears + ' years') +
+      row('System can presently deliver', education.deliveredYears.toFixed(1) + ' years') +
+      row('School capacity', education.capacityYears.toFixed(1) + ' years') +
+      row('Teachers in service', number(education.teachers)) +
+      row('Pupils enrolled', number(education.students)) +
+      row('Education spending / week', education.weeklyCost.toFixed(1)) +
+      row('Adult average schooling', education.adultAverageYears.toFixed(1) + ' years') +
+      (education.rampYearsEstimate > 0.5 ? row('Estimated time to build capacity', 'about ' + Math.ceil(education.rampYearsEstimate) + ' years', education.rampYearsEstimate > 12 ? 'warning' : '') : '') +
+      '<p class="advisor-note">The law can change at once; teachers and schools cannot. Teachers are drawn from the adult workforce, and pupils forgo work they would otherwise contribute at home or in workshops.</p>' +
+      educationWarnings + educationBenefits;
+    const stewardVoice = '<p class="advisor-voice">“The realm is more than its warriors. These are the people, harvests and dangers that will still matter next winter.”</p>';
+    return stewardVoice +
+      section('Realm at home', row('Population', number(player.population)) + row('Stability', percent(player.stability), player.stability < .6 ? 'warning' : '') + row('Safety', percent(player.safetyRating), player.safetyRating < .6 ? 'warning' : '') + row('Bandits', number(player.banditPopulation), player.banditPopulation > 50 ? 'warning' : '') + row('Food stores', number(food))) +
+      section('This season', row('Weather', player.weather?.condition || 'normal') + row('Crop yield effect', percent(player.weather?.yieldMultiplier ?? 1)) + row('Food import dependence', percent(player.foodImportDependence || player.report?.foodPlan?.importDependence || 0))) +
+      section('Public education', educationSection) +
+      section('Construction', active && type ? `
         <div class="construction-project"><strong>${active.kind === 'repair' ? `Repair ${type.name}` : type.name}</strong><span>${Math.round(progress * 100)}%</span>
           <div class="construction-progress"><i style="width:${Math.round(progress * 100)}%"></i></div></div>
         ${row('Work completed', `${number(active.workDone)} / ${number(requiredWork)} worker-weeks`)}
@@ -335,12 +336,12 @@ export class AdvisorCouncil {
           <label class="advisor-field advisor-slider"><span>Assigned builders <b id="new-builder-count-label">100</b></span><input id="new-construction-workers" type="range" min="25" max="400" step="5" value="100"></label>
           <div id="construction-estimate" class="advisor-note"></div>
           <button id="start-construction" class="advisor-order">Commission project</button>`
-        : '<p class="advisor-note">No known project is available. New forms of construction emerge through need, accumulated skill and contact with other builders.</p>')}
-      ${construction.assets.length ? section('Infrastructure condition', construction.assets.map((asset) => {
+        : '<p class="advisor-note">No known project is available. New forms of construction emerge through need, accumulated skill and contact with other builders.</p>') +
+      (construction.assets.length ? section('Infrastructure condition', construction.assets.map((asset) => {
         const assetType = CONSTRUCTION_TYPES[asset.typeId];
         const condition = Math.round((asset.condition || 0) * 100);
         return `<div class="advisor-report-row ${condition < 50 ? 'warning' : ''}"><span>${assetType?.name || asset.typeId}</span><strong>${condition}% · ${condition <= 20 ? 'disabled' : asset.maintenanceRatio < .95 ? 'under-maintained' : 'operational'}</strong></div>${condition < 100 && !active ? `<button class="advisor-order" data-repair-asset="${asset.id}">Repair ${assetType?.name || 'infrastructure'}</button>` : ''}`;
-      }).join('') + '<p class="advisor-note">Maintenance is paid automatically. If labour, materials or treasury funds are unavailable, condition and benefits decline.</p>') : ''}`;
+      }).join('') + '<p class="advisor-note">Maintenance is paid automatically. If labour, materials or treasury funds are unavailable, condition and benefits decline.</p>') : '');
   }
 
   renderEnvoy(player) {
