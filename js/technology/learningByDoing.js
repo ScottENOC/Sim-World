@@ -1,5 +1,4 @@
 import { recordPractice } from '../society/education.js?v=20260906-education1';
-import { educationSkillMultiplier } from '../society/massEducation.js?v=20260914-mass-education1';
 
 // Bronze Age technology isn't a tree of discrete unlocks yet — mostly it's
 // tacit knowledge that accumulates from actually doing the work: soil
@@ -46,6 +45,12 @@ const EXPERIENCE_HALFLIFE = {
 };
 
 const RECORDED_EXPERIENCE_WEIGHT = 0.7;
+const EDUCATION_SKILL_WEIGHTS = Object.freeze({
+  farming: 0.03, gathering: 0.02, fishing: 0.05, horseHusbandry: 0.04,
+  lumberjack: 0.06, mining: 0.14, pottery: 0.10, textiles: 0.16,
+  smithing: 0.22, boatbuilding: 0.18, administration: 0.32,
+  manufacture: 0.24, engineering: 0.28, science: 0.38, general: 0.12,
+});
 
 export const LEARNABLE_ACTIVITIES = Object.keys(CEILING);
 
@@ -56,12 +61,24 @@ export function accumulateExperience(region, activity, workers) {
   recordPractice(region, activity, workers);
 }
 
+function learningEducationMultiplier(region, activity) {
+  // Deliberately duplicated from massEducation's public hot-read helper: this is
+  // one of the two dominant iOS tick paths, so keep it monomorphic and local rather
+  // than adding a cross-module call for every experience lookup.
+  const s = region.publicEducation;
+  if (!s) return 1;
+  const weight = EDUCATION_SKILL_WEIGHTS[activity] ?? EDUCATION_SKILL_WEIGHTS.general;
+  return 1 + (s.literacy || 0) * weight * 0.35 +
+    (s.numeracy || 0) * weight * 0.4 +
+    (s.technicalHumanCapital || 0) * weight * 0.55;
+}
+
 export function effectiveExperience(region, activity) {
   const tacit = Math.max(0, region.experience?.[activity] || 0);
   // Current runtime state is the contract during development. Hot reads do not
   // repair legacy saves; absent recorded experience simply contributes zero.
   const recorded = Math.max(0, region.education?.recordedExperience?.[activity] || 0);
-  return (tacit + recorded * RECORDED_EXPERIENCE_WEIGHT) * educationSkillMultiplier(region, activity);
+  return (tacit + recorded * RECORDED_EXPERIENCE_WEIGHT) * learningEducationMultiplier(region, activity);
 }
 
 export function skillMultiplier(region, activity) {
