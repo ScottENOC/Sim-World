@@ -1,0 +1,39 @@
+const DAYS_PER_YEAR=365.2425;
+const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
+const positive=v=>Math.max(0,Number(v)||0);
+
+function tech(region,id){return !!region?.unlockedTechIds?.has?.(id);}
+function coastalAccess(region){return region?.isCoastal?1:((region?.hydrology?.riverIds||[]).length?0.45:0);}
+function power(region){return clamp(region?.electricity?.industrialService||0);}
+function admin(region){return clamp(region?.governance?.administrativeControl??region?.governance?.administration?.recordKeeping??.25);}
+function literacy(region){return clamp(region?.publicEducation?.literacy??region?.education?.literacyRate??region?.educationLevel??0);}
+function environmentalQuality(region){const stress=clamp(region?.hydrology?.ecologicalHealth!==undefined?1-region.hydrology.ecologicalHealth:region?.hydrology?.report?.ecologicalStress||0),pollution=clamp(region?.hydrology?.report?.eutrophicationRisk||0);return clamp(1-stress*.55-pollution*.45,.15,1);}
+function fishingCapability(region){const access=coastalAccess(region),boats=tech(region,'boatbuilding')?.22:0,advancedBoats=tech(region,'advanced_boatbuilding')?.18:0,refrigeration=tech(region,'refrigeration')?.16:0,electricity=power(region)*.12,industry=clamp(region?.industrialSupply?.capability?.precision_machining||0)*.12;return clamp(access*(.18+boats+advancedBoats+refrigeration+electricity+industry));}
+function managementCapability(region){const science=clamp((region?.cropBiotechnology?.platformMaturity||0)*.15+(region?.publicEducation?.literacy||0)*.2),monitoring=tech(region,'radio')?.12:0;return clamp(admin(region)*.42+literacy(region)*.28+science+monitoring+.05);}
+function aquacultureCapability(region){const biology=tech(region,'germ_theory')?.18:0,refrigeration=tech(region,'refrigeration')?.18:0,electrification=tech(region,'industrial_electrification')?.22:0,biotech=clamp(region?.cropBiotechnology?.platformMaturity||region?.cropBiotechnology?.capability||0)*.20,vet=clamp(region?.livestockAgriculture?.veterinaryCapability||0)*.12;return clamp((.10+biology+refrigeration+electrification+biotech+vet)*(.45+.55*coastalAccess(region))*(.45+.55*power(region)));}
+
+export function ensureFisheriesAquaculture(region){region.fisheriesAquaculture||={};const s=region.fisheriesAquaculture;for(const [k,v] of Object.entries({wildStock:.82,wildCarryingCapacity:1,fishingEffort:.12,managementInvestment:.15,quotaStrictness:.15,enforcement:.1,wildCatch:0,overfishingPressure:0,stockCollapseRisk:0,aquacultureInvestment:.08,aquacultureShare:0,aquacultureOutput:0,feedDemand:0,feedConsumed:0,feedSatisfaction:1,diseasePressure:.05,antibioticPressure:0,antibioticResistance:0,electricityLoad:0,waterDemand:0,nutrientLoad:0,totalOutput:0,animalFoodSupplement:0}))if(!Number.isFinite(s[k]))s[k]=v;return s;}
+
+export function setFisheriesPolicy(region,patch={}){const s=ensureFisheriesAquaculture(region);for(const key of ['fishingEffort','managementInvestment','quotaStrictness','aquacultureInvestment'])if(patch[key]!==undefined)s[key]=clamp(patch[key]);return {fishingEffort:s.fishingEffort,managementInvestment:s.managementInvestment,quotaStrictness:s.quotaStrictness,aquacultureInvestment:s.aquacultureInvestment};}
+
+export function tickFisheriesAquaculture(region,elapsedDays=7){
+  const s=ensureFisheriesAquaculture(region),years=positive(elapsedDays)/DAYS_PER_YEAR,access=coastalAccess(region),fishCap=fishingCapability(region),management=managementCapability(region),eco=environmentalQuality(region),aquaCap=aquacultureCapability(region),pop=Math.max(1,positive(region?.population)),scale=Math.pow(pop/100000,.72);
+  s.wildCarryingCapacity=clamp(.45+access*.35+eco*.28,.25,1);
+  s.enforcement=clamp(management*(.25+.75*s.managementInvestment));
+  const effectiveQuota=clamp(s.quotaStrictness*s.enforcement),effectiveEffort=clamp(s.fishingEffort*(1-effectiveQuota*.78)),catchability=fishCap*(.35+.65*s.wildStock),potentialCatch=scale*access*effectiveEffort*catchability*.12*Math.max(.05,positive(elapsedDays)/7),sustainableCatch=scale*access*s.wildStock*s.wildCarryingCapacity*.045*Math.max(.05,positive(elapsedDays)/7);
+  s.wildCatch=Math.max(0,Math.min(potentialCatch,s.wildStock*scale*.20));
+  s.overfishingPressure=clamp((s.wildCatch-sustainableCatch)/Math.max(.001,sustainableCatch),0,2);
+  const logisticRecovery=.24*s.wildStock*(1-s.wildStock/Math.max(.05,s.wildCarryingCapacity))*years,harvestLoss=(s.wildCatch/Math.max(.25,scale))*years*1.8,pollutionLoss=(1-eco)*.08*years;s.wildStock=clamp(s.wildStock+logisticRecovery-harvestLoss-pollutionLoss,.02,s.wildCarryingCapacity);
+  s.stockCollapseRisk=clamp((.32-s.wildStock)/.32*.65+s.overfishingPressure*.35);
+
+  const aquaTarget=aquaCap*clamp(.15+s.aquacultureInvestment*.85)*clamp(.45+(1-s.wildStock)*.45,0,1),adjust=1-Math.exp(-years*(.10+s.aquacultureInvestment*.28));s.aquacultureShare=clamp(s.aquacultureShare+(aquaTarget-s.aquacultureShare)*adjust,0,.85);
+  const feedNeed=scale*s.aquacultureShare*(.018+.028*(1-clamp(region?.livestockAgriculture?.feedEfficiency||0)))*Math.max(.05,positive(elapsedDays)/7);region.stockpile||={};const grain=positive(region.stockpile.staple_grains),pulses=positive(region.stockpile.pulses),availableFeed=grain+pulses,feedConsumed=Math.min(availableFeed,feedNeed),grainUse=Math.min(grain,feedConsumed),pulseUse=Math.max(0,feedConsumed-grainUse);region.stockpile.staple_grains=Math.max(0,grain-grainUse);region.stockpile.pulses=Math.max(0,pulses-pulseUse);s.feedDemand=feedNeed;s.feedConsumed=feedConsumed;s.feedSatisfaction=feedNeed>0?clamp(feedConsumed/feedNeed):1;
+  const crowding=s.aquacultureShare,waterQuality=eco,diseaseBase=.04+crowding*.24+(1-waterQuality)*.18+(1-s.feedSatisfaction)*.12,vet=clamp(region?.livestockAgriculture?.veterinaryCapability||0);s.diseasePressure=clamp(diseaseBase*(1-vet*.55)*(1-s.antibioticResistance*.18),.01,.65);s.antibioticPressure=clamp(crowding*s.diseasePressure*(.3+.7*vet),0,.5);s.antibioticResistance=clamp(s.antibioticResistance+(s.antibioticPressure*.13-s.antibioticResistance*.01)*years,0,.9);
+  const powerService=power(region),aquaEfficiency=(.65+.35*powerService)*(.72+.28*s.feedSatisfaction)*(1-s.diseasePressure*.45);s.aquacultureOutput=scale*s.aquacultureShare*aquaCap*aquaEfficiency*.085*Math.max(.05,positive(elapsedDays)/7);s.electricityLoad=scale*s.aquacultureShare*(.012+.032*aquaCap)*Math.max(.05,positive(elapsedDays)/7);s.waterDemand=scale*s.aquacultureShare*(.004+.012*(1-access*.5));s.nutrientLoad=clamp(scale*s.aquacultureShare*(.025+.08*(1-s.feedSatisfaction)+.05*s.diseasePressure),0,1.8);
+  s.totalOutput=s.wildCatch+s.aquacultureOutput;s.animalFoodSupplement=clamp(s.totalOutput/Math.max(.001,scale*.20),0,.65);
+  region.report||={};region.report.fisheriesAquaculture=fisheriesAquacultureSummary(region);return s;
+}
+
+export function fisheriesAnimalFoodSupplement(region){return positive(ensureFisheriesAquaculture(region).animalFoodSupplement);}
+export function fisheriesWaterDemand(region){return positive(ensureFisheriesAquaculture(region).waterDemand);}
+export function fisheriesAquacultureSummary(region){const s=ensureFisheriesAquaculture(region);return {workers:0,wildStock:s.wildStock,wildCarryingCapacity:s.wildCarryingCapacity,fishingEffort:s.fishingEffort,managementInvestment:s.managementInvestment,quotaStrictness:s.quotaStrictness,enforcement:s.enforcement,wildCatch:s.wildCatch,overfishingPressure:s.overfishingPressure,stockCollapseRisk:s.stockCollapseRisk,aquacultureInvestment:s.aquacultureInvestment,aquacultureShare:s.aquacultureShare,aquacultureOutput:s.aquacultureOutput,feedDemand:s.feedDemand,feedConsumed:s.feedConsumed,feedSatisfaction:s.feedSatisfaction,diseasePressure:s.diseasePressure,antibioticPressure:s.antibioticPressure,antibioticResistance:s.antibioticResistance,electricityLoad:s.electricityLoad,waterDemand:s.waterDemand,nutrientLoad:s.nutrientLoad,totalOutput:s.totalOutput,animalFoodSupplement:s.animalFoodSupplement};}
