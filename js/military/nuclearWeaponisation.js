@@ -112,10 +112,14 @@ export function tickNuclearWeaponProgramme(region,currentTick,elapsedDays=7,rng=
 }
 
 export function nuclearDeterrentStatus(region){
-  const s=ensureNuclearWeaponState(region);
-  const tested=s.tests.some(t=>t.completed);
-  if(s.prototypeCount<=0)return 'none';
-  if(tested&&s.validationConfidence>=.7)return 'demonstrated_device_capability';
+  // This query is used in world-scale deterrence/risk scans. A region with no
+  // nuclear-weapons state cannot have a prototype or completed test, so avoid
+  // calling ensureNuclearWeaponState() here: that would initialise the entire
+  // strategic-nuclear stack just to answer "none" for dormant regions.
+  const s=region?.nuclearWeapons;
+  if(!s||!(Number(s.prototypeCount)>0))return 'none';
+  const tested=Array.isArray(s.tests)&&s.tests.some(t=>t?.completed);
+  if(tested&&Number(s.validationConfidence)>=.7)return 'demonstrated_device_capability';
   return 'untested_device_capability';
 }
 
