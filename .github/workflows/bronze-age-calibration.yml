@@ -1,0 +1,76 @@
+name: Bronze Age calibration diagnostics
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  history:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: A
+            seed: 305419896
+          - label: B
+            seed: 2959855665
+          - label: C
+            seed: 12648430
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run 200-year Bronze Age history seed ${{ matrix.label }}
+        run: |
+          start=$(date +%s)
+          node tools/calibrate.mjs --years 200 --seeds 1 --base-seed ${{ matrix.seed }} --snapshot-years 10 --days-per-tick 30 --output bronze-age-${{ matrix.label }}.json
+          end=$(date +%s)
+          echo "BRONZE_AGE_RUNTIME_SECONDS=$((end-start))"
+      - name: Analyse Bronze Age trajectory
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const file = fs.readdirSync('.').find(f => f.startsWith('bronze-age-') && f.endsWith('.json'));
+          const report = JSON.parse(fs.readFileSync(file, 'utf8'));
+          const timeline = report.runs?.[0]?.timeline ?? [];
+          if (timeline.length < 10) throw new Error('Bronze Age calibration produced too few snapshots');
+          const n = v => Number(v) || 0;
+          const maxBy = key => timeline.reduce((best, s) => n(s[key]) > n(best[key]) ? s : best, timeline[0]);
+          const minAfter = (key, startYear) => timeline.filter(s => n(s.year) >= startYear).reduce((best, s) => n(s[key]) < n(best[key]) ? s : best);
+          const tradePeak = maxBy('smoothedWeeklyTrade');
+          const populationPeak = maxBy('populationPct');
+          const bronzePeak = maxBy('weeklyBronzeOutput');
+          const postPeakTrade = minAfter('smoothedWeeklyTrade', n(tradePeak.year));
+          const postPeakPopulation = minAfter('populationPct', n(populationPeak.year));
+          const firstIron = timeline.find(s => n(s.ironRegions) > 0) ?? null;
+          const firstTinHalf = timeline.find(s => n(s.surfaceTinPct) <= 50) ?? null;
+          const maximumDistress = timeline.reduce((best, s) => n(s.distressedRegions) > n(best.distressedRegions) ? s : best, timeline[0]);
+          const maximumRaiding = timeline.reduce((best, s) => n(s.raidWindow?.wins) > n(best.raidWindow?.wins) ? s : best, timeline[0]);
+          const final = timeline.at(-1);
+          const summary = {
+            seed: report.configuration?.baseSeed,
+            regions: report.configuration?.actualRegions,
+            elapsedSeconds: report.elapsedSeconds,
+            tradePeak: { year: tradePeak.year, calendarYearBCE: Math.round(1300 - n(tradePeak.year)), value: n(tradePeak.smoothedWeeklyTrade) },
+            postPeakTradeTrough: { year: postPeakTrade.year, calendarYearBCE: Math.round(1300 - n(postPeakTrade.year)), value: n(postPeakTrade.smoothedWeeklyTrade), pctOfPeak: +(100*n(postPeakTrade.smoothedWeeklyTrade)/Math.max(1,n(tradePeak.smoothedWeeklyTrade))).toFixed(1) },
+            populationPeak: { year: populationPeak.year, value: n(populationPeak.populationPct) },
+            populationTrough: { year: postPeakPopulation.year, value: n(postPeakPopulation.populationPct), pctOfPeak: +(100*n(postPeakPopulation.populationPct)/Math.max(1,n(populationPeak.populationPct))).toFixed(1) },
+            bronzePeak: { year: bronzePeak.year, value: n(bronzePeak.weeklyBronzeOutput) },
+            firstTinHalf: firstTinHalf ? { year: firstTinHalf.year, calendarYearBCE: Math.round(1300 - n(firstTinHalf.year)) } : null,
+            firstIron: firstIron ? { year: firstIron.year, calendarYearBCE: Math.round(1300 - n(firstIron.year)), regions: n(firstIron.ironRegions) } : null,
+            maximumDistress: { year: maximumDistress.year, regions: n(maximumDistress.distressedRegions) },
+            maximumRaiding: { year: maximumRaiding.year, wins: n(maximumRaiding.raidWindow?.wins), loot: n(maximumRaiding.raidWindow?.lootValue) },
+            final: { populationPct:n(final.populationPct), trade:n(final.smoothedWeeklyTrade), foodImports:n(final.smoothedWeeklyFoodImports), tinPct:n(final.surfaceTinPct), copperPct:n(final.surfaceCopperPct), bronzeOutput:n(final.weeklyBronzeOutput), ironRegions:n(final.ironRegions), distressed:n(final.distressedRegions), bandits:n(final.bandits) }
+          };
+          console.log('BRONZE_AGE_SUMMARY='+JSON.stringify(summary));
+          for (const s of timeline) console.log('BRONZE_AGE_SNAPSHOT='+JSON.stringify({elapsedYears:s.year,calendarYearBCE:Math.round(1300-n(s.year)),populationPct:n(s.populationPct),trade:n(s.smoothedWeeklyTrade),foodImports:n(s.smoothedWeeklyFoodImports),tinPct:n(s.surfaceTinPct),copperPct:n(s.surfaceCopperPct),bronzeOutput:n(s.weeklyBronzeOutput),ironRegions:n(s.ironRegions),distressed:n(s.distressedRegions),bandits:n(s.bandits),raidWins:n(s.raidWindow?.wins),raidLoot:n(s.raidWindow?.lootValue),foodDependentRegions:n(s.foodDependentRegions),farmerToolCoveragePct:n(s.farmerToolCoveragePct)}));
+          if (!timeline.every(s => Number.isFinite(Number(s.populationPct)) && Number.isFinite(Number(s.smoothedWeeklyTrade)))) throw new Error('Non-finite Bronze Age trajectory');
+          if (n(final.populationPct) <= 0 || n(final.populationPct) > 500) throw new Error('Implausible final population trajectory');
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bronze-age-history-${{ matrix.label }}
+          path: bronze-age-${{ matrix.label }}.json
+          retention-days: 14
