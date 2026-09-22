@@ -20,6 +20,7 @@ export class Clock {
     this.worldTempo = { index: 0, daysPerTick: 30, label: 'monthly', signals: {} };
     this.speed = 1;
     this._resumeSpeed = 1;
+    this._resumeAfterAutoPause = false;
     this._nextTickAt = null;
     this._tickListeners = [];
     this._speedListeners = [];
@@ -54,18 +55,26 @@ export class Clock {
   setSpeed(speed) {
     if (this._pendingResponseRequired > 0 && speed !== 0) return false;
     if (speed !== 0 && !RUNNING_SPEEDS.includes(speed)) return false;
+    if (speed === 0 && this._pendingResponseRequired === 0) this._resumeAfterAutoPause = false;
     return this._applySpeed(speed, { automatic: false, reason: 'player' });
   }
 
   togglePause() { return this.setSpeed(this.speed === 0 ? this._resumeSpeed : 0); }
 
   requestAutoPause() {
+    if (this._pendingResponseRequired === 0) this._resumeAfterAutoPause = this.speed > 0;
     this._pendingResponseRequired++;
     this._applySpeed(0, { automatic: true, reason: 'event' });
   }
 
   releaseAutoPause() {
     this._pendingResponseRequired = Math.max(0, this._pendingResponseRequired - 1);
+    if (this._pendingResponseRequired > 0) return;
+    const shouldResume = this._resumeAfterAutoPause;
+    this._resumeAfterAutoPause = false;
+    if (shouldResume && this.speed === 0) {
+      this._applySpeed(this._resumeSpeed, { automatic: true, reason: 'event_resolved' });
+    }
   }
 
   effectiveMaxSpeed(pendingEventCount) {
