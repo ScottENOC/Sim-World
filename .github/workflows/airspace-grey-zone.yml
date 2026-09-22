@@ -1,0 +1,31 @@
+name: Grey-zone airspace probing
+
+on:
+  pull_request:
+    paths:
+      - 'js/military/airspaceGreyZone.js'
+      - 'js/diplomacy/strategicWarning.js'
+      - 'js/diplomacy/informationIntegrity.js'
+      - 'tests/airspaceGreyZone.test.mjs'
+      - '.github/workflows/airspace-grey-zone.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'js/military/airspaceGreyZone.js'
+      - 'tests/airspaceGreyZone.test.mjs'
+      - '.github/workflows/airspace-grey-zone.yml'
+
+jobs:
+  airspace-grey-zone:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check
+        run: node --check js/military/airspaceGreyZone.js
+      - name: Grey-zone airspace regressions
+        run: node tests/airspaceGreyZone.test.mjs
+      - name: Strategic warning regressions
+        run: node tests/strategicWarning.test.mjs
