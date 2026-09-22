@@ -1,0 +1,21 @@
+name: Spymaster contested claims UI
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  spymaster-contested-claims-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check
+        run: node --check js/ui/spymasterContestedClaimsUi.js
+      - name: Spymaster contested claims UI regressions
+        run: node tests/spymasterContestedClaimsUi.test.mjs
+      - name: Existing information integrity regressions
+        run: node tests/informationIntegrity.test.mjs
