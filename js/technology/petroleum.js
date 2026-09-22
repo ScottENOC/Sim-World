@@ -9,16 +9,24 @@ export const PETROLEUM_CRACKING_TECH_ID = 'petroleum_cracking';
 export const PETROLEUM_DESULFURISATION_TECH_ID = 'petroleum_desulfurisation';
 export const AVIATION_FRACTIONATION_TECH_ID = 'aviation_fractionation';
 
+const ZERO_CHANCES = Object.freeze({ shallow:0, deep:0, fracking:0, offshore:0, refining:0, cracking:0, desulfurisation:0, aviation:0 });
 const clamp01 = (v) => Math.max(0, Math.min(1, Number(v) || 0));
 const readiness = (value, scale) => 1 - Math.exp(-Math.max(0, Number(value) || 0) / Math.max(1, scale));
 
 function neighbourCount(region, byId, techId) {
-  return (region.neighbors || []).filter((id) => byId.get(id)?.unlockedTechIds?.has(techId)).length;
+  let count = 0;
+  for (const id of region.neighbors || []) if (byId.get(id)?.unlockedTechIds?.has(techId)) count++;
+  return count;
 }
 
 function tradePartnerCount(region, byId, techId) {
-  const ids = region.recentTradePartners instanceof Map ? [...region.recentTradePartners.keys()] : [...(region.tradePartnerIds || [])];
-  return ids.filter((id) => byId.get(id)?.unlockedTechIds?.has(techId)).length;
+  let count = 0;
+  if (region.recentTradePartners instanceof Map) {
+    for (const id of region.recentTradePartners.keys()) if (byId.get(id)?.unlockedTechIds?.has(techId)) count++;
+  } else {
+    for (const id of region.tradePartnerIds || []) if (byId.get(id)?.unlockedTechIds?.has(techId)) count++;
+  }
+  return count;
 }
 
 function diffusionChance(region, byId, techId, base) {
@@ -26,8 +34,22 @@ function diffusionChance(region, byId, techId, base) {
   return 1 - Math.pow(1 - base, Math.max(0, exposures));
 }
 
-export function petroleumBreakthroughChances(region, regionsById) {
+export function petroleumBreakthroughChances(region, regionsById, worldHasShallow = true) {
   const tech = region.unlockedTechIds || new Set();
+  const hasOil = Boolean(region.deposits?.oil);
+
+  // Before the world's first petroleum well, every petroleum technology except
+  // shallow drilling is impossible and shallow-drilling diffusion is exactly
+  // zero. Avoid administration, finance, industry and contact-graph work for
+  // the overwhelmingly common non-oil region while preserving the same chance.
+  if (!worldHasShallow) {
+    if (!hasOil || tech.has(SHALLOW_OIL_DRILLING_TECH_ID)) return ZERO_CHANCES;
+    const mining = readiness(effectiveExperience(region, 'mining'), 400_000);
+    if (mining <= 0) return ZERO_CHANCES;
+    const smithing = readiness(effectiveExperience(region, 'smithing'), 300_000);
+    return { ...ZERO_CHANCES, shallow: clamp01(mining * (0.25 + smithing * 0.75) * 0.000018) };
+  }
+
   const mining = readiness(effectiveExperience(region, 'mining'), 400_000);
   const smithing = readiness(effectiveExperience(region, 'smithing'), 300_000);
   const admin = region.governance?.administration || region.administration || {};
@@ -35,7 +57,6 @@ export function petroleumBreakthroughChances(region, regionsById) {
   const accounting = clamp01(admin.accounting || 0);
   const finance = clamp01(region.corporateCapital?.financialDepth || 0);
   const industry = clamp01(region.protoIndustry?.industrialCapacity || region.protoIndustry?.productivity || 0);
-  const hasOil = Boolean(region.deposits?.oil);
   const shallow = tech.has(SHALLOW_OIL_DRILLING_TECH_ID) ? 0 :
     (hasOil ? mining * (0.25 + smithing * 0.75) * 0.000018 : 0) + diffusionChance(region, regionsById, SHALLOW_OIL_DRILLING_TECH_ID, 0.00045);
   const deepReady = tech.has(SHALLOW_OIL_DRILLING_TECH_ID);
@@ -61,7 +82,9 @@ export function petroleumBreakthroughChances(region, regionsById) {
 
 export function tickPetroleumBreakthroughs(regions, currentTick, rng = Math.random, elapsedDays = 7) {
   const events = [];
-  const byId = new Map(regions.map((r) => [r.id, r]));
+  const worldHasShallow = regions.some((r) => r.unlockedTechIds?.has(SHALLOW_OIL_DRILLING_TECH_ID));
+  // The region index is only useful once diffusion can actually occur.
+  const byId = worldHasShallow ? new Map(regions.map((r) => [r.id, r])) : null;
   const scale = Math.max(0, Number(elapsedDays) || 0) / 7;
   const attempts = [
     ['shallow', SHALLOW_OIL_DRILLING_TECH_ID, 'petroleum_well_drilling_breakthrough', 'Shallow petroleum drilling'],
@@ -75,15 +98,16 @@ export function tickPetroleumBreakthroughs(regions, currentTick, rng = Math.rand
   ];
   for (const region of regions) {
     region.unlockedTechIds ||= new Set();
-    const chances = petroleumBreakthroughChances(region, byId);
+    const chances = petroleumBreakthroughChances(region, byId, worldHasShallow);
     for (const [key, techId, type, label] of attempts) {
       if (region.unlockedTechIds.has(techId)) continue;
       const weekly = chances[key] || 0;
       const chance = 1 - Math.pow(1 - weekly, scale);
+      // Deliberately retain the RNG call even when chance is zero so seeded
+      // technology-major histories keep their existing random-number sequence.
       if ((rng?.() ?? Math.random()) >= chance) continue;
       region.unlockedTechIds.add(techId);
       events.push({ type, regionId: region.id, regionName: region.name, tick: currentTick, title: `${label} developed`, message: `${region.name} can now exploit a new class of petroleum deposits.` });
-      // Do not chain several breakthroughs in one tick merely because RNG is favourable.
       break;
     }
   }
