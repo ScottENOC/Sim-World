@@ -68,8 +68,6 @@ export function tickModernEnergyBreakthroughs(regions,currentTick,rng=Math.rando
   const guidedActive=hasAnyTech(world,['rocket_stabilisation',...GUIDED_TECH_IDS_FAST]);
   if(guidedActive){events.push(...tickGuidedAirDefenceBreakthroughs(world,currentTick,rng,elapsedDays));if(hasAnyTech(world,['surface_to_air_missiles']))events.push(...tickGuidedAirDefenceIndustry(world,currentTick,rng,elapsedDays));}
 
-  // Keep the original family order: guided air defence -> electronic warfare ->
-  // directed energy -> carrier/AEW -> precision strike -> drones.
   events.push(...tickElectronicWarfareBreakthroughs(world,currentTick,rng,elapsedDays));
   events.push(...tickElectronicWarfare(world,currentTick,rng,elapsedDays));
 
