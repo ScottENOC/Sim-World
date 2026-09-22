@@ -2,9 +2,8 @@
 //
 // Breakthrough families should ask this layer whether a technology is dormant,
 // frontier-relevant or universal before doing expensive region-level work.
-// The first version keeps region knowledge as the canonical source, but also
-// exposes polity grouping so later industrial/modern families can move invention
-// to national/institutional actors without changing their public APIs all at once.
+// Callers may provide `trackTechIds` so a Bronze/Classical family never becomes
+// slower merely because hundreds of unrelated modern technologies exist later.
 
 function polityId(region) {
   return region?.governance?.sovereignPolityId || region?.polityId || region?.id;
@@ -14,11 +13,12 @@ function actorKey(region, mode) {
   return mode === 'polity' ? polityId(region) : region?.id;
 }
 
-export function createInnovationFrontier(regions = [], { mode = 'region' } = {}) {
+export function createInnovationFrontier(regions = [], { mode = 'region', trackTechIds = null } = {}) {
   const world = regions || [];
   const regionsById = new Map();
   const actorsById = new Map();
   const knownActorCountByTech = new Map();
+  const tracked = trackTechIds ? [...new Set(trackTechIds)] : null;
 
   for (const region of world) {
     regionsById.set(region.id, region);
@@ -29,7 +29,12 @@ export function createInnovationFrontier(regions = [], { mode = 'region' } = {})
       actorsById.set(id, actor);
     }
     actor.members.push(region);
-    for (const techId of region.unlockedTechIds || []) actor.knownTechIds.add(techId);
+    if (tracked) {
+      const known = region.unlockedTechIds;
+      if (known) for (const techId of tracked) if (known.has(techId)) actor.knownTechIds.add(techId);
+    } else {
+      for (const techId of region.unlockedTechIds || []) actor.knownTechIds.add(techId);
+    }
   }
 
   for (const actor of actorsById.values()) {
@@ -67,17 +72,12 @@ export function createInnovationFrontier(regions = [], { mode = 'region' } = {})
     return false;
   }
 
-  // `activation` is a world-level necessary condition. If false, the technology
-  // is too far from the current frontier and callers should not inspect actors.
   function state(techId, { activation = null } = {}) {
     if (isUniversal(techId)) return 'universal';
     if (activation && !activation(api)) return 'dormant';
     return 'frontier';
   }
 
-  // Candidate regions are those that either satisfy a cheap independent-invention
-  // prerequisite or can receive an already-known technology through contact.
-  // Expensive readiness calculations belong after this filter.
   function candidateRegions(techId, { independentEligible = null, includeDiffusion = true } = {}) {
     if (isUniversal(techId)) return [];
     const out = [];
@@ -95,6 +95,7 @@ export function createInnovationFrontier(regions = [], { mode = 'region' } = {})
     regionsById,
     actorsById,
     actorCount,
+    trackedTechIds: tracked,
     knownActorCount,
     anyActorKnows,
     isUniversal,
