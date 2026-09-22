@@ -2,6 +2,7 @@ import { tickSpaceRace } from './spaceRace.js?v=20260920-space-race1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const polityId=r=>r?.governance?.sovereignPolityId||r?.polityId||r?.id;
+const SPACE_ENTRY_TECH_ID='strategic_missile_systems';
 
 export function launchSiteAssessment(region){
   const latitude=Math.abs(Number(region?.centroid?.[1])||0);
@@ -18,6 +19,16 @@ export function bestNationalLaunchSite(members=[]){
 }
 
 export function tickSpaceRaceWithLaunchGeography(regions,currentTick,rng=Math.random,elapsedDays=7){
+  // The first space milestone requires strategic missile systems. Until one
+  // exists, and unless a programme already exists, the entire launch-site,
+  // polity-grouping and resource-rescaling pass is provably unable to change
+  // simulation state. This keeps ancient/classical worlds out of the space stack.
+  let spaceActive=false;
+  for(const r of regions||[]){
+    if(r.spaceProgramme||r.unlockedTechIds?.has?.(SPACE_ENTRY_TECH_ID)){spaceActive=true;break;}
+  }
+  if(!spaceActive)return[];
+
   const groups=new Map();
   for(const r of regions||[]){const id=polityId(r);if(!groups.has(id))groups.set(id,[]);groups.get(id).push(r);}
   const factors=new Map();

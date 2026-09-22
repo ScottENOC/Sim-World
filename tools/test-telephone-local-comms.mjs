@@ -81,11 +81,22 @@ learner.neighbors = [];
 const withoutNeighbour = telephoneBreakthroughChance(learner, byId);
 assert.ok(withNeighbour > withoutNeighbour, 'knowledgeable neighbours should raise telephone diffusion probability');
 
+const essex = region('essex', { telegraph: true, precision: 0.92, urban: 0.82 });
+const nottingham = region('nottingham', { telegraph: true, precision: 0.55, urban: 0.65 });
+essex.polityId = 'united-kingdom';
+nottingham.polityId = 'united-kingdom';
+const polityEvents = tickTelephoneBreakthroughs([essex, nottingham], 456, () => 0, 7);
+assert.equal(polityEvents.length, 1, 'one polity should roll one telephone breakthrough rather than one roll per region');
+assert.equal(polityEvents[0].polityId, 'united-kingdom');
+assert.equal(polityEvents[0].regionId, 'essex', 'the strongest innovation centre should be recorded as the breakthrough origin');
+assert.ok(essex.unlockedTechIds.has(TELEPHONE_TECH_ID));
+assert.ok(nottingham.unlockedTechIds.has(TELEPHONE_TECH_ID), 'national knowledge should be available for local adoption in every polity region');
+
 const mainSource = fs.readFileSync(new URL('../js/main.js', import.meta.url), 'utf8');
 const industrialSource = fs.readFileSync(new URL('../js/economy/industrialSupply.js', import.meta.url), 'utf8');
 const breakthroughSource = fs.readFileSync(new URL('../js/technology/breakthroughs.js', import.meta.url), 'utf8');
 assert.match(mainSource, /tickLocalCommunications\(region, time\.elapsedDays\)/, 'regional telephone service must run in the live simulation');
 assert.match(industrialSource, /telephoneIndustrialMultiplier\(region\)/, 'industrial output must consume the local communications signal');
-assert.match(breakthroughSource, /tickTelephoneBreakthroughs\(regions, currentTick, rng, elapsedDays\)/, 'telephone breakthroughs must be integrated into the technology tick');
+assert.match(breakthroughSource, /tickTelephoneBreakthroughs\(regions, currentTick, rng, [A-Za-z_$][\w$]*\)/, 'telephone breakthroughs must be integrated into the technology tick with an elapsed-time argument');
 
 console.log('Telephone and local communications regressions passed.');
