@@ -4,6 +4,7 @@ import {
   ensureCurrentAircraftDesign,
 } from '../military/equipmentGenerations.js?v=20260919-aircraft-industry2';
 import { productionAmountForSystemInputs, consumeSystemInputs } from '../military/militaryElectronics.js?v=20260919-base-power2';
+import { consumeProductMaterials, previewProductMaterialPlan } from './industrialMaterials.js?v=20260923-material-substitution1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
@@ -142,7 +143,8 @@ export function productCapability(region,productId){
   const recipe=PRODUCT_RECIPES[productId]?.components;if(!recipe)return 0;let weighted=0,total=0;
   for(const [c,w] of Object.entries(recipe)){weighted+=componentQuality(region,c)*w;total+=w;}
   const integration=clamp(ensureIndustrialPlantState(region).productExperience[productId]||0);
-  return clamp((total?weighted/total:0)*.82+integration*.18);
+  const base=clamp((total?weighted/total:0)*.82+integration*.18);
+  return clamp(base*previewProductMaterialPlan(region,productId).performanceMultiplier);
 }
 
 function learnComponents(region,productId,output,capacity){
@@ -173,6 +175,8 @@ function assemble(region,productId,requested,line=null){
   actual=Math.max(0,actual);
   for(const [c,per] of Object.entries(recipe))s.componentInventory[c]=Math.max(0,(s.componentInventory[c]||0)-per*actual);
   if(design?.stats?.systemInputs)consumeSystemInputs(region.stockpile,design.stats.systemInputs,actual);
+  const materialUse=consumeProductMaterials(region,productId,actual);
+  if(line)line.lastMaterialPlan=materialUse;
   region.industrialSupply||={};region.industrialSupply.inventory||={};region.industrialSupply.inventoryByDesign||={};
   region.industrialSupply.inventory[productId]=(region.industrialSupply.inventory[productId]||0)+actual;
   if(actual>0&&design){
@@ -232,7 +236,9 @@ export function tickIndustrialPlants(region,elapsedDays=7){
   for(const line of active){
     if(line.retoolWeeksRemaining>0){line.retoolWeeksRemaining=Math.max(0,line.retoolWeeksRemaining-weeks);if(line.retoolWeeksRemaining<=0&&line.pendingDesignId){line.approvedDesignId=line.pendingDesignId;line.pendingDesignId=null;}line.status=line.retoolWeeksRemaining>0?'retooling':'active';line.lastOutput=0;continue;}
     const demand=Math.max(0,Number(orders[line.productId])||0);if(!line.productId||demand<=0){line.idleWeeks+=weeks;line.lastOutput=0;line.status=line.idleWeeks>=104?'mothballed':'idle';if(line.idleWeeks>=260){line.productId=null;line.toolingFit=0;line.approvedDesignId=null;}continue;}
-    line.idleWeeks=0;line.status='active';const cap=baseFactoryCapacity(region)*(line.capacityShare/shares)*clamp(line.toolingFit||1,.2,1)*weeks;
+    line.idleWeeks=0;line.status='active';
+    const materialPlan=String(line.productId).startsWith('component:')?null:previewProductMaterialPlan(region,line.productId);
+    const cap=baseFactoryCapacity(region)*(line.capacityShare/shares)*clamp(line.toolingFit||1,.2,1)*weeks*(materialPlan?.throughputMultiplier||1);
     const requested=Math.min(demand,cap);const output=String(line.productId).startsWith('component:')?produceComponent(region,String(line.productId).slice(10),requested):assemble(region,line.productId,requested,line);
     line.lastOutput=output;orders[line.productId]=Math.max(0,demand-output);if(PRODUCT_RECIPES[line.productId])learnComponents(region,line.productId,output,cap);
     line.toolingFit=clamp((line.toolingFit||.25)+.003*clamp(output/Math.max(1,cap))*(1-(line.toolingFit||.25)));
