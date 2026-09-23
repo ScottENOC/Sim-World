@@ -117,7 +117,7 @@ export function foreignTechnologyReport({ techId, sourceName, channel = 'scoutin
     body: `Our envoys report that ${sourceName} has made a significant advance in ${label.toLowerCase()}.`,
   };
   if (channel === 'neighbour') return {
-    title: `New craft reported across the border`,
+    title: 'New craft reported across the border',
     body: `Travellers from ${sourceName} describe advances in ${label.toLowerCase()} that our specialists have not seen there before.`,
   };
   return {
@@ -133,32 +133,32 @@ function addContact(contactMap, foreignRegionId, channel, observerRegionId) {
   if (!existing || priority > existing.priority) contactMap.set(foreignRegionId, { channel, priority, observerRegionId });
 }
 
-function buildContactMap(world, controlledRegions, playerPolityId) {
-  const regionsById = new Map((world?.regions || []).map((region) => [region.id, region]));
+function buildContactMap(world, controlledRegions, playerPolityId, regionsById = null) {
+  const byId = regionsById || new Map((world?.regions || []).map((region) => [region.id, region]));
   const contacts = new Map();
   const campaigns = world?.activeCampaigns || [];
 
   for (const region of controlledRegions) {
     for (const neighbourId of region.neighbors || []) {
-      const neighbour = regionsById.get(neighbourId);
+      const neighbour = byId.get(neighbourId);
       if (neighbour && actorId(neighbour) !== playerPolityId) addContact(contacts, neighbour.id, 'neighbour', region.id);
     }
     if (region.recentTradePartners instanceof Map) {
       for (const partnerId of region.recentTradePartners.keys()) {
-        const partner = regionsById.get(partnerId);
+        const partner = byId.get(partnerId);
         if (partner && actorId(partner) !== playerPolityId) addContact(contacts, partner.id, 'trade', region.id);
       }
     }
     for (const partnerId of region.tradePartnerIds || []) {
-      const partner = regionsById.get(partnerId);
+      const partner = byId.get(partnerId);
       if (partner && actorId(partner) !== playerPolityId) addContact(contacts, partner.id, 'trade', region.id);
     }
     for (const observation of region.knowledge?.observations || []) {
-      const subject = regionsById.get(observation?.subjectId);
+      const subject = byId.get(observation?.subjectId);
       if (subject && actorId(subject) !== playerPolityId) addContact(contacts, subject.id, 'scouting', region.id);
     }
     for (const report of region.diplomaticIntelligence || []) {
-      const host = regionsById.get(report?.hostRegionId);
+      const host = byId.get(report?.hostRegionId);
       if (host && actorId(host) !== playerPolityId) addContact(contacts, host.id, 'diplomatic', region.id);
     }
   }
@@ -192,15 +192,15 @@ function currentTick(world) {
   return Number(world?.clock?.tickIndex) || 0;
 }
 
-function baselineState(state, world, controlledRegions, playerPolityId) {
+function baselineState(state, world, controlledRegions, playerPolityId, regionsById) {
   const domestic = new Set();
   for (const region of controlledRegions) for (const techId of unlockedTechIds(region)) domestic.add(techId);
   state.domesticSeen = [...domestic];
 
-  const contacts = buildContactMap(world, controlledRegions, playerPolityId);
+  const contacts = buildContactMap(world, controlledRegions, playerPolityId, regionsById);
   const foreign = new Set();
   for (const foreignRegionId of contacts.keys()) {
-    const foreignRegion = (world.regions || []).find((region) => region.id === foreignRegionId);
+    const foreignRegion = regionsById.get(foreignRegionId);
     const foreignPolityId = actorId(foreignRegion);
     if (!foreignRegion || !foreignPolityId || foreignPolityId === playerPolityId) continue;
     for (const techId of unlockedTechIds(foreignRegion)) foreign.add(`${foreignPolityId}:${techId}`);
@@ -215,10 +215,11 @@ export function scanTechnologyAttention(world, { emit = null } = {}) {
   const state = ensureState(world, playerPolityId);
   if (!state) return [];
 
+  const regionsById = new Map(world.regions.map((region) => [region.id, region]));
   const controlledRegions = world.regions.filter((region) => actorId(region) === playerPolityId);
   if (!controlledRegions.length) return [];
   if (!state.initialised) {
-    baselineState(state, world, controlledRegions, playerPolityId);
+    baselineState(state, world, controlledRegions, playerPolityId, regionsById);
     return [];
   }
 
@@ -239,8 +240,7 @@ export function scanTechnologyAttention(world, { emit = null } = {}) {
   state.domesticSeen = [...domesticSeen];
 
   const foreignSeen = new Set(state.foreignSeen);
-  const regionsById = new Map(world.regions.map((region) => [region.id, region]));
-  const contacts = buildContactMap(world, controlledRegions, playerPolityId);
+  const contacts = buildContactMap(world, controlledRegions, playerPolityId, regionsById);
   for (const [foreignRegionId, contact] of contacts) {
     const foreignRegion = regionsById.get(foreignRegionId);
     const foreignPolityId = actorId(foreignRegion);
@@ -334,10 +334,10 @@ function installTechnologyAttention() {
   };
   setInterval(run, POLL_INTERVAL_MS);
   run();
-
-  const content = document.getElementById('advisor-content');
-  if (content) new MutationObserver(() => queueMicrotask(() => renderTechnologyLog())).observe(content, { childList: true });
-  globalThis.__technologyAttention = { scan: () => scanTechnologyAttention(globalThis.__worldsim, { emit: (notice) => globalThis.__playerAttention?.push?.(notice) }), openDiscoveries };
+  globalThis.__technologyAttention = {
+    scan: () => scanTechnologyAttention(globalThis.__worldsim, { emit: (notice) => globalThis.__playerAttention?.push?.(notice) }),
+    openDiscoveries,
+  };
 }
 
 if (typeof document !== 'undefined') {
