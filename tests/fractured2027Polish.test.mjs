@@ -74,7 +74,8 @@ assert.match(runtimeAutoSource, /modernScenarioPolish\.js\?v=20260923-black-map1
 assert.match(polishSource, /refreshModernMap\(sim\)/, 'modern scenario hydration should force the renderer to rebuild after visibility changes');
 assert.match(polishSource, /every\(Number\.isFinite\)/, 'country focusing must reject invalid transforms');
 assert.match(indexSource, /startupPicker\.js\?v=20260923-country-only1/);
-assert.match(indexSource, /scenarioRuntimeAuto\.js\?v=20260923-black-map2/, 'entrypoint must cache-bust the runtime that contains the black-map recovery fix');
-assert.match(indexSource, /main\.js\?v=20260923-country-only1/);
+assert.match(indexSource, /scenarioRuntimeAuto\.js\?v=20260923-black-map3/, 'entrypoint must cache-bust the renderer-level black-map recovery fix');
+assert.match(indexSource, /main\.js\?v=20260923-modern-visibility1/, 'main entrypoint must refresh the module graph for modern visibility fixes');
+assert.match(indexSource, /fogOfWar\.js\?v=20260904-weather1/, 'startup reload list must force-refresh the historically stale FogOfWar URL');
 
 console.log('Fractured 2027 polish regressions passed.');
