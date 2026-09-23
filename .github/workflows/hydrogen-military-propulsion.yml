@@ -1,0 +1,22 @@
+name: Hydrogen military propulsion
+
+on:
+  pull_request:
+    paths:
+      - 'js/economy/energyTransition.js'
+      - 'js/military/aviation.js'
+      - 'js/military/modernLandWarfare.js'
+      - 'tools/test-hydrogen-military-propulsion.mjs'
+      - '.github/workflows/hydrogen-military-propulsion.yml'
+  workflow_dispatch:
+
+jobs:
+  hydrogen-military-propulsion:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run hydrogen military propulsion regression
+        run: node tools/test-hydrogen-military-propulsion.mjs
