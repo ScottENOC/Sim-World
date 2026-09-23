@@ -4,7 +4,7 @@ export const SAVE_KEY = 'worldsim.save.v1';
 const STATIC_REGION_KEYS = new Set(['id', 'name', 'feature', 'centroid', 'areaSqKm', 'neighbors', 'terrain']);
 
 function encode(value) {
-  if (value instanceof Map) return { __worldsimType: 'Map', entries: [...value.entries()].map(([key, item]) => [encode(key), encode(item)]); };
+  if (value instanceof Map) return { __worldsimType: 'Map', entries: [...value.entries()].map(([key, item]) => [encode(key), encode(item)]) };
   if (value instanceof Set) return { __worldsimType: 'Set', values: [...value].map(encode) };
   if (Array.isArray(value)) return value.map(encode);
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, encode(item)]));
