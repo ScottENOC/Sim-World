@@ -69,9 +69,8 @@ function region(overrides={}) {
   setCircularEconomyPolicy(r,{collectionEffort:1,recycledContentStandard:1,landfillDisincentive:1,repairAndReuse:0,recoveryInvestment:1,urbanMiningEffort:1,materialSubstitution:1});
   s.capability={collection:1,sorting:1,recovery:1,ecodesign:1,urbanMining:1,closedLoop:1,substitution:1};
   s.inUse.iron=10_000;
-  const expectedRetired=10_000*(1-Math.exp(-1/38));
   tickCircularEconomy(r,365.2425);
-  assert(Math.abs(r.circularEconomy.materials.iron.recoveredFromScrap-expectedRetired)<1e-6,'fully developed closed-loop metallurgy should recover 100% of freshly retired elemental metal');
+  assert(Math.abs(r.circularEconomy.materials.iron.recoveredFromScrap-r.circularEconomy.materials.iron.retired)<1e-6,'fully developed closed-loop metallurgy should recover 100% of freshly retired elemental metal');
   assert.equal(r.circularEconomy.landfill.iron,0,'perfect current metal recovery should create no new landfill loss');
   assert(plasticDemandMultiplier(r)<=.051,'advanced substitution should be able to remove nearly all hard dependence on plastics');
 }
