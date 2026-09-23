@@ -2,7 +2,7 @@ import { currentScenario } from '../core/scenarios.js?v=20260921-scenarios2';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-function modernDateFromElapsed(startYear, elapsedDays) {
+export function modernDateFromElapsed(startYear, elapsedDays) {
   const base = new Date(Date.UTC(startYear, 0, 1));
   base.setUTCDate(base.getUTCDate() + Math.max(0, Math.floor(Number(elapsedDays) || 0)));
   return `${base.getUTCDate()} ${MONTHS[base.getUTCMonth()]} ${base.getUTCFullYear()}`;
