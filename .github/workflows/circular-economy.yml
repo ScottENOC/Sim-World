@@ -16,7 +16,10 @@ jobs:
       - name: Syntax check
         run: |
           node --check js/economy/circularEconomy.js
+          node --check js/economy/electricity.js
           node --check js/economy/tools.js
           node --check js/economy/labor.js
       - name: Circular economy regressions
-        run: node tests/circularEconomy.test.mjs
+        run: |
+          node tests/circularEconomy.test.mjs
+          node tests/closedLoopMaterialsIntegration.test.mjs
