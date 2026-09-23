@@ -12,7 +12,8 @@ const RULES = Object.freeze([
   // Put subject-specific knowledge/technology and faith rules ahead of generic
   // delivery channels such as trade or diplomacy. A steel report carried by a
   // merchant is still technological intelligence; the messenger does not own it.
-  ['spymaster', /\b(technology|technological|breakthrough|discovery|research|intelligence|spy|spymaster|covert|secret|sabotage|intercept|scout|unknown|rumour|rumor|forgery|counter-intelligence|counter intelligence|surveillance|cyber|cryptograph|information operation|steelmaking|rifling|gunpowder)\b/i],
+  ['spymaster', /\b(technology|technological|breakthrough|discovery|research|intelligence|spy|spymaster|covert|secret|sabotage|intercept|scout|unknown|rumour|rumor|forgery|counter-intelligence|counter intelligence|surveillance|cyber|cryptograph|information operation|steel|steelmaking|ironwork|rifling|gunpowder)\b/i],
+  ['spymaster', /\bforeign\b.{0,60}\bobserved\b|\bnew craft reported\b|\bsignificant advance\b/i],
   ['priest', /\b(religion|religious|faith|holy|temple|priest|church|conversion|heresy|doctrine|pilgrim|worship|sacred|divine)\b/i],
   ['marshal', /\b(army|armies|military|war\b|battle|campaign|raid|raider|fleet|naval|ship|siege|fort|mobilis|demobilis|troop|soldier|weapon|artillery|aircraft|aviation|missile|nuclear strike|occupation|garrison|combat|enemy force|veteran)\b/i],
   ['treasurer', /\b(treasur|coin|finance|financial|debt|credit|bond|currency|tax|tariff|trade|market|merchant|commercial|firm|company|bank|capital|revenue|budget|payroll|bankrupt|insolv|price|inflation|money|import|export)\b/i],
