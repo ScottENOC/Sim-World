@@ -1,0 +1,35 @@
+name: Fractured 2027 modern startup
+
+on:
+  pull_request:
+    paths:
+      - 'js/core/fogOfWar.js'
+      - 'js/core/scenarioRuntime.js'
+      - 'js/ui/scenarioRuntimeAuto.js'
+      - 'js/ui/modernScenarioAdvisorPresentation.js'
+      - 'tests/fractured2027ModernStartup.test.mjs'
+      - '.github/workflows/fractured-2027-modern-startup.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'js/core/fogOfWar.js'
+      - 'js/core/scenarioRuntime.js'
+      - 'js/ui/scenarioRuntimeAuto.js'
+      - 'js/ui/modernScenarioAdvisorPresentation.js'
+      - 'tests/fractured2027ModernStartup.test.mjs'
+      - '.github/workflows/fractured-2027-modern-startup.yml'
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check js/core/fogOfWar.js
+      - run: node --check js/core/scenarioRuntime.js
+      - run: node --check js/ui/scenarioRuntimeAuto.js
+      - run: node --check js/ui/modernScenarioAdvisorPresentation.js
+      - run: node tests/fractured2027ModernStartup.test.mjs
+      - run: node tools/test-scenario-framework.mjs
