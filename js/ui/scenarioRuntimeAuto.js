@@ -34,11 +34,6 @@ function enforceModernPhysicalWorldVisibility(sim) {
   return visibleLand > 0;
 }
 
-function buttonByStrongText(host, text) {
-  return [...(host?.querySelectorAll?.('button') || [])].find((button) =>
-    button.querySelector('strong')?.textContent?.trim() === text);
-}
-
 function completePendingModernCountryStart(sim) {
   const scenario = currentScenario();
   if (scenario?.rulesProfile !== 'modern-crisis' || !window.__pendingStartCountryName) return false;
