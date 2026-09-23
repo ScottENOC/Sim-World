@@ -1,5 +1,6 @@
 import { PETROLEUM_REFINING_TECH_ID, PETROLEUM_CRACKING_TECH_ID, PETROLEUM_DESULFURISATION_TECH_ID, AVIATION_FRACTIONATION_TECH_ID } from '../technology/petroleum.js?v=20260917-oil3';
 import { effectiveInfrastructureCount } from './construction.js?v=20260917-oil3';
+import { blendE10 } from './energyTransition.js?v=20260923-energy-transition1';
 const clamp01 = (v) => Math.max(0, Math.min(1, Number(v) || 0));
 
 export const PETROLEUM_PRODUCTS = Object.freeze([
@@ -131,7 +132,10 @@ export function tickPetroleumRefining(region, elapsedDays = 7) {
     region.stockpile[product] = Math.max(0, Number(region.stockpile[product]) || 0) + amount;
     products[product] = amount;
   }
+  const e10 = blendE10(region, products.petrol || 0);
+  if (e10.ethanolBlended > 0) products.petrol = (products.petrol || 0) + e10.ethanolBlended;
   refinery.lastThroughput = throughput;
   refinery.lastProducts = products;
-  return { throughput, products, quality: crudeQuality(region), slate };
+  refinery.lastE10 = { ...e10 };
+  return { throughput, products, quality: crudeQuality(region), slate, e10 };
 }
