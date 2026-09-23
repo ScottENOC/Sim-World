@@ -129,7 +129,7 @@
   <script type="module" src="js/ui/mapProjectionSettings.js?v=20260915-projection1"></script>
   <script type="module" src="js/ui/mapOverlayStability.js?v=20260907-overlay3"></script>
   <script type="module" src="js/ui/mapFirstUi.js?v=20260907-mapfirst5"></script>
-  <script type="module" src="js/ui/startupPicker.js?v=20260923-startup-polish1"></script>
+  <script type="module" src="js/ui/startupPicker.js?v=20260923-country-only1"></script>
   <script type="module" src="js/ui/progressiveVisuals.js?v=20260907-progressive2"></script>
   <script type="module" src="js/ui/hazardPolicyUi.js?v=20260907-hazard1"></script>
   <script type="module" src="js/ui/culturalLifeUi.js?v=20260907-art1"></script>
@@ -161,7 +161,7 @@
         window.__reportWorldStartup = () => {};
         try {
           await refreshTechnologyModules();
-          await import('./js/main.js?v=20260923-modern-polish1');
+          await import('./js/main.js?v=20260923-country-only1');
         } catch (error) {
           const message = error?.stack || error?.message || String(error);
           if (status) status.textContent = `Simulation module failed: ${message}`;
@@ -176,7 +176,7 @@
     })();
   </script>
   <script type="module" src="js/ui/spymasterContestedClaimsUi.js?v=20260922-contested-claims1"></script>
-  <script type="module" src="js/ui/scenarioRuntimeAuto.js?v=20260923-modern-polish1"></script>
+  <script type="module" src="js/ui/scenarioRuntimeAuto.js?v=20260923-country-only1"></script>
   <script type="module" src="js/ui/electricGridAutoUi.js?v=20260921-grid-ui1"></script>
   <script type="module" src="js/ui/institutionalCouncilUi.js?v=20260916-institution-ui1"></script>
   <script type="module" src="js/ui/institutionalCouncilSpendingUi.js?v=20260916-institution-ui2"></script>

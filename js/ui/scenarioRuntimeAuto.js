@@ -20,15 +20,9 @@ function completePendingModernCountryStart(sim) {
   const preferred = window.__pendingStartNavigation;
   if (!picker || !pendingId || !preferred || !sim?.regions?.some((region) => region.id === pendingId)) return false;
 
-  // The country has already been chosen in the scenario picker. Claim the
-  // pending handoff before driving the legacy callback so startupPicker's own
-  // polling loop cannot race us and expose the Bronze Age hierarchy.
-  delete window.__pendingStartRegionId;
-  delete window.__pendingStartRegionName;
-  delete window.__pendingStartNavigation;
-  delete window.__pendingStartCountryName;
+  // The modern country picker is the only player-facing choice. Keep the legacy
+  // hierarchy hidden while we invoke its existing callback for the internal anchor.
   pickerModal?.classList.add('hidden');
-
   const continentButton = buttonByStrongText(picker, preferred.continent);
   if (!continentButton) return false;
   continentButton.click();
@@ -39,9 +33,25 @@ function completePendingModernCountryStart(sim) {
   if (!regionButton) return false;
   regionButton.click();
 
+  // Clear the pending state only after the legacy callback was successfully driven.
+  // If world/picker setup was not ready yet, the retry loop keeps the selection intact.
+  delete window.__pendingStartRegionId;
+  delete window.__pendingStartRegionName;
+  delete window.__pendingStartNavigation;
+  delete window.__pendingStartCountryName;
   window.__modernCountryStartCompleted = true;
   requestAnimationFrame(() => refocusModernPlayerCountry(sim));
   return true;
+}
+
+function finishModernCountryStartWhenReady(sim, attempt = 0) {
+  if (!window.__pendingStartCountryName || window.__modernCountryStartCompleted) return;
+  if (completePendingModernCountryStart(sim)) return;
+  if (attempt >= 600) {
+    console.error('Modern country start could not complete after scenario hydration.');
+    return;
+  }
+  setTimeout(() => finishModernCountryStartWhenReady(sim, attempt + 1), 50);
 }
 
 async function tryStart() {
@@ -56,7 +66,7 @@ async function tryStart() {
     if (result.attached) {
       console.log(`Scenario runtime hydrated: ${result.scenarioId}`);
       applyModernScenarioAdvisorPresentation();
-      completePendingModernCountryStart(sim);
+      finishModernCountryStartWhenReady(sim);
       applyModernScenarioPolish(sim);
     }
   } catch (error) {
