@@ -6,11 +6,56 @@ function mergedSettings(profile, countryId) {
   return { ...(profile?.regionalDefaults || {}), ...(profile?.countryOverrides?.[countryId] || {}) };
 }
 
+function modernCultureLabel(region, countryId) {
+  return region?.governance?.sovereignPolityName || region?.polityName || String(countryId || 'Modern society');
+}
+
+function applyModernCulture(region, countryId) {
+  if (!countryId) return false;
+  const label = modernCultureLabel(region, countryId);
+  const identityId = `modern_civic:${countryId}`;
+  const identity = {
+    id: identityId,
+    label,
+    familyId: `modern_national:${countryId}`,
+    kind: 'modern_civic',
+    confidence: 0.95,
+    createdYear: 2027,
+    parentIds: [],
+    parentWeights: {},
+    originRegionId: region.id,
+  };
+  region.cultureState ||= {};
+  region.cultureState.identityArchive = [identity];
+  region.cultureState.elapsedYears = 0;
+  region.cultureState.tickAccumulatorYears = 0;
+  region.cultureState.isolationYears = 0;
+  region.cultureState.polityYears = 0;
+  region.cultureState.fusionIds = [];
+  region.cultureState.branchIds = [];
+  region.cultureGroups = [{
+    identityId,
+    cultureId: identityId,
+    ancestryId: identityId,
+    ancestry: { [identityId]: 1 },
+    affiliations: [`nation:${countryId}`],
+    share: 1,
+    identityStrength: 0.72,
+    cohabitationYears: 0,
+  }];
+  region.cultureFamiliarity = {};
+  region._cultureReady = false;
+  region._cultureAffinityCache = {};
+  region.scenarioModernCultureApplied = true;
+  return true;
+}
+
 export function applyModernScenarioBaseline(world, profile = {}) {
   const regions = arr(world?.regions);
   const commonTechIds = arr(profile.commonTechIds);
   const populationMultiplier = Math.max(1, num(profile.populationMultiplier, 1));
   const touchedCountries = new Set();
+  let modernCultureRegions = 0;
 
   for (const region of regions) {
     const countryId = region.scenarioCountryId || region.governance?.scenarioCountryId || null;
@@ -21,6 +66,12 @@ export function applyModernScenarioBaseline(world, profile = {}) {
       region.population = Math.max(1, Math.round(num(region.population, 1) * populationMultiplier));
       region.scenarioModernBaselineApplied = true;
     }
+
+    // Focused modern scenarios should not inherit the Bronze Age culture seed
+    // created while the generic world shell is loading. Use a shared modern
+    // civic/national identity across each scenario country as the 2027 baseline;
+    // later migration, assimilation, fusion and branching can evolve normally.
+    if (!region.scenarioModernCultureApplied && applyModernCulture(region, countryId)) modernCultureRegions += 1;
 
     region.unlockedTechIds ||= new Set();
     for (const techId of commonTechIds) region.unlockedTechIds.add(techId);
@@ -87,6 +138,7 @@ export function applyModernScenarioBaseline(world, profile = {}) {
     scenarioId: profile.scenarioId || world?.scenarioState?.id || null,
     regionCount: regions.length,
     countryCount: touchedCountries.size,
+    modernCultureRegions,
     calibrationOnly: true,
   };
   return world.scenarioModernBaseline;

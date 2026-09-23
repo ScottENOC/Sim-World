@@ -1,6 +1,8 @@
-import { hydrateSelectedScenarioRuntime } from '../core/scenarioRuntime.js?v=20260923-modern-startup1';
+import { hydrateSelectedScenarioRuntime } from '../core/scenarioRuntime.js?v=20260923-modern-startup2';
 import { currentScenario } from '../core/scenarios.js?v=20260921-scenarios2';
 import { applyModernScenarioAdvisorPresentation } from './modernScenarioAdvisorPresentation.js?v=20260923-modern-startup1';
+import { applyModernScenarioPolish, refocusModernPlayerCountry } from './modernScenarioPolish.js?v=20260923-modern-polish1';
+import { installMaritimeTradeVisuals } from './maritimeTradeVisuals.js?v=20260923-sea-routes1';
 
 let started = false;
 
@@ -13,9 +15,19 @@ function completePendingModernCountryStart(sim) {
   const scenario = currentScenario();
   if (scenario?.rulesProfile !== 'modern-crisis' || !window.__pendingStartCountryName) return false;
   const picker = document.getElementById('picker-list');
+  const pickerModal = document.getElementById('picker-modal');
   const pendingId = window.__pendingStartRegionId;
   const preferred = window.__pendingStartNavigation;
   if (!picker || !pendingId || !preferred || !sim?.regions?.some((region) => region.id === pendingId)) return false;
+
+  // The country has already been chosen in the scenario picker. Claim the
+  // pending handoff before driving the legacy callback so startupPicker's own
+  // polling loop cannot race us and expose the Bronze Age hierarchy.
+  delete window.__pendingStartRegionId;
+  delete window.__pendingStartRegionName;
+  delete window.__pendingStartNavigation;
+  delete window.__pendingStartCountryName;
+  pickerModal?.classList.add('hidden');
 
   const continentButton = buttonByStrongText(picker, preferred.continent);
   if (!continentButton) return false;
@@ -26,6 +38,9 @@ function completePendingModernCountryStart(sim) {
   const regionButton = picker.querySelector(`button[data-id="${CSS.escape(pendingId)}"]`);
   if (!regionButton) return false;
   regionButton.click();
+
+  window.__modernCountryStartCompleted = true;
+  requestAnimationFrame(() => refocusModernPlayerCountry(sim));
   return true;
 }
 
@@ -34,16 +49,15 @@ async function tryStart() {
   const sim = window.__worldsim;
   if (!sim?.regions || !sim?.clock) return false;
   started = true;
+  installMaritimeTradeVisuals(sim.map);
   try {
     const result = await hydrateSelectedScenarioRuntime(sim, { currentTick: sim.clock.elapsedDays || 0 });
     window.__worldsimScenarioRuntime = result;
     if (result.attached) {
       console.log(`Scenario runtime hydrated: ${result.scenarioId}`);
       applyModernScenarioAdvisorPresentation();
-      // The modern startup picker has already selected the country. The legacy
-      // region picker exists only as the grand-campaign handoff mechanism; drive
-      // it automatically so the player is not asked to make a second Bronze Age choice.
       completePendingModernCountryStart(sim);
+      applyModernScenarioPolish(sim);
     }
   } catch (error) {
     started = false;
