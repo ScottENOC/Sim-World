@@ -34,6 +34,7 @@ USER_AGENT = 'Sim-World physical geography repair/1.0'
 CRIMEA_NAME = 'Crimean Peninsula'
 CRIMEA_ID = 'r_fix_crimean_peninsula'
 MALFORMED_FINLAND_NAME = 'Fennoscandian Shield — Northern Ostrobothnia'
+FENNOSCANDIAN_RESIDUAL_PREFIX = 'Fennoscandian Shield — '
 ADJ_TOL = 0.025
 
 spec = importlib.util.spec_from_file_location('map_v2_crimea_finland', MAP_V2_PATH)
@@ -120,7 +121,15 @@ def absorb_malformed_finland(features, meta_by_id, resources):
     target_geom = map_v2.repair(shape(target['geometry']))
     components = polygons(target_geom)
 
-    candidate_features = [feature for i, feature in enumerate(features) if i != target_index]
+    # Other tiny Fennoscandian residuals are not valid destinations for this
+    # malformed seam: doing so can create absurd contacts such as Finland Proper
+    # touching a residual labelled Finnmark hundreds of kilometres away. Absorb
+    # the seam only into substantive neighbouring regions.
+    candidate_features = [
+        feature for i, feature in enumerate(features)
+        if i != target_index
+        and not str((feature.get('properties') or {}).get('name', '')).startswith(FENNOSCANDIAN_RESIDUAL_PREFIX)
+    ]
     candidate_geoms = [map_v2.repair(shape(feature['geometry'])) for feature in candidate_features]
     tree = STRtree(candidate_geoms)
     additions: dict[int, list] = {}
@@ -224,7 +233,6 @@ def update_changed_adjacency(features, meta_by_id, changed_ids, removed_ids=()):
     changed_ids = [rid for rid in dict.fromkeys(changed_ids) if rid in meta_by_id]
     removed = set(removed_ids)
 
-    # First strip references to deleted/changed regions from all existing lists.
     for meta in meta_by_id.values():
         meta['neighbors'] = sorted(set(
             rid for rid in meta.get('neighbors', [])
