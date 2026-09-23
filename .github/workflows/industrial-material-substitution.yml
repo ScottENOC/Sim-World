@@ -1,0 +1,35 @@
+name: Industrial material substitution and military recycling
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  material-substitution:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check industrial materials
+        run: node --check js/economy/industrialMaterials.js
+      - name: Syntax check industrial plants
+        run: node --check js/economy/industrialPlant.js
+      - name: Syntax check computing industry
+        run: node --check js/economy/computingIndustry.js
+      - name: Syntax check military recycling
+        run: node --check js/military/equipmentRecycling.js
+      - name: Material substitution and recycling regression
+        run: node tools/test-industrial-material-substitution.mjs
+      - name: Existing computing regression
+        run: node tools/test-computing-industry.mjs
+      - name: Existing military material regression
+        run: node tools/test-military-light-metal-designs.mjs
+      - name: Existing circular economy regressions
+        run: |
+          node tests/circularEconomy.test.mjs
+          node tests/closedLoopMaterialsIntegration.test.mjs
+      - name: Whitespace check
+        run: git diff --check
