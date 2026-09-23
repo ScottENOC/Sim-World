@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { FogOfWar } from '../js/core/fogOfWar.js';
 import { applyScenarioRuntimeRules } from '../js/core/scenarioRuntime.js';
 
@@ -44,6 +45,25 @@ import { applyScenarioRuntimeRules } from '../js/core/scenarioRuntime.js';
   const result = applyScenarioRuntimeRules({ clock, fogOfWar }, { id: 'grand-campaign', rulesProfile: 'grand-campaign' }, null);
   assert.equal(result.dailyTurns, false, 'grand campaign cadence must remain adaptive');
   assert.equal(fogOfWar.known, false, 'grand campaign must retain historical fog of war');
+}
+
+{
+  const bootstrapSource = readFileSync(new URL('../js/ui/scenarioRuntimeAuto.js', import.meta.url), 'utf8');
+  assert.match(
+    bootstrapSource,
+    /await waitForScenarioSelection\(\)/,
+    'scenario runtime bootstrap must begin its timeout after scenario selection rather than page load',
+  );
+  assert.match(
+    bootstrapSource,
+    /if \(await tryStart\(\)\) return;/,
+    'scenario runtime bootstrap must await its first runtime availability check',
+  );
+  assert.doesNotMatch(
+    bootstrapSource,
+    /if \(!tryStart\(\)\)/,
+    'an async tryStart Promise is truthy and must never be used as the retry condition directly',
+  );
 }
 
 console.log('Fractured 2027 modern-startup regressions passed.');

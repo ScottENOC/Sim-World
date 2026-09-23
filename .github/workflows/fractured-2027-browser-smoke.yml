@@ -1,0 +1,49 @@
+name: Fractured 2027 browser smoke
+
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'js/**'
+      - 'data/scenarios/fractured-2027/**'
+      - 'tests/fractured2027BrowserSmoke.mjs'
+      - '.github/workflows/fractured-2027-browser-smoke.yml'
+  workflow_dispatch:
+
+jobs:
+  browser-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Start static server
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/sim-world-http.log 2>&1 &
+          echo $! > /tmp/sim-world-http.pid
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173/index.html > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/sim-world-http.log
+          exit 1
+
+      - name: Run Fractured 2027 browser smoke
+        run: node tests/fractured2027BrowserSmoke.mjs
+
+      - name: Show server log on failure
+        if: failure()
+        run: cat /tmp/sim-world-http.log || true

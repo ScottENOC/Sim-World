@@ -1,5 +1,5 @@
 import { hydrateSelectedScenarioRuntime } from '../core/scenarioRuntime.js?v=20260923-modern-visibility2';
-import { currentScenario } from '../core/scenarios.js?v=20260921-scenarios2';
+import { currentScenario, waitForScenarioSelection } from '../core/scenarios.js?v=20260921-scenarios2';
 import { applyModernScenarioAdvisorPresentation } from './modernScenarioAdvisorPresentation.js?v=20260923-modern-startup1';
 import { applyModernScenarioPolish, refocusModernPlayerCountry } from './modernScenarioPolish.js?v=20260923-black-map1';
 import { installMaritimeTradeVisuals } from './maritimeTradeVisuals.js?v=20260923-sea-routes1';
@@ -124,11 +124,30 @@ async function tryStart() {
   return true;
 }
 
+async function startWhenRuntimeReady() {
+  // This module is loaded with index.html, while main.js is intentionally delayed
+  // until after the player chooses a scenario and can take a while to build a large
+  // world. Wait for that choice first, then keep checking until main publishes the
+  // runtime. Do not test `!tryStart()` directly: tryStart is async, so that tests the
+  // Promise object rather than its eventual boolean result and skips the retry path.
+  await waitForScenarioSelection();
+  if (await tryStart()) return;
+
+  const startedWaitingAt = Date.now();
+  const timer = setInterval(async () => {
+    if (await tryStart()) {
+      clearInterval(timer);
+      return;
+    }
+    if (Date.now() - startedWaitingAt >= 5 * 60 * 1000) {
+      clearInterval(timer);
+      console.error('Scenario runtime did not become available within five minutes of scenario selection.');
+    }
+  }, 50);
+}
+
 if (typeof window !== 'undefined') {
-  if (!tryStart()) {
-    const timer = setInterval(async () => {
-      if (await tryStart()) clearInterval(timer);
-    }, 50);
-    setTimeout(() => clearInterval(timer), 60000);
-  }
+  startWhenRuntimeReady().catch((error) => {
+    console.error('Could not start scenario runtime bootstrap', error);
+  });
 }

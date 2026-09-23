@@ -75,7 +75,7 @@ assert.match(runtimeAutoSource, /scenarioRuntime\.js\?v=20260923-modern-visibili
 assert.match(polishSource, /refreshModernMap\(sim\)/, 'modern scenario hydration should force the renderer to rebuild after visibility changes');
 assert.match(polishSource, /every\(Number\.isFinite\)/, 'country focusing must reject invalid transforms');
 assert.match(indexSource, /startupPicker\.js\?v=20260923-country-only1/);
-assert.match(indexSource, /scenarioRuntimeAuto\.js\?v=20260923-black-map4/, 'entrypoint must cache-bust the hardened black-map recovery fix');
+assert.match(indexSource, /scenarioRuntimeAuto\.js\?v=20260923-black-map5/, 'entrypoint must cache-bust the async runtime-start recovery fix');
 assert.match(indexSource, /main\.js\?v=20260923-modern-visibility1/, 'main entrypoint must refresh the module graph for modern visibility fixes');
 
 console.log('Fractured 2027 polish regressions passed.');
