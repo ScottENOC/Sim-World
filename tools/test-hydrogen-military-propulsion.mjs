@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   armouredVehicleOperationalProfile,
   HYDROGEN_ARMOURED_PROPULSION_TECH_ID,
+  modernInfantryProfile,
 } from '../js/military/modernLandWarfare.js';
 import {
   HYDROGEN_AVIATION_PROPULSION_TECH_ID,
@@ -12,7 +13,7 @@ function armouredRegion(techs = []) {
   return {
     id: 'armour-test',
     unlockedTechIds: new Set(techs),
-    stockpile: { diesel: 0, hydrogen: 20 },
+    stockpile: { diesel: 0, hydrogen: 20, small_arms_ammunition: 0 },
     industrialSupply: { inventory: { tank: 8, self_propelled_gun: 2 } },
   };
 }
@@ -35,6 +36,14 @@ function armouredRegion(techs = []) {
   assert(profile.hydrogenUsed > 0, 'hydrogen-capable armour should consume real hydrogen inventory');
   assert(region.stockpile.hydrogen < openingHydrogen);
   assert(profile.combatMultiplier > 1, 'fuelled armour should contribute to battlefield power');
+}
+
+{
+  const region = armouredRegion(['hydrogen_transport_fuels', HYDROGEN_ARMOURED_PROPULSION_TECH_ID]);
+  const profile = modernInfantryProfile(region, 180, { suppliedShare: 0 }, { elapsedDays: 7, consumeSupplies: true });
+  assert(profile.multiplier > 1, 'fuelled armour must still contribute when small-arms supply is zero');
+  assert.equal(profile.machineGuns, false);
+  assert(profile.armour.hydrogenUsed > 0);
 }
 
 function aviationRegion(id, techs = []) {
