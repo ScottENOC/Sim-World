@@ -1,4 +1,4 @@
-import { TRADE_GOODS } from '../economy/tradeGoods.js?v=20260924-rocket-propellant1';
+import { TRADE_GOODS } from '../economy/tradeGoods.js';
 import { WATER_ELECTROLYSIS_TECH_ID } from '../economy/energyTransition.js?v=20260924-rocket-propellant1';
 
 export const ROCKET_PROPELLANT_GOOD_ID = 'rocket_propellant';
