@@ -39,7 +39,7 @@ export function ensureCircularEconomy(region) {
   for (const key of ['collectionEffort','recycledContentStandard','landfillDisincentive','repairAndReuse','recoveryInvestment','urbanMiningEffort','materialSubstitution']) if (!Number.isFinite(s.policy[key])) s.policy[key]=0;
   s.capability ||= { collection:.08, sorting:.05, recovery:.04, ecodesign:0, urbanMining:0, closedLoop:0, substitution:0 };
   for (const key of ['collection','sorting','recovery','ecodesign','urbanMining','closedLoop','substitution']) if (!Number.isFinite(s.capability[key])) s.capability[key]=0;
-  s.inUse ||= {}; s.scrap ||= {}; s.landfill ||= {}; s.pendingUse ||= {}; s.recovered ||= {}; s.losses ||= {}; s.materials ||= {}; s.accountedAssets ||= {};
+  s.inUse ||= {}; s.scrap ||= {}; s.landfill ||= {}; s.pendingUse ||= {}; s.recovered ||= {}; s.losses ||= {}; s.materials ||= {}; s.assetConditions ||= {};
   for (const key of Object.keys(MATERIAL_SPECS)) {
     if (!Number.isFinite(s.inUse[key])) s.inUse[key]=0;
     if (!Number.isFinite(s.scrap[key])) s.scrap[key]=0;
@@ -81,24 +81,47 @@ export function recordMaterialDiscard(region, material, amount, {recoverableFrac
   return discarded;
 }
 
-function recordConstructionMaterial(region, resource, amount) {
-  if (MATERIAL_SPECS[resource]) return recordMaterialUse(region,resource,amount,'infrastructure');
-  if (resource==='bronze') {
-    recordMaterialUse(region,'copper',amount*.9,'infrastructure');
-    recordMaterialUse(region,'tin',amount*.1,'infrastructure');
-    return amount;
-  }
-  return 0;
+function materialParts(resource, amount) {
+  if (MATERIAL_SPECS[resource]) return [[resource,nonNegative(amount)]];
+  if (resource==='bronze') return [['copper',nonNegative(amount)*.9],['tin',nonNegative(amount)*.1]];
+  return [];
 }
 
-function accountCompletedInfrastructure(region,s) {
-  for (const asset of region?.construction?.assets || []) {
-    const id=String(asset?.id || ''); if (!id || s.accountedAssets[id]) continue;
-    const type=CONSTRUCTION_TYPES[asset.typeId]; if (!type) continue;
-    const scale=Math.max(.1,Number(asset.scale)||1);
-    for (const [resource,amount] of Object.entries(type.materials || {})) recordConstructionMaterial(region,resource,nonNegative(amount)*scale);
-    s.accountedAssets[id]=1;
+function addInfrastructureMaterial(region,resource,amount) {
+  for (const [material,value] of materialParts(resource,amount)) recordMaterialUse(region,material,value,'infrastructure');
+}
+
+function retireInfrastructureMaterial(s,resource,amount) {
+  const salvageFraction=clamp(.30+s.capability.collection*.45+s.capability.urbanMining*.15,0,.95);
+  for (const [material,value] of materialParts(resource,amount)) {
+    const spec=MATERIAL_SPECS[material],retired=Math.min(nonNegative(s.inUse[material]),value);
+    if (!retired) continue;
+    s.inUse[material]-=retired;
+    const salvaged=retired*salvageFraction,unrecovered=retired-salvaged;
+    s.scrap[material]=nonNegative(s.scrap[material])+salvaged;
+    if (spec.elemental) s.landfill[material]=nonNegative(s.landfill[material])+unrecovered;
+    else s.losses[material]=nonNegative(s.losses[material])+unrecovered;
   }
+}
+
+function accountInfrastructure(region,s) {
+  const liveIds=new Set();
+  for (const asset of region?.construction?.assets || []) {
+    const id=String(asset?.id || ''); if (!id) continue;
+    const type=CONSTRUCTION_TYPES[asset.typeId]; if (!type) continue;
+    liveIds.add(id);
+    const condition=clamp(asset.condition ?? 1),scale=Math.max(.1,Number(asset.scale)||1);
+    const previous=Number.isFinite(s.assetConditions[id])?clamp(s.assetConditions[id]):null;
+    if (previous===null) {
+      for (const [resource,amount] of Object.entries(type.materials || {})) addInfrastructureMaterial(region,resource,nonNegative(amount)*scale*condition);
+    } else if (condition>previous) {
+      for (const [resource,amount] of Object.entries(type.materials || {})) addInfrastructureMaterial(region,resource,nonNegative(amount)*scale*(condition-previous));
+    } else if (condition<previous) {
+      for (const [resource,amount] of Object.entries(type.materials || {})) retireInfrastructureMaterial(s,resource,nonNegative(amount)*scale*(previous-condition));
+    }
+    s.assetConditions[id]=condition;
+  }
+  for (const id of Object.keys(s.assetConditions)) if (!liveIds.has(id)) delete s.assetConditions[id];
 }
 
 function depositReserve(deposit) {
@@ -184,8 +207,8 @@ function tickMaterial(region,s,material,years) {
 
 export function tickCircularEconomy(region,elapsedDays=7) {
   const s=ensureCircularEconomy(region),years=Math.max(0,Number(elapsedDays)||0)/DAYS_PER_YEAR;
-  accountCompletedInfrastructure(region,s);
   updateCapability(region,s,years);
+  accountInfrastructure(region,s);
   const results={}; for (const material of Object.keys(MATERIAL_SPECS)) results[material]=tickMaterial(region,s,material,years);
   const active=Object.values(results).filter(m=>m.added>0||m.retired>0||m.reserveFraction>0||m.recoveredFromLandfill>0);
   const weighted=active.length?active.reduce((a,m)=>{const w=.25+.75*(m.depletionPressure||.1);a.w+=w;a.secondary+=m.secondaryShare*w;a.security+=m.security*w;return a;},{w:0,secondary:0,security:0}):{w:1,secondary:0,security:.5};
