@@ -67,6 +67,9 @@ assert.match(startupPickerSource, /if \(countryFirst\) pickerModal\.classList\.a
 assert.match(startupPickerSource, /Country-first modern startup has exactly one owner: scenarioRuntimeAuto/, 'startup picker must not race the modern runtime handoff');
 assert.match(runtimeAutoSource, /finishModernCountryStartWhenReady/, 'modern handoff should retry until the hidden legacy callback is ready');
 assert.ok(runtimeAutoSource.indexOf('regionButton.click();') < runtimeAutoSource.indexOf('delete window.__pendingStartRegionId;'), 'pending country state must only clear after a successful hidden handoff');
+assert.match(runtimeAutoSource, /map\.isRegionVisible = \(\) => true/, 'modern runtime must force physical land visibility at the renderer boundary');
+assert.match(runtimeAutoSource, /map\.isSeaRegionVisible = \(\) => true/, 'modern runtime must force physical sea visibility at the renderer boundary');
+assert.match(runtimeAutoSource, /Physical world visibility forced:/, 'modern runtime should emit a visibility diagnostic for live scenario testing');
 assert.match(runtimeAutoSource, /modernScenarioPolish\.js\?v=20260923-black-map1/, 'runtime should force a fresh copy of the modern map recovery logic');
 assert.match(polishSource, /refreshModernMap\(sim\)/, 'modern scenario hydration should force the renderer to rebuild after visibility changes');
 assert.match(polishSource, /every\(Number\.isFinite\)/, 'country focusing must reject invalid transforms');
