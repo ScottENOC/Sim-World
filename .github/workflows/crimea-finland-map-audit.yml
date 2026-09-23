@@ -16,9 +16,24 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Audit Crimea and Finland geography
+      - name: Install geography dependencies
+        run: python -m pip install --disable-pip-version-check shapely==2.1.1 pyproj==3.7.2
+      - name: Apply bounded geography repair to base map
+        run: python tools/repair-crimea-finland-geography.py --world-dir data/world
+      - name: Apply bounded geography repair to 2027 map
+        run: python tools/repair-crimea-finland-geography.py --world-dir data/scenarios/fractured-2027/world
+      - name: Audit repaired Crimea and Finland geography
         run: node tests/crimeaFinlandMapAudit.mjs
+      - name: Verify repair is reproducible
+        run: |
+          python tools/repair-crimea-finland-geography.py --world-dir data/world
+          python tools/repair-crimea-finland-geography.py --world-dir data/scenarios/fractured-2027/world
+          git diff --check
