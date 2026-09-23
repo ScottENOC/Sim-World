@@ -5,9 +5,11 @@ on:
     paths:
       - 'js/core/clock.js'
       - 'js/ui/playerAttentionUi.js'
+      - 'js/ui/technologyAttentionUi.js'
       - 'js/ui/diseasePolicyUi.js'
       - 'css/player-attention.css'
       - 'tools/test-player-attention.mjs'
+      - 'tools/test-technology-attention.mjs'
       - '.github/workflows/player-attention.yml'
   workflow_dispatch:
 
@@ -23,7 +25,11 @@ jobs:
         run: |
           node --check js/core/clock.js
           node --check js/ui/playerAttentionUi.js
+          node --check js/ui/technologyAttentionUi.js
           node --check js/ui/diseasePolicyUi.js
           node --check tools/test-player-attention.mjs
+          node --check tools/test-technology-attention.mjs
       - name: Player attention regressions
-        run: node tools/test-player-attention.mjs
+        run: |
+          node tools/test-player-attention.mjs
+          node tools/test-technology-attention.mjs
