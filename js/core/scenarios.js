@@ -61,8 +61,8 @@ export const SCENARIOS = Object.freeze([
     victoryModel: 'country-survival-and-aims',
     targetRealHours: 30,
     targetSimYears: 6,
-    available: false,
-    status: 'Runtime/state scaffolds are ready; dedicated strategic geometry is under construction',
+    available: true,
+    status: 'Playable baseline enabled; balance, AI behaviour and scenario-specific calibration remain under active development',
   }),
 ]);
 
