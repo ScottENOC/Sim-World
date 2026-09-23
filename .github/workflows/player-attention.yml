@@ -6,6 +6,7 @@ on:
       - 'js/core/clock.js'
       - 'js/core/saveGame.js'
       - 'js/history/nationalChronicle.js'
+      - 'js/history/historicalEventChronicle.js'
       - 'js/ui/playerAttentionUi.js'
       - 'js/ui/technologyAttentionUi.js'
       - 'js/ui/nationalChronicleUi.js'
@@ -14,6 +15,7 @@ on:
       - 'tools/test-player-attention.mjs'
       - 'tools/test-technology-attention.mjs'
       - 'tools/test-national-chronicle.mjs'
+      - 'tools/test-historical-chronicle.mjs'
       - '.github/workflows/player-attention.yml'
   workflow_dispatch:
 
@@ -29,6 +31,7 @@ jobs:
         run: |
           node --check js/core/clock.js
           node --check js/history/nationalChronicle.js
+          node --check js/history/historicalEventChronicle.js
           node --check js/ui/playerAttentionUi.js
           node --check js/ui/technologyAttentionUi.js
           node --check js/ui/nationalChronicleUi.js
@@ -36,8 +39,10 @@ jobs:
           node --check tools/test-player-attention.mjs
           node --check tools/test-technology-attention.mjs
           node --check tools/test-national-chronicle.mjs
+          node --check tools/test-historical-chronicle.mjs
       - name: Player attention regressions
         run: |
           node tools/test-player-attention.mjs
           node tools/test-technology-attention.mjs
           node tools/test-national-chronicle.mjs
+          node tools/test-historical-chronicle.mjs
