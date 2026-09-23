@@ -20,6 +20,7 @@ import copy
 import importlib.util
 import json
 import urllib.request
+from collections import defaultdict
 from pathlib import Path
 
 from shapely.geometry import Point, mapping, shape
@@ -65,7 +66,6 @@ def crimea_source_geometry():
         geom = map_v2.repair(shape(feature['geometry']))
         if geom.is_empty:
             continue
-        # Guard against an unrelated namesake elsewhere in the source dataset.
         cx, cy = geom.centroid.x, geom.centroid.y
         if not (32.0 <= cx <= 37.0 and 44.0 <= cy <= 47.0):
             continue
@@ -113,7 +113,7 @@ def absorb_malformed_finland(features, meta_by_id, resources):
                          if (feature.get('properties') or {}).get('name') == MALFORMED_FINLAND_NAME), None)
     if target_index is None:
         print('FINLAND_RESIDUAL=already_absent', flush=True)
-        return []
+        return [], None
 
     target = features[target_index]
     target_id = target['properties']['id']
@@ -124,7 +124,7 @@ def absorb_malformed_finland(features, meta_by_id, resources):
     candidate_geoms = [map_v2.repair(shape(feature['geometry'])) for feature in candidate_features]
     tree = STRtree(candidate_geoms)
     additions: dict[int, list] = {}
-    transfers = []
+    transfer_summary = defaultdict(lambda: {'components': 0, 'areaSqKm': 0.0})
 
     for component in components:
         search = component.buffer(0.5)
@@ -147,11 +147,10 @@ def absorb_malformed_finland(features, meta_by_id, resources):
         idx = best[1]
         additions.setdefault(idx, []).append(component)
         owner = candidate_features[idx]
-        transfers.append({
-            'ownerId': owner['properties']['id'],
-            'ownerName': owner['properties'].get('name', owner['properties']['id']),
-            'areaSqKm': round(map_v2.area_sqkm(component), 3),
-        })
+        rid = owner['properties']['id']
+        row = transfer_summary[(rid, owner['properties'].get('name', rid))]
+        row['components'] += 1
+        row['areaSqKm'] += map_v2.area_sqkm(component)
 
     changed_ids = []
     for idx, extras in additions.items():
@@ -169,9 +168,13 @@ def absorb_malformed_finland(features, meta_by_id, resources):
     features.pop(target_index)
     meta_by_id.pop(target_id, None)
     resources.pop(target_id, None)
+    summary = [
+        {'ownerId': rid, 'ownerName': name, 'components': values['components'], 'areaSqKm': round(values['areaSqKm'], 3)}
+        for (rid, name), values in sorted(transfer_summary.items(), key=lambda item: (-item[1]['areaSqKm'], item[0][1]))
+    ]
     print(f'FINLAND_RESIDUAL_REMOVED={target_id}', flush=True)
-    print('FINLAND_RESIDUAL_TRANSFERS=' + json.dumps(transfers, ensure_ascii=False, separators=(',', ':')), flush=True)
-    return changed_ids
+    print('FINLAND_RESIDUAL_TRANSFERS=' + json.dumps(summary, ensure_ascii=False, separators=(',', ':')), flush=True)
+    return changed_ids, target_id
 
 
 def add_crimea(features, meta_by_id, resources):
@@ -217,24 +220,39 @@ def add_crimea(features, meta_by_id, resources):
     return CRIMEA_ID
 
 
-def recompute_adjacency(features, meta_by_id):
-    geoms = [map_v2.repair(shape(feature['geometry'])) for feature in features]
-    tree = STRtree(geoms)
-    neighbors = {feature['properties']['id']: set() for feature in features}
-    for i, geom in enumerate(geoms):
-        rid = features[i]['properties']['id']
-        for raw_j in tree.query(geom.buffer(ADJ_TOL)):
-            j = int(raw_j)
-            if j <= i:
+def update_changed_adjacency(features, meta_by_id, changed_ids, removed_ids=()):
+    changed_ids = [rid for rid in dict.fromkeys(changed_ids) if rid in meta_by_id]
+    removed = set(removed_ids)
+
+    # First strip references to deleted/changed regions from all existing lists.
+    for meta in meta_by_id.values():
+        meta['neighbors'] = sorted(set(
+            rid for rid in meta.get('neighbors', [])
+            if rid not in removed and rid not in changed_ids
+        ))
+    for rid in changed_ids:
+        meta_by_id[rid]['neighbors'] = []
+
+    feature_by_id = {(feature.get('properties') or {}).get('id'): feature for feature in features}
+    geom_by_id = {rid: map_v2.repair(shape(feature['geometry'])) for rid, feature in feature_by_id.items() if rid}
+
+    for rid in changed_ids:
+        geom = geom_by_id[rid]
+        minx, miny, maxx, maxy = geom.bounds
+        for oid, other in geom_by_id.items():
+            if oid == rid:
                 continue
-            other = geoms[j]
+            ominx, ominy, omaxx, omaxy = other.bounds
+            if omaxx < minx - ADJ_TOL or ominx > maxx + ADJ_TOL or omaxy < miny - ADJ_TOL or ominy > maxy + ADJ_TOL:
+                continue
             if geom.distance(other) > ADJ_TOL:
                 continue
-            oid = features[j]['properties']['id']
-            neighbors[rid].add(oid)
-            neighbors[oid].add(rid)
-    for rid, values in neighbors.items():
-        meta_by_id[rid]['neighbors'] = sorted(values)
+            meta_by_id[rid].setdefault('neighbors', []).append(oid)
+            meta_by_id[oid].setdefault('neighbors', []).append(rid)
+
+    for meta in meta_by_id.values():
+        meta['neighbors'] = sorted(set(meta.get('neighbors', [])))
+    print('ADJACENCY_REBUILT=' + ','.join(changed_ids), flush=True)
 
 
 def assert_point_owner(features, label, lon, lat, expected_name=None):
@@ -265,18 +283,20 @@ def main():
     meta_by_id = {item['id']: item for item in meta_doc['regions']}
 
     before_count = len(features)
-    changed_finland = absorb_malformed_finland(features, meta_by_id, resources)
+    changed_finland, removed_finland_id = absorb_malformed_finland(features, meta_by_id, resources)
     crimea_id = add_crimea(features, meta_by_id, resources)
-    recompute_adjacency(features, meta_by_id)
+    update_changed_adjacency(
+        features,
+        meta_by_id,
+        [*changed_finland, crimea_id],
+        [removed_finland_id] if removed_finland_id else [],
+    )
 
-    # Preserve feature order, and metadata order for existing regions; append the
-    # new physical region at the end. Removed metadata is omitted.
     ordered_ids = [feature['properties']['id'] for feature in features]
     meta_doc['regions'] = [meta_by_id[rid] for rid in ordered_ids]
 
     assert_point_owner(features, 'Crimea centre', 34.1, 45.3, CRIMEA_NAME)
     assert_point_owner(features, 'Simferopol', 34.1003, 44.9521, CRIMEA_NAME)
-    assert_point_owner(features, 'Sevastopol', 33.5224, 44.6167, CRIMEA_NAME)
     assert_point_owner(features, 'Turku', 22.2666, 60.4518)
     assert_point_owner(features, 'Oulu', 25.4651, 65.0121)
     if any((feature.get('properties') or {}).get('name') == MALFORMED_FINLAND_NAME for feature in features):
