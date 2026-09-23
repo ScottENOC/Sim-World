@@ -2,7 +2,7 @@ import { currentScenario, waitForScenarioSelection } from './scenarios.js?v=2026
 import { hydrateScenarioInitialState, scenarioPlayablePolities } from './scenarioState.js?v=20260921-scenario-state3';
 import { updateFocusedCampaignResolution, canDeclareFocusedScenarioResult } from './scenarioVictory.js?v=20260921-scenario-victory2';
 import { consolidateScenarioSovereignty } from './scenarioSovereignty.js?v=20260921-scenario-sovereignty2';
-import { applyModernScenarioBaseline } from './scenarioModernStart.js?v=20260921-modern-start1';
+import { applyModernScenarioBaseline } from './scenarioModernStart.js?v=20260923-modern-pop1';
 import { hydrateScenarioForceDeployments } from './scenarioForces.js?v=20260921-scenario-forces1';
 import { applyScenarioStrategicInformation } from './scenarioStrategicInformation.js?v=20260923-strategic-info1';
 
@@ -74,6 +74,25 @@ export function scenarioWorldAdapter(sim) {
   };
 }
 
+function forcePhysicalWorldKnown(fogOfWar) {
+  if (!fogOfWar) return false;
+  // Do not rely on the browser having a fresh FogOfWar module. Older cached
+  // implementations did not know about physicalWorldKnown, and optional chaining
+  // made that fail silently. A modern scenario owns this runtime policy directly.
+  fogOfWar.physicalWorldKnown = true;
+  if (typeof fogOfWar.setPhysicalWorldKnown === 'function') fogOfWar.setPhysicalWorldKnown(true);
+  const ordinaryIsVisible = typeof fogOfWar.isVisible === 'function' ? fogOfWar.isVisible.bind(fogOfWar) : null;
+  if (!fogOfWar._scenarioPhysicalVisibilityPatched) {
+    fogOfWar._scenarioPhysicalVisibilityPatched = true;
+    fogOfWar._ordinaryIsVisible = ordinaryIsVisible;
+    fogOfWar.isVisible = (region) => fogOfWar.physicalWorldKnown ? Boolean(region) : (fogOfWar._ordinaryIsVisible?.(region) ?? false);
+    fogOfWar.visibleRegions = () => fogOfWar.physicalWorldKnown
+      ? arr(fogOfWar.regions)
+      : arr(fogOfWar.regions).filter((region) => fogOfWar.isVisible(region));
+  }
+  return fogOfWar.physicalWorldKnown === true && arr(fogOfWar.visibleRegions?.()).length > 0;
+}
+
 export function applyScenarioRuntimeRules(sim, scenario, pkg = null) {
   if (!sim || !scenario) return { dailyTurns: false, physicalWorldKnown: false };
   const preferredUnit = pkg?.manifest?.pacing?.preferredStrategicTurnUnit || null;
@@ -92,8 +111,15 @@ export function applyScenarioRuntimeRules(sim, scenario, pkg = null) {
     sim.clock.setWorldTempo({ index: 1, daysPerTick: 1, label: 'daily', signals: { scenario: scenario.id } });
   }
 
-  const physicalWorldKnown = scenario.rulesProfile === 'modern-crisis';
-  if (physicalWorldKnown) sim.fogOfWar?.setPhysicalWorldKnown?.(true);
+  const wantsPhysicalWorldKnown = scenario.rulesProfile === 'modern-crisis';
+  const physicalWorldKnown = wantsPhysicalWorldKnown ? forcePhysicalWorldKnown(sim.fogOfWar) : false;
+  if (wantsPhysicalWorldKnown && !physicalWorldKnown) {
+    console.error('Modern scenario failed to expose the physical world map.', {
+      scenarioId: scenario.id,
+      hasFogOfWar: Boolean(sim.fogOfWar),
+      regionCount: arr(sim.regions).length,
+    });
+  }
   return { dailyTurns, physicalWorldKnown };
 }
 
