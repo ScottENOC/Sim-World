@@ -27,7 +27,9 @@ jobs:
         run: node tools/test-computing-industry.mjs
       - name: Existing military material regression
         run: node tools/test-military-light-metal-designs.mjs
-      - name: Existing circular economy regression
-        run: node tools/test-circular-economy.mjs
+      - name: Existing circular economy regressions
+        run: |
+          node tests/circularEconomy.test.mjs
+          node tests/closedLoopMaterialsIntegration.test.mjs
       - name: Whitespace check
         run: git diff --check
