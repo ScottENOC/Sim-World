@@ -1,0 +1,22 @@
+name: Rocket propellant and Mars ISRU
+
+on:
+  pull_request:
+    paths:
+      - 'js/technology/rocketPropellant.js'
+      - 'js/technology/spaceRace.js'
+      - 'js/technology/offworldHabitats.js'
+      - 'tools/test-rocket-propellant-isru.mjs'
+      - '.github/workflows/rocket-propellant-isru.yml'
+  workflow_dispatch:
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run rocket propellant and Mars ISRU regression
+        run: node tools/test-rocket-propellant-isru.mjs
