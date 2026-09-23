@@ -1,183 +1,142 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Worldsim</title>
-<link rel="stylesheet" href="css/main.css?v=20260904-build1">
-<link rel="stylesheet" href="css/mobile-fixes.css?v=20260913-menu-scroll1">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>World Simulator</title>
+  <link rel="stylesheet" href="styles.css?v=20260922-modern-startup1" />
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
 </head>
 <body>
-  <div id="app">
+  <main id="app">
     <canvas id="map-canvas"></canvas>
-    <div id="hud">
-      <div id="hud-date">—</div>
+
+    <header id="hud">
+      <div id="hud-date">1300 BCE</div>
       <div id="hud-controls">
-        <button id="btn-council" class="hud-btn council-btn" aria-label="Open royal council">Council</button>
-        <button id="btn-menu" class="hud-btn menu-btn" aria-label="Open menu">☰</button>
-        <button id="btn-pause" class="hud-btn" aria-label="Pause">II</button>
-        <button id="btn-speed-half" class="hud-btn speed-btn adaptive-speed hidden" data-speed="0.5">0.5x</button>
-        <button id="btn-speed-1" class="hud-btn speed-btn active" data-speed="1">1x</button>
-        <button id="btn-speed-2" class="hud-btn speed-btn" data-speed="2">2x</button>
-        <button id="btn-speed-4" class="hud-btn speed-btn" data-speed="4">4x</button>
+        <button id="btn-pause">Pause</button>
+        <button id="btn-slower">−</button>
+        <span id="speed-label">1×</span>
+        <button id="btn-faster">+</button>
+        <button id="btn-menu">☰</button>
       </div>
+    </header>
+
+    <div id="layer-controls">
+      <button class="layer-btn active" data-layer="density">Population</button>
+      <button class="layer-btn" data-layer="wealth">Wealth</button>
+      <button class="layer-btn" data-layer="stability">Stability</button>
+      <button class="layer-btn" data-layer="political">Political</button>
+      <button class="layer-btn" data-layer="culture">Culture</button>
+      <button class="layer-btn" data-layer="religion">Religion</button>
+      <button class="layer-btn" data-layer="trade">Trade</button>
+      <button class="layer-btn" data-layer="military">Military</button>
     </div>
-    <section id="council-panel" class="council-panel hidden" aria-label="Royal council">
-      <header class="council-header">
-        <div><small>Royal council</small><h2 id="council-title">Your advisors</h2></div>
-        <button id="btn-close-council" aria-label="Close council">&times;</button>
-      </header>
-      <nav id="advisor-tabs" class="advisor-tabs" aria-label="Choose an advisor"></nav>
-      <div id="advisor-content" class="advisor-content"></div>
-    </section>
-    <div id="performance-notice" class="performance-notice hidden" role="status" aria-live="polite"></div>
-    <div id="legend" class="legend hidden">
-      <div class="layer-toggle">
-        <button class="layer-btn active" data-layer="density">Pop</button>
-        <button class="layer-btn" data-layer="stability">Stability</button>
-        <button class="layer-btn" data-layer="wealth">Importance</button>
-        <button class="layer-btn" data-layer="political">Political</button>
-        <button class="layer-btn" data-layer="culture">Culture</button>
-        <button class="layer-btn" data-layer="language">Language</button>
-        <button class="layer-btn" data-layer="religion">Faith</button>
-        <button class="layer-btn" data-layer="influence">Influence</button>
+
+    <section id="legend"></section>
+
+    <section id="region-sheet" class="sheet hidden">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <h2 id="region-name">Region</h2>
+        <button id="btn-close-sheet">×</button>
       </div>
-      <div id="legend-label"></div>
-      <div id="legend-gradient">
-        <div id="legend-bar"></div>
-        <div id="legend-scale"><span id="legend-min"></span><span id="legend-max"></span></div>
-      </div>
-      <div id="legend-categorical"></div>
-    </div>
-    <div id="region-sheet" class="sheet hidden">
-      <div id="region-sheet-handle"></div>
-      <button id="btn-close-sheet" aria-label="Close">&times;</button>
-      <h2 id="region-name">—</h2>
+      <div id="region-stats"></div>
       <div id="region-controls"></div>
-      <div id="region-details"></div>
-    </div>
-    <section id="local-region-view" class="local-region-view hidden" aria-label="Regional view">
-      <header class="local-region-header">
-        <div><small>Regional view</small><h2 id="local-region-title">—</h2></div>
-        <button id="btn-close-local-region" aria-label="Return to world map">&times;</button>
-      </header>
-      <nav class="local-region-modes">
-        <button class="active" data-local-mode="overview">Overview</button>
-        <button data-local-mode="economy">Economy</button>
-        <button data-local-mode="control">Control</button>
-        <button data-local-mode="military">Military</button>
-      </nav>
-      <canvas id="local-region-canvas"></canvas>
-      <div id="local-region-detail" class="local-region-detail"></div>
     </section>
-    <div id="menu-modal" class="modal hidden">
-      <div class="modal-card menu-card">
-        <button id="btn-close-menu" class="menu-close" aria-label="Close menu">&times;</button>
-        <h2>Menu</h2>
-        <div class="menu-section">
-          <h3>Game</h3>
-          <div class="save-actions">
-            <button id="btn-save-game">Save game</button>
-            <button id="btn-load-game" disabled>Load game</button>
-          </div>
-          <div id="save-status" class="save-status" role="status" aria-live="polite">No saved game on this device.</div>
-        </div>
-        <div class="menu-section">
-          <h3>Display</h3>
-          <label class="control-row" for="map-projection">
-            <span>
-              <strong>World map projection</strong>
-              <small>Equal Earth preserves relative land area; Natural Earth is a familiar compromise; Mercator keeps the legacy view.</small>
-            </span>
-            <select id="map-projection" aria-label="World map projection">
-              <option value="equal-earth">Equal Earth (recommended)</option>
-              <option value="natural-earth">Natural Earth</option>
-              <option value="mercator">Mercator (legacy)</option>
-            </select>
-          </label>
-          <div id="map-projection-status" class="save-status" role="status" aria-live="polite">Projection changes are applied when the game is next loaded.</div>
-        </div>
-        <div class="menu-section">
-          <h3>Development</h3>
-          <label class="menu-toggle-row">
-            <span>
-              <strong>Dev mode</strong>
-              <small>Reveal the whole world and all region information.</small>
-            </span>
-            <input id="toggle-dev-mode" type="checkbox">
-          </label>
-        </div>
+
+    <section id="advisor-panel" class="sheet hidden">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <h2 id="advisor-title">Advisor</h2>
+        <button id="btn-close-advisor">×</button>
       </div>
+      <div id="advisor-content"></div>
+    </section>
+
+    <div id="advisor-tabs">
+      <button data-advisor="steward">Steward</button>
+      <button data-advisor="quartermaster">Quartermaster</button>
+      <button data-advisor="marshal">Marshal</button>
+      <button data-advisor="diplomat">Diplomat</button>
+      <button data-advisor="spymaster">Spymaster</button>
     </div>
-    <div id="picker-modal" class="modal">
+
+    <section id="event-modal" class="modal hidden">
+      <div class="modal-card">
+        <h2 id="event-title">Event</h2>
+        <p id="event-body"></p>
+        <div id="event-actions"></div>
+      </div>
+    </section>
+
+    <section id="picker-modal" class="modal">
       <div class="modal-card picker-card">
-        <h2 id="picker-title">Choose your region</h2>
-        <p id="picker-help">Choose where in the world you want to begin.</p>
-        <button id="btn-load-start" class="picker-load hidden">Continue saved game</button>
+        <h2 id="picker-title">Choose your starting region</h2>
+        <p id="picker-help">Start small. You know your home and its neighbours.</p>
         <div id="picker-list"></div>
       </div>
-    </div>
-    <div id="event-modal" class="modal hidden">
-      <div class="modal-card">
-        <h2 id="event-title">—</h2>
-        <p id="event-body"></p>
-        <div id="event-options"></div>
+    </section>
+
+    <section id="menu-modal" class="modal hidden">
+      <div class="modal-card menu-card">
+        <h2>Menu</h2>
+        <button id="btn-save">Save game</button>
+        <button id="btn-load">Load game</button>
+        <label class="toggle-row">
+          <input type="checkbox" id="toggle-dev-mode" />
+          Reveal all map (dev)
+        </label>
+        <button id="btn-close-menu">Close</button>
       </div>
-    </div>
-  </div>
-  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
-  <script type="module" src="js/ui/mapProjectionSettings.js?v=20260915-projection1"></script>
-  <script type="module" src="js/ui/mapOverlayStability.js?v=20260907-overlay3"></script>
-  <script type="module" src="js/ui/mapFirstUi.js?v=20260907-mapfirst5"></script>
-  <script type="module" src="js/ui/startupPicker.js?v=20260923-country-only1"></script>
-  <script type="module" src="js/ui/progressiveVisuals.js?v=20260907-progressive2"></script>
-  <script type="module" src="js/ui/hazardPolicyUi.js?v=20260907-hazard1"></script>
-  <script type="module" src="js/ui/culturalLifeUi.js?v=20260907-art1"></script>
+    </section>
+  </main>
+
+  <script type="module" src="js/ui/startupPicker.js?v=20260922-picker-deadlock1"></script>
   <script type="module">
-    (() => {
-      let started = false;
-      const refreshTechnologyModules = async () => {
-        const urls = [
-          './js/core/performanceProfiler.js?v=20260912-deep-profiler1',
-          './js/core/fogOfWar.js?v=20260904-weather1',
-          './js/technology/breakthroughs.js?v=20260912-medieval1',
-          './js/technology/classicalTransition.js?v=20260907-classical1',
-          './js/technology/electrification.js?v=20260917-electric1',
-          './js/technology/modernEnergy.js?v=20260920-modern-energy1',
-          './js/technology/petroleum.js?v=20260917-oil1',
-          './js/technology/spaceLaunchGeography.js?v=20260920-modern-energy1',
-          './js/technology/telephone.js?v=20260918-telephone1',
-          './js/diplomacy/nuclearDeterrence.js?v=20260920-nuclear-deterrence1',
-          './js/military/nuclearWarRisk.js?v=20260921-nuclear-risk1',
-          './js/military/nuclearExchange.js?v=20260921-nuclear-exchange1',
-          './js/society/warSociety.js?v=20260922-war-society1',
-        ];
-        await Promise.all(urls.map((url) => fetch(url, { cache: 'reload' }).catch(() => null)));
-      };
-      const startMain = async () => {
-        if (started || !window.__worldsimScenario) return;
-        started = true;
-        const status = document.querySelector('.startup-picker-status');
-        if (status) status.textContent = 'Loading world…';
-        window.__reportWorldStartup = () => {};
-        try {
-          await refreshTechnologyModules();
-          await import('./js/main.js?v=20260923-modern-visibility1');
-        } catch (error) {
-          const message = error?.stack || error?.message || String(error);
-          if (status) status.textContent = `Simulation module failed: ${message}`;
-          console.error('Could not load simulation module graph', error);
-        }
-      };
-      const poll = () => {
-        startMain();
-        if (!started) setTimeout(poll, 25);
-      };
-      poll();
-    })();
+    import { waitForScenarioSelection } from './js/core/scenarios.js?v=20260922-picker-deadlock1';
+    let started = false;
+    const refreshTechnologyModules = async () => {
+      const urls = [
+        './js/core/performanceProfiler.js?v=20260912-deep-profiler1',
+        './js/core/fogOfWar.js?v=20260904-weather1',
+        './js/technology/breakthroughs.js?v=20260912-medieval1',
+        './js/technology/classicalTransition.js?v=20260907-classical1',
+        './js/technology/electrification.js?v=20260917-electric1',
+        './js/technology/modernEnergy.js?v=20260920-modern-energy1',
+        './js/technology/petroleum.js?v=20260917-oil1',
+        './js/technology/spaceLaunchGeography.js?v=20260920-modern-energy1',
+        './js/technology/telephone.js?v=20260918-telephone1',
+        './js/diplomacy/nuclearDeterrence.js?v=20260920-nuclear-deterrence1',
+        './js/military/nuclearWarRisk.js?v=20260921-nuclear-risk1',
+        './js/military/nuclearExchange.js?v=20260921-nuclear-exchange1',
+        './js/society/warSociety.js?v=20260922-war-society1',
+      ];
+      await Promise.all(urls.map((url) => fetch(url, { cache: 'reload' }).catch(() => null)));
+    };
+    const startMain = async () => {
+      if (started || !window.__worldsimScenario) return;
+      started = true;
+      const status = document.querySelector('.startup-picker-status');
+      if (status) status.textContent = 'Loading world…';
+      window.__reportWorldStartup = () => {};
+      try {
+        await refreshTechnologyModules();
+        await import('./js/main.js?v=20260923-modern-visibility1');
+      } catch (error) {
+        const message = error?.stack || error?.message || String(error);
+        if (status) status.textContent = `Simulation module failed: ${message}`;
+        console.error('Could not load simulation module graph', error);
+      }
+    };
+    const poll = () => {
+      startMain();
+      if (!started) setTimeout(poll, 25);
+    };
+    poll();
   </script>
   <script type="module" src="js/ui/spymasterContestedClaimsUi.js?v=20260922-contested-claims1"></script>
-  <script type="module" src="js/ui/scenarioRuntimeAuto.js?v=20260923-black-map4"></script>
+  <script type="module" src="js/ui/scenarioRuntimeAuto.js?v=20260923-black-map5"></script>
   <script type="module" src="js/ui/electricGridAutoUi.js?v=20260921-grid-ui1"></script>
   <script type="module" src="js/ui/institutionalCouncilUi.js?v=20260916-institution-ui1"></script>
   <script type="module" src="js/ui/institutionalCouncilSpendingUi.js?v=20260916-institution-ui2"></script>
