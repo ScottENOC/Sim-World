@@ -1,4 +1,5 @@
 import { ensureConstruction } from '../economy/construction.js?v=20260918-modern-war1';
+import { consumeTransportFuel } from '../economy/energyTransition.js?v=20260923-energy-transition1';
 import { damageInfrastructure } from './infrastructureDamage.js?v=20260918-modern-war1';
 
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
@@ -17,6 +18,7 @@ export const ROCKET_ARTILLERY_TECH_ID='rocket_artillery';
 export const IMPROVED_ROCKET_PROPELLANT_TECH_ID='improved_rocket_propellant';
 export const ROCKET_STABILISATION_TECH_ID='rocket_stabilisation';
 export const ROCKET_LAUNCHER_SYSTEMS_TECH_ID='rocket_launcher_systems';
+export const HYDROGEN_ARMOURED_PROPULSION_TECH_ID='hydrogen_armoured_propulsion';
 
 const TECHS=[
  {id:BREECH_RIFLE_TECH_ID,prereq:['rifling','steelmaking'],base:0.000018,label:'Breech-loading rifles'},
@@ -32,6 +34,7 @@ const TECHS=[
  {id:IMPROVED_ROCKET_PROPELLANT_TECH_ID,prereq:[ROCKET_ARTILLERY_TECH_ID,SMOKELESS_POWDER_TECH_ID],base:0.000008,label:'Consistent rocket propellants'},
  {id:ROCKET_STABILISATION_TECH_ID,prereq:[ROCKET_ARTILLERY_TECH_ID,'precision_machining'],base:0.000007,label:'Stabilised artillery rockets'},
  {id:ROCKET_LAUNCHER_SYSTEMS_TECH_ID,prereq:[ROCKET_ARTILLERY_TECH_ID],base:0.000008,label:'Multiple rocket launcher systems'},
+ {id:HYDROGEN_ARMOURED_PROPULSION_TECH_ID,prereq:['hydrogen_transport_fuels','industrial_electrification','precision_machining'],base:0.000004,label:'Hydrogen armoured-vehicle propulsion'},
 ];
 
 function connected(region,byId){
@@ -70,6 +73,31 @@ export function tickModernLandBreakthroughs(regions,currentTick,rng=Math.random,
 function availableShotMetal(region){return Math.max(0,region.stockpile?.iron||0)+Math.max(0,region.stockpile?.steel||0)+Math.max(0,region.stockpile?.bronze||0);}
 function consumeShotMetal(region,amount){let left=Math.max(0,amount);for(const key of ['steel','iron','bronze']){const take=Math.min(left,Math.max(0,region.stockpile?.[key]||0));if(take>0)region.stockpile[key]-=take;left-=take;}return amount-left;}
 
+export function armouredVehicleOperationalProfile(region,personnel,{elapsedDays=7,logisticsSupply=1,consumeFuel=true}={}){
+ const inv=region.industrialSupply?.inventory||{},availableTanks=Math.max(0,Number(inv.tank)||0),availableSpg=Math.max(0,Number(inv.self_propelled_gun)||0);
+ const usefulVehicles=Math.max(0,Number(personnel)||0)/18;
+ const tanks=Math.min(availableTanks,usefulVehicles*.72),spg=Math.min(availableSpg,Math.max(0,usefulVehicles-tanks));
+ const active=tanks+spg;
+ if(active<=0)return{combatMultiplier:1,defenceMultiplier:1,operationalFraction:0,tanks:0,selfPropelledGuns:0,dieselUsed:0,hydrogenUsed:0,fuelRequested:0};
+ const weeks=Math.max(.1,(Number(elapsedDays)||0)/7),supply=clamp(logisticsSupply);
+ const fuelRequested=(tanks*.055+spg*.042)*weeks*supply;
+ const hydrogenCapable=has(region,HYDROGEN_ARMOURED_PROPULSION_TECH_ID)&&has(region,'hydrogen_transport_fuels');
+ let fuel;
+ if(consumeFuel){
+  if(hydrogenCapable)fuel=consumeTransportFuel(region,'diesel',fuelRequested,{targetHydrogenShare:.12});
+  else{
+   region.stockpile||={};const dieselUsed=Math.min(Math.max(0,Number(region.stockpile.diesel)||0),fuelRequested);region.stockpile.diesel=Math.max(0,(Number(region.stockpile.diesel)||0)-dieselUsed);
+   fuel={requested:fuelRequested,fulfilled:dieselUsed,fossilUsed:dieselUsed,hydrogenUsed:0,shortfall:Math.max(0,fuelRequested-dieselUsed)};
+  }
+ }else{
+  const diesel=Math.max(0,Number(region.stockpile?.diesel)||0),hydrogenEquivalent=hydrogenCapable?Math.max(0,Number(region.stockpile?.hydrogen)||0)/1.7:0;
+  fuel={requested:fuelRequested,fulfilled:Math.min(fuelRequested,diesel+hydrogenEquivalent),fossilUsed:0,hydrogenUsed:0,shortfall:Math.max(0,fuelRequested-diesel-hydrogenEquivalent)};
+ }
+ const operationalFraction=fuelRequested>0?clamp(fuel.fulfilled/fuelRequested):1;
+ const density=clamp(active/Math.max(1,(Number(personnel)||0)/35));
+ return{combatMultiplier:1+density*operationalFraction*.28,defenceMultiplier:1+density*operationalFraction*.18,operationalFraction,tanks,selfPropelledGuns:spg,dieselUsed:fuel.fossilUsed||0,hydrogenUsed:fuel.hydrogenUsed||0,fuelRequested,hydrogenCapable};
+}
+
 export function modernInfantryProfile(region,personnel,firearmProfile,{role='attacker',elapsedDays=7,logisticsSupply=1,consumeSupplies=true}={}){
  const armed=clamp(firearmProfile?.suppliedShare||0); if(personnel<=0||armed<=0)return{multiplier:1,defenceMultiplier:1,intensityMultiplier:1,ammoSupply:1,powderUsed:0,shotUsed:0};
  const breech=has(region,BREECH_RIFLE_TECH_ID),magazine=has(region,MAGAZINE_RIFLE_TECH_ID),smokeless=has(region,SMOKELESS_POWDER_TECH_ID),mg=has(region,MACHINE_GUN_TECH_ID);
@@ -79,7 +107,8 @@ export function modernInfantryProfile(region,personnel,firearmProfile,{role='att
  let ammunitionUsed=0;if(consumeSupplies&&supply>0){ammunitionUsed=ammunitionNeeded*supply;region.stockpile.small_arms_ammunition=Math.max(0,(region.stockpile.small_arms_ammunition||0)-ammunitionUsed);}
  const firepower=armed*supply*((breech ? .08 : 0)+(magazine ? .11 : 0)+(smokeless ? .07 : 0)+(mg ? .12 : 0));
  const defence=armed*supply*((breech ? .05 : 0)+(magazine ? .08 : 0)+(smokeless ? .05 : 0)+(mg ? .34 : 0));
- return{multiplier:1+firepower,defenceMultiplier:role==='defender'?1+defence:1,intensityMultiplier:1+armed*supply*((magazine ? .12 : 0)+(mg ? .22 : 0)),ammoSupply:supply,ammunitionUsed,powderUsed:0,shotUsed:0,breech,magazine,smokeless,machineGuns:mg};
+ const armour=armouredVehicleOperationalProfile(region,personnel,{elapsedDays,logisticsSupply:supply,consumeFuel:consumeSupplies});
+ return{multiplier:(1+firepower)*armour.combatMultiplier,defenceMultiplier:(role==='defender'?1+defence:1)*(role==='defender'?armour.defenceMultiplier:1),intensityMultiplier:1+armed*supply*((magazine ? .12 : 0)+(mg ? .22 : 0)),ammoSupply:supply,ammunitionUsed,powderUsed:0,shotUsed:0,breech,magazine,smokeless,machineGuns:mg,armour};
 }
 
 export function entrenchmentDefenceMultiplier(region,weeksEngaged=0){
