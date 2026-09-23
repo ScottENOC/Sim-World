@@ -99,7 +99,10 @@ export function armouredVehicleOperationalProfile(region,personnel,{elapsedDays=
 }
 
 export function modernInfantryProfile(region,personnel,firearmProfile,{role='attacker',elapsedDays=7,logisticsSupply=1,consumeSupplies=true}={}){
- const armed=clamp(firearmProfile?.suppliedShare||0); if(personnel<=0||armed<=0)return{multiplier:1,defenceMultiplier:1,intensityMultiplier:1,ammoSupply:1,powderUsed:0,shotUsed:0};
+ if(personnel<=0)return{multiplier:1,defenceMultiplier:1,intensityMultiplier:1,ammoSupply:1,powderUsed:0,shotUsed:0};
+ const armed=clamp(firearmProfile?.suppliedShare||0);
+ const armour=armouredVehicleOperationalProfile(region,personnel,{elapsedDays,logisticsSupply:clamp(logisticsSupply),consumeFuel:consumeSupplies});
+ if(armed<=0)return{multiplier:armour.combatMultiplier,defenceMultiplier:role==='defender'?armour.defenceMultiplier:1,intensityMultiplier:1,ammoSupply:1,ammunitionUsed:0,powderUsed:0,shotUsed:0,breech:false,magazine:false,smokeless:false,machineGuns:false,armour};
  const breech=has(region,BREECH_RIFLE_TECH_ID),magazine=has(region,MAGAZINE_RIFLE_TECH_ID),smokeless=has(region,SMOKELESS_POWDER_TECH_ID),mg=has(region,MACHINE_GUN_TECH_ID);
  const weeks=Math.max(.1,elapsedDays/7); const rate=(breech ? .35 : 0)+(magazine ? .75 : 0)+(mg?1.15:0);
  const ammunitionNeeded=personnel*armed*.018*rate*weeks*(smokeless ? .9 : 1);
@@ -107,7 +110,6 @@ export function modernInfantryProfile(region,personnel,firearmProfile,{role='att
  let ammunitionUsed=0;if(consumeSupplies&&supply>0){ammunitionUsed=ammunitionNeeded*supply;region.stockpile.small_arms_ammunition=Math.max(0,(region.stockpile.small_arms_ammunition||0)-ammunitionUsed);}
  const firepower=armed*supply*((breech ? .08 : 0)+(magazine ? .11 : 0)+(smokeless ? .07 : 0)+(mg ? .12 : 0));
  const defence=armed*supply*((breech ? .05 : 0)+(magazine ? .08 : 0)+(smokeless ? .05 : 0)+(mg ? .34 : 0));
- const armour=armouredVehicleOperationalProfile(region,personnel,{elapsedDays,logisticsSupply:supply,consumeFuel:consumeSupplies});
  return{multiplier:(1+firepower)*armour.combatMultiplier,defenceMultiplier:(role==='defender'?1+defence:1)*(role==='defender'?armour.defenceMultiplier:1),intensityMultiplier:1+armed*supply*((magazine ? .12 : 0)+(mg ? .22 : 0)),ammoSupply:supply,ammunitionUsed,powderUsed:0,shotUsed:0,breech,magazine,smokeless,machineGuns:mg,armour};
 }
 
