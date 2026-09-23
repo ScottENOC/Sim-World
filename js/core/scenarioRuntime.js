@@ -74,6 +74,29 @@ export function scenarioWorldAdapter(sim) {
   };
 }
 
+export function applyScenarioRuntimeRules(sim, scenario, pkg = null) {
+  if (!sim || !scenario) return { dailyTurns: false, physicalWorldKnown: false };
+  const preferredUnit = pkg?.manifest?.pacing?.preferredStrategicTurnUnit || null;
+  const dailyTurns = preferredUnit === 'day' || scenario.rulesProfile === 'modern-crisis';
+  if (dailyTurns && sim.clock?.setWorldTempo) {
+    if (!sim.clock._scenarioDailyTempoPatched) {
+      const ordinarySetWorldTempo = sim.clock.setWorldTempo.bind(sim.clock);
+      sim.clock._scenarioDailyTempoPatched = true;
+      sim.clock._ordinarySetWorldTempo = ordinarySetWorldTempo;
+      sim.clock.setWorldTempo = (tempo = {}) => ordinarySetWorldTempo({
+        ...tempo,
+        daysPerTick: 1,
+        label: 'daily',
+      });
+    }
+    sim.clock.setWorldTempo({ index: 1, daysPerTick: 1, label: 'daily', signals: { scenario: scenario.id } });
+  }
+
+  const physicalWorldKnown = scenario.rulesProfile === 'modern-crisis';
+  if (physicalWorldKnown) sim.fogOfWar?.setPhysicalWorldKnown?.(true);
+  return { dailyTurns, physicalWorldKnown };
+}
+
 export function attachScenarioPackage(sim, scenario, pkg, options = {}) {
   if (!sim || !scenario) throw new Error('attachScenarioPackage requires simulation and scenario');
   if (!pkg) return { attached: false, reason: 'grand_campaign_no_package' };
@@ -126,6 +149,9 @@ export function attachScenarioPackage(sim, scenario, pkg, options = {}) {
   sim.scenarioOutcomeFor = (countryId) =>
     pkg.victory ? canDeclareFocusedScenarioResult(world, countryId, pkg.victory) : { ready: false, reason: 'no_victory_model' };
 
+  const runtimeRules = applyScenarioRuntimeRules(sim, scenario, pkg);
+  world.scenarioState.runtimeRules = runtimeRules;
+
   return {
     attached: true,
     scenarioId: scenario.id,
@@ -134,6 +160,7 @@ export function attachScenarioPackage(sim, scenario, pkg, options = {}) {
     modernBaseline,
     forceDeployments,
     strategicInformation,
+    runtimeRules,
     usedPolityFacade: world.usesPolityFacade,
     playablePolityIds: sim.scenarioPlayablePolities().map((polity) => polity.scenarioActorId || polity.id),
   };
