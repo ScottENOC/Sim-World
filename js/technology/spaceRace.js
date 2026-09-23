@@ -146,7 +146,7 @@ function completeMilestone(carrier,members,m,currentTick,claimed){
 }
 
 export function spaceMilestoneCost(milestoneId){
-  const m=MILESTONE_BY_ID.get(milestoneId);return m?{cash:m.cashCost,steel:m.steelCost,fuel:m.fuelCost,propellant:m.fuelCost}:null;
+  const m=MILESTONE_BY_ID.get(milestoneId);return m?{cash:m.cashCost,steel:m.steelCost,fuel:m.fuelCost}:null;
 }
 
 export function tickSpaceRace(regions,currentTick,rng=Math.random,elapsedDays=7){
@@ -170,8 +170,6 @@ export function tickSpaceRace(regions,currentTick,rng=Math.random,elapsedDays=7)
     const step=Math.min(remaining,desiredProgress);
     if(step<=0)continue;
 
-    // Propellant manufacture is an explicit physical step. Petroleum or hydrogen
-    // can be feedstock, but milestones only consume the resulting propellant stock.
     const propellantTarget=Math.max(0,target.fuelCost*step-nationalResources(members).rocketPropellant);
     if(propellantTarget>0){
       let remainingTarget=propellantTarget;
