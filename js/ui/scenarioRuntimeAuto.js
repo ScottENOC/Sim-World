@@ -1,5 +1,6 @@
 import { hydrateSelectedScenarioRuntime } from '../core/scenarioRuntime.js?v=20260923-modern-startup1';
 import { currentScenario } from '../core/scenarios.js?v=20260921-scenarios2';
+import { applyModernScenarioAdvisorPresentation } from './modernScenarioAdvisorPresentation.js?v=20260923-modern-startup1';
 
 let started = false;
 
@@ -38,6 +39,7 @@ async function tryStart() {
     window.__worldsimScenarioRuntime = result;
     if (result.attached) {
       console.log(`Scenario runtime hydrated: ${result.scenarioId}`);
+      applyModernScenarioAdvisorPresentation();
       // The modern startup picker has already selected the country. The legacy
       // region picker exists only as the grand-campaign handoff mechanism; drive
       // it automatically so the player is not asked to make a second Bronze Age choice.
