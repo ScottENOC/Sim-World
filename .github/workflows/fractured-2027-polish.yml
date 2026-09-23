@@ -1,0 +1,38 @@
+name: Fractured 2027 startup polish
+
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'js/core/scenarioModernStart.js'
+      - 'js/ui/scenarioRuntimeAuto.js'
+      - 'js/ui/modernScenarioPolish.js'
+      - 'js/ui/maritimeTradeVisuals.js'
+      - 'tests/fractured2027Polish.test.mjs'
+      - '.github/workflows/fractured-2027-polish.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'index.html'
+      - 'js/core/scenarioModernStart.js'
+      - 'js/ui/scenarioRuntimeAuto.js'
+      - 'js/ui/modernScenarioPolish.js'
+      - 'js/ui/maritimeTradeVisuals.js'
+      - 'tests/fractured2027Polish.test.mjs'
+      - '.github/workflows/fractured-2027-polish.yml'
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check js/core/scenarioModernStart.js
+      - run: node --check js/ui/scenarioRuntimeAuto.js
+      - run: node --check js/ui/modernScenarioPolish.js
+      - run: node --check js/ui/maritimeTradeVisuals.js
+      - run: node tests/fractured2027Polish.test.mjs
+      - run: node tests/fractured2027ModernStartup.test.mjs
+      - run: node tools/test-scenario-framework.mjs
