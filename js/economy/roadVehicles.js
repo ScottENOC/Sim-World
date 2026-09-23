@@ -13,6 +13,7 @@ const ELECTRONICS_PER_EV = 0.018;
 const PETROL_PER_ICE_YEAR = 0.42;
 const ELECTRICITY_PER_EV_YEAR = 1.05;
 const ANNUAL_RETIREMENT = 0.075;
+const MIN_EV_GRID_SERVICE = 0.10;
 
 function manufacturingCapability(region) {
   const industrial = region.industrialSupply?.capability || {};
@@ -34,10 +35,20 @@ function motorisationTarget(region) {
   return population * vehiclesPerPerson;
 }
 
+function householdGridService(region) {
+  return clamp(region.electricity?.householdService || 0);
+}
+
+function hasEvProductionPrerequisites(region) {
+  return hasTech(region, 'lithium_ion_batteries') &&
+    hasTech(region, 'industrial_electrification') &&
+    householdGridService(region) > MIN_EV_GRID_SERVICE;
+}
+
 function evCapability(region) {
-  if (!hasTech(region, 'lithium_ion_batteries') || !hasTech(region, 'industrial_electrification')) return 0;
+  if (!hasEvProductionPrerequisites(region)) return 0;
   const manufacturing = manufacturingCapability(region);
-  const grid = clamp(region.electricity?.householdService || 0);
+  const grid = householdGridService(region);
   const cells = nonNegative(region.stockpile?.[LITHIUM_CELL_GOOD]);
   const cellSignal = clamp(cells / Math.max(1, nonNegative(region.population) * 0.00002));
   return clamp(manufacturing * 0.45 + grid * 0.35 + cellSignal * 0.20);
@@ -125,10 +136,10 @@ export function tickRoadVehicles(region, elapsedDays = 7) {
   s.lastEvBuilt = buildEv(region, Math.min(buildTarget, evNeeded));
   s.lastIceBuilt = buildIce(region, Math.max(0, buildTarget - s.lastEvBuilt));
 
-  const grid = clamp(region.electricity?.householdService || 0);
+  const grid = householdGridService(region);
   // Home/work charging becomes highly usable with a decent grid, but a weak grid
   // makes part of the BEV fleet unavailable rather than silently creating power.
-  s.chargingService = clamp((grid - 0.10) / 0.75);
+  s.chargingService = clamp((grid - MIN_EV_GRID_SERVICE) / 0.75);
   const operationalEv = s.electric * s.chargingService;
   const operatingIce = s.ice;
   s.electricityLoad = operationalEv * ELECTRICITY_PER_EV_YEAR * years;
