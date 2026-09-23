@@ -83,6 +83,13 @@ def main():
     # intended region count instead of creating a second residual cohort.
     run('python', 'tools/absorb-old-world-map-residual.py')
     announce('residual-absorption')
+
+    # Apply bounded physical-geography corrections that cannot safely be inferred
+    # from the admin-0 mask: restore the Crimean Peninsula from ADM1 coastline
+    # geometry and absorb the malformed Finnish residual seam into its neighbours.
+    run('python', 'tools/repair-crimea-finland-geography.py', '--world-dir', 'data/world')
+    announce('crimea-finland-repair')
+
     run('python', 'tools/finalize-old-world-map-report.py')
     require_target_coverage()
 
