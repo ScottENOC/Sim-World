@@ -11,6 +11,7 @@ import {
   strategicBelief,
   updateStrategicBelief,
 } from '../js/diplomacy/strategicBeliefs.js';
+import { applyScenarioStrategicInformation } from '../js/core/scenarioStrategicInformation.js';
 
 function actor(id){return{id,name:id,governance:{sovereignPolityId:id}};}
 
@@ -53,6 +54,13 @@ function actor(id){return{id,name:id,governance:{sovereignPolityId:id}};}
   assert(russia.strategicInformationEnvironment.badNewsCareerPenalty>.65,'scenario should represent strong incentives to filter bad news upward');
   assert(russia.strategicInformationEnvironment.upwardReportingIntegrity<.5,'scenario leadership should begin with a degraded internal reporting chain');
   assert.equal(russia.informationCalibration.notPermanentNationalTrait,true,'calibration must be an institutional starting condition, not an immutable country trait');
+
+  const world={polities:[{id:'russia',scenarioActorId:'russia'}],regions:[{id:'ru-1',scenarioCountryId:'russia',governance:{sovereignPolityId:'russia'}}]};
+  const applied=applyScenarioStrategicInformation(world,scenario);
+  assert.equal(applied.actorsApplied,1);
+  assert.equal(applied.regionsApplied,1);
+  assert.equal(world.polities[0].strategicInformationEnvironment.badNewsCareerPenalty,.72,'scenario profile should reach the live polity');
+  assert.equal(world.regions[0].strategicInformationEnvironment.operationalSecrecy,.82,'scenario profile should reach live regions used by simulation systems');
 }
 
 console.log('Strategic belief and reporting-distortion regressions passed.');
