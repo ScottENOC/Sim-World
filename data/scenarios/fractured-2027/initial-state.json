@@ -23,10 +23,52 @@
         "operationalSecrecy": 0.82,
         "deceptionCapacity": 0.68
       },
+      "initialStrategicBeliefs": [
+        {
+          "targetActorId": "russia",
+          "metric": "war_pressure:russia-ukraine-war",
+          "estimate": 0.28,
+          "confidence": 0.78,
+          "uncertainty": 0.22,
+          "sourceType": "internal_report",
+          "asOfTick": 0,
+          "note": "Opening scenario misconception: senior leadership believes Russian military/economic pressure from the Ukraine war is substantially more manageable than it really is."
+        },
+        {
+          "targetActorId": "ukraine",
+          "metric": "war_pressure:russia-ukraine-war",
+          "estimate": 0.78,
+          "confidence": 0.72,
+          "uncertainty": 0.28,
+          "sourceType": "internal_report",
+          "asOfTick": 0,
+          "note": "Opening scenario misconception: senior leadership believes Ukraine is closer to exhaustion and political pressure than the underlying simulation state indicates."
+        },
+        {
+          "targetActorId": "russia",
+          "metric": "combat_sustainability:russia-ukraine-war",
+          "estimate": 0.72,
+          "confidence": 0.74,
+          "uncertainty": 0.26,
+          "sourceType": "internal_report",
+          "asOfTick": 0,
+          "note": "Opening scenario misconception: readiness, repair quality, force regeneration and available stocks are reported more favourably than warranted."
+        },
+        {
+          "targetActorId": "ukraine",
+          "metric": "combat_resilience:russia-ukraine-war",
+          "estimate": 0.34,
+          "confidence": 0.68,
+          "uncertainty": 0.32,
+          "sourceType": "internal_report",
+          "asOfTick": 0,
+          "note": "Opening scenario misconception: Ukrainian mobilisation, external support and capacity to absorb further losses are underestimated."
+        }
+      ],
       "informationCalibration": {
         "kind": "scenario-starting-condition",
         "notPermanentNationalTrait": true,
-        "notes": "High wartime secrecy reduces foreign visibility, while censorship, weak independent verification, corruption incentives and pressure for favourable upward reporting can also degrade the leadership's own picture. These values are scenario calibration parameters, not assertions that any specific anecdotal fraud or sabotage claim occurred."
+        "notes": "This fictional 2027 scenario deliberately starts Russian leadership with an overly favourable understanding of the Ukraine war for balance and gameplay. The beliefs are intended to be corrected by later evidence and institutional change. They are alternate-history starting conditions, not predictions or claims about the real 2027 world."
       }
     },
     { "id": "ukraine", "kind": "country", "name": "Ukraine" },
