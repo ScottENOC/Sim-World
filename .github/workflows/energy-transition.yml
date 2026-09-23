@@ -1,0 +1,31 @@
+name: Energy transition
+
+on:
+  pull_request:
+    paths:
+      - 'js/economy/energyTransition.js'
+      - 'js/economy/electricity.js'
+      - 'js/economy/petroleumRefining.js'
+      - 'js/economy/agriculturalMachinery.js'
+      - 'js/technology/modernEnergy.js'
+      - 'tools/test-energy-transition.mjs'
+      - '.github/workflows/energy-transition.yml'
+  workflow_dispatch:
+
+jobs:
+  energy-transition:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check transition integration
+        run: |
+          node --check js/economy/energyTransition.js
+          node --check js/economy/electricity.js
+          node --check js/economy/petroleumRefining.js
+          node --check js/economy/agriculturalMachinery.js
+          node --check js/technology/modernEnergy.js
+      - name: Run energy transition regression
+        run: node tools/test-energy-transition.mjs
