@@ -49,6 +49,19 @@ function baseRegion() {
 {
   const region = baseRegion();
   region.unlockedTechIds.add('lithium_ion_batteries');
+  region.stockpile.lithium_ion_cells = 1_000;
+  region.electricity.householdService = 0;
+  const beforeCells = region.stockpile.lithium_ion_cells;
+  const state = tickRoadVehicles(region, 365.2425);
+  assert.equal(state.electric, 0, 'BEVs must not be manufactured without usable household grid access');
+  assert.equal(state.lastEvBuilt, 0, 'zero grid service must hard-gate new BEV production');
+  assert.equal(region.stockpile.lithium_ion_cells, beforeCells, 'grid-gated BEV production must not consume battery cells');
+  assert.ok(state.ice > 0, 'lack of charging access should not prevent ordinary vehicle production');
+}
+
+{
+  const region = baseRegion();
+  region.unlockedTechIds.add('lithium_ion_batteries');
   region.stockpile.lithium_ion_cells = 0.1;
   const state = tickRoadVehicles(region, 365.2425);
   assert.ok(state.electric < state.ice, 'battery-cell scarcity should constrain BEV production rather than conjuring batteries');
