@@ -1,3 +1,5 @@
+import './technologyAttentionUi.js?v=20260923-tech-attention1';
+
 const DEFAULT_NOTICE_TTL_MS = 12000;
 const MAX_VISIBLE_NOTICES = 4;
 const GENERIC_UNPRESENTED_EVENT = 'An event occurred, but no dedicated presentation is available yet.';
