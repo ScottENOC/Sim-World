@@ -69,6 +69,14 @@ import { diseaseAttentionNotice, informationalEventNotice, quarantineAdviceForBu
 }
 
 {
+  const notice = informationalEventNotice(
+    'Breakthrough: Iron smelting',
+    'Smiths have learnt to smelt iron.',
+  );
+  assert.equal(notice, null, 'legacy capital breakthrough cards should be suppressed because technology attention owns the report');
+}
+
+{
   const notice = informationalEventNotice('Construction complete', 'The granary is finished.');
   assert.deepEqual(notice, { title: 'Construction complete', body: 'The granary is finished.' });
 }
