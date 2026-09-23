@@ -1,4 +1,5 @@
 import { addProductionLine, ensureIndustrialPlantState, industrialFactoryCapacity } from './industrialPlant.js?v=20260921-farm-machinery1';
+import { consumeTransportFuel } from './energyTransition.js?v=20260923-energy-transition1';
 
 const DAYS_PER_YEAR=365.2425;
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
@@ -30,7 +31,7 @@ const SHARED_COMPONENTS=new Set(['engine','transmission','wheeled_chassis','hull
 export function ensureAgriculturalMachinery(region){
   region.agriculturalMachinery||={};
   const s=region.agriculturalMachinery;
-  for(const [k,v] of Object.entries({tractors:0,combines:0,serviceableTractors:0,serviceableCombines:0,tractorCoverage:0,combineCoverage:0,landWorkMultiplier:1,harvestRetention:1,fuelSatisfaction:1,maintenanceReadiness:1,lastFuelUse:0,lastMaintenanceComponents:0,lastMaintenanceSteel:0,tractorExperience:0,combineExperience:0,lastTractorsBuilt:0,lastCombinesBuilt:0}))if(!Number.isFinite(s[k]))s[k]=v;
+  for(const [k,v] of Object.entries({tractors:0,combines:0,serviceableTractors:0,serviceableCombines:0,tractorCoverage:0,combineCoverage:0,landWorkMultiplier:1,harvestRetention:1,fuelSatisfaction:1,maintenanceReadiness:1,lastFuelUse:0,lastHydrogenUse:0,lastMaintenanceComponents:0,lastMaintenanceSteel:0,tractorExperience:0,combineExperience:0,lastTractorsBuilt:0,lastCombinesBuilt:0}))if(!Number.isFinite(s[k]))s[k]=v;
   return s;
 }
 
@@ -102,9 +103,14 @@ function assembleMachines(region,productId,requested,elapsedDays){
 }
 
 function consumeFuel(region,need){
-  region.stockpile||={};let left=Math.max(0,need),used=0;
-  for(const fuel of ['diesel','petrol']){const take=Math.min(left,Math.max(0,Number(region.stockpile[fuel])||0));region.stockpile[fuel]=Math.max(0,(region.stockpile[fuel]||0)-take);left-=take;used+=take;if(left<=0)break;}
-  return {used,satisfaction:need>0?clamp(used/need):1};
+  region.stockpile||={};
+  const diesel=consumeTransportFuel(region,'diesel',Math.max(0,need));
+  let fulfilled=diesel.fulfilled, fossilUsed=diesel.fossilUsed, hydrogenUsed=diesel.hydrogenUsed;
+  if(diesel.shortfall>0){
+    const petrol=consumeTransportFuel(region,'petrol',diesel.shortfall,{targetHydrogenShare:0});
+    fulfilled+=petrol.fulfilled;fossilUsed+=petrol.fossilUsed;hydrogenUsed+=petrol.hydrogenUsed;
+  }
+  return {used:fulfilled,fossilUsed,hydrogenUsed,satisfaction:need>0?clamp(fulfilled/need):1};
 }
 
 export function agriculturalMechanisationProfile(region){
@@ -130,12 +136,12 @@ export function tickAgriculturalMachinery(region,elapsedDays=7){
   const usedComponents=componentNeed*maintenance,usedSteel=steelNeed*maintenance;
   inv.machine_components=Math.max(0,(inv.machine_components||0)-usedComponents);region.stockpile.steel=Math.max(0,(region.stockpile.steel||0)-usedSteel);s.maintenanceReadiness=clamp(.45+maintenance*.55);
 
-  const fuelNeed=(s.tractors*FUEL_PER_TRACTOR_YEAR+s.combines*FUEL_PER_COMBINE_YEAR)*years,fuel=consumeFuel(region,fuelNeed);s.fuelSatisfaction=fuel.satisfaction;s.lastFuelUse=fuel.used;
+  const fuelNeed=(s.tractors*FUEL_PER_TRACTOR_YEAR+s.combines*FUEL_PER_COMBINE_YEAR)*years,fuel=consumeFuel(region,fuelNeed);s.fuelSatisfaction=fuel.satisfaction;s.lastFuelUse=fuel.used;s.lastHydrogenUse=fuel.hydrogenUsed;
   const service=clamp(s.maintenanceReadiness*.62+s.fuelSatisfaction*.38);s.serviceableTractors=s.tractors*service;s.serviceableCombines=s.combines*service;
 
   const tractorLoss=1-Math.pow(1-TRACTOR_ANNUAL_WEAR*(1.35-.35*s.maintenanceReadiness),years),combineLoss=1-Math.pow(1-COMBINE_ANNUAL_WEAR*(1.35-.35*s.maintenanceReadiness),years);
   s.tractors=Math.max(0,s.tractors*(1-tractorLoss));s.combines=Math.max(0,s.combines*(1-combineLoss));s.lastMaintenanceComponents=usedComponents;s.lastMaintenanceSteel=usedSteel;
   Object.assign(s,agriculturalMechanisationProfile(region));
-  region.report||={};region.report.agriculturalMachinery={workers:0,tractors:s.tractors,combines:s.combines,serviceableTractors:s.serviceableTractors,serviceableCombines:s.serviceableCombines,tractorCoverage:s.tractorCoverage,combineCoverage:s.combineCoverage,landWorkMultiplier:s.landWorkMultiplier,harvestRetention:s.harvestRetention,fuelSatisfaction:s.fuelSatisfaction,maintenanceReadiness:s.maintenanceReadiness,lastFuelUse:s.lastFuelUse,lastTractorsBuilt:s.lastTractorsBuilt,lastCombinesBuilt:s.lastCombinesBuilt,tractorCapability:componentAssemblyCapability(region,TRACTOR_PRODUCT_ID),combineCapability:componentAssemblyCapability(region,COMBINE_PRODUCT_ID)};
+  region.report||={};region.report.agriculturalMachinery={workers:0,tractors:s.tractors,combines:s.combines,serviceableTractors:s.serviceableTractors,serviceableCombines:s.serviceableCombines,tractorCoverage:s.tractorCoverage,combineCoverage:s.combineCoverage,landWorkMultiplier:s.landWorkMultiplier,harvestRetention:s.harvestRetention,fuelSatisfaction:s.fuelSatisfaction,maintenanceReadiness:s.maintenanceReadiness,lastFuelUse:s.lastFuelUse,lastHydrogenUse:s.lastHydrogenUse,lastTractorsBuilt:s.lastTractorsBuilt,lastCombinesBuilt:s.lastCombinesBuilt,tractorCapability:componentAssemblyCapability(region,TRACTOR_PRODUCT_ID),combineCapability:componentAssemblyCapability(region,COMBINE_PRODUCT_ID)};
   return s;
 }
