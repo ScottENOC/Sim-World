@@ -1,4 +1,4 @@
-import { hydrateSelectedScenarioRuntime } from '../core/scenarioRuntime.js?v=20260923-modern-startup2';
+import { hydrateSelectedScenarioRuntime } from '../core/scenarioRuntime.js?v=20260923-modern-visibility2';
 import { currentScenario } from '../core/scenarios.js?v=20260921-scenarios2';
 import { applyModernScenarioAdvisorPresentation } from './modernScenarioAdvisorPresentation.js?v=20260923-modern-startup1';
 import { applyModernScenarioPolish, refocusModernPlayerCountry } from './modernScenarioPolish.js?v=20260923-black-map1';
@@ -9,6 +9,22 @@ let started = false;
 function buttonByStrongText(host, text) {
   return [...(host?.querySelectorAll?.('button') || [])].find((button) =>
     button.querySelector('strong')?.textContent?.trim() === text);
+}
+
+function resetModernMapView(sim) {
+  const map = sim?.map;
+  if (!map?.canvas || typeof d3 === 'undefined') return false;
+  map.canvas.style.transform = '';
+  map.canvas.style.transformOrigin = '';
+  map.canvas.style.willChange = '';
+  const identity = d3.zoomIdentity;
+  map.transform = identity;
+  map._lastRenderedTransform = identity;
+  map._gesturePreviewActive = false;
+  if (map._zoom) d3.select(map.canvas).call(map._zoom.transform, identity);
+  map.refreshLayer?.();
+  map.draw?.();
+  return true;
 }
 
 function enforceModernPhysicalWorldVisibility(sim) {
@@ -43,8 +59,6 @@ function completePendingModernCountryStart(sim) {
   const preferred = window.__pendingStartNavigation;
   if (!picker || !pendingId || !preferred || !sim?.regions?.some((region) => region.id === pendingId)) return false;
 
-  // The modern country picker is the only player-facing choice. Keep the legacy
-  // hierarchy hidden while we invoke its existing callback for the internal anchor.
   pickerModal?.classList.add('hidden');
   const continentButton = buttonByStrongText(picker, preferred.continent);
   if (!continentButton) return false;
@@ -56,8 +70,6 @@ function completePendingModernCountryStart(sim) {
   if (!regionButton) return false;
   regionButton.click();
 
-  // Clear the pending state only after the legacy callback was successfully driven.
-  // If world/picker setup was not ready yet, the retry loop keeps the selection intact.
   delete window.__pendingStartRegionId;
   delete window.__pendingStartRegionName;
   delete window.__pendingStartNavigation;
@@ -65,7 +77,9 @@ function completePendingModernCountryStart(sim) {
   window.__modernCountryStartCompleted = true;
   requestAnimationFrame(() => {
     enforceModernPhysicalWorldVisibility(sim);
-    refocusModernPlayerCountry(sim);
+    resetModernMapView(sim);
+    const focused = refocusModernPlayerCountry(sim);
+    if (!focused) resetModernMapView(sim);
   });
   return true;
 }
@@ -91,11 +105,16 @@ async function tryStart() {
     window.__worldsimScenarioRuntime = result;
     if (result.attached) {
       console.log(`Scenario runtime hydrated: ${result.scenarioId}`);
-      enforceModernPhysicalWorldVisibility(sim);
+      const visible = enforceModernPhysicalWorldVisibility(sim);
+      resetModernMapView(sim);
+      console.log(`[fractured-2027] Runtime visibility check: ${visible ? 'PASS' : 'FAIL'}; population model=${result.modernBaseline?.populationModel || 'unknown'}.`);
       applyModernScenarioAdvisorPresentation();
       finishModernCountryStartWhenReady(sim);
       applyModernScenarioPolish(sim);
-      requestAnimationFrame(() => enforceModernPhysicalWorldVisibility(sim));
+      requestAnimationFrame(() => {
+        enforceModernPhysicalWorldVisibility(sim);
+        sim.map?.draw?.();
+      });
     }
   } catch (error) {
     started = false;
