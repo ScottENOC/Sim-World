@@ -11,6 +11,34 @@ function buttonByStrongText(host, text) {
     button.querySelector('strong')?.textContent?.trim() === text);
 }
 
+function enforceModernPhysicalWorldVisibility(sim) {
+  const scenario = currentScenario();
+  if (scenario?.rulesProfile !== 'modern-crisis' || !sim?.map) return false;
+
+  // Modern scenarios know the physical/geopolitical world from turn one. Apply
+  // that rule at both the fog model and renderer boundary. The renderer override
+  // deliberately avoids depending on the browser having a fresh FogOfWar module:
+  // older cached FogOfWar implementations must not be able to blank the modern map.
+  if (sim.fogOfWar) {
+    sim.fogOfWar.physicalWorldKnown = true;
+    sim.fogOfWar.setPhysicalWorldKnown?.(true);
+  }
+  sim.map.isRegionVisible = () => true;
+  sim.map.isSeaRegionVisible = () => true;
+  sim.map.refreshLayer?.();
+  sim.map.draw?.();
+
+  const visibleLand = (sim.regions || []).filter((region) => sim.map.isRegionVisible(region)).length;
+  const visibleSea = (sim.seaRegions || []).filter((sea) => sim.map.isSeaRegionVisible(sea)).length;
+  console.log(`[fractured-2027] Physical world visibility forced: ${visibleLand}/${sim.regions?.length || 0} land, ${visibleSea}/${sim.seaRegions?.length || 0} sea regions visible.`);
+  return visibleLand > 0;
+}
+
+function buttonByStrongText(host, text) {
+  return [...(host?.querySelectorAll?.('button') || [])].find((button) =>
+    button.querySelector('strong')?.textContent?.trim() === text);
+}
+
 function completePendingModernCountryStart(sim) {
   const scenario = currentScenario();
   if (scenario?.rulesProfile !== 'modern-crisis' || !window.__pendingStartCountryName) return false;
@@ -40,7 +68,10 @@ function completePendingModernCountryStart(sim) {
   delete window.__pendingStartNavigation;
   delete window.__pendingStartCountryName;
   window.__modernCountryStartCompleted = true;
-  requestAnimationFrame(() => refocusModernPlayerCountry(sim));
+  requestAnimationFrame(() => {
+    enforceModernPhysicalWorldVisibility(sim);
+    refocusModernPlayerCountry(sim);
+  });
   return true;
 }
 
@@ -65,9 +96,11 @@ async function tryStart() {
     window.__worldsimScenarioRuntime = result;
     if (result.attached) {
       console.log(`Scenario runtime hydrated: ${result.scenarioId}`);
+      enforceModernPhysicalWorldVisibility(sim);
       applyModernScenarioAdvisorPresentation();
       finishModernCountryStartWhenReady(sim);
       applyModernScenarioPolish(sim);
+      requestAnimationFrame(() => enforceModernPhysicalWorldVisibility(sim));
     }
   } catch (error) {
     started = false;
