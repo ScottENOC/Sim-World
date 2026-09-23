@@ -1,4 +1,5 @@
 import './technologyAttentionUi.js?v=20260923-tech-attention1';
+import { advisorForReport, advisorFramedTitle, advisorReviewLabel } from './advisorAttention.js?v=20260923-advisor-attention1';
 
 const DEFAULT_NOTICE_TTL_MS = 12000;
 const MAX_VISIBLE_NOTICES = 4;
@@ -66,10 +67,11 @@ export function diseaseAttentionNotice(title, body) {
   if (advice) message = `${message} ${advice.sentence}`;
 
   return {
+    advisor: 'steward',
     title: severe ? 'Serious illness in the realm' : 'Illness reported',
     body: message,
     actionLabel: advice ? `Review: ${advice.label}` : 'Review with Steward',
-    action: 'open-steward',
+    action: 'open-advisor:steward',
     recommendedQuarantinePolicy: advice?.policy ?? null,
   };
 }
@@ -78,14 +80,18 @@ export function informationalEventNotice(title, body) {
   const cleanTitle = compact(title);
   const cleanBody = compact(body);
   if (!cleanBody || cleanBody === GENERIC_UNPRESENTED_EVENT) return null;
-  // Dedicated technology attention tracks every controlled-region breakthrough,
-  // logs it persistently and handles foreign first-observation reports. Suppress
-  // the legacy capital-only modal copy so one breakthrough never produces two notices.
   if (/^Breakthrough:/i.test(cleanTitle)) return null;
   if (/\b(recognised|outbreak)\b/i.test(cleanTitle) && /Estimated prevalence/i.test(cleanBody)) {
     return diseaseAttentionNotice(cleanTitle, cleanBody);
   }
-  return { title: cleanTitle || 'Report', body: cleanBody };
+  const advisor = advisorForReport(cleanTitle, cleanBody);
+  return {
+    advisor,
+    title: cleanTitle || 'Report',
+    body: cleanBody,
+    actionLabel: advisorReviewLabel(advisor),
+    action: `open-advisor:${advisor}`,
+  };
 }
 
 function ensureStylesheet() {
@@ -103,15 +109,15 @@ function ensureHost() {
   host = document.createElement('section');
   host.id = 'player-attention-feed';
   host.className = 'player-attention-feed';
-  host.setAttribute('aria-label', 'Recent reports');
+  host.setAttribute('aria-label', 'Recent reports from the council');
   host.setAttribute('aria-live', 'polite');
   (document.getElementById('app') || document.body).appendChild(host);
   return host;
 }
 
-function openSteward() {
+function openAdvisor(advisorId = 'chancellor') {
   document.getElementById('btn-council')?.click();
-  queueMicrotask(() => document.querySelector('[data-advisor="steward"]')?.click());
+  queueMicrotask(() => document.querySelector(`[data-advisor="${advisorId}"]`)?.click());
 }
 
 function removeNotice(card) {
@@ -120,16 +126,18 @@ function removeNotice(card) {
   setTimeout(() => card.remove(), 220);
 }
 
-export function pushPlayerNotice({ title = 'Report', body = '', actionLabel = null, action = null, ttlMs = DEFAULT_NOTICE_TTL_MS } = {}) {
+export function pushPlayerNotice({ title = 'Report', body = '', advisor = null, actionLabel = null, action = null, ttlMs = DEFAULT_NOTICE_TTL_MS } = {}) {
   if (typeof document === 'undefined') return null;
   ensureStylesheet();
   const host = ensureHost();
+  const resolvedAdvisor = advisor || advisorForReport(title, body);
   const card = document.createElement('article');
   card.className = 'player-attention-card';
+  card.dataset.advisor = resolvedAdvisor;
 
   const heading = document.createElement('strong');
   heading.className = 'player-attention-title';
-  heading.textContent = title;
+  heading.textContent = advisorFramedTitle(title, resolvedAdvisor);
   card.appendChild(heading);
 
   const text = document.createElement('p');
@@ -138,13 +146,16 @@ export function pushPlayerNotice({ title = 'Report', body = '', actionLabel = nu
 
   const actions = document.createElement('div');
   actions.className = 'player-attention-actions';
-  if (actionLabel) {
+  const resolvedActionLabel = actionLabel || advisorReviewLabel(resolvedAdvisor);
+  const resolvedAction = action || `open-advisor:${resolvedAdvisor}`;
+  if (resolvedActionLabel) {
     const actionButton = document.createElement('button');
     actionButton.type = 'button';
-    actionButton.textContent = actionLabel;
+    actionButton.textContent = resolvedActionLabel;
     actionButton.addEventListener('click', () => {
-      if (action === 'open-steward') openSteward();
-      else if (typeof action === 'function') action();
+      if (typeof resolvedAction === 'string' && resolvedAction.startsWith('open-advisor:')) {
+        openAdvisor(resolvedAction.slice('open-advisor:'.length));
+      } else if (typeof resolvedAction === 'function') resolvedAction();
     });
     actions.appendChild(actionButton);
   }
@@ -163,21 +174,46 @@ export function pushPlayerNotice({ title = 'Report', body = '', actionLabel = nu
   return card;
 }
 
-function convertInformationalModal() {
+function decorateDecisionModal() {
   const modal = document.getElementById('event-modal');
   if (!modal || modal.classList.contains('hidden')) return;
-  const continueButton = document.getElementById('btn-event-continue');
-  if (!continueButton || !modal.contains(continueButton)) return;
+  if (document.getElementById('btn-event-continue')) return;
+  const options = document.getElementById('event-options');
+  if (!options?.querySelector('button')) return;
+  const titleElement = document.getElementById('event-title');
+  const bodyElement = document.getElementById('event-body');
+  if (!titleElement) return;
+  if (titleElement.dataset.advisorFramed === '1' && titleElement.textContent === titleElement.dataset.advisorFramedTitle) return;
+  const advisor = advisorForReport(titleElement.textContent || '', bodyElement?.textContent || '');
+  const framed = advisorFramedTitle(titleElement.textContent || 'Decision required', advisor);
+  titleElement.textContent = framed;
+  titleElement.dataset.advisorFramed = '1';
+  titleElement.dataset.advisorFramedTitle = framed;
+  modal.dataset.advisor = advisor;
+}
 
-  const title = document.getElementById('event-title')?.textContent || 'Report';
+function convertInformationalModal() {
+  const modal = document.getElementById('event-modal');
+  if (!modal || modal.classList.contains('hidden')) return false;
+  const continueButton = document.getElementById('btn-event-continue');
+  if (!continueButton || !modal.contains(continueButton)) return false;
+
+  const titleElement = document.getElementById('event-title');
+  if (titleElement) {
+    delete titleElement.dataset.advisorFramed;
+    delete titleElement.dataset.advisorFramedTitle;
+  }
+  const title = titleElement?.textContent || 'Report';
   const body = document.getElementById('event-body')?.textContent || '';
   const notice = informationalEventNotice(title, body);
   if (notice) pushPlayerNotice(notice);
 
-  // Continue is deliberately invoked programmatically. Existing event code owns
-  // queue progression and auto-pause accounting; this layer only changes how a
-  // no-decision event is presented to the player.
   continueButton.click();
+  return true;
+}
+
+function routeCurrentModal() {
+  if (!convertInformationalModal()) decorateDecisionModal();
 }
 
 function installPlayerAttentionFeed() {
@@ -185,10 +221,10 @@ function installPlayerAttentionFeed() {
   ensureHost();
   const modal = document.getElementById('event-modal');
   if (!modal) return;
-  const observer = new MutationObserver(() => queueMicrotask(convertInformationalModal));
+  const observer = new MutationObserver(() => queueMicrotask(routeCurrentModal));
   observer.observe(modal, { attributes: true, childList: true, subtree: true, characterData: true });
-  convertInformationalModal();
-  globalThis.__playerAttention = { push: pushPlayerNotice };
+  routeCurrentModal();
+  globalThis.__playerAttention = { push: pushPlayerNotice, openAdvisor };
 }
 
 if (typeof document !== 'undefined') {
