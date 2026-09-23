@@ -1,8 +1,28 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "scenarioId": "fractured-2027",
-  "purpose": "Gameplay calibration for a contemporary starting state; not a claim of exact real-world 2027 inventories.",
+  "purpose": "Gameplay calibration for a contemporary starting state; population targets are approximate scenario baselines, not forecasts or exact 2027 estimates.",
   "populationMultiplier": 24,
+  "countryPopulationTargets": {
+    "usa": 345000000,
+    "china": 1400000000,
+    "russia": 143000000,
+    "ukraine": 34000000,
+    "taiwan": 23500000,
+    "iran": 91000000,
+    "north-korea": 26000000,
+    "united-kingdom": 70000000,
+    "france": 68000000,
+    "germany": 84000000,
+    "denmark": 6000000,
+    "canada": 42000000,
+    "australia": 28000000,
+    "madagascar": 32000000,
+    "greenland": 57000
+  },
+  "regionalPopulationWeights": {
+    "london": 0.13
+  },
   "commonTechIds": [
     "electrical_generation",
     "local_electric_distribution",
