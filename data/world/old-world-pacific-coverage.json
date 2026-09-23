@@ -1,13 +1,13 @@
 {
-  "baseRegions": 903,
-  "newRegions": 774,
-  "totalRegions": 1677,
+  "baseRegions": 1063,
+  "newRegions": 961,
+  "totalRegions": 2024,
   "targetAreaSqKm": 94208106.5,
-  "coveredTargetAreaSqKm": 94206222.8,
-  "targetCoverageRatio": 0.9999800042365252,
+  "coveredTargetAreaSqKm": 94206225.1,
+  "targetCoverageRatio": 0.9999800288625632,
   "regionsByZone": {
     "ow_greenland": 3,
-    "ow_fennoscandia": 8,
+    "ow_fennoscandia": 7,
     "ow_east_europe_plain": 9,
     "ow_danube_carpathian": 8,
     "ow_balkan_aegean": 7,
@@ -102,7 +102,10 @@
     "pac_micronesia": 18,
     "pac_polynesia_w": 32,
     "pac_polynesia_c": 30,
-    "pac_hawaii": 4
+    "pac_hawaii": 4,
+    "central_europe_repair_v1": 7,
+    "latin_america_caribbean_v1": 180,
+    "physical_crimea": 1
   },
   "deliberatelyDeferred": [
     "continental North America",
