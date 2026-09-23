@@ -1,3 +1,5 @@
+import { produceRocketPropellant, ROCKET_PROPELLANT_GOOD_ID } from './rocketPropellant.js?v=20260924-rocket-propellant1';
+
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 const nonNegative=(v)=>Math.max(0,Number(v)||0);
 const has=(r,id)=>Boolean(r?.unlockedTechIds?.has?.(id));
@@ -68,7 +70,7 @@ function nationalResources(members){
   return {
     treasury:members.reduce((s,r)=>s+nonNegative(r.treasury),0),
     steel:members.reduce((s,r)=>s+nonNegative(r.stockpile?.steel),0),
-    petrol:members.reduce((s,r)=>s+nonNegative(r.stockpile?.petrol),0),
+    rocketPropellant:members.reduce((s,r)=>s+nonNegative(r.stockpile?.[ROCKET_PROPELLANT_GOOD_ID]),0),
   };
 }
 function consumeAcross(members,key,amount){
@@ -160,24 +162,35 @@ export function tickSpaceRace(regions,currentTick,rng=Math.random,elapsedDays=7)
     const rivalPressure=rivalryPressure(id,target.id,groups,claimed);
     const ambition=clamp((topPower?.42:.12)+industrialScore(carrier)*.34+rivalPressure*.44);
     if(ambition<.20&&!p.projects[target.id])continue;
-    const project=p.projects[target.id]||={milestoneId:target.id,progress:0,cashSpent:0,steelSpent:0,fuelSpent:0,startedTick:currentTick};
+    const project=p.projects[target.id]||={milestoneId:target.id,progress:0,cashSpent:0,steelSpent:0,fuelSpent:0,propellantSpent:0,startedTick:currentTick};
     p.projects[target.id]=project;
-    const resources=nationalResources(members);
     const interval=Math.max(.05,Number(elapsedDays)||0)/7;
     const desiredProgress=clamp((.018+ambition*.05+rivalPressure*.045)*interval,0,.16);
     const remaining=1-project.progress;
     const step=Math.min(remaining,desiredProgress);
     if(step<=0)continue;
+
+    const propellantTarget=Math.max(0,target.fuelCost*step-nationalResources(members).rocketPropellant);
+    if(propellantTarget>0){
+      let remainingTarget=propellantTarget;
+      for(const region of [...members].sort((a,b)=>industrialScore(b)-industrialScore(a))){
+        if(remainingTarget<=1e-9)break;
+        const made=produceRocketPropellant(region,remainingTarget,elapsedDays).produced;
+        remainingTarget-=made;
+      }
+    }
+
+    const resources=nationalResources(members);
     const cashNeed=target.cashCost*step,steelNeed=target.steelCost*step,fuelNeed=target.fuelCost*step;
-    const affordability=Math.min(1,resources.treasury/Math.max(.001,cashNeed),resources.steel/Math.max(.001,steelNeed),resources.petrol/Math.max(.001,fuelNeed));
+    const affordability=Math.min(1,resources.treasury/Math.max(.001,cashNeed),resources.steel/Math.max(.001,steelNeed),resources.rocketPropellant/Math.max(.001,fuelNeed));
     if(affordability<.08)continue;
     const actualStep=step*affordability*(.92+rng()*.16);
     const cash=consumeAcross(members,'treasury',target.cashCost*actualStep);
     const steel=consumeAcross(members,'steel',target.steelCost*actualStep);
-    const fuel=consumeAcross(members,'petrol',target.fuelCost*actualStep);
+    const fuel=consumeAcross(members,ROCKET_PROPELLANT_GOOD_ID,target.fuelCost*actualStep);
     const realised=Math.min(cash/Math.max(.001,target.cashCost),steel/Math.max(.001,target.steelCost),fuel/Math.max(.001,target.fuelCost));
     if(realised<=0)continue;
-    project.progress=clamp(project.progress+realised);project.cashSpent+=cash;project.steelSpent+=steel;project.fuelSpent+=fuel;p.totalSpent+=cash;
+    project.progress=clamp(project.progress+realised);project.cashSpent+=cash;project.steelSpent+=steel;project.fuelSpent+=fuel;project.propellantSpent=nonNegative(project.propellantSpent)+fuel;p.totalSpent+=cash;
     if(project.progress>=.999){
       project.progress=1;project.completedTick=currentTick;
       const record=completeMilestone(carrier,members,target,currentTick,claimed);
