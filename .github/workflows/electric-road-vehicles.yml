@@ -1,0 +1,33 @@
+name: Electric road vehicles
+
+on:
+  pull_request:
+    paths:
+      - 'js/economy/roadVehicles.js'
+      - 'js/economy/electricity.js'
+      - 'js/economy/batterySupplyChain.js'
+      - 'tools/test-electric-road-vehicles.mjs'
+      - '.github/workflows/electric-road-vehicles.yml'
+  workflow_dispatch:
+
+jobs:
+  electric-road-vehicles:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check EV integration
+        run: |
+          node --check js/economy/roadVehicles.js
+          node --check js/economy/electricity.js
+          node --check tools/test-electric-road-vehicles.mjs
+      - name: Electric road vehicle regression
+        run: node tools/test-electric-road-vehicles.mjs
+      - name: Existing battery and electricity regressions
+        run: |
+          node tools/test-battery-storage.mjs
+          node tools/test-electricity.mjs
+      - name: Whitespace check
+        run: git diff --check
