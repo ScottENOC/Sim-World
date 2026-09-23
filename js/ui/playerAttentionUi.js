@@ -1,5 +1,6 @@
 import './technologyAttentionUi.js?v=20260923-tech-attention1';
 import { advisorForReport, advisorFramedTitle, advisorReviewLabel } from './advisorAttention.js?v=20260923-advisor-attention1';
+import { recordHistoricalPlayerEvent } from '../history/historicalEventChronicle.js';
 
 const DEFAULT_NOTICE_TTL_MS = 12000;
 const MAX_VISIBLE_NOTICES = 4;
@@ -28,34 +29,15 @@ function diseaseSymptomDescription(title) {
 export function quarantineAdviceForBurden(prevalencePct, deaths) {
   const prevalence = Math.max(0, Number(prevalencePct) || 0);
   const recentDeaths = Math.max(0, Number(deaths) || 0);
-  if (prevalence >= 7 || recentDeaths >= 25) {
-    return {
-      policy: 1,
-      label: 'Cordon and close markets',
-      sentence: 'The Steward recommends cordoning affected areas and closing markets until the outbreak eases.',
-    };
-  }
-  if (prevalence >= 4 || recentDeaths >= 5) {
-    return {
-      policy: 0.65,
-      label: 'Quarantine travellers',
-      sentence: 'The Steward recommends quarantining travellers and tightening movement controls while the outbreak is active.',
-    };
-  }
-  if (prevalence >= 2) {
-    return {
-      policy: 0.3,
-      label: 'Inspect and isolate',
-      sentence: 'The Steward recommends inspecting travellers and isolating suspected cases before the sickness spreads further.',
-    };
-  }
+  if (prevalence >= 7 || recentDeaths >= 25) return { policy: 1, label: 'Cordon and close markets', sentence: 'The Steward recommends cordoning affected areas and closing markets until the outbreak eases.' };
+  if (prevalence >= 4 || recentDeaths >= 5) return { policy: 0.65, label: 'Quarantine travellers', sentence: 'The Steward recommends quarantining travellers and tightening movement controls while the outbreak is active.' };
+  if (prevalence >= 2) return { policy: 0.3, label: 'Inspect and isolate', sentence: 'The Steward recommends inspecting travellers and isolating suspected cases before the sickness spreads further.' };
   return null;
 }
 
 export function diseaseAttentionNotice(title, body) {
   const { prevalencePct, deaths } = parseDiseaseNumbers(body);
   if (prevalencePct < 2 && deaths < 5) return null;
-
   const symptom = diseaseSymptomDescription(title);
   const severe = prevalencePct >= 7 || deaths >= 25;
   const substantial = prevalencePct >= 4 || deaths >= 5;
@@ -65,7 +47,6 @@ export function diseaseAttentionNotice(title, body) {
   else if (substantial) message = `The Steward reports that ${symptom} is spreading noticeably through the populace.`;
   else message = `The populace appears to be suffering through a particularly bad spell of ${symptom}.`;
   if (advice) message = `${message} ${advice.sentence}`;
-
   return {
     advisor: 'steward',
     title: severe ? 'Serious illness in the realm' : 'Illness reported',
@@ -81,17 +62,9 @@ export function informationalEventNotice(title, body) {
   const cleanBody = compact(body);
   if (!cleanBody || cleanBody === GENERIC_UNPRESENTED_EVENT) return null;
   if (/^Breakthrough:/i.test(cleanTitle)) return null;
-  if (/\b(recognised|outbreak)\b/i.test(cleanTitle) && /Estimated prevalence/i.test(cleanBody)) {
-    return diseaseAttentionNotice(cleanTitle, cleanBody);
-  }
+  if (/\b(recognised|outbreak)\b/i.test(cleanTitle) && /Estimated prevalence/i.test(cleanBody)) return diseaseAttentionNotice(cleanTitle, cleanBody);
   const advisor = advisorForReport(cleanTitle, cleanBody);
-  return {
-    advisor,
-    title: cleanTitle || 'Report',
-    body: cleanBody,
-    actionLabel: advisorReviewLabel(advisor),
-    action: `open-advisor:${advisor}`,
-  };
+  return { advisor, title: cleanTitle || 'Report', body: cleanBody, actionLabel: advisorReviewLabel(advisor), action: `open-advisor:${advisor}` };
 }
 
 function ensureStylesheet() {
@@ -131,19 +104,17 @@ export function pushPlayerNotice({ title = 'Report', body = '', advisor = null, 
   ensureStylesheet();
   const host = ensureHost();
   const resolvedAdvisor = advisor || advisorForReport(title, body);
+  recordHistoricalPlayerEvent(globalThis.__worldsim, { title, body, advisor: resolvedAdvisor });
   const card = document.createElement('article');
   card.className = 'player-attention-card';
   card.dataset.advisor = resolvedAdvisor;
-
   const heading = document.createElement('strong');
   heading.className = 'player-attention-title';
   heading.textContent = advisorFramedTitle(title, resolvedAdvisor);
   card.appendChild(heading);
-
   const text = document.createElement('p');
   text.textContent = body;
   card.appendChild(text);
-
   const actions = document.createElement('div');
   actions.className = 'player-attention-actions';
   const resolvedActionLabel = actionLabel || advisorReviewLabel(resolvedAdvisor);
@@ -153,9 +124,8 @@ export function pushPlayerNotice({ title = 'Report', body = '', advisor = null, 
     actionButton.type = 'button';
     actionButton.textContent = resolvedActionLabel;
     actionButton.addEventListener('click', () => {
-      if (typeof resolvedAction === 'string' && resolvedAction.startsWith('open-advisor:')) {
-        openAdvisor(resolvedAction.slice('open-advisor:'.length));
-      } else if (typeof resolvedAction === 'function') resolvedAction();
+      if (typeof resolvedAction === 'string' && resolvedAction.startsWith('open-advisor:')) openAdvisor(resolvedAction.slice('open-advisor:'.length));
+      else if (typeof resolvedAction === 'function') resolvedAction();
     });
     actions.appendChild(actionButton);
   }
@@ -167,7 +137,6 @@ export function pushPlayerNotice({ title = 'Report', body = '', advisor = null, 
   dismiss.addEventListener('click', () => removeNotice(card));
   actions.appendChild(dismiss);
   card.appendChild(actions);
-
   host.prepend(card);
   while (host.children.length > MAX_VISIBLE_NOTICES) host.lastElementChild?.remove();
   setTimeout(() => removeNotice(card), Math.max(2500, Number(ttlMs) || DEFAULT_NOTICE_TTL_MS));
@@ -197,24 +166,17 @@ function convertInformationalModal() {
   if (!modal || modal.classList.contains('hidden')) return false;
   const continueButton = document.getElementById('btn-event-continue');
   if (!continueButton || !modal.contains(continueButton)) return false;
-
   const titleElement = document.getElementById('event-title');
-  if (titleElement) {
-    delete titleElement.dataset.advisorFramed;
-    delete titleElement.dataset.advisorFramedTitle;
-  }
+  if (titleElement) { delete titleElement.dataset.advisorFramed; delete titleElement.dataset.advisorFramedTitle; }
   const title = titleElement?.textContent || 'Report';
   const body = document.getElementById('event-body')?.textContent || '';
   const notice = informationalEventNotice(title, body);
   if (notice) pushPlayerNotice(notice);
-
   continueButton.click();
   return true;
 }
 
-function routeCurrentModal() {
-  if (!convertInformationalModal()) decorateDecisionModal();
-}
+function routeCurrentModal() { if (!convertInformationalModal()) decorateDecisionModal(); }
 
 function installPlayerAttentionFeed() {
   ensureStylesheet();
