@@ -50,22 +50,99 @@ function applyModernCulture(region, countryId) {
   return true;
 }
 
+function regionCountryId(region) {
+  return region?.scenarioCountryId || region?.governance?.scenarioCountryId || null;
+}
+
+function slug(value) {
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+function explicitPopulationWeight(region, profile) {
+  const weights = profile?.regionalPopulationWeights || {};
+  const candidates = [region?.id, slug(region?.name), region?.name];
+  for (const key of candidates) {
+    const weight = Number(weights?.[key]);
+    if (Number.isFinite(weight) && weight >= 0) return weight;
+  }
+  return null;
+}
+
+function applyModernPopulation(regions, profile) {
+  const targets = profile?.countryPopulationTargets || {};
+  const fallbackMultiplier = Math.max(1, num(profile.populationMultiplier, 1));
+  const byCountry = new Map();
+  for (const region of regions) {
+    const countryId = regionCountryId(region);
+    if (!countryId) continue;
+    if (!byCountry.has(countryId)) byCountry.set(countryId, []);
+    byCountry.get(countryId).push(region);
+  }
+
+  let countriesTargeted = 0;
+  let regionsTargeted = 0;
+  for (const [countryId, countryRegions] of byCountry) {
+    const target = Number(targets[countryId]);
+    if (!Number.isFinite(target) || target <= 0) continue;
+    countriesTargeted += 1;
+
+    const explicit = countryRegions.map((region) => explicitPopulationWeight(region, profile));
+    const explicitTotal = Math.min(0.95, explicit.reduce((sum, weight) => sum + (weight ?? 0), 0));
+    const remainingShare = Math.max(0.05, 1 - explicitTotal);
+    const unweightedRegions = countryRegions.filter((_, index) => explicit[index] === null);
+    const rawTotal = unweightedRegions.reduce((sum, region) => sum + Math.max(1, num(region.population, 1)), 0);
+
+    let assigned = 0;
+    countryRegions.forEach((region, index) => {
+      let share;
+      if (explicit[index] !== null) {
+        share = explicit[index];
+      } else if (unweightedRegions.length) {
+        share = remainingShare * Math.max(1, num(region.population, 1)) / Math.max(1, rawTotal);
+      } else {
+        share = 1 / countryRegions.length;
+      }
+      region.population = Math.max(1, Math.round(target * share));
+      region.scenarioModernBaselineApplied = true;
+      region.scenarioPopulationSource = 'country_target';
+      assigned += region.population;
+      regionsTargeted += 1;
+    });
+
+    // Rounding is reconciled on the largest region so the country total remains exact.
+    const difference = Math.round(target) - assigned;
+    if (difference !== 0 && countryRegions.length) {
+      const largest = countryRegions.reduce((best, region) => region.population > best.population ? region : best, countryRegions[0]);
+      largest.population = Math.max(1, largest.population + difference);
+    }
+  }
+
+  for (const region of regions) {
+    if (region.scenarioModernBaselineApplied) continue;
+    region.population = Math.max(1, Math.round(num(region.population, 1) * fallbackMultiplier));
+    region.scenarioModernBaselineApplied = true;
+    region.scenarioPopulationSource = 'fallback_multiplier';
+  }
+
+  return {
+    model: countriesTargeted > 0 ? 'country-targets' : 'fallback-multiplier',
+    countriesTargeted,
+    regionsTargeted,
+    fallbackMultiplier,
+  };
+}
+
 export function applyModernScenarioBaseline(world, profile = {}) {
   const regions = arr(world?.regions);
   const commonTechIds = arr(profile.commonTechIds);
-  const populationMultiplier = Math.max(1, num(profile.populationMultiplier, 1));
   const touchedCountries = new Set();
   let modernCultureRegions = 0;
+  const population = applyModernPopulation(regions, profile);
 
   for (const region of regions) {
-    const countryId = region.scenarioCountryId || region.governance?.scenarioCountryId || null;
+    const countryId = regionCountryId(region);
     const settings = mergedSettings(profile, countryId);
     if (countryId) touchedCountries.add(countryId);
-
-    if (!region.scenarioModernBaselineApplied) {
-      region.population = Math.max(1, Math.round(num(region.population, 1) * populationMultiplier));
-      region.scenarioModernBaselineApplied = true;
-    }
 
     // Focused modern scenarios should not inherit the Bronze Age culture seed
     // created while the generic world shell is loading. Use a shared modern
@@ -110,20 +187,20 @@ export function applyModernScenarioBaseline(world, profile = {}) {
       settings.opticsCapability,
     );
 
-    const population = num(region.population, 1);
-    region.treasury = max(region.treasury, population * num(settings.treasuryPerPerson));
+    const regionPopulation = num(region.population, 1);
+    region.treasury = max(region.treasury, regionPopulation * num(settings.treasuryPerPerson));
     region.stockpile ||= {};
-    region.stockpile.steel = max(region.stockpile.steel, population * num(settings.steelStockPerPerson));
-    region.stockpile.aviation_fuel = max(region.stockpile.aviation_fuel, population * num(settings.aviationFuelStockPerPerson));
-    region.stockpile.advanced_rechargeable_cells = max(region.stockpile.advanced_rechargeable_cells, population * num(settings.batteryCellsPerPerson));
-    region.stockpile.lithium_ion_cells = max(region.stockpile.lithium_ion_cells, population * num(settings.batteryCellsPerPerson));
+    region.stockpile.steel = max(region.stockpile.steel, regionPopulation * num(settings.steelStockPerPerson));
+    region.stockpile.aviation_fuel = max(region.stockpile.aviation_fuel, regionPopulation * num(settings.aviationFuelStockPerPerson));
+    region.stockpile.advanced_rechargeable_cells = max(region.stockpile.advanced_rechargeable_cells, regionPopulation * num(settings.batteryCellsPerPerson));
+    region.stockpile.lithium_ion_cells = max(region.stockpile.lithium_ion_cells, regionPopulation * num(settings.batteryCellsPerPerson));
     region.industrialSupply.inventory.machine_components = max(
       region.industrialSupply.inventory.machine_components,
-      population * num(settings.machineComponentsPerPerson),
+      regionPopulation * num(settings.machineComponentsPerPerson),
     );
 
     region.army ||= { personnel: 0, away: 0 };
-    region.army.personnel = max(region.army.personnel, population * num(settings.standingForceShare));
+    region.army.personnel = max(region.army.personnel, regionPopulation * num(settings.standingForceShare));
     region.targetArmySize = max(region.targetArmySize, region.army.personnel);
 
     if (num(settings.orbitalSupport) > 0) {
@@ -139,6 +216,9 @@ export function applyModernScenarioBaseline(world, profile = {}) {
     regionCount: regions.length,
     countryCount: touchedCountries.size,
     modernCultureRegions,
+    populationModel: population.model,
+    populationCountriesTargeted: population.countriesTargeted,
+    populationRegionsTargeted: population.regionsTargeted,
     calibrationOnly: true,
   };
   return world.scenarioModernBaseline;

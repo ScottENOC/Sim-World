@@ -67,11 +67,15 @@ assert.match(startupPickerSource, /if \(countryFirst\) pickerModal\.classList\.a
 assert.match(startupPickerSource, /Country-first modern startup has exactly one owner: scenarioRuntimeAuto/, 'startup picker must not race the modern runtime handoff');
 assert.match(runtimeAutoSource, /finishModernCountryStartWhenReady/, 'modern handoff should retry until the hidden legacy callback is ready');
 assert.ok(runtimeAutoSource.indexOf('regionButton.click();') < runtimeAutoSource.indexOf('delete window.__pendingStartRegionId;'), 'pending country state must only clear after a successful hidden handoff');
-assert.match(runtimeAutoSource, /modernScenarioPolish\.js\?v=20260923-black-map1/, 'runtime should force a fresh copy of the modern map recovery logic');
+assert.match(runtimeAutoSource, /map\.isRegionVisible = \(\) => true/, 'modern runtime must force physical land visibility at the renderer boundary');
+assert.match(runtimeAutoSource, /map\.isSeaRegionVisible = \(\) => true/, 'modern runtime must force physical sea visibility at the renderer boundary');
+assert.match(runtimeAutoSource, /resetModernMapView/, 'modern runtime should be able to recover from a stale or invalid zoom transform');
+assert.match(runtimeAutoSource, /Physical world visibility forced:/, 'modern runtime should emit a visibility diagnostic for live scenario testing');
+assert.match(runtimeAutoSource, /scenarioRuntime\.js\?v=20260923-modern-visibility2/, 'runtime auto-loader must cache-bust the hardened modern visibility rules');
 assert.match(polishSource, /refreshModernMap\(sim\)/, 'modern scenario hydration should force the renderer to rebuild after visibility changes');
 assert.match(polishSource, /every\(Number\.isFinite\)/, 'country focusing must reject invalid transforms');
 assert.match(indexSource, /startupPicker\.js\?v=20260923-country-only1/);
-assert.match(indexSource, /scenarioRuntimeAuto\.js\?v=20260923-black-map2/, 'entrypoint must cache-bust the runtime that contains the black-map recovery fix');
-assert.match(indexSource, /main\.js\?v=20260923-country-only1/);
+assert.match(indexSource, /scenarioRuntimeAuto\.js\?v=20260923-black-map4/, 'entrypoint must cache-bust the hardened black-map recovery fix');
+assert.match(indexSource, /main\.js\?v=20260923-modern-visibility1/, 'main entrypoint must refresh the module graph for modern visibility fixes');
 
 console.log('Fractured 2027 polish regressions passed.');
