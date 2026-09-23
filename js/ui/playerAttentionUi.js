@@ -80,9 +80,6 @@ export function informationalEventNotice(title, body) {
   const cleanTitle = compact(title);
   const cleanBody = compact(body);
   if (!cleanBody || cleanBody === GENERIC_UNPRESENTED_EVENT) return null;
-  // Dedicated technology attention tracks every controlled-region breakthrough,
-  // logs it persistently and handles foreign first-observation reports. Suppress
-  // the legacy capital-only modal copy so one breakthrough never produces two notices.
   if (/^Breakthrough:/i.test(cleanTitle)) return null;
   if (/\b(recognised|outbreak)\b/i.test(cleanTitle) && /Estimated prevalence/i.test(cleanBody)) {
     return diseaseAttentionNotice(cleanTitle, cleanBody);
@@ -133,13 +130,14 @@ export function pushPlayerNotice({ title = 'Report', body = '', advisor = null, 
   if (typeof document === 'undefined') return null;
   ensureStylesheet();
   const host = ensureHost();
+  const resolvedAdvisor = advisor || advisorForReport(title, body);
   const card = document.createElement('article');
   card.className = 'player-attention-card';
-  if (advisor) card.dataset.advisor = advisor;
+  card.dataset.advisor = resolvedAdvisor;
 
   const heading = document.createElement('strong');
   heading.className = 'player-attention-title';
-  heading.textContent = advisor ? advisorFramedTitle(title, advisor) : title;
+  heading.textContent = advisorFramedTitle(title, resolvedAdvisor);
   card.appendChild(heading);
 
   const text = document.createElement('p');
@@ -148,8 +146,8 @@ export function pushPlayerNotice({ title = 'Report', body = '', advisor = null, 
 
   const actions = document.createElement('div');
   actions.className = 'player-attention-actions';
-  const resolvedActionLabel = actionLabel || (advisor ? advisorReviewLabel(advisor) : null);
-  const resolvedAction = action || (advisor ? `open-advisor:${advisor}` : null);
+  const resolvedActionLabel = actionLabel || advisorReviewLabel(resolvedAdvisor);
+  const resolvedAction = action || `open-advisor:${resolvedAdvisor}`;
   if (resolvedActionLabel) {
     const actionButton = document.createElement('button');
     actionButton.type = 'button';
@@ -184,10 +182,13 @@ function decorateDecisionModal() {
   if (!options?.querySelector('button')) return;
   const titleElement = document.getElementById('event-title');
   const bodyElement = document.getElementById('event-body');
-  if (!titleElement || titleElement.dataset.advisorFramed === '1') return;
+  if (!titleElement) return;
+  if (titleElement.dataset.advisorFramed === '1' && titleElement.textContent === titleElement.dataset.advisorFramedTitle) return;
   const advisor = advisorForReport(titleElement.textContent || '', bodyElement?.textContent || '');
-  titleElement.textContent = advisorFramedTitle(titleElement.textContent || 'Decision required', advisor);
+  const framed = advisorFramedTitle(titleElement.textContent || 'Decision required', advisor);
+  titleElement.textContent = framed;
   titleElement.dataset.advisorFramed = '1';
+  titleElement.dataset.advisorFramedTitle = framed;
   modal.dataset.advisor = advisor;
 }
 
@@ -198,15 +199,15 @@ function convertInformationalModal() {
   if (!continueButton || !modal.contains(continueButton)) return false;
 
   const titleElement = document.getElementById('event-title');
-  if (titleElement) delete titleElement.dataset.advisorFramed;
+  if (titleElement) {
+    delete titleElement.dataset.advisorFramed;
+    delete titleElement.dataset.advisorFramedTitle;
+  }
   const title = titleElement?.textContent || 'Report';
   const body = document.getElementById('event-body')?.textContent || '';
   const notice = informationalEventNotice(title, body);
   if (notice) pushPlayerNotice(notice);
 
-  // Continue is deliberately invoked programmatically. Existing event code owns
-  // queue progression and auto-pause accounting; this layer only changes how a
-  // no-decision event is presented to the player.
   continueButton.click();
   return true;
 }
