@@ -1,5 +1,5 @@
 // Lightweight startup picker. Scenario selection happens before world loading.
-import { SCENARIOS, currentScenario, fetchScenarioAssetDirect, scenarioAssetUrl, selectScenario } from '../core/scenarios.js?v=20260922-picker-deadlock1';
+import { SCENARIOS, currentScenario, fetchScenarioAssetDirect, selectScenario } from '../core/scenarios.js?v=20260922-picker-deadlock1';
 
 const CLOCK_MS_PER_TICK_AT_1X = 2200;
 const collator = new Intl.Collator('en', { sensitivity: 'base', numeric: true });
@@ -139,9 +139,14 @@ async function installEarlyPicker() {
     window.addEventListener('error', (event) => reportWorldStartup(`Startup error: ${event.message || 'unknown error'}`), { once: true });
     window.addEventListener('unhandledrejection', (event) => reportWorldStartup(`Startup rejection: ${event.reason?.message || event.reason || 'unknown rejection'}`), { once: true });
     reportWorldStartup(countryFirst
-      ? `Loading world… ${country} is selected. Preparing ${region.name}.`
+      ? `Loading world… ${country} is selected. Preparing ${country}.`
       : `Loading world… ${region.name} is selected.`);
     pickerList.appendChild(status);
+
+    // Modern scenarios are country-first. Once the country is chosen the legacy
+    // region hierarchy must never be shown to the player; scenarioRuntimeAuto
+    // drives the old region callback invisibly after hydration.
+    if (countryFirst) pickerModal.classList.add('hidden');
   };
 
   const renderFocusedCountryPicker = async (scenario) => {
@@ -288,6 +293,14 @@ if (typeof window !== 'undefined') {
           return;
         }
       }
+
+      // Country-first modern startup has exactly one owner: scenarioRuntimeAuto.
+      // Do not race it by independently clicking through the hidden legacy picker.
+      if (pending && scenario?.rulesProfile === 'modern-crisis' && window.__pendingStartCountryName) {
+        if (attempts < 1200) setTimeout(poll, 100);
+        return;
+      }
+
       if (pending && handOffPendingRegion(pending)) {
         delete window.__pendingStartRegionId;
         delete window.__pendingStartRegionName;
