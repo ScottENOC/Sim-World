@@ -1,3 +1,5 @@
+import { consumePolymerUtility, POLYMER_APPLICATIONS } from './industrialMaterials.js?v=20260923-material-substitution1';
+
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,Number(v)||0));
 
 export const COMPUTING_STAGES=Object.freeze({
@@ -71,32 +73,28 @@ function consume(stock,key,amount){
 
 export function produceElectronicMaterials(region,requested=1){
   const s=ensureComputingIndustryState(region),stock=region.stockpile;
-  const cap=Math.max(0,s.capacity.materials);
-  const amount=Math.min(Math.max(0,requested),cap);
+  const cap=Math.max(0,s.capacity.materials),amount=Math.min(Math.max(0,requested),cap);
   if(amount<=0)return {silicon:0,polymers:0};
-  // Silica is deliberately treated as common feedstock embedded in ordinary stone/sand supply;
-  // electronic-grade purification is the scarce capability. Polymers consume refined petroleum feedstock.
-  const silicaFeed=Math.min(amount,(stock.stone||0)/0.18);
-  const polymerFeed=Math.min(amount,(stock.heavy_fuel_oil||stock.lamp_fuel||0)/0.12);
-  const actual=Math.max(0,Math.min(amount,silicaFeed,polymerFeed));
-  if(actual<=0)return {silicon:0,polymers:0};
-  consume(stock,'stone',actual*0.18);
-  if((stock.heavy_fuel_oil||0)>0)consume(stock,'heavy_fuel_oil',actual*0.12);else consume(stock,'lamp_fuel',actual*0.12);
-  stock.electronic_grade_silicon+=actual*0.82;
-  stock.industrial_polymers+=actual*0.72;
-  gainExperience(s,COMPUTING_STAGES.MATERIALS,actual);
-  return {silicon:actual*0.82,polymers:actual*0.72};
+  // Silicon purification and polymer manufacture share a materials industry but
+  // are not hard-coupled: a society can make electronics using ceramic/glass,
+  // bio-based or other substitutes even when petroleum polymers are scarce.
+  const silicaActual=Math.max(0,Math.min(amount,(stock.stone||0)/0.18));
+  if(silicaActual>0){consume(stock,'stone',silicaActual*.18);stock.electronic_grade_silicon+=silicaActual*.82;}
+  const polymerFeedKey=(stock.heavy_fuel_oil||0)>0?'heavy_fuel_oil':'lamp_fuel';
+  const polymerActual=Math.max(0,Math.min(amount,(stock[polymerFeedKey]||0)/.12));
+  if(polymerActual>0){consume(stock,polymerFeedKey,polymerActual*.12);stock.industrial_polymers+=polymerActual*.72;}
+  gainExperience(s,COMPUTING_STAGES.MATERIALS,Math.max(silicaActual,polymerActual));
+  return {silicon:silicaActual*.82,polymers:polymerActual*.72};
 }
 
 export function produceElectronicComponents(region,requested=1){
   const s=ensureComputingIndustryState(region),stock=region.stockpile;
   const amount=Math.min(Math.max(0,requested),Math.max(0,s.capacity.components));
-  const possible=Math.min(amount,(stock.copper||0)/0.08,(stock.industrial_polymers||0)/0.05);
+  const possible=Math.min(amount,(stock.copper||0)/0.08);
   if(possible<=0)return 0;
-  consume(stock,'copper',possible*0.08);consume(stock,'industrial_polymers',possible*0.05);
-  stock.electronic_components+=possible;
-  gainExperience(s,COMPUTING_STAGES.COMPONENTS,possible);
-  return possible;
+  consume(stock,'copper',possible*.08);
+  consumePolymerUtility(region,possible*.05,{application:POLYMER_APPLICATIONS.ELECTRONICS});
+  stock.electronic_components+=possible;gainExperience(s,COMPUTING_STAGES.COMPONENTS,possible);return possible;
 }
 
 export function developChipDesign(region,{targetNodeNm,effort=1}={}){
@@ -106,8 +104,7 @@ export function developChipDesign(region,{targetNodeNm,effort=1}={}){
   const readiness=s.experience.chip_design+clamp(s.capacity.chip_design/20)*0.55+clamp(s.experience.components)*0.25;
   if(readiness*Math.max(0,effort)<Math.max(0.18,steps*0.09))return {advanced:false,bestNodeNm:s.design.bestNodeNm,reason:'insufficient_design_experience'};
   s.design.bestNodeNm=target;s.design.complexity=clamp(s.design.complexity+0.025*Math.max(1,steps));
-  gainExperience(s,COMPUTING_STAGES.CHIP_DESIGN,effort*3);
-  return {advanced:true,bestNodeNm:target};
+  gainExperience(s,COMPUTING_STAGES.CHIP_DESIGN,effort*3);return {advanced:true,bestNodeNm:target};
 }
 
 export function improveLithography(region,{targetNodeNm,effort=1}={}){
@@ -120,67 +117,45 @@ export function improveLithography(region,{targetNodeNm,effort=1}={}){
   if((stock.electronic_components||0)<componentNeed)return {advanced:false,bestNodeNm:s.tooling.bestNodeNm,reason:'insufficient_precision_components'};
   consume(stock,'electronic_components',componentNeed);
   s.tooling.bestNodeNm=target;s.tooling.reliability=clamp(s.tooling.reliability+0.03*Math.max(1,steps));
-  stock.lithography_equipment+=Math.max(0.1,effort*0.2);
-  gainExperience(s,COMPUTING_STAGES.LITHOGRAPHY,effort*4);
+  stock.lithography_equipment+=Math.max(0.1,effort*0.2);gainExperience(s,COMPUTING_STAGES.LITHOGRAPHY,effort*4);
   return {advanced:true,bestNodeNm:target};
 }
 
 export function fabricateSemiconductors(region,{targetNodeNm,waferStarts=1}={}){
   const s=ensureComputingIndustryState(region),stock=region.stockpile;
-  const node=clampNode(targetNodeNm||s.process.currentNodeNm||s.process.bestNodeNm);
-  const capacity=Math.max(0,s.capacity.wafer_fab);
-  const starts=Math.min(Math.max(0,waferStarts),capacity);
+  const node=clampNode(targetNodeNm||s.process.currentNodeNm||s.process.bestNodeNm),capacity=Math.max(0,s.capacity.wafer_fab),starts=Math.min(Math.max(0,waferStarts),capacity);
   if(starts<=0)return {waferStarts:0,goodWafers:0,nodeNm:node,yield:0,reason:'no_fab_capacity'};
   if(node<s.design.bestNodeNm)return {waferStarts:0,goodWafers:0,nodeNm:node,yield:0,reason:'design_frontier'};
   if(node<s.tooling.bestNodeNm)return {waferStarts:0,goodWafers:0,nodeNm:node,yield:0,reason:'lithography_frontier'};
   if((stock.lithography_equipment||0)<=0)return {waferStarts:0,goodWafers:0,nodeNm:node,yield:0,reason:'no_lithography_equipment'};
-  const possible=Math.min(starts,(stock.electronic_grade_silicon||0)/0.12,(stock.industrial_polymers||0)/0.025,(stock.electronic_components||0)/0.012);
+  const possible=Math.min(starts,(stock.electronic_grade_silicon||0)/.12,(stock.electronic_components||0)/.012);
   if(possible<=0)return {waferStarts:0,goodWafers:0,nodeNm:node,yield:0,reason:'materials_shortage'};
-  consume(stock,'electronic_grade_silicon',possible*0.12);consume(stock,'industrial_polymers',possible*0.025);consume(stock,'electronic_components',possible*0.012);
-  const prior=clamp(Number(s.process.nodeExperience[node])||0);
-  const difficulty=clamp(0.22+0.055*Math.max(0,geometricProgress(DEFAULT_NODE_NM,node)),0.22,0.88);
-  const maturity=clamp(prior*0.72+s.experience.wafer_fab*0.28);
-  const yieldRate=clamp(0.08+(1-difficulty)*0.42+maturity*0.48,0.03,0.96);
-  const good=possible*yieldRate;
-  stock.semiconductor_wafers+=good;
-  const practice=clamp(Math.log1p(possible)/5);
-  s.process.nodeExperience[node]=clamp(prior+0.022*practice*(1-prior));
-  gainExperience(s,COMPUTING_STAGES.WAFER_FAB,possible);
-  s.process.currentNodeNm=node;s.process.yield=yieldRate;
-  if(node<s.process.bestNodeNm&&s.process.nodeExperience[node]>=0.22)s.process.bestNodeNm=node;
-  s.lastProduction.waferFab={nodeNm:node,waferStarts:possible,goodWafers:good,yield:yieldRate};
-  return {...s.lastProduction.waferFab};
+  consume(stock,'electronic_grade_silicon',possible*.12);consume(stock,'electronic_components',possible*.012);
+  consumePolymerUtility(region,possible*.025,{application:POLYMER_APPLICATIONS.ELECTRONICS});
+  const prior=clamp(Number(s.process.nodeExperience[node])||0),difficulty=clamp(.22+.055*Math.max(0,geometricProgress(DEFAULT_NODE_NM,node)),.22,.88),maturity=clamp(prior*.72+s.experience.wafer_fab*.28),yieldRate=clamp(.08+(1-difficulty)*.42+maturity*.48,.03,.96),good=possible*yieldRate;
+  stock.semiconductor_wafers+=good;const practice=clamp(Math.log1p(possible)/5);s.process.nodeExperience[node]=clamp(prior+.022*practice*(1-prior));gainExperience(s,COMPUTING_STAGES.WAFER_FAB,possible);
+  s.process.currentNodeNm=node;s.process.yield=yieldRate;if(node<s.process.bestNodeNm&&s.process.nodeExperience[node]>=.22)s.process.bestNodeNm=node;
+  s.lastProduction.waferFab={nodeNm:node,waferStarts:possible,goodWafers:good,yield:yieldRate};return {...s.lastProduction.waferFab};
 }
 
 export function packageAndTestChips(region,requested=1){
   const s=ensureComputingIndustryState(region),stock=region.stockpile;
-  const amount=Math.min(Math.max(0,requested),Math.max(0,s.capacity.packaging_test),stock.semiconductor_wafers||0,(stock.industrial_polymers||0)/0.015,(stock.copper||0)/0.018);
+  const amount=Math.min(Math.max(0,requested),Math.max(0,s.capacity.packaging_test),stock.semiconductor_wafers||0,(stock.copper||0)/.018);
   if(amount<=0)return 0;
-  consume(stock,'semiconductor_wafers',amount);consume(stock,'industrial_polymers',amount*0.015);consume(stock,'copper',amount*0.018);
-  stock.packaged_chips+=amount;
-  gainExperience(s,COMPUTING_STAGES.PACKAGING_TEST,amount);
-  return amount;
+  consume(stock,'semiconductor_wafers',amount);consume(stock,'copper',amount*.018);consumePolymerUtility(region,amount*.015,{application:POLYMER_APPLICATIONS.ELECTRONICS});
+  stock.packaged_chips+=amount;gainExperience(s,COMPUTING_STAGES.PACKAGING_TEST,amount);return amount;
 }
 
 export function assembleComputers(region,requested=1){
   const s=ensureComputingIndustryState(region),stock=region.stockpile;
-  const amount=Math.min(Math.max(0,requested),Math.max(0,s.capacity.computer_assembly),(stock.packaged_chips||0)/1,(stock.electronic_components||0)/1.6,(stock.industrial_polymers||0)/0.35,(stock.copper||0)/0.16);
+  const amount=Math.min(Math.max(0,requested),Math.max(0,s.capacity.computer_assembly),(stock.packaged_chips||0),(stock.electronic_components||0)/1.6,(stock.copper||0)/.16);
   if(amount<=0)return 0;
-  consume(stock,'packaged_chips',amount);consume(stock,'electronic_components',amount*1.6);consume(stock,'industrial_polymers',amount*0.35);consume(stock,'copper',amount*0.16);
-  stock.computers+=amount;
-  gainExperience(s,COMPUTING_STAGES.COMPUTER_ASSEMBLY,amount);
-  return amount;
+  consume(stock,'packaged_chips',amount);consume(stock,'electronic_components',amount*1.6);consume(stock,'copper',amount*.16);consumePolymerUtility(region,amount*.35,{application:POLYMER_APPLICATIONS.ELECTRONICS});
+  stock.computers+=amount;gainExperience(s,COMPUTING_STAGES.COMPUTER_ASSEMBLY,amount);return amount;
 }
 
 export function semiconductorSupplyChainSummary(region){
   const s=ensureComputingIndustryState(region),stock=region.stockpile;
   const stages={};for(const stage of Object.values(COMPUTING_STAGES))stages[stage]={capacity:s.capacity[stage],experience:s.experience[stage]};
-  return {
-    stages,
-    designNodeNm:s.design.bestNodeNm,
-    lithographyNodeNm:s.tooling.bestNodeNm,
-    fabNodeNm:s.process.bestNodeNm,
-    currentFabYield:s.process.yield,
-    inventory:Object.fromEntries(Object.values(COMPUTING_GOODS).map(g=>[g,stock[g]||0])),
-  };
+  return {stages,designNodeNm:s.design.bestNodeNm,lithographyNodeNm:s.tooling.bestNodeNm,fabNodeNm:s.process.bestNodeNm,currentFabYield:s.process.yield,inventory:Object.fromEntries(Object.values(COMPUTING_GOODS).map(g=>[g,stock[g]||0]))};
 }
