@@ -1,0 +1,26 @@
+name: Universal advisor attention
+
+on:
+  pull_request:
+    paths:
+      - 'js/ui/advisorAttention.js'
+      - 'js/ui/playerAttentionUi.js'
+      - 'tools/test-advisor-attention.mjs'
+      - '.github/workflows/advisor-attention.yml'
+  workflow_dispatch:
+
+jobs:
+  advisor-attention:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check
+        run: |
+          node --check js/ui/advisorAttention.js
+          node --check js/ui/playerAttentionUi.js
+          node --check tools/test-advisor-attention.mjs
+      - name: Advisor attention regressions
+        run: node tools/test-advisor-attention.mjs
