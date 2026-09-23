@@ -4,6 +4,25 @@ function modernScenarioActive() {
   return currentScenario()?.rulesProfile === 'modern-crisis';
 }
 
+function relabelStewardAttention() {
+  for (const card of document.querySelectorAll('[data-advisor="steward"]')) {
+    const heading = card.querySelector?.('.player-attention-title');
+    if (heading?.textContent?.startsWith('Steward:')) {
+      heading.textContent = `Health Minister:${heading.textContent.slice('Steward:'.length)}`;
+    }
+    for (const button of card.querySelectorAll?.('button') || []) {
+      if (/Review with Steward/i.test(button.textContent || '')) button.textContent = 'Review with Health Minister';
+    }
+  }
+  const modal = document.getElementById('event-modal');
+  if (modal?.dataset?.advisor === 'steward') {
+    const modalTitle = document.getElementById('event-title');
+    if (modalTitle?.textContent?.startsWith('Steward:')) {
+      modalTitle.textContent = `Health Minister:${modalTitle.textContent.slice('Steward:'.length)}`;
+    }
+  }
+}
+
 export function applyModernScenarioAdvisorPresentation() {
   if (!modernScenarioActive() || typeof document === 'undefined') return false;
   const stewardTab = document.querySelector('#advisor-tabs [data-advisor="steward"]');
@@ -23,6 +42,13 @@ export function applyModernScenarioAdvisorPresentation() {
     title.__modernHealthTitleObserver = new MutationObserver(() => queueMicrotask(keepModernTitle));
     title.__modernHealthTitleObserver.observe(title, { childList: true, characterData: true, subtree: true });
   }
+
+  const app = document.getElementById('app') || document.body;
+  if (app && !app.__modernHealthAttentionObserver) {
+    app.__modernHealthAttentionObserver = new MutationObserver(() => queueMicrotask(relabelStewardAttention));
+    app.__modernHealthAttentionObserver.observe(app, { childList: true, subtree: true, characterData: true });
+  }
   keepModernTitle();
+  relabelStewardAttention();
   return true;
 }
