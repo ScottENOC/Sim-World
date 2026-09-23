@@ -1,4 +1,6 @@
-const MAX_TECH_LOG_ENTRIES = 120;
+import { appendChronicleEntry, migrateLegacyTechnologyLog } from '../history/nationalChronicle.js';
+import { openNationalChronicle, renderNationalChronicle } from './nationalChronicleUi.js';
+
 const POLL_INTERVAL_MS = 350;
 
 const TECH_LABELS = Object.freeze({
@@ -50,11 +52,12 @@ function ensureState(world, playerPolityId) {
   if (!polity) return null;
   polity.technologyAttention ||= {};
   const state = polity.technologyAttention;
-  state.version = 1;
+  state.version = 2;
   if (!Array.isArray(state.domesticSeen)) state.domesticSeen = [];
   if (!Array.isArray(state.foreignSeen)) state.foreignSeen = [];
   if (!Array.isArray(state.log)) state.log = [];
   if (typeof state.initialised !== 'boolean') state.initialised = false;
+  migrateLegacyTechnologyLog(world, playerPolityId, state);
   return state;
 }
 
@@ -173,23 +176,27 @@ function buildContactMap(world, controlledRegions, playerPolityId, regionsById =
   return contacts;
 }
 
-function appendLog(state, entry) {
-  state.log.push(entry);
-  if (state.log.length > MAX_TECH_LOG_ENTRIES) state.log.splice(0, state.log.length - MAX_TECH_LOG_ENTRIES);
+function currentTick(world) {
+  return Number(world?.clock?.tickIndex) || 0;
+}
+
+function recordTechnologyChronicle(world, playerPolityId, entry) {
+  return appendChronicleEntry(world, playerPolityId, {
+    ...entry,
+    category: 'technology',
+    elapsedDays: Number(world?.clock?.elapsedDays) || 0,
+    tags: ['technology', entry.techId, entry.channel, entry.sourcePolityId].filter(Boolean),
+  });
 }
 
 function emitNotice(entry, emit) {
   emit?.({
     title: entry.title,
     body: entry.body,
-    actionLabel: 'Open discoveries',
-    action: openDiscoveries,
+    actionLabel: 'Open chronicle',
+    action: openNationalChronicle,
     ttlMs: 14000,
   });
-}
-
-function currentTick(world) {
-  return Number(world?.clock?.tickIndex) || 0;
 }
 
 function baselineState(state, world, controlledRegions, playerPolityId, regionsById) {
@@ -220,6 +227,7 @@ export function scanTechnologyAttention(world, { emit = null } = {}) {
   if (!controlledRegions.length) return [];
   if (!state.initialised) {
     baselineState(state, world, controlledRegions, playerPolityId, regionsById);
+    renderNationalChronicle(world);
     return [];
   }
 
@@ -232,7 +240,7 @@ export function scanTechnologyAttention(world, { emit = null } = {}) {
       domesticSeen.add(techId);
       const report = domesticReport(techId, region.name || 'the realm');
       const entry = { tick, kind: 'domestic', techId, label: technologyLabel(techId), sourceRegionId: region.id, title: report.title, body: report.body };
-      appendLog(state, entry);
+      recordTechnologyChronicle(world, playerPolityId, entry);
       emitNotice(entry, emit);
       emitted.push(entry);
     }
@@ -255,68 +263,14 @@ export function scanTechnologyAttention(world, { emit = null } = {}) {
         tick, kind: 'foreign', techId, label: technologyLabel(techId), sourceRegionId: foreignRegion.id,
         sourcePolityId: foreignPolityId, channel: contact.channel, title: report.title, body: report.body,
       };
-      appendLog(state, entry);
+      recordTechnologyChronicle(world, playerPolityId, entry);
       emitNotice(entry, emit);
       emitted.push(entry);
     }
   }
   state.foreignSeen = [...foreignSeen];
-  renderTechnologyLog(world);
+  renderNationalChronicle(world);
   return emitted;
-}
-
-function technologyState(world) {
-  const playerPolityId = world?.activePlayerPolityId;
-  return playerPolityId ? ensureState(world, playerPolityId) : null;
-}
-
-function renderTechnologyLog(world = globalThis.__worldsim) {
-  if (typeof document === 'undefined') return;
-  const content = document.getElementById('advisor-content');
-  const activeSpymaster = document.querySelector('[data-advisor="spymaster"].active');
-  if (!content || !activeSpymaster) return;
-  content.querySelector('[data-technology-discoveries]')?.remove();
-
-  const state = technologyState(world);
-  const section = document.createElement('section');
-  section.className = 'advisor-section';
-  section.dataset.technologyDiscoveries = '1';
-  const heading = document.createElement('h3');
-  heading.textContent = 'Technological reports';
-  section.appendChild(heading);
-
-  const entries = [...(state?.log || [])].reverse().slice(0, 12);
-  if (!entries.length) {
-    const empty = document.createElement('p');
-    empty.className = 'advisor-note';
-    empty.textContent = 'No new domestic breakthroughs or foreign technologies have been reported yet.';
-    section.appendChild(empty);
-  } else {
-    const list = document.createElement('div');
-    list.className = 'intelligence-list';
-    const now = currentTick(world);
-    for (const entry of entries) {
-      const row = document.createElement('div');
-      const strong = document.createElement('strong');
-      strong.textContent = entry.title || entry.label || 'Technological report';
-      const detail = document.createElement('span');
-      const age = Number.isFinite(entry.tick) ? `${Math.max(0, now - entry.tick)}w old` : 'undated';
-      detail.textContent = `${entry.body || ''} · ${age}`;
-      row.append(strong, detail);
-      list.appendChild(row);
-    }
-    section.appendChild(list);
-  }
-  content.appendChild(section);
-}
-
-function openDiscoveries() {
-  if (typeof document === 'undefined') return;
-  document.getElementById('btn-council')?.click();
-  queueMicrotask(() => {
-    document.querySelector('[data-advisor="spymaster"]')?.click();
-    queueMicrotask(() => renderTechnologyLog());
-  });
 }
 
 function installTechnologyAttention() {
@@ -326,7 +280,7 @@ function installTechnologyAttention() {
     if (!world?.clock || !world?.regions || !world?.polities) return;
     const tick = currentTick(world);
     if (tick === lastTick) {
-      renderTechnologyLog(world);
+      renderNationalChronicle(world);
       return;
     }
     lastTick = tick;
@@ -336,7 +290,8 @@ function installTechnologyAttention() {
   run();
   globalThis.__technologyAttention = {
     scan: () => scanTechnologyAttention(globalThis.__worldsim, { emit: (notice) => globalThis.__playerAttention?.push?.(notice) }),
-    openDiscoveries,
+    openDiscoveries: openNationalChronicle,
+    openChronicle: openNationalChronicle,
   };
 }
 

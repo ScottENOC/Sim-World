@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { foreignTechnologyReport, scanTechnologyAttention, technologyLabel } from '../js/ui/technologyAttentionUi.js';
+import { chronicleEntries } from '../js/history/nationalChronicle.js';
 
 function region(id, polityId, techs = []) {
   return {
@@ -23,7 +24,7 @@ kent.recentTradePartners.set('Essex', 1);
 
 const world = {
   activePlayerPolityId: 'player',
-  clock: { tickIndex: 10 },
+  clock: { tickIndex: 10, elapsedDays: 3650 },
   polities: [
     { id: 'player', name: 'Kentish Realm' },
     { id: 'essex-polity', name: 'Essex' },
@@ -41,6 +42,7 @@ const world = {
 
 {
   world.clock.tickIndex = 11;
+  world.clock.elapsedDays += 365;
   sussex.unlockedTechIds.add('iron_smelting');
   const messages = [];
   const events = scanTechnologyAttention(world, { emit: (notice) => messages.push(notice) });
@@ -49,6 +51,7 @@ const world = {
   assert.equal(events[0].techId, 'iron_smelting');
   assert.match(events[0].body, /Smiths in Sussex/i);
   assert.equal(messages.length, 1);
+  assert.equal(messages[0].actionLabel, 'Open chronicle');
 }
 
 {
@@ -60,6 +63,7 @@ const world = {
 
 {
   world.clock.tickIndex = 13;
+  world.clock.elapsedDays += 365;
   essex.unlockedTechIds.add('steelmaking');
   const messages = [];
   const events = scanTechnologyAttention(world, { emit: (notice) => messages.push(notice) });
@@ -69,7 +73,6 @@ const world = {
   assert.equal(events[0].sourcePolityId, 'essex-polity');
   assert.match(events[0].body, /Traders from Essex have brought steel farming tools/i);
   assert.match(events[0].body, /blacksmiths are envious/i);
-  assert.equal(messages[0].actionLabel, 'Open discoveries');
 }
 
 {
@@ -100,9 +103,10 @@ const world = {
 }
 
 {
-  const log = world.polities[0].technologyAttention.log;
-  assert.ok(log.some((entry) => entry.kind === 'domestic' && entry.techId === 'iron_smelting'));
-  assert.ok(log.some((entry) => entry.kind === 'foreign' && entry.sourcePolityId === 'essex-polity' && entry.techId === 'steelmaking'));
+  const records = chronicleEntries(world, 'player', { category: 'technology', newestFirst: false });
+  assert.ok(records.some((entry) => entry.kind === 'domestic' && entry.techId === 'iron_smelting'));
+  assert.ok(records.some((entry) => entry.kind === 'foreign' && entry.sourcePolityId === 'essex-polity' && entry.techId === 'steelmaking'));
+  assert.ok(records.every((entry) => /BCE|CE/.test(entry.dateLabel)), 'chronicle records should retain a human-readable historical date');
 }
 
 console.log('Technology attention regressions passed.');
