@@ -20,9 +20,15 @@ function completePendingModernCountryStart(sim) {
   const preferred = window.__pendingStartNavigation;
   if (!picker || !pendingId || !preferred || !sim?.regions?.some((region) => region.id === pendingId)) return false;
 
-  // The country has already been chosen in the scenario picker. Keep the
-  // grand-campaign region hierarchy hidden while we drive its legacy callback.
+  // The country has already been chosen in the scenario picker. Claim the
+  // pending handoff before driving the legacy callback so startupPicker's own
+  // polling loop cannot race us and expose the Bronze Age hierarchy.
+  delete window.__pendingStartRegionId;
+  delete window.__pendingStartRegionName;
+  delete window.__pendingStartNavigation;
+  delete window.__pendingStartCountryName;
   pickerModal?.classList.add('hidden');
+
   const continentButton = buttonByStrongText(picker, preferred.continent);
   if (!continentButton) return false;
   continentButton.click();
@@ -33,10 +39,6 @@ function completePendingModernCountryStart(sim) {
   if (!regionButton) return false;
   regionButton.click();
 
-  delete window.__pendingStartRegionId;
-  delete window.__pendingStartRegionName;
-  delete window.__pendingStartNavigation;
-  delete window.__pendingStartCountryName;
   window.__modernCountryStartCompleted = true;
   requestAnimationFrame(() => refocusModernPlayerCountry(sim));
   return true;
