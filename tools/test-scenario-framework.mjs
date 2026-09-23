@@ -23,7 +23,7 @@ assert.ok(fractured, '2027 scenario definition missing');
 assert.equal(fractured.startYear, 2027);
 assert.equal(fractured.mapBaseUrl, 'data/scenarios/fractured-2027/world/');
 assert.equal(fractured.victoryModel, 'country-survival-and-aims');
-assert.equal(fractured.available, false, '2027 remains gated until CI validates the playable baseline');
+assert.equal(fractured.available, true, '2027 playable baseline should remain selectable while calibration continues');
 
 for (const scenario of SCENARIOS) {
   assert.ok(scenario.name);
