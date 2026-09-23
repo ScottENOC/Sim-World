@@ -41,7 +41,7 @@ function restoreRegion(region, saved) {
   delete region._cultureAffinityCache;
 }
 
-export function createGameSnapshot({ regions, seaRegions, polities, religiousWorld, agreements, activeRaids, activeCampaigns, activeWars = [], fleets = [], internationalOrganisations = [], clock, playerRegionId, playerPolityId = null, fogOfWar }) {
+export function createGameSnapshot({ regions, seaRegions, polities, religiousWorld, agreements, activeRaids, activeCampaigns, activeWars = [], fleets = [], internationalOrganisations = [], endgame = null, clock, playerRegionId, playerPolityId = null, fogOfWar }) {
   if (!playerRegionId) throw new Error('Choose a starting region before saving.');
   return {
     format: 'worldsim-save', version: SAVE_VERSION, savedAt: new Date().toISOString(), worldRegionIds: regions.map((region) => region.id), playerRegionId, playerPolityId,
@@ -50,11 +50,11 @@ export function createGameSnapshot({ regions, seaRegions, polities, religiousWor
     fogOfWar: { devMode: fogOfWar.devMode }, regions: regions.map(regionSnapshot), polities: encode(polities), religiousWorld: encode(religiousWorld),
     seaRegions: seaRegions.map((sea) => ({ id: sea.id, fish: encode(sea.fish) })), agreements: encode(agreements),
     activeRaids: encode(activeRaids), activeCampaigns: encode(activeCampaigns), activeWars: encode(activeWars), fleets: encode(fleets),
-    internationalOrganisations: encode(internationalOrganisations),
+    internationalOrganisations: encode(internationalOrganisations), endgame: encode(endgame),
   };
 }
 
-export function restoreGameSnapshot(snapshot, { regions, seaRegions, polities, religiousWorld, agreements, activeRaids, activeCampaigns, activeWars = null, fleets = null, internationalOrganisations = null, clock, fogOfWar }) {
+export function restoreGameSnapshot(snapshot, { regions, seaRegions, polities, religiousWorld, agreements, activeRaids, activeCampaigns, activeWars = null, fleets = null, internationalOrganisations = null, endgame = null, clock, fogOfWar }) {
   if (!snapshot || snapshot.format !== 'worldsim-save') throw new Error('This is not a Worldsim save.');
   if (snapshot.version !== SAVE_VERSION) throw new Error(`Unsupported save version ${snapshot.version}.`);
   const expectedIds = regions.map((region) => region.id);
@@ -72,6 +72,10 @@ export function restoreGameSnapshot(snapshot, { regions, seaRegions, polities, r
   if (fleets && fleetsRestored) fleets.splice(0, fleets.length, ...decode(snapshot.fleets || []));
   const internationalOrganisationsRestored = Array.isArray(snapshot.internationalOrganisations);
   if (internationalOrganisations) internationalOrganisations.splice(0, internationalOrganisations.length, ...decode(snapshot.internationalOrganisations || []));
+  if (endgame) {
+    for (const key of Object.keys(endgame)) delete endgame[key];
+    if (snapshot.endgame) Object.assign(endgame, decode(snapshot.endgame));
+  }
   clock.stop(); clock.tickIndex = Math.max(0, Number(snapshot.clock.tickIndex) || 0);
   // Old weekly saves migrate conservatively: their tick count is treated as elapsed weeks.
   clock.elapsedDays = Number.isFinite(snapshot.clock.elapsedDays) ? snapshot.clock.elapsedDays : clock.tickIndex * 7;
