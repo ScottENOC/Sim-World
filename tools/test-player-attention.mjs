@@ -51,7 +51,8 @@ import { diseaseAttentionNotice, informationalEventNotice, quarantineAdviceForBu
     'Local authorities now recognise an outbreak of Enteric disease. Estimated prevalence is 4.8%, with about 12 recent deaths.',
   );
   assert.ok(notice, 'material outbreaks should reach the ruler');
-  assert.equal(notice.action, 'open-steward');
+  assert.equal(notice.advisor, 'steward');
+  assert.equal(notice.action, 'open-advisor:steward');
   assert.equal(notice.recommendedQuarantinePolicy, 0.65);
   assert.match(notice.actionLabel, /Quarantine travellers/i);
   assert.match(notice.body, /Steward recommends quarantining travellers/i);
@@ -78,7 +79,11 @@ import { diseaseAttentionNotice, informationalEventNotice, quarantineAdviceForBu
 
 {
   const notice = informationalEventNotice('Construction complete', 'The granary is finished.');
-  assert.deepEqual(notice, { title: 'Construction complete', body: 'The granary is finished.' });
+  assert.equal(notice.advisor, 'steward');
+  assert.equal(notice.title, 'Construction complete');
+  assert.equal(notice.body, 'The granary is finished.');
+  assert.equal(notice.action, 'open-advisor:steward');
+  assert.equal(notice.actionLabel, 'Review with Steward');
 }
 
 console.log('Player attention regressions passed.');
