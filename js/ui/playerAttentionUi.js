@@ -78,6 +78,10 @@ export function informationalEventNotice(title, body) {
   const cleanTitle = compact(title);
   const cleanBody = compact(body);
   if (!cleanBody || cleanBody === GENERIC_UNPRESENTED_EVENT) return null;
+  // Dedicated technology attention tracks every controlled-region breakthrough,
+  // logs it persistently and handles foreign first-observation reports. Suppress
+  // the legacy capital-only modal copy so one breakthrough never produces two notices.
+  if (/^Breakthrough:/i.test(cleanTitle)) return null;
   if (/\b(recognised|outbreak)\b/i.test(cleanTitle) && /Estimated prevalence/i.test(cleanBody)) {
     return diseaseAttentionNotice(cleanTitle, cleanBody);
   }
