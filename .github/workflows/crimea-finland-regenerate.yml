@@ -56,6 +56,7 @@ jobs:
           cp /tmp/simworld-crimea-finland-seas/seaRegions.geo.json data/world/seaRegions.geo.json
           cp /tmp/simworld-crimea-finland-seas/seaRegions.meta.json data/world/seaRegions.meta.json
           node tools/generate-world-spatial-base.mjs
+          python tools/finalize-old-world-map-report.py
       - name: Repair and sync Fractured 2027 physical snapshot
         run: |
           python tools/repair-crimea-finland-geography.py --world-dir data/scenarios/fractured-2027/world
@@ -84,6 +85,7 @@ jobs:
             data/world/seaRegions.geo.json \
             data/world/seaRegions.meta.json \
             data/world/spatial.base.json \
+            data/world/old-world-pacific-coverage.json \
             data/world/crimea-finland-geography-repair.json \
             data/scenarios/fractured-2027/world/regions.geo.json \
             data/scenarios/fractured-2027/world/regions.meta.json \
