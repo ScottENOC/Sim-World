@@ -1,0 +1,36 @@
+name: Strategic beliefs and reporting distortion
+
+on:
+  pull_request:
+    paths:
+      - 'js/diplomacy/strategicBeliefs.js'
+      - 'js/core/scenarioStrategicInformation.js'
+      - 'js/core/scenarioRuntime.js'
+      - 'data/scenarios/fractured-2027/initial-state.json'
+      - 'tests/strategicBeliefs.test.mjs'
+      - '.github/workflows/strategic-beliefs.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'js/diplomacy/strategicBeliefs.js'
+      - 'js/core/scenarioStrategicInformation.js'
+      - 'js/core/scenarioRuntime.js'
+      - 'data/scenarios/fractured-2027/initial-state.json'
+      - 'tests/strategicBeliefs.test.mjs'
+      - '.github/workflows/strategic-beliefs.yml'
+
+jobs:
+  strategic-beliefs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax checks
+        run: |
+          node --check js/diplomacy/strategicBeliefs.js
+          node --check js/core/scenarioStrategicInformation.js
+          node --check js/core/scenarioRuntime.js
+      - name: Strategic belief regressions
+        run: node tests/strategicBeliefs.test.mjs
