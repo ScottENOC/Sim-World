@@ -9,7 +9,13 @@ export function modernDateFromElapsed(startYear, elapsedDays) {
 }
 
 function controlledRegions(sim) {
-  const polityId = sim?.activePlayerPolityId;
+  const anchorRegion = sim?.fogOfWar?.playerRegionId
+    ? sim?.regions?.find?.((region) => region.id === sim.fogOfWar.playerRegionId)
+    : null;
+  const polityId = anchorRegion?.governance?.sovereignPolityId ||
+    anchorRegion?.governance?.localPolityId ||
+    anchorRegion?.polityId ||
+    sim?.activePlayerPolityId;
   if (!polityId) return [];
   return (sim.regions || []).filter((region) => (
     region.governance?.sovereignPolityId === polityId ||
@@ -18,9 +24,26 @@ function controlledRegions(sim) {
   ));
 }
 
+export function finiteProjectedPoints(projection, regions = []) {
+  if (typeof projection !== 'function') return [];
+  return regions
+    .map((region) => {
+      if (!Array.isArray(region?.centroid) || region.centroid.length < 2) return null;
+      const longitude = Number(region.centroid[0]);
+      const latitude = Number(region.centroid[1]);
+      if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return null;
+      const point = projection([longitude, latitude]);
+      if (!Array.isArray(point) || point.length < 2) return null;
+      const x = Number(point[0]);
+      const y = Number(point[1]);
+      return Number.isFinite(x) && Number.isFinite(y) ? [x, y] : null;
+    })
+    .filter(Boolean);
+}
+
 function focusRegions(map, regions, { padding = 46, maxScale = 6 } = {}) {
   if (!map?.projection || !map?._zoom || !map?.canvas || !regions?.length || typeof d3 === 'undefined') return false;
-  const points = regions.map((region) => map.projection(region.centroid)).filter(Boolean);
+  const points = finiteProjectedPoints(map.projection, regions);
   if (!points.length) return false;
   const xs = points.map((point) => point[0]);
   const ys = points.map((point) => point[1]);
@@ -30,13 +53,16 @@ function focusRegions(map, regions, { padding = 46, maxScale = 6 } = {}) {
   }
   const spanX = Math.max(32, maxX - minX);
   const spanY = Math.max(32, maxY - minY);
-  const width = Math.max(1, map.width - padding * 2);
-  const height = Math.max(1, map.height - padding * 2);
+  const width = Math.max(1, Number(map.width) - padding * 2);
+  const height = Math.max(1, Number(map.height) - padding * 2);
   const scale = Math.max(1, Math.min(maxScale, Math.min(width / spanX, height / spanY) * 0.78));
   const centreX = (minX + maxX) / 2;
   const centreY = (minY + maxY) / 2;
+  const tx = Number(map.width) / 2 - centreX * scale;
+  const ty = Number(map.height) / 2 - centreY * scale;
+  if (![scale, centreX, centreY, tx, ty].every(Number.isFinite)) return false;
   const transform = d3.zoomIdentity
-    .translate(map.width / 2 - centreX * scale, map.height / 2 - centreY * scale)
+    .translate(tx, ty)
     .scale(scale);
   d3.select(map.canvas).call(map._zoom.transform, transform);
   return true;
@@ -56,6 +82,11 @@ function installHomeButton(sim) {
   controls.insertBefore(button, controls.firstChild);
 }
 
+function refreshModernMap(sim) {
+  sim?.map?.refreshLayer?.();
+  sim?.map?.draw?.();
+}
+
 export function applyModernScenarioPolish(sim) {
   const scenario = currentScenario();
   if (scenario?.rulesProfile !== 'modern-crisis' || !sim?.clock) return false;
@@ -66,10 +97,20 @@ export function applyModernScenarioPolish(sim) {
   const date = document.getElementById('hud-date');
   if (date) date.textContent = sim.clock.formatDate();
   installHomeButton(sim);
-  requestAnimationFrame(() => requestAnimationFrame(() => focusRegions(sim.map, controlledRegions(sim))));
+
+  // Scenario runtime can switch the map from fogged to globally known after the
+  // renderer and its layer cache already exist. Rebuild that cache immediately so
+  // the first modern frame is drawable even before the hidden anchor handoff fires.
+  refreshModernMap(sim);
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    focusRegions(sim.map, controlledRegions(sim));
+    refreshModernMap(sim);
+  }));
   return true;
 }
 
 export function refocusModernPlayerCountry(sim) {
-  return focusRegions(sim?.map, controlledRegions(sim));
+  const focused = focusRegions(sim?.map, controlledRegions(sim));
+  refreshModernMap(sim);
+  return focused;
 }
