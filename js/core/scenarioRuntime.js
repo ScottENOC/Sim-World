@@ -4,6 +4,7 @@ import { updateFocusedCampaignResolution, canDeclareFocusedScenarioResult } from
 import { consolidateScenarioSovereignty } from './scenarioSovereignty.js?v=20260921-scenario-sovereignty2';
 import { applyModernScenarioBaseline } from './scenarioModernStart.js?v=20260921-modern-start1';
 import { hydrateScenarioForceDeployments } from './scenarioForces.js?v=20260921-scenario-forces1';
+import { applyScenarioStrategicInformation } from './scenarioStrategicInformation.js?v=20260923-strategic-info1';
 
 const jsonClone = (value) => JSON.parse(JSON.stringify(value));
 const arr = (value) => Array.isArray(value) ? value : [];
@@ -94,6 +95,10 @@ export function attachScenarioPackage(sim, scenario, pkg, options = {}) {
     ? hydrateScenarioInitialState(world, jsonClone(pkg.initialState), { currentTick: options.currentTick || 0 })
     : null;
 
+  const strategicInformation = pkg.initialState
+    ? applyScenarioStrategicInformation(world, pkg.initialState)
+    : null;
+
   world.scenarioState.package = {
     manifest: pkg.manifest,
     factionBalance: pkg.factionBalance,
@@ -108,6 +113,7 @@ export function attachScenarioPackage(sim, scenario, pkg, options = {}) {
   world.scenarioState.sovereignty = sovereignty;
   world.scenarioState.modernBaseline = modernBaseline;
   world.scenarioState.forceDeployments = forceDeployments;
+  world.scenarioState.strategicInformation = strategicInformation;
   sim.scenarioState = world.scenarioState;
   sim.scenarioVictoryState = world.scenarioVictoryState;
   sim.scenarioPackage = world.scenarioState.package;
@@ -127,6 +133,7 @@ export function attachScenarioPackage(sim, scenario, pkg, options = {}) {
     sovereignty,
     modernBaseline,
     forceDeployments,
+    strategicInformation,
     usedPolityFacade: world.usesPolityFacade,
     playablePolityIds: sim.scenarioPlayablePolities().map((polity) => polity.scenarioActorId || polity.id),
   };
