@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'js/diplomacy/strategicBeliefs.js'
+      - 'js/core/scenarioStrategicInformation.js'
+      - 'js/core/scenarioRuntime.js'
       - 'data/scenarios/fractured-2027/initial-state.json'
       - 'tests/strategicBeliefs.test.mjs'
       - '.github/workflows/strategic-beliefs.yml'
@@ -11,6 +13,8 @@ on:
     branches: [main]
     paths:
       - 'js/diplomacy/strategicBeliefs.js'
+      - 'js/core/scenarioStrategicInformation.js'
+      - 'js/core/scenarioRuntime.js'
       - 'data/scenarios/fractured-2027/initial-state.json'
       - 'tests/strategicBeliefs.test.mjs'
       - '.github/workflows/strategic-beliefs.yml'
@@ -24,6 +28,9 @@ jobs:
         with:
           node-version: 22
       - name: Syntax checks
-        run: node --check js/diplomacy/strategicBeliefs.js
+        run: |
+          node --check js/diplomacy/strategicBeliefs.js
+          node --check js/core/scenarioStrategicInformation.js
+          node --check js/core/scenarioRuntime.js
       - name: Strategic belief regressions
         run: node tests/strategicBeliefs.test.mjs
