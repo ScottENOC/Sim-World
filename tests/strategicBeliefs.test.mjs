@@ -54,13 +54,20 @@ function actor(id){return{id,name:id,governance:{sovereignPolityId:id}};}
   assert(russia.strategicInformationEnvironment.badNewsCareerPenalty>.65,'scenario should represent strong incentives to filter bad news upward');
   assert(russia.strategicInformationEnvironment.upwardReportingIntegrity<.5,'scenario leadership should begin with a degraded internal reporting chain');
   assert.equal(russia.informationCalibration.notPermanentNationalTrait,true,'calibration must be an institutional starting condition, not an immutable country trait');
+  assert.equal(russia.initialStrategicBeliefs.length,4,'scenario Russia should begin with explicit misconceptions about the Ukraine war');
+  const ownPressureSeed=russia.initialStrategicBeliefs.find(b=>b.targetActorId==='russia'&&b.metric==='war_pressure:russia-ukraine-war');
+  const ukrainePressureSeed=russia.initialStrategicBeliefs.find(b=>b.targetActorId==='ukraine'&&b.metric==='war_pressure:russia-ukraine-war');
+  assert(ownPressureSeed.estimate<ukrainePressureSeed.estimate,'Russian leadership should begin believing Ukraine is under much greater pressure than Russia');
 
   const world={polities:[{id:'russia',scenarioActorId:'russia'}],regions:[{id:'ru-1',scenarioCountryId:'russia',governance:{sovereignPolityId:'russia'}}]};
   const applied=applyScenarioStrategicInformation(world,scenario);
   assert.equal(applied.actorsApplied,1);
   assert.equal(applied.regionsApplied,1);
+  assert.equal(applied.beliefsApplied,4);
   assert.equal(world.polities[0].strategicInformationEnvironment.badNewsCareerPenalty,.72,'scenario profile should reach the live polity');
   assert.equal(world.regions[0].strategicInformationEnvironment.operationalSecrecy,.82,'scenario profile should reach live regions used by simulation systems');
+  assert.equal(world.polities[0].strategicBeliefs.russia['war_pressure:russia-ukraine-war'].estimate,.28,'seeded self-pressure misconception should reach live polity');
+  assert.equal(world.polities[0].strategicBeliefs.ukraine['war_pressure:russia-ukraine-war'].estimate,.78,'seeded Ukraine-pressure misconception should reach live polity');
 }
 
 console.log('Strategic belief and reporting-distortion regressions passed.');
