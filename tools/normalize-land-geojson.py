@@ -70,7 +70,8 @@ def main():
 
     src = Path(args.input)
     dst = Path(args.output)
-    doc = json.loads(src.read_text())
+    input_text = src.read_text()
+    doc = json.loads(input_text)
     changed = 0
     collection_count = 0
     before_parts = 0
@@ -106,7 +107,11 @@ def main():
 
     absolute_loss = max(0.0, planar_area_before - planar_area_after)
     loss_fraction = absolute_loss / planar_area_before if planar_area_before else 0.0
-    dst.write_text(json.dumps(doc, ensure_ascii=False, separators=(',', ':')))
+    # If canonicalisation made no semantic geometry changes, preserve the exact
+    # input bytes. Re-serialising a large GeoJSON document can change only a
+    # floating-point spelling (for example 3.5e-05 to 0.000035) and trip the
+    # reproducibility guard even though the map is identical.
+    dst.write_text(input_text if changed == 0 else json.dumps(doc, ensure_ascii=False, separators=(',', ':')))
     print(f'FEATURES={len(doc.get("features", []))}')
     print(f'CHANGED_FEATURES={changed}')
     print(f'GEOMETRY_COLLECTIONS={collection_count}')
