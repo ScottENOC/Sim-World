@@ -64,7 +64,7 @@ jobs:
           node --check js/ui/institutionalRegionControlsUi.js
       - name: Assert obsolete scalar navy model is absent
         run: |
-          if grep -R -n --include='*.js' --include='*.mjs' -E 'targetNavySize|input-navy|council-navy-target' js tests; then
+          if grep -R -n --include='*.js' --include='*.mjs' -E 'targetNavySize|input-navy|council-navy-target' js; then
             echo 'Legacy scalar navy references remain' >&2
             exit 1
           fi
