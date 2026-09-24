@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "scenarioId": "fractured-2027",
-  "purpose": "Gameplay calibration for a contemporary starting state; population targets are approximate scenario baselines, not forecasts or exact 2027 estimates.",
+  "purpose": "Gameplay calibration for a contemporary starting state; population and automobile-ownership targets are approximate scenario baselines, not forecasts or exact 2027 estimates.",
   "populationMultiplier": 24,
   "countryPopulationTargets": {
     "usa": 345000000,
@@ -23,6 +23,7 @@
   "regionalPopulationWeights": {
     "london": 0.13
   },
+  "regionalAutomobilesPer1000": {},
   "commonTechIds": [
     "electrical_generation",
     "local_electric_distribution",
@@ -73,18 +74,24 @@
     "steelStockPerPerson": 0.00012,
     "aviationFuelStockPerPerson": 0.000025,
     "machineComponentsPerPerson": 0.00004,
-    "batteryCellsPerPerson": 0.000008
+    "batteryCellsPerPerson": 0.000008,
+    "automobilesPer1000": 450
   },
   "countryOverrides": {
-    "usa": { "manufacturingCapability": 0.9, "precisionMachiningCapability": 0.93, "electronicsCapability": 0.95, "standingForceShare": 0.0042, "orbitalSupport": 0.92 },
-    "china": { "manufacturingCapability": 0.94, "precisionMachiningCapability": 0.88, "electronicsCapability": 0.9, "standingForceShare": 0.0032, "orbitalSupport": 0.78 },
-    "russia": { "manufacturingCapability": 0.78, "precisionMachiningCapability": 0.82, "electronicsCapability": 0.68, "standingForceShare": 0.006, "orbitalSupport": 0.72 },
-    "united-kingdom": { "manufacturingCapability": 0.84, "precisionMachiningCapability": 0.9, "electronicsCapability": 0.9, "standingForceShare": 0.0028, "orbitalSupport": 0.62 },
-    "france": { "manufacturingCapability": 0.86, "precisionMachiningCapability": 0.9, "electronicsCapability": 0.88, "standingForceShare": 0.003, "orbitalSupport": 0.55 },
-    "germany": { "manufacturingCapability": 0.92, "precisionMachiningCapability": 0.94, "electronicsCapability": 0.9, "standingForceShare": 0.0022, "orbitalSupport": 0.46 },
-    "ukraine": { "manufacturingCapability": 0.72, "precisionMachiningCapability": 0.77, "electronicsCapability": 0.72, "standingForceShare": 0.012 },
-    "iran": { "manufacturingCapability": 0.68, "precisionMachiningCapability": 0.7, "electronicsCapability": 0.62, "standingForceShare": 0.0065, "orbitalSupport": 0.28 },
-    "north-korea": { "manufacturingCapability": 0.55, "precisionMachiningCapability": 0.58, "electronicsCapability": 0.42, "standingForceShare": 0.018 },
-    "australia": { "manufacturingCapability": 0.8, "precisionMachiningCapability": 0.86, "electronicsCapability": 0.88, "standingForceShare": 0.0024, "orbitalSupport": 0.42 }
+    "usa": { "manufacturingCapability": 0.9, "precisionMachiningCapability": 0.93, "electronicsCapability": 0.95, "standingForceShare": 0.0042, "orbitalSupport": 0.92, "automobilesPer1000": 850 },
+    "china": { "manufacturingCapability": 0.94, "precisionMachiningCapability": 0.88, "electronicsCapability": 0.9, "standingForceShare": 0.0032, "orbitalSupport": 0.78, "automobilesPer1000": 250 },
+    "russia": { "manufacturingCapability": 0.78, "precisionMachiningCapability": 0.82, "electronicsCapability": 0.68, "standingForceShare": 0.006, "orbitalSupport": 0.72, "automobilesPer1000": 400 },
+    "united-kingdom": { "manufacturingCapability": 0.84, "precisionMachiningCapability": 0.9, "electronicsCapability": 0.9, "standingForceShare": 0.0028, "orbitalSupport": 0.62, "automobilesPer1000": 600 },
+    "france": { "manufacturingCapability": 0.86, "precisionMachiningCapability": 0.9, "electronicsCapability": 0.88, "standingForceShare": 0.003, "orbitalSupport": 0.55, "automobilesPer1000": 590 },
+    "germany": { "manufacturingCapability": 0.92, "precisionMachiningCapability": 0.94, "electronicsCapability": 0.9, "standingForceShare": 0.0022, "orbitalSupport": 0.46, "automobilesPer1000": 580 },
+    "ukraine": { "manufacturingCapability": 0.72, "precisionMachiningCapability": 0.77, "electronicsCapability": 0.72, "standingForceShare": 0.012, "automobilesPer1000": 240 },
+    "iran": { "manufacturingCapability": 0.68, "precisionMachiningCapability": 0.7, "electronicsCapability": 0.62, "standingForceShare": 0.0065, "orbitalSupport": 0.28, "automobilesPer1000": 220 },
+    "north-korea": { "manufacturingCapability": 0.55, "precisionMachiningCapability": 0.58, "electronicsCapability": 0.42, "standingForceShare": 0.018, "automobilesPer1000": 15 },
+    "australia": { "manufacturingCapability": 0.8, "precisionMachiningCapability": 0.86, "electronicsCapability": 0.88, "standingForceShare": 0.0024, "orbitalSupport": 0.42, "automobilesPer1000": 780 },
+    "taiwan": { "automobilesPer1000": 350 },
+    "denmark": { "automobilesPer1000": 550 },
+    "canada": { "automobilesPer1000": 790 },
+    "madagascar": { "automobilesPer1000": 25 },
+    "greenland": { "automobilesPer1000": 350 }
   }
 }
