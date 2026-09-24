@@ -1,3 +1,5 @@
+import './mapZoomBehaviour.js?v=20260924-zoom1';
+
 const STORAGE_KEY = 'worldsim-map-projection';
 const DEFAULT_PROJECTION = 'equal-earth';
 const VALID_PROJECTIONS = new Set(['equal-earth', 'natural-earth', 'mercator']);
