@@ -82,6 +82,25 @@ jobs:
           node tools/test-diplomatic-service-ui.mjs
       - name: Headless world smoke test
         run: node tools/calibrate.mjs --years 1 --seeds 1 --snapshot-years 1 --days-per-tick 30 --scale 1 --output /tmp/spatial-smoke.json
+      - name: Capture diff diagnostics
+        if: always()
+        run: |
+          {
+            echo '=== git status --short ==='
+            git status --short
+            echo '=== git diff --name-only ==='
+            git diff --name-only
+            echo '=== git diff --stat ==='
+            git diff --stat
+            echo '=== git diff ==='
+            git diff
+          } > /tmp/spatial-diff.txt
+      - name: Upload diff diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spatial-diff-diagnostics
+          path: /tmp/spatial-diff.txt
       - name: Diff sanity
         run: |
           git diff --check
