@@ -2,11 +2,12 @@
 """Canonicalise land GeoJSON before D3-aware spherical repair.
 
 Shapely overlay operations can leave GeometryCollections containing hundreds of
-numerically degenerate polygon fragments and rings. This first pass removes only
-floating-point debris and emits ordinary Polygon/MultiPolygon geometry. A second
-D3-aware pass repairs any remaining polygon whose spherical winding represents
-the complement of the intended landmass, so meaningful land is preserved rather
-than deleted to make the renderer happy.
+numerically degenerate polygon fragments. This first pass removes only tiny
+outer polygon debris while preserving valid interior rings, then emits ordinary
+Polygon/MultiPolygon geometry. A second D3-aware pass repairs any remaining
+polygon whose spherical winding represents the complement of the intended
+landmass, so meaningful land is preserved rather than deleted to make the
+renderer happy.
 """
 from __future__ import annotations
 
@@ -17,9 +18,10 @@ from pathlib import Path
 from shapely.geometry import MultiPolygon, Polygon, mapping, shape
 from shapely.geometry.polygon import orient
 
-# Degree². This is deliberately tiny: only floating-point debris is discarded.
-# Meaningful fragments are retained and, if D3 interprets their winding as a
-# spherical complement, repaired by tools/repair-d3-region-geometry.mjs.
+# Degree². This is deliberately tiny: only floating-point outer polygon debris
+# is discarded. Valid interior rings are preserved regardless of area because a
+# tiny but valid hole is not a separate land fragment and removing it causes
+# needless generated-map churn without improving D3 rendering.
 DEFAULT_MIN_PART_AREA_DEG2 = 1e-10
 
 
@@ -37,7 +39,7 @@ def clean_polygon(poly: Polygon, min_area: float):
     holes = []
     for ring in poly.interiors:
         ring_poly = Polygon(ring)
-        if not ring_poly.is_empty and ring_poly.area > min_area:
+        if not ring_poly.is_empty and ring_poly.area > 0:
             holes.append(list(ring.coords))
     cleaned = Polygon(list(poly.exterior.coords), holes)
     if cleaned.is_empty or cleaned.area <= min_area:
