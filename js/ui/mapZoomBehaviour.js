@@ -1,6 +1,6 @@
 import { MapRenderer } from './mapRenderer.js?v=20260904-war1';
 
-const MAX_MAP_ZOOM = 8;
+const MAX_MAP_ZOOM = 12;
 
 function ensureInteractionSurface(renderer) {
   if (renderer._interactionSurface?.isConnected) return renderer._interactionSurface;
