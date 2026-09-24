@@ -1,3 +1,5 @@
+import { ensureCivilianTransport } from '../economy/civilianTransport.js';
+
 const SAVE_VERSION = 1;
 export const SAVE_KEY = 'worldsim.save.v1';
 
@@ -33,6 +35,7 @@ function restoreRegion(region, saved) {
   if (!(knowledge.knownSubjectIds instanceof Set)) knowledge.knownSubjectIds = new Set();
   if (!(knowledge.directContactIds instanceof Set)) knowledge.directContactIds = new Set();
   if (!(knowledge._observationByStream instanceof Map)) knowledge._observationByStream = new Map();
+  ensureCivilianTransport(region);
   // These are module/runtime caches, not historical state. A browser reload
   // clears the culture identity registry, so force culture.js to rebuild it
   // from the saved plain-object cultureState/identityArchive on first access.

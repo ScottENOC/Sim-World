@@ -1,0 +1,24 @@
+name: Civilian transport state
+
+on:
+  push:
+    branches: [main, feature/labour-mobility-ui]
+  pull_request:
+
+jobs:
+  civilian-transport:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: |
+          node --check js/economy/civilianTransport.js
+          node --check js/core/scenarioModernStart.js
+          node --check js/core/saveGame.js
+      - name: Civilian transport regressions
+        run: node tests/civilianTransport.test.mjs
+      - name: Existing 2027 modern startup regressions
+        run: node tests/fractured2027ModernStartup.test.mjs
