@@ -29,11 +29,11 @@ export function seedAutomobileOwnership(region, automobilesPer1000, options = {}
   const transport = ensureCivilianTransport(region);
   const population = finiteNonNegative(region?.population);
   const rate = finiteNonNegative(automobilesPer1000);
-  const explicitExisting = Number.isFinite(Number(transport.automobiles)) && transport.automobiles > 0;
-  if (explicitExisting && options.force !== true) {
+  if (region.scenarioAutomobileBaselineApplied && options.force !== true) {
     return { seeded: false, automobiles: transport.automobiles, automobilesPer1000: automobileOwnershipPer1000(region) };
   }
   transport.automobiles = Math.round(population * rate / 1000);
   if (options.source) transport.automobileOwnershipSource = String(options.source);
+  if (options.scenarioBaseline === true) region.scenarioAutomobileBaselineApplied = true;
   return { seeded: true, automobiles: transport.automobiles, automobilesPer1000: rate };
 }
