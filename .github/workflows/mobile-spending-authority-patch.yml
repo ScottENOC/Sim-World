@@ -1,0 +1,62 @@
+name: Mobile spending authority patch
+on:
+  push:
+    branches: [fix/mobile-spending-authority]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[mobile-authority-patched]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/mobile-spending-authority
+      - name: Gate mobile spending controls through institutions
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('js/ui/mobileGameplayControls.js')
+          s=p.read_text()
+          anchor="""} from '../military/fleets.js?v=20260919-naval-light-metals1';\n\nconst esc"""
+          repl="""} from '../military/fleets.js?v=20260919-naval-light-metals1';\nimport { authoriseRuntimeGovernmentAction } from '../politics/institutionalRuntimeAuthority.js?v=20260916-region-controls1';\n\nconst esc"""
+          if s.count(anchor)!=1: raise SystemExit('import anchor mismatch')
+          s=s.replace(anchor,repl)
+
+          anchor="""function selectedRegion(sim) {\n  return sim?.regions?.find((region) => region.id === sim?.map?.selectedId) || null;\n}\n\n"""
+          helper="""function selectedRegion(sim) {\n  return sim?.regions?.find((region) => region.id === sim?.map?.selectedId) || null;\n}\n\nfunction spendingAuthorisation(sim, region, extraContext = {}) {\n  const fiscal = region?.militaryFinance || {};\n  const grievance = Math.max(0, Math.min(1, Number(region?.popularWellbeing?.grievance) || 0));\n  return authoriseRuntimeGovernmentAction(region, 'change_spending', {\n    polities: sim?.polities || [],\n    currentTick: sim?.clock?.tickIndex ?? sim?.clock?.elapsedDays ?? 0,\n    registerRefusal: true,\n    context: {\n      wellbeing: region?.popularWellbeing || {},\n      publicSupport: 1 - grievance,\n      fiscalStress: Math.max(0, Math.min(1, 1 - (Number(fiscal.readiness) || 1))),\n      ...extraContext,\n    },\n  });\n}\n\nfunction spendingRefusal(result) {\n  const required = result?.required || result?.power || result?.reason || 'required institution';\n  return `${String(required).replaceAll('_', ' ')} refused authorisation. The spending order was not carried out.`;\n}\n\n"""
+          if s.count(anchor)!=1: raise SystemExit('helper anchor mismatch')
+          s=s.replace(anchor,helper)
+
+          old="""  content.querySelector('#mobile-start-construction')?.addEventListener('click', () => {\n    const typeId = content.querySelector('#mobile-construction-type')?.value;\n    const workers = Number(content.querySelector('#mobile-construction-workers')?.value) || undefined;\n    const project = startConstruction(region, typeId, workers, sim.clock?.elapsedDays || 0);\n"""
+          new="""  content.querySelector('#mobile-start-construction')?.addEventListener('click', () => {\n    const typeId = content.querySelector('#mobile-construction-type')?.value;\n    const workers = Number(content.querySelector('#mobile-construction-workers')?.value) || undefined;\n    const approval = spendingAuthorisation(sim, region, { spendingKind: 'infrastructure', constructionTypeId: typeId });\n    if (!approval.allowed) {\n      const detail = content.querySelector('#mobile-construction-detail');\n      if (detail) detail.textContent = spendingRefusal(approval);\n      return;\n    }\n    const project = startConstruction(region, typeId, workers, sim.clock?.elapsedDays || 0);\n"""
+          if s.count(old)!=1: raise SystemExit('start construction anchor mismatch')
+          s=s.replace(old,new)
+
+          old="""    row.querySelector('[data-project-workers]')?.addEventListener('change', (event) => {\n      setConstructionWorkers(region, projectId, Number(event.target.value));\n      renderInfrastructureModal(sim, region);\n    });\n    row.querySelector('[data-cancel-project]')?.addEventListener('click', () => {\n      cancelConstruction(region, projectId);\n      renderInfrastructureModal(sim, region);\n    });\n"""
+          new="""    row.querySelector('[data-project-workers]')?.addEventListener('change', (event) => {\n      const approval = spendingAuthorisation(sim, region, { spendingKind: 'construction_workforce', projectId });\n      if (approval.allowed) setConstructionWorkers(region, projectId, Number(event.target.value));\n      renderInfrastructureModal(sim, region);\n    });\n    row.querySelector('[data-cancel-project]')?.addEventListener('click', () => {\n      const approval = spendingAuthorisation(sim, region, { spendingKind: 'cancel_construction', projectId });\n      if (approval.allowed) cancelConstruction(region, projectId);\n      renderInfrastructureModal(sim, region);\n    });\n"""
+          if s.count(old)!=1: raise SystemExit('project controls anchor mismatch')
+          s=s.replace(old,new)
+
+          old="""    row.querySelector('[data-naval-plus]')?.addEventListener('click', () => {\n      const current = Math.max(0, Math.round(ensureNavalProcurement(region).targets?.[designId] || 0));\n      setNavalClassTarget(region, designId, current + 1);\n      renderNavalProcurement(sim, region);\n    });\n    row.querySelector('[data-naval-minus]')?.addEventListener('click', () => {\n      const current = Math.max(0, Math.round(ensureNavalProcurement(region).targets?.[designId] || 0));\n      setNavalClassTarget(region, designId, current - 1);\n      renderNavalProcurement(sim, region);\n    });\n"""
+          new="""    row.querySelector('[data-naval-plus]')?.addEventListener('click', () => {\n      const approval = spendingAuthorisation(sim, region, { spendingKind: 'naval_procurement', designId, direction: 'increase' });\n      if (!approval.allowed) {\n        const status = panel.querySelector('#naval-procurement-status');\n        if (status) status.textContent = spendingRefusal(approval);\n        return;\n      }\n      const current = Math.max(0, Math.round(ensureNavalProcurement(region).targets?.[designId] || 0));\n      setNavalClassTarget(region, designId, current + 1);\n      renderNavalProcurement(sim, region);\n    });\n    row.querySelector('[data-naval-minus]')?.addEventListener('click', () => {\n      const approval = spendingAuthorisation(sim, region, { spendingKind: 'naval_procurement', designId, direction: 'decrease' });\n      if (!approval.allowed) {\n        const status = panel.querySelector('#naval-procurement-status');\n        if (status) status.textContent = spendingRefusal(approval);\n        return;\n      }\n      const current = Math.max(0, Math.round(ensureNavalProcurement(region).targets?.[designId] || 0));\n      setNavalClassTarget(region, designId, current - 1);\n      renderNavalProcurement(sim, region);\n    });\n"""
+          if s.count(old)!=1: raise SystemExit('naval control anchor mismatch')
+          s=s.replace(old,new)
+          p.write_text(s)
+
+          t=Path('tests/mobileGameplayControls.test.mjs')
+          x=t.read_text()
+          marker="""  const source = readFileSync(new URL('../js/military/fleets.js', import.meta.url), 'utf8');\n"""
+          insert="""  const authoritySource = readFileSync(new URL('../js/ui/mobileGameplayControls.js', import.meta.url), 'utf8');\n  assert.match(authoritySource, /authoriseRuntimeGovernmentAction/, 'mobile spending controls must use runtime institutional authority');\n  assert.match(authoritySource, /'change_spending'/, 'mobile construction and naval procurement must use spending authority');\n  assert.match(authoritySource, /spendingKind: 'infrastructure'/, 'infrastructure commissioning must be institutionally gated');\n  assert.match(authoritySource, /spendingKind: 'naval_procurement'/, 'naval procurement must be institutionally gated');\n}\n\n{\n  const source = readFileSync(new URL('../js/military/fleets.js', import.meta.url), 'utf8');\n"""
+          if x.count(marker)!=1: raise SystemExit('test anchor mismatch')
+          t.write_text(x.replace(marker,insert))
+          PY
+          node --check js/ui/mobileGameplayControls.js
+          node tests/mobileGameplayControls.test.mjs
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/ui/mobileGameplayControls.js tests/mobileGameplayControls.test.mjs
+          git commit -m 'Gate mobile spending through institutions [mobile-authority-patched]'
+          git push origin HEAD:fix/mobile-spending-authority
