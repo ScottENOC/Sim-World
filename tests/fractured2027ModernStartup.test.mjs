@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { FogOfWar } from '../js/core/fogOfWar.js';
 import { applyScenarioRuntimeRules } from '../js/core/scenarioRuntime.js';
+import { applyModernScenarioBaseline } from '../js/core/scenarioModernStart.js';
+import { availableConstructionTypes, ensureConstruction } from '../js/economy/construction.js';
 
 {
   const regions = [{ id: 'madagascar' }, { id: 'greenland' }, { id: 'taiwan' }];
@@ -45,6 +47,44 @@ import { applyScenarioRuntimeRules } from '../js/core/scenarioRuntime.js';
   const result = applyScenarioRuntimeRules({ clock, fogOfWar }, { id: 'grand-campaign', rulesProfile: 'grand-campaign' }, null);
   assert.equal(result.dailyTurns, false, 'grand campaign cadence must remain adaptive');
   assert.equal(fogOfWar.known, false, 'grand campaign must retain historical fog of war');
+}
+
+{
+  const profile = JSON.parse(readFileSync(new URL('../data/scenarios/fractured-2027/modern-start.json', import.meta.url), 'utf8'));
+  const region = {
+    id: 'modern-coast',
+    name: 'Modern Coast',
+    scenarioCountryId: 'australia',
+    governance: { sovereignPolityName: 'Australia' },
+    population: 100000,
+    isCoastal: true,
+    unlockedTechIds: new Set(),
+    electricity: {},
+    structuralTransformation: { capability: {} },
+    industrialSupply: { capability: {}, inventory: {} },
+    industrialPlants: { componentCapability: {} },
+    stockpile: {},
+    army: { personnel: 0, away: 0 },
+  };
+  const world = { regions: [region], scenarioState: { id: 'fractured-2027' } };
+  applyModernScenarioBaseline(world, profile);
+
+  for (const techId of [
+    'advanced_boatbuilding', 'ocean_sailing', 'naval_warfare', 'marine_steam_engine',
+    'screw_propulsion', 'iron_hull_shipbuilding', 'steel_hull_shipbuilding',
+    'self_propelled_torpedo', 'practical_submarine', 'dreadnought_design',
+  ]) {
+    assert.equal(region.unlockedTechIds.has(techId), true, `2027 coastal states should inherit mature maritime technology: ${techId}`);
+  }
+
+  let available = new Set(availableConstructionTypes(region).map((type) => type.id));
+  assert.equal(available.has('harbour'), true, 'a coastal 2027 region should be able to commission a harbour on turn one');
+  assert.equal(available.has('shipyard'), false, 'a shipyard should still require physical harbour infrastructure');
+
+  ensureConstruction(region).assets.push({ id: 'scenario-harbour', typeId: 'harbour', condition: 1, scale: 1 });
+  available = new Set(availableConstructionTypes(region).map((type) => type.id));
+  assert.equal(available.has('shipyard'), true, 'once a harbour exists, a 2027 coastal region should qualify for an advanced shipyard');
+  assert.equal(available.has('naval_base'), true, 'once a harbour exists, a 2027 coastal region should qualify for a naval base');
 }
 
 {
