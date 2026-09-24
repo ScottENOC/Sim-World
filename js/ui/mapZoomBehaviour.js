@@ -1,4 +1,4 @@
-import { MapRenderer } from './mapRenderer.js?v=20260924-zoom1';
+import { MapRenderer } from './mapRenderer.js?v=20260904-war1';
 
 const MAX_MAP_ZOOM = 8;
 
