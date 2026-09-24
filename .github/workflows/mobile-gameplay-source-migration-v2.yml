@@ -1,0 +1,102 @@
+name: Mobile gameplay source migration v2
+
+on:
+  push:
+    branches: [feature/mobile-map-gameplay-controls]
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: ${{ !contains(github.event.head_commit.message, '[mobile-source-migrated]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/mobile-map-gameplay-controls
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Remove scalar navy target everywhere
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          def exact(path, old, new='', count=1):
+              p=Path(path); text=p.read_text(); found=text.count(old)
+              if found != count: raise SystemExit(f'{path}: expected {count}, found {found}: {old[:100]!r}')
+              p.write_text(text.replace(old,new))
+
+          exact('js/world/region.js',
+            '    this.targetNavySize = 0; this.navy = { boats: 0, advancedBoats: 0, personnel: 0, scoutingBoats: 0 };',
+            '    this.navy = { boats: 0, advancedBoats: 0, personnel: 0, scoutingBoats: 0 };')
+
+          exact('js/main.js', '''    <label class="control-row">Target navy size (boats)\n      <input type="number" min="0" step="1" id="input-navy" value="${Math.round(region.targetNavySize)}" ${region.isCoastal ? '' : 'disabled title="not a coastal region"'}>\n    </label>\n''')
+          exact('js/main.js', '''  document.getElementById('input-navy').addEventListener('change', (e) => {\n    region.targetNavySize = Math.max(0, Number(e.target.value) || 0);\n  });\n\n''')
+
+          exact('js/ui/institutionalRegionControlsUi.js', "    'input-navy': Math.max(0, Math.round(Number(region.targetNavySize) || 0)),\n")
+          exact('js/ui/institutionalRegionControlsUi.js', "  ['input-navy', 'change_spending'],\n")
+          exact('js/ui/institutionalCouncilSpendingUi.js', '''  interceptNumber(this, player, 'council-navy-target', 'change_spending', (value) => {\n    player.targetNavySize = Math.max(0, Number(value) || 0);\n    return true;\n  });\n''')
+          exact('js/ui/advisors.js', '''        <label class="advisor-field"><span>Target navy size</span><input id="council-navy-target" type="number" min="0" step="1" value="${Math.round(player.targetNavySize)}" ${player.isCoastal ? '' : 'disabled'}></label>\n''')
+          exact('js/ui/advisors.js', "    const navy = document.getElementById('council-navy-target');\n")
+          exact('js/ui/advisors.js', "    navy?.addEventListener('change', () => { player.targetNavySize = Math.max(0, Number(navy.value) || 0); });\n")
+
+          exact('js/ai/nationAi.js', 'const BASE_NAVY_PER_POPULATION = 50000;\n')
+          exact('js/ai/nationAi.js', '''function setMilitaryTargets(region) {\n  const threatFactor = 1 + (1 - clamp01(region.safetyRating)) * THREAT_ARMY_MULTIPLIER; region.targetArmySize = Math.round(region.demographics.workingAge * BASE_ARMY_FRACTION * threatFactor);\n  if (region.isCoastal) region.targetNavySize = Math.max(region.targetNavySize, Math.round(region.population / BASE_NAVY_PER_POPULATION));\n}\n\n''')
+
+          exact('js/economy/construction.js', "      (region.targetNavySize || 0) + (region.targetFishingBoats || 0) >= 5 &&\n",
+            "      Object.values(region.navalProcurement?.targets || {}).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0) + (region.targetFishingBoats || 0) >= 5 &&\n")
+
+          exact('js/economy/laborCore.js',
+            "import { ensureNavalProcurement, refreshNavalProcurementTargets, SHIP_DESIGNS, navalConstructionProfile } from '../military/fleets.js?v=20260919-naval-light-metals1';",
+            "import { ensureNavalProcurement, SHIP_DESIGNS, navalConstructionProfile } from '../military/fleets.js?v=20260919-naval-light-metals1';")
+          exact('js/economy/laborCore.js', '''  const totalBoatGap = region.isCoastal\n    ? Math.max(0, region.targetNavySize - region.navy.boats) +\n      Math.max(0, region.targetFishingBoats - region.fishingBoats)\n    : 0;''', '''  const procurementForCrafts = ensureNavalProcurement(region);\n  const navalOrderGap = Object.entries(procurementForCrafts.targets || {}).reduce((sum, [designId, target]) =>\n    sum + Math.max(0, Number(target) - Math.max(0, Number(procurementForCrafts.built?.[designId]) || 0)), 0);\n  const totalBoatGap = region.isCoastal\n    ? navalOrderGap + Math.max(0, region.targetFishingBoats - region.fishingBoats)\n    : 0;''')
+          exact('js/economy/laborCore.js', '''    const procurement = ensureNavalProcurement(region);\n    const targetTotal = Object.values(procurement.targets || {}).reduce((sum, value) => sum + Math.max(0, Math.round(value || 0)), 0);\n    if (targetTotal !== Math.max(0, Math.round(region.targetNavySize || 0))) refreshNavalProcurementTargets(region, currentTick);\n    procurement.built = { ...(procurement.built || {}) };\n    const navyGap = Math.max(0, region.targetNavySize - region.navy.boats);''', '''    const procurement = ensureNavalProcurement(region);\n    procurement.built = { ...(procurement.built || {}) };''')
+          exact('js/economy/laborCore.js', '''    region.navy.boats += navyBuilt;\n    region.navy.advancedBoats = (region.navy.advancedBoats || 0) + navyAdvancedBuilt;\n\n''')
+
+          exact('js/military/fleets.js', 'export function desiredWarshipComposition(region, total = region?.targetNavySize || 0) {', 'export function desiredWarshipComposition(region, total = 0) {')
+          exact('js/military/fleets.js', '''export function refreshNavalProcurementTargets(region, currentTick = null) {\n  const procurement = ensureNavalProcurement(region);\n  procurement.targets = desiredWarshipComposition(region);\n  procurement.lastDecisionTick = currentTick;\n  return procurement.targets;\n}\n''', '''export function refreshNavalProcurementTargets(region, total, currentTick = null) {\n  const procurement = ensureNavalProcurement(region);\n  procurement.targets = desiredWarshipComposition(region, total);\n  procurement.lastDecisionTick = currentTick;\n  return procurement.targets;\n}\n''')
+          exact('js/military/fleets.js', '''    const procurement = ensureNavalProcurement(region);\n    const explicitTargets = Object.values(procurement.targets || {}).reduce((sum, value) => sum + Math.max(0, Math.round(value || 0)), 0);\n    const wantedTotal = explicitTargets > 0 ? explicitTargets : Math.max(0, Math.round(region.navy?.boats || 0));\n    const wantedAdvanced = explicitTargets > 0\n      ? Object.entries(procurement.targets).reduce((sum, [id, value]) => sum + (SHIP_DESIGNS[id]?.advanced ? Math.max(0, Math.round(value || 0)) : 0), 0)\n      : Math.min(wantedTotal, Math.max(0, Math.round(region.navy?.advancedBoats || 0)));''', '''    const procurement = ensureNavalProcurement(region);\n    const completedByClass = Object.fromEntries(Object.entries(procurement.built || {})\n      .map(([id, value]) => [id, Math.max(0, Math.floor(Number(value) || 0))]));\n    const explicitBuilt = Object.values(completedByClass).reduce((sum, value) => sum + value, 0);\n    const wantedTotal = Object.keys(procurement.targets || {}).length > 0\n      ? explicitBuilt\n      : Math.max(0, Math.round(region.navy?.boats || 0));\n    const wantedAdvanced = Object.keys(procurement.targets || {}).length > 0\n      ? Object.entries(completedByClass).reduce((sum, [id, value]) => sum + (SHIP_DESIGNS[id]?.advanced ? value : 0), 0)\n      : Math.min(wantedTotal, Math.max(0, Math.round(region.navy?.advancedBoats || 0)));''')
+          exact('js/military/fleets.js', '''    if (explicitTargets > 0) {\n      const classCounts = actualClassCounts(owned);\n      for (const [designId, wanted] of Object.entries(procurement.targets)) {\n        if (!SHIP_DESIGNS[designId]) continue;\n        const actual = classCounts[designId] || 0;\n        for (let i = actual; i < Math.max(0, Math.round(wanted || 0)); i++) target.ships.push(makeShip(designId, region));\n      }\n    } else {''', '''    if (Object.keys(procurement.targets || {}).length > 0) {\n      const classCounts = actualClassCounts(owned);\n      for (const [designId, completed] of Object.entries(completedByClass)) {\n        if (!SHIP_DESIGNS[designId]) continue;\n        const actual = classCounts[designId] || 0;\n        for (let i = actual; i < completed; i++) target.ships.push(makeShip(designId, region));\n      }\n    } else {''')
+          exact('js/military/fleets.js', '''export function syncRegionalNavyLedger(regions, fleets) {\n  const regionById = new Map(regions.map((region) => [region.id, region]));\n  const counts = new Map();\n  for (const fleet of fleets) {\n    const entry = counts.get(fleet.ownerRegionId) || { total: 0, advanced: 0 };\n    entry.total += fleet.ships.length;\n    entry.advanced += fleet.ships.filter((ship) => isAdvancedShip(ship)).length;\n    counts.set(fleet.ownerRegionId, entry);\n  }\n  for (const [regionId, entry] of counts.entries()) {\n    const region = regionById.get(regionId);\n    if (!region?.navy) continue;\n    region.navy.boats = entry.total;\n    region.navy.advancedBoats = entry.advanced;\n  }\n}\n''', '''export function syncRegionalNavyLedger(regions, fleets) {\n  const counts = new Map();\n  for (const fleet of fleets) {\n    const entry = counts.get(fleet.ownerRegionId) || { total: 0, advanced: 0, classes: {} };\n    entry.total += fleet.ships.length;\n    entry.advanced += fleet.ships.filter((ship) => isAdvancedShip(ship)).length;\n    for (const ship of fleet.ships || []) entry.classes[ship.designId] = (entry.classes[ship.designId] || 0) + 1;\n    counts.set(fleet.ownerRegionId, entry);\n  }\n  for (const region of regions) {\n    if (!region?.navy) continue;\n    const entry = counts.get(region.id) || { total: 0, advanced: 0, classes: {} };\n    region.navy.boats = entry.total;\n    region.navy.advancedBoats = entry.advanced;\n    const procurement = ensureNavalProcurement(region);\n    for (const designId of new Set([...Object.keys(procurement.built || {}), ...Object.keys(entry.classes)])) {\n      const fractionalProgress = Math.max(0, Number(procurement.built?.[designId]) || 0) % 1;\n      procurement.built[designId] = (entry.classes[designId] || 0) + fractionalProgress;\n    }\n  }\n}\n''')
+
+          p=Path('js/ui/mobileGameplayControls.js'); text=p.read_text()
+          text, n = re.subn(r'function legacyNavyControlCleanup\(root = document\) \{.*?\n\}\n\n', '', text, count=1, flags=re.S)
+          if n != 1: raise SystemExit('mobile cleanup function mismatch')
+          old="  region.targetNavySize = Object.values(procurement.targets).reduce((sum, value) => sum + Math.max(0, Math.round(Number(value) || 0)), 0);\n  procurement.lastDecisionTick = globalThis.__worldsim?.clock?.elapsedDays ?? procurement.lastDecisionTick ?? null;\n  return { target, built, totalTarget: region.targetNavySize };"
+          new="  procurement.lastDecisionTick = globalThis.__worldsim?.clock?.elapsedDays ?? procurement.lastDecisionTick ?? null;\n  const totalTarget = Object.values(procurement.targets).reduce((sum, value) => sum + Math.max(0, Math.round(Number(value) || 0)), 0);\n  return { target, built, totalTarget };"
+          if old not in text: raise SystemExit('mobile scalar target anchor mismatch')
+          text=text.replace(old,new)
+          text=text.replace('  legacyNavyControlCleanup();\n','')
+          text, n = re.subn(r"  if \(!document\.body\.dataset\.legacyNavyObserver\) \{.*?\n  \}\n", '', text, count=1, flags=re.S)
+          if n != 1: raise SystemExit('mobile observer mismatch')
+          p.write_text(text)
+          PY
+      - name: Assert scalar navy model is gone
+        run: |
+          if grep -R -n --include='*.js' --include='*.mjs' -E 'targetNavySize|input-navy|council-navy-target' js tests; then
+            echo 'Legacy scalar navy references remain' >&2
+            exit 1
+          fi
+      - name: Syntax check changed sources
+        run: |
+          node --check js/main.js
+          node --check js/world/region.js
+          node --check js/ai/nationAi.js
+          node --check js/economy/construction.js
+          node --check js/economy/laborCore.js
+          node --check js/military/fleets.js
+          node --check js/ui/advisors.js
+          node --check js/ui/institutionalCouncilSpendingUi.js
+          node --check js/ui/institutionalRegionControlsUi.js
+          node --check js/ui/mobileGameplayControls.js
+      - name: Commit migration
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js
+          git commit -m 'Remove legacy scalar navy target [mobile-source-migrated]'
+          git push origin HEAD:feature/mobile-map-gameplay-controls
