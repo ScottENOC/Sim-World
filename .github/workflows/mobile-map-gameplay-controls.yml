@@ -1,0 +1,74 @@
+name: Mobile map gameplay controls
+
+on:
+  push:
+    paths:
+      - 'js/main.js'
+      - 'js/world/region.js'
+      - 'js/ai/nationAi.js'
+      - 'js/economy/construction.js'
+      - 'js/economy/laborCore.js'
+      - 'js/military/fleets.js'
+      - 'js/ui/mapFirstUi.js'
+      - 'js/ui/mapOverlayStability.js'
+      - 'js/ui/mobileGameplayControls.js'
+      - 'js/ui/infrastructureMapUi.js'
+      - 'js/ui/electricGridMapUi.js'
+      - 'js/ui/advisors.js'
+      - 'js/ui/institutionalCouncilSpendingUi.js'
+      - 'js/ui/institutionalRegionControlsUi.js'
+      - 'tests/mobileGameplayControls.test.mjs'
+      - 'tests/fractured2027ModernStartup.test.mjs'
+      - '.github/workflows/mobile-map-gameplay-controls.yml'
+  pull_request:
+    paths:
+      - 'js/main.js'
+      - 'js/world/region.js'
+      - 'js/ai/nationAi.js'
+      - 'js/economy/construction.js'
+      - 'js/economy/laborCore.js'
+      - 'js/military/fleets.js'
+      - 'js/ui/mapFirstUi.js'
+      - 'js/ui/mapOverlayStability.js'
+      - 'js/ui/mobileGameplayControls.js'
+      - 'js/ui/infrastructureMapUi.js'
+      - 'js/ui/electricGridMapUi.js'
+      - 'js/ui/advisors.js'
+      - 'js/ui/institutionalCouncilSpendingUi.js'
+      - 'js/ui/institutionalRegionControlsUi.js'
+      - 'tests/mobileGameplayControls.test.mjs'
+      - 'tests/fractured2027ModernStartup.test.mjs'
+      - '.github/workflows/mobile-map-gameplay-controls.yml'
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check
+        run: |
+          node --check js/main.js
+          node --check js/world/region.js
+          node --check js/ai/nationAi.js
+          node --check js/economy/construction.js
+          node --check js/economy/laborCore.js
+          node --check js/military/fleets.js
+          node --check js/ui/mapFirstUi.js
+          node --check js/ui/mapOverlayStability.js
+          node --check js/ui/mobileGameplayControls.js
+          node --check js/ui/advisors.js
+          node --check js/ui/institutionalCouncilSpendingUi.js
+          node --check js/ui/institutionalRegionControlsUi.js
+      - name: Assert obsolete scalar navy model is absent
+        run: |
+          if grep -R -n --include='*.js' --include='*.mjs' -E 'targetNavySize|input-navy|council-navy-target' js tests; then
+            echo 'Legacy scalar navy references remain' >&2
+            exit 1
+          fi
+      - name: Run mobile gameplay regressions
+        run: node tests/mobileGameplayControls.test.mjs
+      - name: Run 2027 modern-start regressions
+        run: node tests/fractured2027ModernStartup.test.mjs
