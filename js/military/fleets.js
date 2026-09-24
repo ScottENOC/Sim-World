@@ -472,9 +472,9 @@ function ensureFleetState(fleet) {
   return fleet;
 }
 
-function createHomeFleet(region) {
+function createHomeFleet(region, { allowEmpty = false } = {}) {
   const total = Math.max(0, Math.round(region.navy?.boats || 0));
-  if (total <= 0 || !(region.adjacentSeaIds || []).length) return null;
+  if ((!allowEmpty && total <= 0) || !(region.adjacentSeaIds || []).length) return null;
   const advanced = Math.min(total, Math.max(0, Math.round(region.navy?.advancedBoats || 0)));
   const ships = [];
   for (let i = 0; i < advanced; i++) ships.push(makeShip(preferredWarshipDesign(region, i), region));
@@ -498,7 +498,7 @@ function createHomeFleet(region) {
     morale: 1,
     condition: 1,
     weeksAtSea: 0,
-    createdFromLegacyNavy: true,
+    createdFromLegacyNavy: total > 0,
   });
 }
 
@@ -524,9 +524,9 @@ function fleetForNewShips(fleets, region) {
     || null;
 }
 
-// Existing economy code still constructs vessels by changing region.navy.boats.
-// Reconcile those newly built boats into persistent ship objects before fleet
-// operations, then write the authoritative discrete fleet inventory back after.
+// Naval procurement accumulates class-specific construction progress. Only completed
+// whole hulls become persistent ships; fleet losses flow back into the class ledger
+// so replacement construction can resume toward the outstanding class target.
 export function reconcileFleetLedger(regions, fleets, events = null, weeks = 1) {
   const byOwner = new Map();
   for (const fleet of fleets) {
@@ -578,7 +578,7 @@ export function reconcileFleetLedger(regions, fleets, events = null, weeks = 1) 
     actualAdvanced = current.filter(({ ship }) => isAdvancedShip(ship)).length;
     let target = fleetForNewShips(fleets, region);
     if (!target && wantedTotal > 0) {
-      target = createHomeFleet({ ...region, navy: { ...region.navy, boats: 0, advancedBoats: 0 } });
+      target = createHomeFleet({ ...region, navy: { ...region.navy, boats: 0, advancedBoats: 0 } }, { allowEmpty: true });
       if (target) { fleets.push(target); owned.push(target); }
     }
     if (!target) continue;
