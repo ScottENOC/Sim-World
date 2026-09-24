@@ -23,73 +23,45 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
-          def replace(path, old, new, count=1):
-              p = Path(path)
-              text = p.read_text()
-              found = text.count(old)
-              if found != count:
-                  raise SystemExit(f'{path}: expected {count} occurrences, found {found}: {old[:80]!r}')
-              p.write_text(text.replace(old, new))
+          def exact(path, old, new='', count=1):
+              p=Path(path); text=p.read_text(); found=text.count(old)
+              if found != count: raise SystemExit(f'{path}: expected {count}, found {found}: {old[:90]!r}')
+              p.write_text(text.replace(old,new))
 
-          replace('js/world/region.js',
-              "    this.targetNavySize = 0; this.navy = { boats: 0, advancedBoats: 0, personnel: 0, scoutingBoats: 0 };",
-              "    this.navy = { boats: 0, advancedBoats: 0, personnel: 0, scoutingBoats: 0 };")
+          exact('js/world/region.js',
+            '    this.targetNavySize = 0; this.navy = { boats: 0, advancedBoats: 0, personnel: 0, scoutingBoats: 0 };',
+            '    this.navy = { boats: 0, advancedBoats: 0, personnel: 0, scoutingBoats: 0 };')
 
-          replace('js/main.js', '''    <label class="control-row">Target navy size (boats)\n      <input type="number" min="0" step="1" id="input-navy" value="${Math.round(region.targetNavySize)}" ${region.isCoastal ? '' : 'disabled title="not a coastal region"'}>\n    </label>\n''', '')
-          replace('js/main.js', '''  document.getElementById('input-navy').addEventListener('change', (e) => {\n    region.targetNavySize = Math.max(0, Number(e.target.value) || 0);\n  });\n\n''', '')
+          exact('js/main.js', '''    <label class="control-row">Target navy size (boats)\n      <input type="number" min="0" step="1" id="input-navy" value="${Math.round(region.targetNavySize)}" ${region.isCoastal ? '' : 'disabled title="not a coastal region"'}>\n    </label>\n''')
+          exact('js/main.js', '''  document.getElementById('input-navy').addEventListener('change', (e) => {\n    region.targetNavySize = Math.max(0, Number(e.target.value) || 0);\n  });\n\n''')
+          exact('js/ui/institutionalRegionControlsUi.js', "    'input-navy': Math.max(0, Math.round(Number(region.targetNavySize) || 0)),\n")
+          exact('js/ui/institutionalRegionControlsUi.js', "  ['input-navy', 'change_spending'],\n")
+          exact('js/ai/nationAi.js', 'const BASE_NAVY_PER_POPULATION = 50000;\n')
+          exact('js/ai/nationAi.js', '''function setMilitaryTargets(region) {\n  const threatFactor = 1 + (1 - clamp01(region.safetyRating)) * THREAT_ARMY_MULTIPLIER; region.targetArmySize = Math.round(region.demographics.workingAge * BASE_ARMY_FRACTION * threatFactor);\n  if (region.isCoastal) region.targetNavySize = Math.max(region.targetNavySize, Math.round(region.population / BASE_NAVY_PER_POPULATION));\n}\n\n''')
 
-          replace('js/ui/institutionalRegionControlsUi.js',
-              "    'input-navy': Math.max(0, Math.round(Number(region.targetNavySize) || 0)),\n", '')
-          replace('js/ui/institutionalRegionControlsUi.js',
-              "  ['input-navy', 'change_spending'],\n", '')
+          exact('js/economy/laborCore.js',
+            "import { ensureNavalProcurement, refreshNavalProcurementTargets, SHIP_DESIGNS, navalConstructionProfile } from '../military/fleets.js?v=20260919-naval-light-metals1';",
+            "import { ensureNavalProcurement, SHIP_DESIGNS, navalConstructionProfile } from '../military/fleets.js?v=20260919-naval-light-metals1';")
+          exact('js/economy/laborCore.js', '''  const totalBoatGap = region.isCoastal\n    ? Math.max(0, region.targetNavySize - region.navy.boats) +\n      Math.max(0, region.targetFishingBoats - region.fishingBoats)\n    : 0;''', '''  const procurementForCrafts = ensureNavalProcurement(region);\n  const navalOrderGap = Object.entries(procurementForCrafts.targets || {}).reduce((sum, [designId, target]) =>\n    sum + Math.max(0, Number(target) - Math.max(0, Number(procurementForCrafts.built?.[designId]) || 0)), 0);\n  const totalBoatGap = region.isCoastal\n    ? navalOrderGap + Math.max(0, region.targetFishingBoats - region.fishingBoats)\n    : 0;''')
+          exact('js/economy/laborCore.js', '''    const procurement = ensureNavalProcurement(region);\n    const targetTotal = Object.values(procurement.targets || {}).reduce((sum, value) => sum + Math.max(0, Math.round(value || 0)), 0);\n    if (targetTotal !== Math.max(0, Math.round(region.targetNavySize || 0))) refreshNavalProcurementTargets(region, currentTick);\n    procurement.built = { ...(procurement.built || {}) };\n    const navyGap = Math.max(0, region.targetNavySize - region.navy.boats);''', '''    const procurement = ensureNavalProcurement(region);\n    procurement.built = { ...(procurement.built || {}) };''')
+          exact('js/economy/laborCore.js', '''    region.navy.boats += navyBuilt;\n    region.navy.advancedBoats = (region.navy.advancedBoats || 0) + navyAdvancedBuilt;\n\n''')
 
-          replace('js/ai/nationAi.js', "const BASE_NAVY_PER_POPULATION = 50000;\n", '')
-          replace('js/ai/nationAi.js', '''function setMilitaryTargets(region) {\n  const threatFactor = 1 + (1 - clamp01(region.safetyRating)) * THREAT_ARMY_MULTIPLIER; region.targetArmySize = Math.round(region.demographics.workingAge * BASE_ARMY_FRACTION * threatFactor);\n  if (region.isCoastal) region.targetNavySize = Math.max(region.targetNavySize, Math.round(region.population / BASE_NAVY_PER_POPULATION));\n}\n\n''', '')
+          exact('js/military/fleets.js', 'export function desiredWarshipComposition(region, total = region?.targetNavySize || 0) {', 'export function desiredWarshipComposition(region, total = 0) {')
+          exact('js/military/fleets.js', '''export function refreshNavalProcurementTargets(region, currentTick = null) {\n  const procurement = ensureNavalProcurement(region);\n  procurement.targets = desiredWarshipComposition(region);\n  procurement.lastDecisionTick = currentTick;\n  return procurement.targets;\n}\n''', '''export function refreshNavalProcurementTargets(region, total, currentTick = null) {\n  const procurement = ensureNavalProcurement(region);\n  procurement.targets = desiredWarshipComposition(region, total);\n  procurement.lastDecisionTick = currentTick;\n  return procurement.targets;\n}\n''')
+          exact('js/military/fleets.js', '''    const procurement = ensureNavalProcurement(region);\n    const explicitTargets = Object.values(procurement.targets || {}).reduce((sum, value) => sum + Math.max(0, Math.round(value || 0)), 0);\n    const wantedTotal = explicitTargets > 0 ? explicitTargets : Math.max(0, Math.round(region.navy?.boats || 0));\n    const wantedAdvanced = explicitTargets > 0\n      ? Object.entries(procurement.targets).reduce((sum, [id, value]) => sum + (SHIP_DESIGNS[id]?.advanced ? Math.max(0, Math.round(value || 0)) : 0), 0)\n      : Math.min(wantedTotal, Math.max(0, Math.round(region.navy?.advancedBoats || 0)));''', '''    const procurement = ensureNavalProcurement(region);\n    const completedByClass = Object.fromEntries(Object.entries(procurement.built || {})\n      .map(([id, value]) => [id, Math.max(0, Math.floor(Number(value) || 0))]));\n    const explicitBuilt = Object.values(completedByClass).reduce((sum, value) => sum + value, 0);\n    const wantedTotal = Object.keys(procurement.targets || {}).length > 0\n      ? explicitBuilt\n      : Math.max(0, Math.round(region.navy?.boats || 0));\n    const wantedAdvanced = Object.keys(procurement.targets || {}).length > 0\n      ? Object.entries(completedByClass).reduce((sum, [id, value]) => sum + (SHIP_DESIGNS[id]?.advanced ? value : 0), 0)\n      : Math.min(wantedTotal, Math.max(0, Math.round(region.navy?.advancedBoats || 0)));''')
+          exact('js/military/fleets.js', '''    if (explicitTargets > 0) {\n      const classCounts = actualClassCounts(owned);\n      for (const [designId, wanted] of Object.entries(procurement.targets)) {\n        if (!SHIP_DESIGNS[designId]) continue;\n        const actual = classCounts[designId] || 0;\n        for (let i = actual; i < Math.max(0, Math.round(wanted || 0)); i++) target.ships.push(makeShip(designId, region));\n      }\n    } else {''', '''    if (Object.keys(procurement.targets || {}).length > 0) {\n      const classCounts = actualClassCounts(owned);\n      for (const [designId, completed] of Object.entries(completedByClass)) {\n        if (!SHIP_DESIGNS[designId]) continue;\n        const actual = classCounts[designId] || 0;\n        for (let i = actual; i < completed; i++) target.ships.push(makeShip(designId, region));\n      }\n    } else {''')
+          exact('js/military/fleets.js', '''export function syncRegionalNavyLedger(regions, fleets) {\n  const regionById = new Map(regions.map((region) => [region.id, region]));\n  const counts = new Map();\n  for (const fleet of fleets) {\n    const entry = counts.get(fleet.ownerRegionId) || { total: 0, advanced: 0 };\n    entry.total += fleet.ships.length;\n    entry.advanced += fleet.ships.filter((ship) => isAdvancedShip(ship)).length;\n    counts.set(fleet.ownerRegionId, entry);\n  }\n  for (const [regionId, entry] of counts.entries()) {\n    const region = regionById.get(regionId);\n    if (!region?.navy) continue;\n    region.navy.boats = entry.total;\n    region.navy.advancedBoats = entry.advanced;\n  }\n}\n''', '''export function syncRegionalNavyLedger(regions, fleets) {\n  const counts = new Map();\n  for (const fleet of fleets) {\n    const entry = counts.get(fleet.ownerRegionId) || { total: 0, advanced: 0, classes: {} };\n    entry.total += fleet.ships.length;\n    entry.advanced += fleet.ships.filter((ship) => isAdvancedShip(ship)).length;\n    for (const ship of fleet.ships || []) entry.classes[ship.designId] = (entry.classes[ship.designId] || 0) + 1;\n    counts.set(fleet.ownerRegionId, entry);\n  }\n  for (const region of regions) {\n    if (!region?.navy) continue;\n    const entry = counts.get(region.id) || { total: 0, advanced: 0, classes: {} };\n    region.navy.boats = entry.total;\n    region.navy.advancedBoats = entry.advanced;\n    const procurement = ensureNavalProcurement(region);\n    for (const designId of new Set([...Object.keys(procurement.built || {}), ...Object.keys(entry.classes)])) {\n      const fractionalProgress = Math.max(0, Number(procurement.built?.[designId]) || 0) % 1;\n      procurement.built[designId] = (entry.classes[designId] || 0) + fractionalProgress;\n    }\n  }\n}\n''')
 
-          replace('js/economy/laborCore.js',
-              "import { ensureNavalProcurement, refreshNavalProcurementTargets, SHIP_DESIGNS, navalConstructionProfile } from '../military/fleets.js?v=20260919-naval-light-metals1';",
-              "import { ensureNavalProcurement, SHIP_DESIGNS, navalConstructionProfile } from '../military/fleets.js?v=20260919-naval-light-metals1';")
-          replace('js/economy/laborCore.js', '''  const totalBoatGap = region.isCoastal\n    ? Math.max(0, region.targetNavySize - region.navy.boats) +\n      Math.max(0, region.targetFishingBoats - region.fishingBoats)\n    : 0;''', '''  const procurementForCrafts = ensureNavalProcurement(region);\n  const navalOrderGap = Object.entries(procurementForCrafts.targets || {}).reduce((sum, [designId, target]) =>\n    sum + Math.max(0, Number(target) - Math.max(0, Number(procurementForCrafts.built?.[designId]) || 0)), 0);\n  const totalBoatGap = region.isCoastal\n    ? navalOrderGap + Math.max(0, region.targetFishingBoats - region.fishingBoats)\n    : 0;''')
-          replace('js/economy/laborCore.js', '''    const procurement = ensureNavalProcurement(region);\n    const targetTotal = Object.values(procurement.targets || {}).reduce((sum, value) => sum + Math.max(0, Math.round(value || 0)), 0);\n    if (targetTotal !== Math.max(0, Math.round(region.targetNavySize || 0))) refreshNavalProcurementTargets(region, currentTick);\n    procurement.built = { ...(procurement.built || {}) };\n    const navyGap = Math.max(0, region.targetNavySize - region.navy.boats);''', '''    const procurement = ensureNavalProcurement(region);\n    procurement.built = { ...(procurement.built || {}) };''')
-          replace('js/economy/laborCore.js', '''    region.navy.boats += navyBuilt;\n    region.navy.advancedBoats = (region.navy.advancedBoats || 0) + navyAdvancedBuilt;\n\n''', '')
-
-          replace('js/military/fleets.js',
-              "export function desiredWarshipComposition(region, total = region?.targetNavySize || 0) {",
-              "export function desiredWarshipComposition(region, total = 0) {")
-          replace('js/military/fleets.js', '''export function refreshNavalProcurementTargets(region, currentTick = null) {\n  const procurement = ensureNavalProcurement(region);\n  procurement.targets = desiredWarshipComposition(region);\n  procurement.lastDecisionTick = currentTick;\n  return procurement.targets;\n}\n''', '''export function refreshNavalProcurementTargets(region, total, currentTick = null) {\n  const procurement = ensureNavalProcurement(region);\n  procurement.targets = desiredWarshipComposition(region, total);\n  procurement.lastDecisionTick = currentTick;\n  return procurement.targets;\n}\n''')
-
-          p = Path('js/military/fleets.js')
-          text = p.read_text()
-          old = '''    const procurement = ensureNavalProcurement(region);\n    const explicitTargets = Object.values(procurement.targets || {}).reduce((sum, value) => sum + Math.max(0, Math.round(value || 0)), 0);\n    const wantedTotal = explicitTargets > 0 ? explicitTargets : Math.max(0, Math.round(region.navy?.boats || 0));\n    const wantedAdvanced = explicitTargets > 0\n      ? Object.entries(procurement.targets).reduce((sum, [id, value]) => sum + (SHIP_DESIGNS[id]?.advanced ? Math.max(0, Math.round(value || 0)) : 0), 0)\n      : Math.min(wantedTotal, Math.max(0, Math.round(region.navy?.advancedBoats || 0)));'''
-          new = '''    const procurement = ensureNavalProcurement(region);\n    const completedByClass = Object.fromEntries(Object.entries(procurement.built || {})\n      .map(([id, value]) => [id, Math.max(0, Math.floor(Number(value) || 0))]));\n    const explicitBuilt = Object.values(completedByClass).reduce((sum, value) => sum + value, 0);\n    const wantedTotal = Object.keys(procurement.targets || {}).length > 0\n      ? explicitBuilt\n      : Math.max(0, Math.round(region.navy?.boats || 0));\n    const wantedAdvanced = Object.keys(procurement.targets || {}).length > 0\n      ? Object.entries(completedByClass).reduce((sum, [id, value]) => sum + (SHIP_DESIGNS[id]?.advanced ? value : 0), 0)\n      : Math.min(wantedTotal, Math.max(0, Math.round(region.navy?.advancedBoats || 0)));'''
-          if text.count(old) != 1:
-              raise SystemExit('fleets reconcile header anchor mismatch')
-          text = text.replace(old, new)
-          old = '''    if (explicitTargets > 0) {\n      const classCounts = actualClassCounts(owned);\n      for (const [designId, wanted] of Object.entries(procurement.targets)) {\n        if (!SHIP_DESIGNS[designId]) continue;\n        const actual = classCounts[designId] || 0;\n        for (let i = actual; i < Math.max(0, Math.round(wanted || 0)); i++) target.ships.push(makeShip(designId, region));\n      }\n    } else {'''
-          new = '''    if (Object.keys(procurement.targets || {}).length > 0) {\n      const classCounts = actualClassCounts(owned);\n      for (const [designId, completed] of Object.entries(completedByClass)) {\n        if (!SHIP_DESIGNS[designId]) continue;\n        const actual = classCounts[designId] || 0;\n        for (let i = actual; i < completed; i++) target.ships.push(makeShip(designId, region));\n      }\n    } else {'''
-          if text.count(old) != 1:
-              raise SystemExit('fleets reconcile class anchor mismatch')
-          text = text.replace(old, new)
-          old = '''export function syncRegionalNavyLedger(regions, fleets) {\n  const regionById = new Map(regions.map((region) => [region.id, region]));\n  const counts = new Map();\n  for (const fleet of fleets) {\n    const entry = counts.get(fleet.ownerRegionId) || { total: 0, advanced: 0 };\n    entry.total += fleet.ships.length;\n    entry.advanced += fleet.ships.filter((ship) => isAdvancedShip(ship)).length;\n    counts.set(fleet.ownerRegionId, entry);\n  }\n  for (const [regionId, entry] of counts.entries()) {\n    const region = regionById.get(regionId);\n    if (!region?.navy) continue;\n    region.navy.boats = entry.total;\n    region.navy.advancedBoats = entry.advanced;\n  }\n}\n'''
-          new = '''export function syncRegionalNavyLedger(regions, fleets) {\n  const regionById = new Map(regions.map((region) => [region.id, region]));\n  const counts = new Map();\n  for (const fleet of fleets) {\n    const entry = counts.get(fleet.ownerRegionId) || { total: 0, advanced: 0, classes: {} };\n    entry.total += fleet.ships.length;\n    entry.advanced += fleet.ships.filter((ship) => isAdvancedShip(ship)).length;\n    for (const ship of fleet.ships || []) entry.classes[ship.designId] = (entry.classes[ship.designId] || 0) + 1;\n    counts.set(fleet.ownerRegionId, entry);\n  }\n  for (const region of regions) {\n    if (!region?.navy) continue;\n    const entry = counts.get(region.id) || { total: 0, advanced: 0, classes: {} };\n    region.navy.boats = entry.total;\n    region.navy.advancedBoats = entry.advanced;\n    const procurement = ensureNavalProcurement(region);\n    for (const designId of new Set([...Object.keys(procurement.built || {}), ...Object.keys(entry.classes)])) {\n      const fractionalProgress = Math.max(0, Number(procurement.built?.[designId]) || 0) % 1;\n      procurement.built[designId] = (entry.classes[designId] || 0) + fractionalProgress;\n    }\n  }\n}\n'''
-          if text.count(old) != 1:
-              raise SystemExit('syncRegionalNavyLedger anchor mismatch')
-          p.write_text(text.replace(old, new))
-
-          p = Path('js/ui/mobileGameplayControls.js')
-          text = p.read_text()
-          old = '''function legacyNavyControlCleanup(root = document) {\n  const input = root.querySelector?.('#input-navy');\n  if (!input) return false;\n  const row = input.closest('.control-row') || input.parentElement;\n  row?.remove();\n  return true;\n}\n\n'''
-          if text.count(old) != 1:
-              raise SystemExit('mobile cleanup anchor mismatch')
-          text = text.replace(old, '')
-          text = text.replace("  region.targetNavySize = Object.values(procurement.targets).reduce((sum, value) => sum + Math.max(0, Math.round(Number(value) || 0)), 0);\n  procurement.lastDecisionTick = globalThis.__worldsim?.clock?.elapsedDays ?? procurement.lastDecisionTick ?? null;\n  return { target, built, totalTarget: region.targetNavySize };",
-                              "  procurement.lastDecisionTick = globalThis.__worldsim?.clock?.elapsedDays ?? procurement.lastDecisionTick ?? null;\n  const totalTarget = Object.values(procurement.targets).reduce((sum, value) => sum + Math.max(0, Math.round(Number(value) || 0)), 0);\n  return { target, built, totalTarget };")
-          text = text.replace("  legacyNavyControlCleanup();\n", '')
-          old = '''  if (!document.body.dataset.legacyNavyObserver) {\n    document.body.dataset.legacyNavyObserver = '1';\n    new MutationObserver((mutations) => {\n      for (const mutation of mutations) for (const node of mutation.addedNodes) {\n        if (node.nodeType === Node.ELEMENT_NODE) legacyNavyControlCleanup(node);\n      }\n      legacyNavyControlCleanup();\n      installFleetProcurementRefresh(sim);\n    }).observe(document.body, { childList: true, subtree: true });\n  }\n'''
-          if text.count(old) != 1:
-              raise SystemExit('mobile observer anchor mismatch')
-          p.write_text(text.replace(old, ''))
+          p=Path('js/ui/mobileGameplayControls.js'); text=p.read_text()
+          text, n = re.subn(r'function legacyNavyControlCleanup\(root = document\) \{.*?\n\}\n\n', '', text, count=1, flags=re.S)
+          if n != 1: raise SystemExit('mobile cleanup function mismatch')
+          text=text.replace("  region.targetNavySize = Object.values(procurement.targets).reduce((sum, value) => sum + Math.max(0, Math.round(Number(value) || 0)), 0);\n  procurement.lastDecisionTick = globalThis.__worldsim?.clock?.elapsedDays ?? procurement.lastDecisionTick ?? null;\n  return { target, built, totalTarget: region.targetNavySize };", "  procurement.lastDecisionTick = globalThis.__worldsim?.clock?.elapsedDays ?? procurement.lastDecisionTick ?? null;\n  const totalTarget = Object.values(procurement.targets).reduce((sum, value) => sum + Math.max(0, Math.round(Number(value) || 0)), 0);\n  return { target, built, totalTarget };")
+          text=text.replace('  legacyNavyControlCleanup();\n','')
+          text, n = re.subn(r"  if \(!document\.body\.dataset\.legacyNavyObserver\) \{.*?\n  \}\n", '', text, count=1, flags=re.S)
+          if n != 1: raise SystemExit('mobile observer mismatch')
+          p.write_text(text)
           PY
       - name: Assert scalar navy target is gone
         run: |
@@ -97,6 +69,15 @@ jobs:
             echo 'Legacy scalar navy references remain' >&2
             exit 1
           fi
+      - name: Syntax check changed sources
+        run: |
+          node --check js/main.js
+          node --check js/world/region.js
+          node --check js/ai/nationAi.js
+          node --check js/economy/laborCore.js
+          node --check js/military/fleets.js
+          node --check js/ui/institutionalRegionControlsUi.js
+          node --check js/ui/mobileGameplayControls.js
       - name: Commit migration
         run: |
           git config user.name github-actions[bot]
