@@ -3,9 +3,9 @@ import { desiredWarshipComposition, ensureNavalProcurement, refreshNavalProcurem
 import { buildWarshipClass } from '../js/economy/laborCore.js';
 import { MARINE_STEAM_TECH_ID, SCREW_PROPULSION_TECH_ID, IRON_HULL_TECH_ID } from '../js/technology/industrialMarine.js';
 
-function region(techs, targetNavySize = 6, priority = 'war', readiness = 0.8) {
+function region(techs, priority = 'war', readiness = 0.8) {
   return {
-    id: 'test', targetNavySize, navy: { boats: 0, advancedBoats: 0, personnel: 0 },
+    id: 'test', navy: { boats: 0, advancedBoats: 0, personnel: 0 },
     unlockedTechIds: new Set(techs), militaryPolicy: { navalPriority: priority },
     earlyModernMilitary: { naval: { readiness } },
     construction: { projects: [], completed: {}, assets: [
@@ -18,23 +18,23 @@ function region(techs, targetNavySize = 6, priority = 'war', readiness = 0.8) {
   };
 }
 
-const bronze = region(['advanced_boatbuilding'], 4);
-assert.deepEqual(desiredWarshipComposition(bronze), { galley: 4 });
+const bronze = region(['advanced_boatbuilding']);
+assert.deepEqual(desiredWarshipComposition(bronze, 4), { galley: 4 });
 
-const sail = region(['advanced_boatbuilding', 'ocean_sailing', 'gunpowder'], 6);
-const sailTargets = refreshNavalProcurementTargets(sail, 10);
+const sail = region(['advanced_boatbuilding', 'ocean_sailing', 'gunpowder']);
+const sailTargets = refreshNavalProcurementTargets(sail, 6, 10);
 assert.equal(sailTargets.ship_of_line, 2, 'mature battle fleet should explicitly order line ships');
 assert.equal(sailTargets.frigate, 4, 'mature battle fleet should explicitly order frigates');
 assert.equal(ensureNavalProcurement(sail).lastDecisionTick, 10);
 
-const steam = region(['advanced_boatbuilding', 'ocean_sailing', 'gunpowder', MARINE_STEAM_TECH_ID], 3);
-assert.deepEqual(desiredWarshipComposition(steam), { paddle_steam_warship: 3 });
+const steam = region(['advanced_boatbuilding', 'ocean_sailing', 'gunpowder', MARINE_STEAM_TECH_ID]);
+assert.deepEqual(desiredWarshipComposition(steam, 3), { paddle_steam_warship: 3 });
 steam.unlockedTechIds.add(SCREW_PROPULSION_TECH_ID);
-assert.deepEqual(desiredWarshipComposition(steam), { steam_frigate: 3 });
+assert.deepEqual(desiredWarshipComposition(steam, 3), { steam_frigate: 3 });
 steam.unlockedTechIds.add(IRON_HULL_TECH_ID);
-assert.deepEqual(desiredWarshipComposition(steam), { ironclad: 3 });
+assert.deepEqual(desiredWarshipComposition(steam, 3), { ironclad: 3 });
 
-const builder = region(['advanced_boatbuilding', 'ocean_sailing', 'gunpowder'], 1);
+const builder = region(['advanced_boatbuilding', 'ocean_sailing', 'gunpowder']);
 const woodBefore = builder.stockpile.wood;
 const powderBefore = builder.stockpile.gunpowder;
 const line = buildWarshipClass(builder, 'ship_of_line', 1, 1000);
@@ -43,7 +43,7 @@ assert.equal(builder.stockpile.wood, woodBefore - 1100);
 assert.equal(builder.stockpile.gunpowder, powderBefore - 10);
 assert.ok(line.makers > 100, 'capital ships should consume substantially more shipyard labour than small craft');
 
-const industrial = region(['advanced_boatbuilding', MARINE_STEAM_TECH_ID, SCREW_PROPULSION_TECH_ID, IRON_HULL_TECH_ID], 1);
+const industrial = region(['advanced_boatbuilding', MARINE_STEAM_TECH_ID, SCREW_PROPULSION_TECH_ID, IRON_HULL_TECH_ID]);
 const ironBefore = industrial.stockpile.iron;
 const machineBefore = industrial.industrialSupply.inventory.machine_components;
 const ironclad = buildWarshipClass(industrial, 'ironclad', 1, 1000);
@@ -51,9 +51,10 @@ assert.equal(ironclad.built, 1);
 assert.equal(industrial.stockpile.iron, ironBefore - 150);
 assert.equal(industrial.industrialSupply.inventory.machine_components, machineBefore - 24);
 
-// The economy report now records the class ledger rather than referencing the removed generic navyBuild result.
+// The economy report records class construction progress rather than a generic navy-build result.
 const laborSource = await (await import('node:fs/promises')).readFile(new URL('../js/economy/laborCore.js', import.meta.url), 'utf8');
 assert.ok(laborSource.includes('navalClasses: { ...(procurement.built || {}) }'));
 assert.ok(!laborSource.includes('navyBoats: navyBuild.built'));
+assert.ok(!laborSource.includes('targetNavySize'), 'scalar naval targets must not return through the economy layer');
 
-console.log('naval procurement regressions passed');
+console.log('naval procurement regressions passed.');
