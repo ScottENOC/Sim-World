@@ -12,6 +12,7 @@ import {
   navalDesignClassOptions,
   preferredWarshipDesign,
 } from '../military/fleets.js?v=20260919-naval-light-metals1';
+import { authoriseRuntimeGovernmentAction } from '../politics/institutionalRuntimeAuthority.js?v=20260916-region-controls1';
 
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -92,6 +93,27 @@ function installStyles() {
 
 function selectedRegion(sim) {
   return sim?.regions?.find((region) => region.id === sim?.map?.selectedId) || null;
+}
+
+function spendingAuthorisation(sim, region, extraContext = {}) {
+  const fiscal = region?.militaryFinance || {};
+  const grievance = Math.max(0, Math.min(1, Number(region?.popularWellbeing?.grievance) || 0));
+  return authoriseRuntimeGovernmentAction(region, 'change_spending', {
+    polities: sim?.polities || [],
+    currentTick: sim?.clock?.tickIndex ?? sim?.clock?.elapsedDays ?? 0,
+    registerRefusal: true,
+    context: {
+      wellbeing: region?.popularWellbeing || {},
+      publicSupport: 1 - grievance,
+      fiscalStress: Math.max(0, Math.min(1, 1 - (Number(fiscal.readiness) || 1))),
+      ...extraContext,
+    },
+  });
+}
+
+function spendingRefusal(result) {
+  const required = result?.required || result?.power || result?.reason || 'required institution';
+  return `${String(required).replaceAll('_', ' ')} refused authorisation. The spending order was not carried out.`;
 }
 
 function ensureInfrastructureModal() {
@@ -175,6 +197,12 @@ function renderInfrastructureModal(sim, region) {
   content.querySelector('#mobile-start-construction')?.addEventListener('click', () => {
     const typeId = content.querySelector('#mobile-construction-type')?.value;
     const workers = Number(content.querySelector('#mobile-construction-workers')?.value) || undefined;
+    const approval = spendingAuthorisation(sim, region, { spendingKind: 'infrastructure', constructionTypeId: typeId });
+    if (!approval.allowed) {
+      const detail = content.querySelector('#mobile-construction-detail');
+      if (detail) detail.textContent = spendingRefusal(approval);
+      return;
+    }
     const project = startConstruction(region, typeId, workers, sim.clock?.elapsedDays || 0);
     if (!project) {
       const detail = content.querySelector('#mobile-construction-detail');
@@ -188,11 +216,13 @@ function renderInfrastructureModal(sim, region) {
   content.querySelectorAll('[data-project-id]').forEach((row) => {
     const projectId = Number(row.dataset.projectId);
     row.querySelector('[data-project-workers]')?.addEventListener('change', (event) => {
-      setConstructionWorkers(region, projectId, Number(event.target.value));
+      const approval = spendingAuthorisation(sim, region, { spendingKind: 'construction_workforce', projectId });
+      if (approval.allowed) setConstructionWorkers(region, projectId, Number(event.target.value));
       renderInfrastructureModal(sim, region);
     });
     row.querySelector('[data-cancel-project]')?.addEventListener('click', () => {
-      cancelConstruction(region, projectId);
+      const approval = spendingAuthorisation(sim, region, { spendingKind: 'cancel_construction', projectId });
+      if (approval.allowed) cancelConstruction(region, projectId);
       renderInfrastructureModal(sim, region);
     });
   });
@@ -292,11 +322,23 @@ function renderNavalProcurement(sim, preferredRegion = null) {
   panel.querySelectorAll('[data-design-id]').forEach((row) => {
     const designId = row.dataset.designId;
     row.querySelector('[data-naval-plus]')?.addEventListener('click', () => {
+      const approval = spendingAuthorisation(sim, region, { spendingKind: 'naval_procurement', designId, direction: 'increase' });
+      if (!approval.allowed) {
+        const status = panel.querySelector('#naval-procurement-status');
+        if (status) status.textContent = spendingRefusal(approval);
+        return;
+      }
       const current = Math.max(0, Math.round(ensureNavalProcurement(region).targets?.[designId] || 0));
       setNavalClassTarget(region, designId, current + 1);
       renderNavalProcurement(sim, region);
     });
     row.querySelector('[data-naval-minus]')?.addEventListener('click', () => {
+      const approval = spendingAuthorisation(sim, region, { spendingKind: 'naval_procurement', designId, direction: 'decrease' });
+      if (!approval.allowed) {
+        const status = panel.querySelector('#naval-procurement-status');
+        if (status) status.textContent = spendingRefusal(approval);
+        return;
+      }
       const current = Math.max(0, Math.round(ensureNavalProcurement(region).targets?.[designId] || 0));
       setNavalClassTarget(region, designId, current - 1);
       renderNavalProcurement(sim, region);

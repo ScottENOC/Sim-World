@@ -69,6 +69,14 @@ function coastalRegion() {
 }
 
 {
+  const authoritySource = readFileSync(new URL('../js/ui/mobileGameplayControls.js', import.meta.url), 'utf8');
+  assert.match(authoritySource, /authoriseRuntimeGovernmentAction/, 'mobile spending controls must use runtime institutional authority');
+  assert.match(authoritySource, /'change_spending'/, 'mobile construction and naval procurement must use spending authority');
+  assert.match(authoritySource, /spendingKind: 'infrastructure'/, 'infrastructure commissioning must be institutionally gated');
+  assert.match(authoritySource, /spendingKind: 'naval_procurement'/, 'naval procurement must be institutionally gated');
+}
+
+{
   const source = readFileSync(new URL('../js/military/fleets.js', import.meta.url), 'utf8');
   assert.match(source, /completedByClass/, 'persistent fleets must reconcile against completed class-specific hulls');
   assert.match(source, /Math\.floor\(Number\(value\)/, 'fractional shipbuilding progress must not spawn a persistent ship');
