@@ -1,3 +1,5 @@
+import { seedAutomobileOwnership } from '../economy/civilianTransport.js';
+
 const arr = (value) => Array.isArray(value) ? value : [];
 const num = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 const max = (a, b) => Math.max(num(a), num(b));
@@ -64,6 +66,16 @@ function explicitPopulationWeight(region, profile) {
   for (const key of candidates) {
     const weight = Number(weights?.[key]);
     if (Number.isFinite(weight) && weight >= 0) return weight;
+  }
+  return null;
+}
+
+function explicitAutomobileRate(region, profile) {
+  const rates = profile?.regionalAutomobilesPer1000 || {};
+  const candidates = [region?.id, slug(region?.name), region?.name];
+  for (const key of candidates) {
+    const rate = Number(rates?.[key]);
+    if (Number.isFinite(rate) && rate >= 0) return rate;
   }
   return null;
 }
@@ -137,6 +149,7 @@ export function applyModernScenarioBaseline(world, profile = {}) {
   const commonTechIds = arr(profile.commonTechIds);
   const touchedCountries = new Set();
   let modernCultureRegions = 0;
+  let automobileRegions = 0;
   const population = applyModernPopulation(regions, profile);
 
   for (const region of regions) {
@@ -199,6 +212,15 @@ export function applyModernScenarioBaseline(world, profile = {}) {
       regionPopulation * num(settings.machineComponentsPerPerson),
     );
 
+    if (!region.scenarioAutomobileBaselineApplied) {
+      const regionalRate = explicitAutomobileRate(region, profile);
+      seedAutomobileOwnership(region, regionalRate ?? num(settings.automobilesPer1000), {
+        scenarioBaseline: true,
+        source: regionalRate === null ? 'country_or_scenario_default' : 'regional_override',
+      });
+      automobileRegions += 1;
+    }
+
     region.army ||= { personnel: 0, away: 0 };
     region.army.personnel = max(region.army.personnel, regionPopulation * num(settings.standingForceShare));
     region.targetArmySize = max(region.targetArmySize, region.army.personnel);
@@ -216,6 +238,7 @@ export function applyModernScenarioBaseline(world, profile = {}) {
     regionCount: regions.length,
     countryCount: touchedCountries.size,
     modernCultureRegions,
+    automobileRegions,
     populationModel: population.model,
     populationCountriesTargeted: population.countriesTargeted,
     populationRegionsTargeted: population.regionsTargeted,
