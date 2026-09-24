@@ -9,7 +9,7 @@ function createFocusBar() {
   bar = document.createElement('div');
   bar.id = 'map-focus-bar';
   bar.className = 'hidden';
-  bar.innerHTML = '<div><strong id="map-focus-name">—</strong><span>Selected · zoom to inspect · use layers or Council for detail and orders</span></div><button id="map-focus-close" aria-label="Clear selection">×</button>';
+  bar.innerHTML = '<strong id="map-focus-name">—</strong><button id="map-focus-close" aria-label="Clear selection">×</button>';
   app.appendChild(bar);
   return bar;
 }
@@ -21,22 +21,30 @@ function installStyles() {
   style.textContent = `
     #region-sheet { display:none !important; }
     #map-focus-bar {
-      position:absolute; z-index:11; left:12px; right:12px;
-      bottom:calc(12px + env(safe-area-inset-bottom));
-      min-height:52px; padding:9px 48px 9px 14px;
-      border:1px solid var(--bronze-dim); border-radius:11px;
+      position:absolute; z-index:11; left:10px; right:10px;
+      bottom:calc(var(--map-legend-height, 92px) + 16px + env(safe-area-inset-bottom));
+      min-height:40px; padding:5px 44px 5px 12px;
+      border:1px solid var(--bronze-dim); border-radius:10px;
       background:rgba(23,29,41,.92); box-shadow:0 5px 20px rgba(0,0,0,.25);
-      display:flex; align-items:center; justify-content:space-between;
+      display:flex; align-items:center; gap:7px;
     }
     #map-focus-bar.hidden { display:none; }
-    #map-focus-bar strong { display:block; font-size:15px; line-height:20px; color:var(--parchment); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    #map-focus-bar span { display:block; margin-top:2px; color:var(--parchment-dim); font-size:11px; line-height:15px; }
-    #map-focus-close { position:absolute; top:8px; right:9px; width:34px; height:34px; border-radius:50%; border:1px solid var(--bronze-dim); background:rgba(16,20,28,.82); color:var(--parchment-dim); font-size:20px; }
-    .legend { max-width:min(94vw,430px); right:14px; width:auto; }
-    .layer-toggle { flex-wrap:wrap; }
-    .layer-toggle > button { flex:1 1 62px !important; min-width:58px; min-height:30px; font-size:11px !important; }
+    #map-focus-bar strong { display:block; min-width:0; flex:1 1 auto; font-size:14px; line-height:20px; color:var(--parchment); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    #map-focus-close { position:absolute; top:4px; right:5px; width:32px; height:32px; border-radius:50%; border:1px solid var(--bronze-dim); background:rgba(16,20,28,.82); color:var(--parchment-dim); font-size:19px; }
+    .legend {
+      position:absolute !important; left:10px !important; right:10px !important; top:auto !important;
+      bottom:calc(8px + env(safe-area-inset-bottom)) !important;
+      width:auto !important; max-width:none !important; max-height:min(36vh, 260px); overflow:auto;
+      box-sizing:border-box;
+    }
+    .layer-toggle { display:flex; flex-wrap:wrap; gap:4px; }
+    .layer-toggle > button { flex:1 1 62px !important; min-width:56px; min-height:29px; font-size:10.5px !important; padding:4px 6px !important; }
+    #legend-label { margin-top:5px; }
+    #legend-categorical { max-height:150px; overflow:auto; }
     @media (max-width:520px) {
-      .legend { left:10px; right:10px; bottom:calc(78px + env(safe-area-inset-bottom)); max-width:none; }
+      #map-focus-bar { left:8px; right:8px; min-height:38px; padding-left:10px; }
+      .legend { left:8px !important; right:8px !important; bottom:calc(6px + env(safe-area-inset-bottom)) !important; max-height:min(34vh, 240px); }
+      .layer-toggle > button { min-width:52px; min-height:28px; font-size:10px !important; }
     }
   `;
   document.head.appendChild(style);
@@ -119,6 +127,9 @@ function installRuntimePatch() {
   import('./electricGridMapUi.js?v=20260921-grid-map1').then(({ installElectricGridMapUi }) =>
     installElectricGridMapUi(sim)).catch((error) =>
     console.error('Could not install electric grid map overlay', error));
+  import('./mobileGameplayControls.js?v=20260924-mobile-gameplay1').then(({ installMobileGameplayControls }) =>
+    installMobileGameplayControls(sim)).catch((error) =>
+    console.error('Could not install mobile gameplay controls', error));
   return true;
 }
 
