@@ -164,10 +164,6 @@ AdvisorCouncil.prototype.wireCurrent = function wireInstitutionalSpendingControl
     player.targetArmySize = Math.max(0, Number(value) || 0);
     return true;
   });
-  interceptNumber(this, player, 'council-navy-target', 'change_spending', (value) => {
-    player.targetNavySize = Math.max(0, Number(value) || 0);
-    return true;
-  });
   interceptNumber(this, player, 'target-rams', 'change_spending', (value) => setSiegeTarget(player, 'ram', value));
   interceptNumber(this, player, 'target-catapults', 'change_spending', (value) => setSiegeTarget(player, 'catapult', value));
 };

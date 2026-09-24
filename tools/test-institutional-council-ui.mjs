@@ -3,6 +3,7 @@ import fs from 'node:fs';
 
 const ui = fs.readFileSync(new URL('../js/ui/institutionalCouncilUi.js', import.meta.url), 'utf8');
 const spendingUi = fs.readFileSync(new URL('../js/ui/institutionalCouncilSpendingUi.js', import.meta.url), 'utf8');
+const mobileGameplayUi = fs.readFileSync(new URL('../js/ui/mobileGameplayControls.js', import.meta.url), 'utf8');
 const index = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
 assert.match(index, /institutionalCouncilUi\.js/, 'institutional council integration must be loaded by the app');
@@ -21,9 +22,12 @@ assert.match(ui, /chooseNpcInstitutionalApprovals/, 'non-executive institutions 
 assert.match(ui, /stopImmediatePropagation/, 'legacy direct mutations must be intercepted before they bypass institutions');
 assert.match(ui, /advisors\.js\?v=20260905-projects1/, 'UI patch must reuse the exact AdvisorCouncil module instance imported by main');
 
-for (const id of ['council-army-target', 'council-navy-target', 'target-rams', 'target-catapults']) {
+for (const id of ['council-army-target', 'target-rams', 'target-catapults']) {
   assert.match(spendingUi, new RegExp(id), `${id} must be institutionally governed`);
 }
+assert.doesNotMatch(spendingUi, /council-navy-target/, 'obsolete scalar navy spending control must stay removed');
+assert.match(mobileGameplayUi, /setNavalClassTarget/, 'naval procurement must use class-specific targets');
+assert.doesNotMatch(mobileGameplayUi, /targetNavySize/, 'class-specific naval procurement must not recreate the scalar navy target');
 assert.match(spendingUi, /startConstruction/, 'new public works must be governed spending');
 assert.match(spendingUi, /startRepair/, 'repair commissioning must be governed spending');
 assert.match(spendingUi, /setConstructionWorkers/, 'active public-works labour must be governed spending');

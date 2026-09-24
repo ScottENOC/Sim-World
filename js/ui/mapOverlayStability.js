@@ -51,7 +51,28 @@ function robustDomain(regions, valueFn, label) {
   return [0, upper];
 }
 
-function syncLegend(map) {
+function installLegendModeStyles() {
+  if (document.getElementById('single-map-legend-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'single-map-legend-styles';
+  style.textContent = `
+    #legend.legend-mode-gradient #legend-categorical { display:none !important; }
+    #legend.legend-mode-gradient #legend-gradient { display:block !important; }
+    #legend.legend-mode-categorical #legend-gradient { display:none !important; }
+    #legend.legend-mode-categorical #legend-categorical { display:block !important; }
+  `;
+  document.head.appendChild(style);
+}
+
+export function setLegendMode(mode) {
+  const legend = document.getElementById('legend');
+  if (!legend) return;
+  const categorical = mode === 'categorical';
+  legend.classList.toggle('legend-mode-categorical', categorical);
+  legend.classList.toggle('legend-mode-gradient', !categorical);
+}
+
+export function syncLegend(map) {
   const info = map?.getLegendInfo?.();
   if (!info) return;
   const label = document.getElementById('legend-label');
@@ -61,6 +82,7 @@ function syncLegend(map) {
   if (label) label.textContent = info.label;
 
   if (info.type === 'categorical') {
+    setLegendMode('categorical');
     gradient?.classList.add('hidden');
     categorical?.classList.remove('hidden');
     if (categorical) {
@@ -70,8 +92,10 @@ function syncLegend(map) {
     return;
   }
 
+  setLegendMode('gradient');
   categorical?.classList.add('hidden');
   gradient?.classList.remove('hidden');
+  if (categorical) categorical.innerHTML = '';
   const minEl = document.getElementById('legend-min');
   const maxEl = document.getElementById('legend-max');
   if (minEl) minEl.textContent = info.min;
@@ -85,6 +109,7 @@ function install() {
   if (!map || map._stableOverlayScalesInstalled) return Boolean(map);
   map._stableOverlayScalesInstalled = true;
   map._overlayDomains = new Map();
+  installLegendModeStyles();
 
   const originalSetLayer = map.setLayer.bind(map);
   map.setLayer = function setStableLayer(config) {
@@ -142,9 +167,11 @@ function install() {
   };
 
   // All layer buttons share the same legend widget; sync it after their own
-  // click handlers have switched the active layer.
+  // click handlers have switched the active layer. requestAnimationFrame runs
+  // after any synchronous and microtask-based layer handlers, preventing a
+  // previous categorical legend from surviving a switch back to a gradient.
   document.querySelector('.layer-toggle')?.addEventListener('click', () => {
-    queueMicrotask(() => syncLegend(map));
+    requestAnimationFrame(() => syncLegend(map));
   }, { capture: true });
 
   // Re-apply the current population layer immediately. Its legend becomes a

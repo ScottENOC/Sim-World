@@ -32,7 +32,6 @@ import { maybeLaunchCivilWarCampaign } from '../politics/civilWarFactions.js?v=2
 
 const BASE_ARMY_FRACTION = 0.01;
 const THREAT_ARMY_MULTIPLIER = 2.0;
-const BASE_NAVY_PER_POPULATION = 50000;
 const RAID_CONSIDERATION_CHANCE_PER_WEEK = 0.005;
 const MIN_HOME_ARMY_TO_CONSIDER_RAIDING = 30;
 const MIN_SAFETY_TO_CONSIDER_RAIDING = 0.3;
@@ -245,11 +244,6 @@ function maybeMakeAgreement(region, regionsById, playerRegionId, agreements, pol
   const weakTargets = candidates.map((target) => ({ target, ratio: powerRatio(region, target, toolTypes) })).filter(({ target, ratio }) => ratio >= 1.6 && attitudeToward(region, target.id) < 0.45 && !activeAgreementBetween(agreements, region.id, target.id)).sort((a, b) => b.ratio - a.ratio); if (weakTargets.length === 0) return;
   if (weakTargets[0].ratio >= 2.2 && rng() < 0.2) { demandVassalage(region, weakTargets[0].target, polities, toolTypes, currentTick, [...regionsById.values()]); return; }
   proposeAgreement(rng() < 0.65 ? 'tribute' : 'resource_access', region, weakTargets[0].target, agreements, toolTypes, currentTick);
-}
-
-function setMilitaryTargets(region) {
-  const threatFactor = 1 + (1 - clamp01(region.safetyRating)) * THREAT_ARMY_MULTIPLIER; region.targetArmySize = Math.round(region.demographics.workingAge * BASE_ARMY_FRACTION * threatFactor);
-  if (region.isCoastal) region.targetNavySize = Math.max(region.targetNavySize, Math.round(region.population / BASE_NAVY_PER_POPULATION));
 }
 
 function maybeRaid(region, regionsById, activeRaids, polities, religiousWorld, currentTick, toolTypes, rng, considerationChance = RAID_CONSIDERATION_CHANCE_PER_WEEK) {

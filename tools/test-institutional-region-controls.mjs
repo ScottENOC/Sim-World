@@ -7,7 +7,7 @@ const main = fs.readFileSync(new URL('../js/main.js', import.meta.url), 'utf8');
 
 assert.match(index, /institutionalRegionControlsUi\.js/, 'region-sheet institutional gate must be loaded after main');
 assert.match(ui, /authoriseRuntimeGovernmentAction/, 'region-sheet controls must use runtime institutional authority');
-assert.match(ui, /input-navy[\s\S]*change_spending/, 'navy establishment must be governed as spending');
+assert.doesNotMatch(ui, /input-navy|targetNavySize/, 'obsolete scalar navy establishment control must stay removed');
 assert.match(ui, /military-spending-priority[\s\S]*change_spending/, 'military budget priority must be governed as spending');
 assert.match(ui, /military-posture[\s\S]*change_military_policy/, 'strategic posture must respect legislative military-policy authority');
 assert.match(ui, /subject-tribute[\s\S]*change_taxation/, 'subject tribute changes must respect taxation authority');

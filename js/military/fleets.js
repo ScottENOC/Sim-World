@@ -290,7 +290,7 @@ export function preferredWarshipDesign(region, serial = 0) {
   return 'basic_war_boat';
 }
 
-export function desiredWarshipComposition(region, total = region?.targetNavySize || 0) {
+export function desiredWarshipComposition(region, total = 0) {
   const count = Math.max(0, Math.round(total || 0));
   const targets = {};
   const late = region?.unlockedTechIds?.has(DREADNOUGHT_TECH_ID);
@@ -316,9 +316,9 @@ export function ensureNavalProcurement(region) {
   return region.navalProcurement;
 }
 
-export function refreshNavalProcurementTargets(region, currentTick = null) {
+export function refreshNavalProcurementTargets(region, total, currentTick = null) {
   const procurement = ensureNavalProcurement(region);
-  procurement.targets = desiredWarshipComposition(region);
+  procurement.targets = desiredWarshipComposition(region, total);
   procurement.lastDecisionTick = currentTick;
   return procurement.targets;
 }
@@ -472,9 +472,9 @@ function ensureFleetState(fleet) {
   return fleet;
 }
 
-function createHomeFleet(region) {
+function createHomeFleet(region, { allowEmpty = false } = {}) {
   const total = Math.max(0, Math.round(region.navy?.boats || 0));
-  if (total <= 0 || !(region.adjacentSeaIds || []).length) return null;
+  if ((!allowEmpty && total <= 0) || !(region.adjacentSeaIds || []).length) return null;
   const advanced = Math.min(total, Math.max(0, Math.round(region.navy?.advancedBoats || 0)));
   const ships = [];
   for (let i = 0; i < advanced; i++) ships.push(makeShip(preferredWarshipDesign(region, i), region));
@@ -498,7 +498,7 @@ function createHomeFleet(region) {
     morale: 1,
     condition: 1,
     weeksAtSea: 0,
-    createdFromLegacyNavy: true,
+    createdFromLegacyNavy: total > 0,
   });
 }
 
@@ -524,9 +524,9 @@ function fleetForNewShips(fleets, region) {
     || null;
 }
 
-// Existing economy code still constructs vessels by changing region.navy.boats.
-// Reconcile those newly built boats into persistent ship objects before fleet
-// operations, then write the authoritative discrete fleet inventory back after.
+// Naval procurement accumulates class-specific construction progress. Only completed
+// whole hulls become persistent ships; fleet losses flow back into the class ledger
+// so replacement construction can resume toward the outstanding class target.
 export function reconcileFleetLedger(regions, fleets, events = null, weeks = 1) {
   const byOwner = new Map();
   for (const fleet of fleets) {
@@ -540,10 +540,14 @@ export function reconcileFleetLedger(regions, fleets, events = null, weeks = 1) 
     tickNavalDesignPrograms(region,weeks);considerNpcNavalDesignReview(region,weeks);
     serviceNavalModelDiversity(region,owned,weeks);tickNavalPersonnel(region,owned,weeks);
     const procurement = ensureNavalProcurement(region);
-    const explicitTargets = Object.values(procurement.targets || {}).reduce((sum, value) => sum + Math.max(0, Math.round(value || 0)), 0);
-    const wantedTotal = explicitTargets > 0 ? explicitTargets : Math.max(0, Math.round(region.navy?.boats || 0));
-    const wantedAdvanced = explicitTargets > 0
-      ? Object.entries(procurement.targets).reduce((sum, [id, value]) => sum + (SHIP_DESIGNS[id]?.advanced ? Math.max(0, Math.round(value || 0)) : 0), 0)
+    const completedByClass = Object.fromEntries(Object.entries(procurement.built || {})
+      .map(([id, value]) => [id, Math.max(0, Math.floor(Number(value) || 0))]));
+    const explicitBuilt = Object.values(completedByClass).reduce((sum, value) => sum + value, 0);
+    const wantedTotal = Object.keys(procurement.targets || {}).length > 0
+      ? explicitBuilt
+      : Math.max(0, Math.round(region.navy?.boats || 0));
+    const wantedAdvanced = Object.keys(procurement.targets || {}).length > 0
+      ? Object.entries(completedByClass).reduce((sum, [id, value]) => sum + (SHIP_DESIGNS[id]?.advanced ? value : 0), 0)
       : Math.min(wantedTotal, Math.max(0, Math.round(region.navy?.advancedBoats || 0)));
 
     // The old economy models wear fractionally. Once that fractional ledger
@@ -574,16 +578,16 @@ export function reconcileFleetLedger(regions, fleets, events = null, weeks = 1) 
     actualAdvanced = current.filter(({ ship }) => isAdvancedShip(ship)).length;
     let target = fleetForNewShips(fleets, region);
     if (!target && wantedTotal > 0) {
-      target = createHomeFleet({ ...region, navy: { ...region.navy, boats: 0, advancedBoats: 0 } });
+      target = createHomeFleet({ ...region, navy: { ...region.navy, boats: 0, advancedBoats: 0 } }, { allowEmpty: true });
       if (target) { fleets.push(target); owned.push(target); }
     }
     if (!target) continue;
-    if (explicitTargets > 0) {
+    if (Object.keys(procurement.targets || {}).length > 0) {
       const classCounts = actualClassCounts(owned);
-      for (const [designId, wanted] of Object.entries(procurement.targets)) {
+      for (const [designId, completed] of Object.entries(completedByClass)) {
         if (!SHIP_DESIGNS[designId]) continue;
         const actual = classCounts[designId] || 0;
-        for (let i = actual; i < Math.max(0, Math.round(wanted || 0)); i++) target.ships.push(makeShip(designId, region));
+        for (let i = actual; i < completed; i++) target.ships.push(makeShip(designId, region));
       }
     } else {
       for (let i = actualAdvanced; i < wantedAdvanced; i++) target.ships.push(makeShip(preferredWarshipDesign(region, i), region.id));
@@ -597,19 +601,24 @@ export function reconcileFleetLedger(regions, fleets, events = null, weeks = 1) 
 }
 
 export function syncRegionalNavyLedger(regions, fleets) {
-  const regionById = new Map(regions.map((region) => [region.id, region]));
   const counts = new Map();
   for (const fleet of fleets) {
-    const entry = counts.get(fleet.ownerRegionId) || { total: 0, advanced: 0 };
+    const entry = counts.get(fleet.ownerRegionId) || { total: 0, advanced: 0, classes: {} };
     entry.total += fleet.ships.length;
     entry.advanced += fleet.ships.filter((ship) => isAdvancedShip(ship)).length;
+    for (const ship of fleet.ships || []) entry.classes[ship.designId] = (entry.classes[ship.designId] || 0) + 1;
     counts.set(fleet.ownerRegionId, entry);
   }
-  for (const [regionId, entry] of counts.entries()) {
-    const region = regionById.get(regionId);
+  for (const region of regions) {
     if (!region?.navy) continue;
+    const entry = counts.get(region.id) || { total: 0, advanced: 0, classes: {} };
     region.navy.boats = entry.total;
     region.navy.advancedBoats = entry.advanced;
+    const procurement = ensureNavalProcurement(region);
+    for (const designId of new Set([...Object.keys(procurement.built || {}), ...Object.keys(entry.classes)])) {
+      const fractionalProgress = Math.max(0, Number(procurement.built?.[designId]) || 0) % 1;
+      procurement.built[designId] = (entry.classes[designId] || 0) + fractionalProgress;
+    }
   }
 }
 

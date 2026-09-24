@@ -94,7 +94,6 @@ function restoreMilitaryControl(control, region) {
     'military-prep-weeks': Number(strategy.desiredPreparationWeeks) || 26,
     'military-vassal-assumption': strategy.vassalAssumption || 'conservative',
     'military-ally-assumption': strategy.allyAssumption || 'conservative',
-    'input-navy': Math.max(0, Math.round(Number(region.targetNavySize) || 0)),
   };
   if (control.id in values) control.value = values[control.id];
   if (control.id === 'military-garrison-floor') {
@@ -142,7 +141,6 @@ const strategicSelectActions = new Map([
   ['military-prep-weeks', 'change_military_policy'],
   ['military-vassal-assumption', 'change_military_policy'],
   ['military-ally-assumption', 'change_military_policy'],
-  ['input-navy', 'change_spending'],
 ]);
 
 const subjectRangePolicies = new Map([

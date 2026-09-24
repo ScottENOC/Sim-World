@@ -1197,9 +1197,6 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
       <div class="raid-status">Give the general an operational intent rather than moving individual units. The Marshal will interrupt only when the campaign becomes materially dangerous.</div>
       ${campaignCommandHtml}
     </div>
-    <label class="control-row">Target navy size (boats)
-      <input type="number" min="0" step="1" id="input-navy" value="${Math.round(region.targetNavySize)}" ${region.isCoastal ? '' : 'disabled title="not a coastal region"'}>
-    </label>
     <div class="raid-section">
       <strong>Government scouting</strong>
       <div id="scouting-control-status" class="raid-status">${region.scouting?.active
@@ -1339,10 +1336,6 @@ function renderRegionControls(region, regions, polities, clock, activeRaids, agr
     issueCampaignOrder(campaign, assessment.recommendation, defender, calendarWeekIndex(clock.elapsedDays || 0), { playerIssued: true, rationale: 'marshal_advice' });
     renderRegionControls(region, regions, polities, clock, activeRaids, agreements, playerRegionId, fogOfWar, toolTypes);
   }));
-
-  document.getElementById('input-navy').addEventListener('change', (e) => {
-    region.targetNavySize = Math.max(0, Number(e.target.value) || 0);
-  });
 
   const scoutButton = document.getElementById('btn-scout-launch');
   scoutButton?.addEventListener('click', () => {
