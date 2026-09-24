@@ -1,0 +1,44 @@
+name: Mobile fleet shell patch
+on:
+  push:
+    branches: [feature/mobile-map-gameplay-controls]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[fleet-shell-patched]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/mobile-map-gameplay-controls
+      - name: Patch first-hull fleet creation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('js/military/fleets.js')
+          s=p.read_text()
+          old='''function createHomeFleet(region) {\n  const total = Math.max(0, Math.round(region.navy?.boats || 0));\n  if (total <= 0 || !(region.adjacentSeaIds || []).length) return null;'''
+          new='''function createHomeFleet(region, { allowEmpty = false } = {}) {\n  const total = Math.max(0, Math.round(region.navy?.boats || 0));\n  if ((!allowEmpty && total <= 0) || !(region.adjacentSeaIds || []).length) return null;'''
+          if s.count(old)!=1: raise SystemExit('createHomeFleet anchor mismatch')
+          s=s.replace(old,new)
+          old='''    createdFromLegacyNavy: true,\n'''
+          new='''    createdFromLegacyNavy: total > 0,\n'''
+          if s.count(old)!=1: raise SystemExit('legacy marker anchor mismatch')
+          s=s.replace(old,new)
+          old='''      target = createHomeFleet({ ...region, navy: { ...region.navy, boats: 0, advancedBoats: 0 } });'''
+          new='''      target = createHomeFleet({ ...region, navy: { ...region.navy, boats: 0, advancedBoats: 0 } }, { allowEmpty: true });'''
+          if s.count(old)!=1: raise SystemExit('new fleet target anchor mismatch')
+          s=s.replace(old,new)
+          s=s.replace('// Existing economy code still constructs vessels by changing region.navy.boats.\n// Reconcile those newly built boats into persistent ship objects before fleet\n// operations, then write the authoritative discrete fleet inventory back after.\n',
+                      '// Naval procurement accumulates class-specific construction progress. Only completed\n// whole hulls become persistent ships; fleet losses flow back into the class ledger\n// so replacement construction can resume toward the outstanding class target.\n')
+          p.write_text(s)
+          PY
+          node --check js/military/fleets.js
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/military/fleets.js
+          git commit -m 'Create fleet shell for first completed hull [fleet-shell-patched]'
+          git push origin HEAD:feature/mobile-map-gameplay-controls
