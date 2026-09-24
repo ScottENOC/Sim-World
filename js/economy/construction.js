@@ -732,7 +732,7 @@ export function chooseAiConstruction(region, currentTick, rng = Math.random) {
     return startRepair(region, damaged.id, CONSTRUCTION_TYPES[damaged.typeId]?.defaultWorkers || 50, currentTick);
   }
   if (region.isCoastal && effectiveInfrastructureCount(region, 'harbour') < 0.5 &&
-      (region.targetNavySize || 0) + (region.targetFishingBoats || 0) >= 5 &&
+      Object.values(region.navalProcurement?.targets || {}).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0) + (region.targetFishingBoats || 0) >= 5 &&
       (region.stockpile?.stone || 0) >= 400 && (region.stockpile?.wood || 0) >= 300 && rng() < 0.002) {
     return startConstruction(region, 'harbour', 100, currentTick);
   }

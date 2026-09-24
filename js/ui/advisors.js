@@ -173,7 +173,6 @@ export class AdvisorCouncil {
         : '<p class="advisor-note">We do not yet understand fortified warfare well enough to build siege engines.</p>')}
       ${section('Standing orders', `
         <label class="advisor-field"><span>Full army establishment</span><input id="council-army-target" type="number" min="0" step="100" value="${Math.round(player.targetArmySize)}"></label>
-        <label class="advisor-field"><span>Target navy size</span><input id="council-navy-target" type="number" min="0" step="1" value="${Math.round(player.targetNavySize)}" ${player.isCoastal ? '' : 'disabled'}></label>
         <label class="advisor-field advisor-slider"><span>Army permanence <b id="army-permanence-label">${Math.round(policy.armyPermanence * 100)}%</b></span><input id="army-permanence" type="range" min="0" max="100" value="${Math.round(policy.armyPermanence * 100)}"></label>
         <p class="advisor-note">Low permanence leaves most troops in civilian work until danger rises. A standing force is readier and more cohesive, but remains on the payroll.</p>
         <label class="advisor-field"><span>Defensive posture</span><select id="defensive-posture">
@@ -664,9 +663,7 @@ export class AdvisorCouncil {
     });
     if (this.activeAdvisor !== 'marshal') return;
     const army = document.getElementById('council-army-target');
-    const navy = document.getElementById('council-navy-target');
     army?.addEventListener('change', () => { player.targetArmySize = Math.max(0, Number(army.value) || 0); });
-    navy?.addEventListener('change', () => { player.targetNavySize = Math.max(0, Number(navy.value) || 0); });
     const permanence = document.getElementById('army-permanence');
     const horseAllocation = document.getElementById('war-horse-allocation');
     permanence?.addEventListener('input', () => {

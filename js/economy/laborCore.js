@@ -14,7 +14,7 @@ import { maritimeSkillMultiplier, MARITIME_SKILLS } from '../technology/seamansh
 import { applyFoodPreservation, tickFoodLuxuries } from './foodLuxuries.js?v=20260913-food-luxuries1';
 import { agriculturalWaterProfile } from './agriculturalWater.js?v=20260914-water3';
 import { educationLaborReservation } from '../society/massEducation.js?v=20260914-mass-education1';
-import { ensureNavalProcurement, refreshNavalProcurementTargets, SHIP_DESIGNS, navalConstructionProfile } from '../military/fleets.js?v=20260919-naval-light-metals1';
+import { ensureNavalProcurement, SHIP_DESIGNS, navalConstructionProfile } from '../military/fleets.js?v=20260919-naval-light-metals1';
 
 // --- Tunable constants -----------------------------------------------------
 // All placeholders, calibrated so a "typical" region can just about feed
@@ -700,9 +700,11 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng, elapsedDays 
   // Pitch and textiles are ordinary crafts before they become strategic boat
   // inputs. Small local buffers create tradable supply; advanced shipyards
   // increase their targets sharply when they have vessels to build.
+  const procurementForCrafts = ensureNavalProcurement(region);
+  const navalOrderGap = Object.entries(procurementForCrafts.targets || {}).reduce((sum, [designId, target]) =>
+    sum + Math.max(0, Number(target) - Math.max(0, Number(procurementForCrafts.built?.[designId]) || 0)), 0);
   const totalBoatGap = region.isCoastal
-    ? Math.max(0, region.targetNavySize - region.navy.boats) +
-      Math.max(0, region.targetFishingBoats - region.fishingBoats)
+    ? navalOrderGap + Math.max(0, region.targetFishingBoats - region.fishingBoats)
     : 0;
   const advancedDemandBoats = region.unlockedTechIds.has('advanced_boatbuilding')
     ? Math.min(2, totalBoatGap)
@@ -775,10 +777,7 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng, elapsedDays 
     }
 
     const procurement = ensureNavalProcurement(region);
-    const targetTotal = Object.values(procurement.targets || {}).reduce((sum, value) => sum + Math.max(0, Math.round(value || 0)), 0);
-    if (targetTotal !== Math.max(0, Math.round(region.targetNavySize || 0))) refreshNavalProcurementTargets(region, currentTick);
     procurement.built = { ...(procurement.built || {}) };
-    const navyGap = Math.max(0, region.targetNavySize - region.navy.boats);
     let navyMakersUsed = 0;
     let navyBuilt = 0;
     let navyAdvancedBuilt = 0;
@@ -794,9 +793,6 @@ function allocateAndProduce(region, seaRegionsById, toolTypes, rng, elapsedDays 
       if (SHIP_DESIGNS[designId]?.advanced) navyAdvancedBuilt += build.built;
       navyMakersUsed += build.makers;
     }
-    region.navy.boats += navyBuilt;
-    region.navy.advancedBoats = (region.navy.advancedBoats || 0) + navyAdvancedBuilt;
-
     const fishGap = Math.max(0, region.targetFishingBoats - region.fishingBoats);
     const fishBoatsWanted = fishGap * Math.min(1, BOAT_MOBILIZATION_RATE * weekScale);
     const fishMakersWanted = BOATMAKER_BUILD_RATE > 0 ? fishBoatsWanted / BOATMAKER_BUILD_RATE : 0;

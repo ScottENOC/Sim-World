@@ -199,14 +199,6 @@ function renderInfrastructureModal(sim, region) {
   modal.classList.remove('hidden');
 }
 
-function legacyNavyControlCleanup(root = document) {
-  const input = root.querySelector?.('#input-navy');
-  if (!input) return false;
-  const row = input.closest('.control-row') || input.parentElement;
-  row?.remove();
-  return true;
-}
-
 function availableNavalClasses(region) {
   const ids = new Set(['basic_war_boat']);
   if (hasTech(region, 'advanced_boatbuilding')) ids.add('galley');
@@ -239,9 +231,9 @@ export function setNavalClassTarget(region, designId, requestedTarget) {
   const target = Math.max(Math.floor(built), Math.round(Number(requestedTarget) || 0));
   procurement.targets[designId] = target;
   if (target <= 0 && built <= 0) delete procurement.targets[designId];
-  region.targetNavySize = Object.values(procurement.targets).reduce((sum, value) => sum + Math.max(0, Math.round(Number(value) || 0)), 0);
   procurement.lastDecisionTick = globalThis.__worldsim?.clock?.elapsedDays ?? procurement.lastDecisionTick ?? null;
-  return { target, built, totalTarget: region.targetNavySize };
+  const totalTarget = Object.values(procurement.targets).reduce((sum, value) => sum + Math.max(0, Math.round(Number(value) || 0)), 0);
+  return { target, built, totalTarget };
 }
 
 function procurementRegionOptions(sim, preferred = null) {
@@ -409,20 +401,9 @@ export function installMobileGameplayControls(sim = globalThis.__worldsim) {
   if (!sim?.map || !Array.isArray(sim.regions)) return false;
   installStyles();
   ensureInfrastructureModal();
-  legacyNavyControlCleanup();
   installFocusActions(sim);
   installLegendIntegration();
   installLegendHeightTracking();
   installFleetProcurementRefresh(sim);
-  if (!document.body.dataset.legacyNavyObserver) {
-    document.body.dataset.legacyNavyObserver = '1';
-    new MutationObserver((mutations) => {
-      for (const mutation of mutations) for (const node of mutation.addedNodes) {
-        if (node.nodeType === Node.ELEMENT_NODE) legacyNavyControlCleanup(node);
-      }
-      legacyNavyControlCleanup();
-      installFleetProcurementRefresh(sim);
-    }).observe(document.body, { childList: true, subtree: true });
-  }
   return true;
 }
