@@ -21,7 +21,7 @@ assert.doesNotMatch(zoomSource, /d3\.select\(this\.canvas\)\.call\(zoom\)/,
   'D3 must not measure pinch coordinates from the CSS-transformed canvas');
 assert.match(zoomSource, /interactionSurface\.getBoundingClientRect\(\)/,
   'tap coordinates should use the same stable interaction surface');
-assert.match(zoomSource, /const MAX_MAP_ZOOM = 8;/,
-  'the map should retain geographic context by capping extreme zoom');
+assert.match(zoomSource, /const MAX_MAP_ZOOM = 12;/,
+  'the map should retain the original 12x maximum zoom');
 
 console.log('Map zoom behaviour regression passed.');
