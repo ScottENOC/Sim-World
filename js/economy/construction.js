@@ -1,5 +1,6 @@
 import { localPrice } from './prices.js?v=20260904-weather1';
 import { constructionProductivity } from './constructionProductivity.js?v=20260925-construction-productivity1';
+import { tickConstructionEquipment } from './constructionEquipment.js?v=20260925-construction-equipment1';
 
 export const HILL_FORT_TECH_ID = 'hill_forts';
 
@@ -521,7 +522,7 @@ export function constructionEstimate(region, typeId, workers) {
   if (!type) return null;
   const assigned = clamp(Number(workers) || type.defaultWorkers, type.minWorkers, type.maxWorkers);
   const spec = scaledProjectSpec(type, assigned);
-  const productivity = constructionProductivity(region, typeId);
+  const productivity = constructionProductivity(region, typeId, assigned);
   const weeks = Math.ceil(spec.workRequired / Math.max(0.001, assigned * productivity));
   const wages = spec.workRequired / Math.max(0.001, productivity) * type.wagePerWorkerWeek;
   const supplies = Object.entries(spec.materialsRequired).reduce((sum, [resource, amount]) =>
@@ -552,6 +553,7 @@ export function tickConstruction(regions, currentTick, elapsedDays = 7) {
   const weekScale = Math.max(0.01, elapsedDays / 7);
   const events = [];
   for (const region of regions) {
+    tickConstructionEquipment(region, elapsedDays);
     const state = ensureConstruction(region);
     const project = state.projects.find((item) => item.status === 'active');
     if (!project) { state.workersReserved = 0; state.lastWeek = null; continue; }
@@ -560,7 +562,7 @@ export function tickConstruction(regions, currentTick, elapsedDays = 7) {
     const requiredMaterials = project.materialsRequired || type.materials;
     const remainingWork = Math.max(0, requiredWork - project.workDone);
     const workers = Math.min(state.workersReserved || 0, remainingWork);
-    const productivity = constructionProductivity(region, project.typeId);
+    const productivity = constructionProductivity(region, project.typeId, workers);
     const desiredWorkerWeeks = workers * weekScale;
     const desiredWork = desiredWorkerWeeks * productivity;
     const desiredFraction = desiredWork / requiredWork;

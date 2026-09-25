@@ -29,6 +29,7 @@ export class Region {
     this.wallet = 0; this.treasury = 0; this.unlockedTechIds = new Set();
     this.construction = { projects: [], completed: {}, assets: [], workersReserved: 0,
       maintenanceWorkersReserved: 0, lastWeek: null };
+    this.constructionEquipment = { stock: {}, serviceable: {}, targets: {}, utilisation: {}, lastReport: {} };
     this.infrastructure = { hillForts: 0, publicGranaries: 0 };
     this.siegeEquipment = { targets: { ram: 0, catapult: 0 },
       inventory: { ram: { bronze: 0, iron: 0 }, catapult: { bronze: 0, iron: 0 } },

@@ -87,10 +87,18 @@ assert.equal(kent.agriculturalMachinery.serviceableTractors, kent.agriculturalMa
 assert.equal(Number(kent.stockpile.battery_grade_lithium || 0), 0, 'Kent should not receive arbitrary strategic lithium reserves');
 assert.equal(Number(kent.stockpile.cobalt_ore || 0), 0, 'Kent should not receive arbitrary cobalt deposits/stockpiles');
 assert.equal(Number(london.stockpile.fertiliser || 0), 0, 'Kent-specific stock calibration should not silently leak to other regions');
-assert.equal(world.scenarioModernBaseline.starterEconomyRegions, 1);
+
+for (const modernRegion of [kent, london, eastSussex, yorkshire, france]) {
+  assert.ok(modernRegion.constructionEquipment?.stock?.excavators > 0, `${modernRegion.name} should start with ordinary modern earthmoving plant`);
+  assert.ok(modernRegion.constructionEquipment?.stock?.constructionTrucks > 0, `${modernRegion.name} should start with construction haulage capacity`);
+  assert.ok(modernRegion.constructionEquipment?.stock?.mobileCranes > 0, `${modernRegion.name} should start with some crane capacity`);
+}
+assert.ok(kent.constructionEquipment.stock.tunnelBoringMachines >= 1, 'Kent calibration should include discrete specialist tunnelling plant');
+assert.ok(kent.constructionEquipment.stock.cableLayingVessels >= 1, 'Kent calibration should include access to a specialist cable-laying vessel');
+assert.equal(world.scenarioModernBaseline.starterEconomyRegions, 5, 'baseline construction plant makes every fixture region a seeded modern starter economy');
 
 const resourceUi = readFileSync(new URL('../js/ui/resourceOverlayUi.js', import.meta.url), 'utf8');
 assert.match(resourceUi, /#resource-overlay-controls \{[^}]*pointer-events:auto/s, 'resource control panel must receive pointer events');
 assert.match(resourceUi, /event\.stopPropagation\(\)/, 'resource interactions must not bubble through to the map interaction surface');
 
-console.log('Kent 2027 baseline, typed rail and resource UI interaction regressions passed.');
+console.log('Kent 2027 baseline, construction plant, typed rail and resource UI interaction regressions passed.');
