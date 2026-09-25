@@ -129,9 +129,32 @@ function syncLineEndpoints(line, hostRegions = []) {
     highSpeedCapable: line.highSpeedCapable,
     electrification: line.electrification,
     rollingStock: { ...line.rollingStock },
+    electricityRequiredPerYear: line.electricityRequiredPerYear,
+    utilisation: line.utilisation,
     operatorPolityId: line.operatorPolityId || line.hostPolityId || null,
   };
   syncRailwayConnectionEntry(a, b, entry);
+}
+
+export function regionalRailElectricityDemand(region, elapsedDays = 7) {
+  const years = Math.max(0, Number(elapsedDays) || 0) / DAYS_PER_YEAR;
+  let demand = 0;
+  for (const connection of Object.values(region?.railConnections || {})) {
+    const lines = Object.values(connection?.lines || {});
+    const candidates = lines.length ? lines : [connection];
+    for (const line of candidates) {
+      if (!line || ['construction', 'destroyed'].includes(line.status)) continue;
+      const stock = normaliseRollingStock(line.rollingStock);
+      const electricShare = line.electrification && line.electrification !== RAIL_ELECTRIFICATION.NONE
+        ? stock.electric + stock.highSpeedElectric : 0;
+      if (electricShare <= 0) continue;
+      const km = Math.max(1, Number(line.lengthKm) || Number(connection.lengthKm) || 1);
+      const annual = nonNegative(line.electricityRequiredPerYear || km * .11);
+      const utilisation = Math.max(.15, nonNegative(line.utilisation ?? .5));
+      demand += annual * years * utilisation * electricShare * .5;
+    }
+  }
+  return demand;
 }
 
 export function railwayConnection(regionA, regionB) {
