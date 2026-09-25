@@ -1,0 +1,25 @@
+name: Kent 2027 baseline
+
+on:
+  pull_request:
+  push:
+    branches: [fix/kent-2027-baseline-resource-ui]
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: |
+          node --check js/core/scenarioModernStart.js
+          node --check js/ui/resourceOverlayUi.js
+      - name: Kent 2027 baseline regression
+        run: node tests/kent2027Baseline.test.mjs
+      - name: Existing modern startup regressions
+        run: node tests/fractured2027ModernStartup.test.mjs
+      - name: Existing resource overlay regressions
+        run: node tests/resourceOverlayAndDomesticSupply.test.mjs
