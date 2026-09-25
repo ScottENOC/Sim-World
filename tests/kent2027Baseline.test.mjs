@@ -39,13 +39,29 @@ for (const ukRegion of [kent, london, eastSussex, yorkshire]) {
 }
 assert.ok(kent.construction.assets.some((asset) => asset.typeId === 'harbour'), 'Kent should start with an operational harbour representing Dover/Medway port infrastructure');
 assert.equal(kent.construction.completed.harbour, 1);
-assert.equal(kent.railConnections[london.id].status, 'operational');
-assert.ok(kent.railConnections[london.id].effectiveCapacity > 0.9, 'Kent-London rail should be high-capacity');
-assert.equal(london.railConnections[kent.id].lineId, kent.railConnections[london.id].lineId, 'rail link should be bidirectional');
-assert.equal(kent.railConnections[eastSussex.id].status, 'operational');
+
+const kentLondon = kent.railConnections[london.id];
+assert.equal(kentLondon.status, 'operational');
+assert.ok(kentLondon.effectiveCapacity > 1.4, 'parallel classic and HS1 routes should aggregate Kent-London capacity');
+assert.equal(kentLondon.lineIds.length, 2, 'Kent-London should preserve two parallel rail lines');
+assert.equal(kentLondon.maxSpeedKph, 300, 'HS1 should set the fastest Kent-London route speed');
+assert.equal(kentLondon.highSpeedCapable, true);
+assert.ok(kentLondon.electrification.includes('third_rail_750v_dc'), 'classic Kent-London network should retain third-rail electrification');
+assert.ok(kentLondon.electrification.includes('overhead_25kv_ac'), 'HS1 should use 25 kV overhead electrification');
+assert.deepEqual(new Set(kentLondon.lineIds), new Set(london.railConnections[kent.id].lineIds), 'parallel rail links should be bidirectional');
+const hs1 = Object.values(kentLondon.lines).find((line) => line.highSpeedCapable);
+assert.equal(hs1.maxSpeedKph, 300);
+assert.equal(hs1.electrification, 'overhead_25kv_ac');
+assert.ok(hs1.rollingStock.highSpeedElectric > 0.8);
+
+const kentSussex = kent.railConnections[eastSussex.id];
+assert.equal(kentSussex.status, 'operational');
+assert.equal(kentSussex.maxSpeedKph, 145);
+assert.ok(kentSussex.electrification.includes('third_rail_750v_dc'));
+
 assert.equal(france.construction?.assets?.some((asset) => asset.typeId === 'road_network') || false, false, 'UK-specific calibration must not leak into France');
 assert.ok(world.scenarioModernBaseline.seededInfrastructureAssets >= 17);
-assert.equal(world.scenarioModernBaseline.seededRailLinks, 2);
+assert.equal(world.scenarioModernBaseline.seededRailLinks, 3);
 
 for (const techId of [
   'internal_combustion_tractors',
@@ -77,4 +93,4 @@ const resourceUi = readFileSync(new URL('../js/ui/resourceOverlayUi.js', import.
 assert.match(resourceUi, /#resource-overlay-controls \{[^}]*pointer-events:auto/s, 'resource control panel must receive pointer events');
 assert.match(resourceUi, /event\.stopPropagation\(\)/, 'resource interactions must not bubble through to the map interaction surface');
 
-console.log('Kent 2027 baseline and resource UI interaction regressions passed.');
+console.log('Kent 2027 baseline, typed rail and resource UI interaction regressions passed.');
