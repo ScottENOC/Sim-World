@@ -47,6 +47,32 @@ assert.equal(france.construction?.assets?.some((asset) => asset.typeId === 'road
 assert.ok(world.scenarioModernBaseline.seededInfrastructureAssets >= 17);
 assert.equal(world.scenarioModernBaseline.seededRailLinks, 2);
 
+for (const techId of [
+  'internal_combustion_tractors',
+  'mechanised_combine_harvesters',
+  'industrial_ammonia_synthesis',
+  'synthetic_nitrogen_fertiliser',
+  'petroleum_refining',
+  'petroleum_cracking',
+  'integrated_pest_management',
+]) {
+  assert.ok(kent.unlockedTechIds.has(techId), `2027 Kent should already know ${techId}`);
+}
+
+assert.ok(kent.stockpile.food > 200_000, 'Kent should start with a meaningful food distribution stock instead of a Bronze Age pantry');
+assert.ok(kent.stockpile.diesel > 10_000, 'Kent should start with diesel/distillate stocks for transport and agriculture');
+assert.ok(kent.stockpile.fertiliser > 4_000, 'Kent should start with synthetic fertiliser available to modern agriculture');
+assert.ok(kent.stockpile.clothes > 10_000 && kent.stockpile.textiles > 7_000, 'ordinary consumer goods should already exist');
+assert.ok(kent.stockpile.stone > 30_000 && kent.stockpile.wood > 20_000, 'modern construction should have ordinary building materials available');
+assert.ok(kent.industrialSupply.inventory.machine_components > 2_500, 'modern industry should start with maintenance/components inventory');
+assert.ok(kent.agriculturalMachinery.tractors > 3_500, 'Kent should start with an installed tractor fleet');
+assert.ok(kent.agriculturalMachinery.combines > 800, 'Kent should start with an installed combine fleet');
+assert.equal(kent.agriculturalMachinery.serviceableTractors, kent.agriculturalMachinery.tractors);
+assert.equal(Number(kent.stockpile.battery_grade_lithium || 0), 0, 'Kent should not receive arbitrary strategic lithium reserves');
+assert.equal(Number(kent.stockpile.cobalt_ore || 0), 0, 'Kent should not receive arbitrary cobalt deposits/stockpiles');
+assert.equal(Number(london.stockpile.fertiliser || 0), 0, 'Kent-specific stock calibration should not silently leak to other regions');
+assert.equal(world.scenarioModernBaseline.starterEconomyRegions, 1);
+
 const resourceUi = readFileSync(new URL('../js/ui/resourceOverlayUi.js', import.meta.url), 'utf8');
 assert.match(resourceUi, /#resource-overlay-controls \{[^}]*pointer-events:auto/s, 'resource control panel must receive pointer events');
 assert.match(resourceUi, /event\.stopPropagation\(\)/, 'resource interactions must not bubble through to the map interaction surface');
