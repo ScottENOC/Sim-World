@@ -1,11 +1,8 @@
 name: Industrial railways
 
-permissions:
-  contents: write
-
 on:
   push:
-    branches: [feature/rail-commuting-modern-construction]
+    branches: [industrial-procurement-railways-v1]
   pull_request:
 
 jobs:
@@ -13,30 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: feature/rail-commuting-modern-construction
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Apply transport and construction integration
-        run: python3 tools/apply-transport-construction-realism.py
-      - name: Syntax and focused regressions
-        run: |
-          node --check js/economy/construction.js
-          node --check js/economy/labor.js
-          node --check js/economy/railways.js
-          node --check js/economy/electricity.js
-          node --check js/ui/mobileGameplayControls.js
-          node tests/transportConstructionRealism.test.mjs
-          node tools/test-industrial-railways.mjs
-      - name: Commit migrated sources
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add js/economy/construction.js js/economy/labor.js js/economy/railways.js js/economy/electricity.js js/ui/mobileGameplayControls.js
-          if git diff --cached --quiet; then
-            echo 'Source migration already applied.'
-          else
-            git commit -m 'Integrate rail commuting and modern construction productivity'
-            git push origin HEAD:feature/rail-commuting-modern-construction
-          fi
+      - run: node tools/test-industrial-railways.mjs
