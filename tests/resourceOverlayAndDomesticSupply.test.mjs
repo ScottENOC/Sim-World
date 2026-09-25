@@ -83,11 +83,12 @@ import { sourceModernConstructionSupplies } from '../js/economy/modernDomesticCo
 
 {
   const source = readFileSync(new URL('../js/ui/resourceOverlayUi.js', import.meta.url), 'utf8');
+  const flowSource = readFileSync(new URL('../js/economy/resourceFlow.js', import.meta.url), 'utf8');
   for (const label of ['Stockpiled', 'Production', 'Consumption', 'Net production']) {
     assert.match(source, new RegExp(label), `resource overlay should expose ${label}`);
   }
   assert.match(source, /id="resource-overlay-resource"/, 'resource overlay should expose a resource dropdown');
-  assert.match(source, /industrialSupply/, 'resource overlay catalogue should include manufactured industrial inventory');
+  assert.match(flowSource, /industrialSupply\?\.inventory/, 'resource catalogue should include manufactured industrial inventory');
   assert.match(source, /visualOverlay: 'resource'/, 'resource overlay should use the shared map layer renderer');
 }
 
