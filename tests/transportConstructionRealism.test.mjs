@@ -23,14 +23,17 @@ function baseRegion(id, name, polity = 'uk') {
 
 const kent = baseRegion('kent', 'Kent');
 const london = baseRegion('london', 'London');
+// Force a genuine local labour shortage so the test exercises mobility rather
+// than simply satisfying the 200-worker request from Kent itself.
+kent.demographics.workingAge = 250;
 kent.railConnections = {
   london: {
     status: 'operational', effectiveCapacity: 1.6, passengerCapacity: 1.45,
     lengthKm: 110, maxSpeedKph: 300, highSpeedCapable: true,
     electrification: ['third_rail_750v_dc', 'overhead_25kv_ac'],
     lines: {
-      conventional: { lineId: 'conventional', effectiveCapacity: .8, passengerCapacity: .75, lengthKm: 110, maxSpeedKph: 160, electrification: 'third_rail_750v_dc', rollingStock: { electric: 1 } },
-      hs1: { lineId: 'hs1', effectiveCapacity: .8, passengerCapacity: .7, lengthKm: 110, maxSpeedKph: 300, electrification: 'overhead_25kv_ac', rollingStock: { highSpeedElectric: 1 } },
+      conventional: { lineId: 'conventional', status: 'operational', effectiveCapacity: .8, passengerCapacity: .75, lengthKm: 110, maxSpeedKph: 160, electrification: 'third_rail_750v_dc', rollingStock: { electric: 1 } },
+      hs1: { lineId: 'hs1', status: 'operational', effectiveCapacity: .8, passengerCapacity: .7, lengthKm: 110, maxSpeedKph: 300, electrification: 'overhead_25kv_ac', rollingStock: { highSpeedElectric: 1 } },
     },
   },
 };
@@ -44,6 +47,7 @@ assert.ok(rail.travelMinutes < 90, 'high-speed rail should keep the modelled Ken
 startConstruction(kent, 'public_granary', 200, 0);
 prepareConstructionLabor([kent, london]);
 const localOnly = kent.construction.workersReserved;
+assert.ok(localOnly < 200, 'fixture should have a real local construction labour shortage');
 applyConstructionLaborMobility([kent, london]);
 assert.ok(kent.construction.importedWorkersReserved > 0, 'Kent should be able to attract construction labour from London by rail');
 assert.equal(kent.laborMobility.incomingConstructionWorkers, london.laborMobility.outgoingConstructionWorkers, 'commuters must be removed from the donor region rather than duplicated');
@@ -52,6 +56,7 @@ assert.ok(kent.construction.workersReserved > localOnly, 'commuting should expan
 const foreign = baseRegion('foreign', 'Foreign', 'france');
 foreign.railConnections = { kent: kent.railConnections.london };
 const isolatedKent = baseRegion('isolated-kent', 'Kent', 'uk');
+isolatedKent.demographics.workingAge = 250;
 isolatedKent.railConnections = { foreign: foreign.railConnections.kent };
 startConstruction(isolatedKent, 'public_granary', 200, 0);
 prepareConstructionLabor([isolatedKent, foreign]);
