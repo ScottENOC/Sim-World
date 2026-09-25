@@ -167,12 +167,16 @@ function installFlowAndSupply(sim) {
     }
   });
 
-  const supplyTimer = setInterval(() => {
-    if (!window.__worldsim) return;
-    installResourceFlowTracking(sim.regions);
-    sourceAllModernConstructionSupplies(sim.regions);
-  }, 250);
-  sim._resourceSupplyTimer = supplyTimer;
+  // The Council's own click handler creates the project at the target first;
+  // this bubbled handler then sources an initial domestic material buffer
+  // immediately, avoiding a deliberately wasted/stalled first turn.
+  document.addEventListener('click', (event) => {
+    if (!(event.target instanceof Element) || !event.target.closest('#start-construction')) return;
+    queueMicrotask(() => {
+      installResourceFlowTracking(sim.regions);
+      sourceAllModernConstructionSupplies(sim.regions);
+    });
+  });
 }
 
 export function installResourceOverlayUi(sim) {
