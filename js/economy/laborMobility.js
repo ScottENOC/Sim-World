@@ -31,10 +31,38 @@ function greatCircleKm(a, b) {
   return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(Math.max(0, 1 - h)));
 }
 
+function lineElectricShare(connection) {
+  const lines = Object.values(connection?.lines || {});
+  if (!lines.length) {
+    const electrified = Array.isArray(connection?.electrification)
+      ? connection.electrification.some((value) => value && value !== 'none')
+      : connection?.electrification && connection.electrification !== 'none';
+    return electrified ? 1 : 0;
+  }
+  let capacity = 0;
+  let electricCapacity = 0;
+  for (const line of lines) {
+    const lineCapacity = nonNegative(line.passengerCapacity || line.effectiveCapacity);
+    const stock = line.rollingStock || {};
+    const totalStock = nonNegative(stock.steam) + nonNegative(stock.diesel) + nonNegative(stock.electric) + nonNegative(stock.highSpeedElectric);
+    const electricStock = totalStock > 0 ? (nonNegative(stock.electric) + nonNegative(stock.highSpeedElectric)) / totalStock : 0;
+    capacity += lineCapacity;
+    electricCapacity += lineCapacity * electricStock;
+  }
+  return capacity > 0 ? clamp(electricCapacity / capacity) : 0;
+}
+
 export function railCommuteProfile(fromRegion, toRegion) {
   const connection = fromRegion?.railConnections?.[toRegion?.id];
   if (!connection || connection.status === 'destroyed' || connection.status === 'construction') return null;
-  const passengerCapacity = nonNegative(connection.passengerCapacity);
+  const nominalPassengerCapacity = nonNegative(connection.passengerCapacity);
+  const electricShare = lineElectricShare(connection);
+  const endpointElectricService = clamp((
+    clamp(fromRegion?.electricity?.industrialService ?? fromRegion?.electricity?.service ?? 0) +
+    clamp(toRegion?.electricity?.industrialService ?? toRegion?.electricity?.service ?? 0)
+  ) / 2);
+  const tractionFactor = 1 - electricShare * (1 - endpointElectricService);
+  const passengerCapacity = nominalPassengerCapacity * tractionFactor;
   const speedKph = Math.max(25, nonNegative(connection.maxSpeedKph) || 80);
   const distanceKm = Math.max(1, nonNegative(connection.lengthKm) || greatCircleKm(fromRegion, toRegion));
   if (passengerCapacity <= 0.01) return null;
@@ -48,7 +76,10 @@ export function railCommuteProfile(fromRegion, toRegion) {
     travelMinutes,
     workerShare,
     passengerCapacity,
+    nominalPassengerCapacity,
     speedKph,
+    electricShare,
+    electricityService: endpointElectricService,
     highSpeedCapable: Boolean(connection.highSpeedCapable),
   };
 }
