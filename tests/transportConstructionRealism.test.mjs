@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { applyConstructionLaborMobility, railCommuteProfile, automobileCommuteProfile } from '../js/economy/laborMobility.js';
 import { constructionProductivity } from '../js/economy/constructionProductivity.js';
 import { startConstruction, prepareConstructionLabor, tickConstruction } from '../js/economy/construction.js';
+import { regionalRailElectricityDemand } from '../js/economy/railways.js';
+import { electricityDemand } from '../js/economy/electricity.js';
 
 function baseRegion(id, name, polity = 'uk') {
   return {
@@ -43,6 +45,16 @@ london.electricity.industrialService = .95;
 const rail = railCommuteProfile(london, kent);
 assert.ok(rail && rail.workerShare > 0, 'a fast high-capacity Kent-London rail connection should support commuting');
 assert.ok(rail.travelMinutes < 90, 'high-speed rail should keep the modelled Kent-London journey inside the commuting window');
+const railGridLoad = regionalRailElectricityDemand(london, 7);
+assert.ok(railGridLoad > 0, 'electric railways should create a real regional electricity load');
+assert.ok(electricityDemand(london, 7).railElectricityDemand > 0, 'rail traction demand should be included in electricity dispatch demand');
+const healthyRailShare = rail.workerShare;
+kent.electricity.industrialService = .1;
+london.electricity.industrialService = .1;
+const constrainedRail = railCommuteProfile(london, kent);
+assert.ok(constrainedRail && constrainedRail.workerShare < healthyRailShare * .5, 'electric commuting capacity should fall when the endpoint grids cannot serve traction');
+kent.electricity.industrialService = .95;
+london.electricity.industrialService = .95;
 
 startConstruction(kent, 'public_granary', 200, 0);
 prepareConstructionLabor([kent, london]);
@@ -107,4 +119,4 @@ assert.ok(Math.abs(weekly.construction.projects[0].workDone - daily.construction
   'seven daily construction ticks should deliver the same work as one seven-day tick when inputs are unchanged');
 assert.ok(weekly.construction.lastWeek?.productivity >= 2.5, 'construction reporting should expose the productivity multiplier');
 
-console.log('Rail commuting and modern construction productivity regressions passed.');
+console.log('Rail commuting, rail electricity and modern construction productivity regressions passed.');
