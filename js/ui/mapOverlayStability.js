@@ -1,3 +1,5 @@
+import './resourceOverlayUi.js?v=20260925-resource1';
+
 // Stable map-overlay scaling for the map-first UI.
 //
 // Fog-of-war discovery must not recolour the entire known world. The original
@@ -43,6 +45,16 @@ function robustDomain(regions, valueFn, label) {
 
   const values = regions.map((region) => finite(valueFn(region), NaN)).filter(Number.isFinite).sort((a, b) => a - b);
   if (!values.length) return [0, 1];
+
+  // Signed resource-flow overlays need to retain deficits as well as surpluses.
+  // Use robust tails so one extreme region does not make the rest of the world
+  // unreadable, while ordinary non-negative overlays keep their familiar zero base.
+  if (values[0] < 0) {
+    let lower = Math.min(0, percentile(values, 0.05));
+    let upper = Math.max(0, percentile(values, 0.95));
+    if (upper - lower < 1e-9) { lower = Math.min(-1, lower); upper = Math.max(1, upper); }
+    return [lower, upper];
+  }
 
   // Economic/military overlays are usually zero-heavy with a long tail. The
   // 95th percentile makes the ordinary range readable while extreme values
