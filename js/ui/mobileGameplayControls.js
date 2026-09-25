@@ -6,6 +6,7 @@ import {
   setConstructionWorkers,
   cancelConstruction,
 } from '../economy/construction.js?v=20260905-projects1';
+import { constructionProductivityBreakdown } from '../economy/constructionProductivity.js?v=20260925-construction-productivity1';
 import {
   SHIP_DESIGNS,
   ensureNavalProcurement,
@@ -133,6 +134,23 @@ function ensureInfrastructureModal() {
   return modal;
 }
 
+function labourSummary(region) {
+  const mobility = region?.laborMobility || {};
+  const state = ensureConstruction(region);
+  const workingAge = Math.round(Number(region?.demographics?.workingAge) || 0);
+  const occupations = Object.entries(region?.report || {})
+    .map(([key, value]) => [key, Math.round(Number(value?.workers) || 0)])
+    .filter(([, workers]) => workers > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8);
+  const sources = (mobility.constructionSources || []).map((source) => `${esc(source.regionName)}: ${Math.round(source.workers).toLocaleString()} by ${esc(source.mode)}`).join(' · ');
+  return `<div class="mobile-build-summary"><strong>Labour</strong>
+    <div class="mobile-build-muted">Working age ${workingAge.toLocaleString()} · local builders ${Math.round(state.localWorkersReserved ?? state.workersReserved ?? 0).toLocaleString()} · incoming commuters ${Math.round(mobility.incomingConstructionWorkers || 0).toLocaleString()} · outgoing commuters ${Math.round(mobility.outgoingConstructionWorkers || 0).toLocaleString()}</div>
+    ${sources ? `<div class="mobile-build-muted">Construction labour sources: ${sources}</div>` : ''}
+    ${occupations.length ? `<div class="mobile-build-muted">Current work: ${occupations.map(([key, workers]) => `${esc(key.replaceAll('_', ' '))} ${workers.toLocaleString()}`).join(' · ')}</div>` : ''}
+  </div>`;
+}
+
 function renderInfrastructureModal(sim, region) {
   const modal = ensureInfrastructureModal();
   const title = modal.querySelector('#infrastructure-build-title');
@@ -153,6 +171,7 @@ function renderInfrastructureModal(sim, region) {
       <strong>Existing infrastructure</strong>
       <div class="mobile-build-muted">${assets.length ? assets.map((asset) => esc(CONSTRUCTION_TYPES[asset.typeId]?.name || asset.typeId)).join(' · ') : 'None recorded in this region.'}</div>
     </div>
+    ${labourSummary(region)}
     <div class="mobile-build-summary">
       <strong>Construction</strong>
       ${active.length ? active.map((project) => {
@@ -160,7 +179,8 @@ function renderInfrastructureModal(sim, region) {
         const progress = Math.min(100, Math.round((project.workDone || 0) / Math.max(1, project.workRequired || type?.workRequired || 1) * 100));
         return `<div class="mobile-project-row" data-project-id="${project.id}">
           <strong>${esc(type?.name || project.typeId)}</strong> · ${progress}%
-          <div class="mobile-build-muted">${Math.round(project.targetWorkers || 0)} target workers${project.stalledReason ? ` · stalled: ${esc(String(project.stalledReason).replaceAll('_', ' '))}` : ''}</div>
+          <div class="mobile-build-muted">${Math.round(project.targetWorkers || 0)} target workers · ${Math.round(state.localWorkersReserved ?? state.workersReserved ?? 0)} local · ${Math.round(state.importedWorkersReserved || 0)} commuting${project.stalledReason ? ` · stalled: ${esc(String(project.stalledReason).replaceAll('_', ' '))}` : ''}</div>
+          <div class="mobile-build-muted">Current productivity: ${constructionProductivityBreakdown(region, project.typeId).total.toFixed(2)}× effective work per worker-week</div>
           ${controlled ? `<div class="mobile-build-grid"><label>Workers <input data-project-workers type="number" min="${type?.minWorkers || 1}" max="${type?.maxWorkers || 100000}" value="${Math.round(project.targetWorkers || type?.defaultWorkers || 1)}"></label><button data-cancel-project>Cancel</button></div>` : ''}
         </div>`;
       }).join('') : '<div class="mobile-build-muted">No active project.</div>'}
@@ -189,7 +209,7 @@ function renderInfrastructureModal(sim, region) {
     const workers = content.querySelector('#mobile-construction-workers');
     if (workers && document.activeElement !== workers) workers.value = entry.type.defaultWorkers;
     const detail = content.querySelector('#mobile-construction-detail');
-    if (detail) detail.innerHTML = `${esc(entry.type.description || '')}<br><strong>Materials:</strong> ${esc(materialText(entry.type.materials))} · <strong>Work:</strong> ${Math.round(entry.type.workRequired || 0).toLocaleString()} worker-weeks`;
+    if (detail) { const productivity = constructionProductivityBreakdown(region, entry.type.id).total; detail.innerHTML = `${esc(entry.type.description || '')}<br><strong>Materials:</strong> ${esc(materialText(entry.type.materials))} · <strong>Base work:</strong> ${Math.round(entry.type.workRequired || 0).toLocaleString()} worker-weeks · <strong>Current productivity:</strong> ${productivity.toFixed(2)}×`; }
   };
   content.querySelector('#mobile-construction-type')?.addEventListener('change', refreshDetail);
   refreshDetail();

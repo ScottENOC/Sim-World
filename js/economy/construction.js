@@ -1,4 +1,5 @@
 import { localPrice } from './prices.js?v=20260904-weather1';
+import { constructionProductivity } from './constructionProductivity.js?v=20260925-construction-productivity1';
 
 export const HILL_FORT_TECH_ID = 'hill_forts';
 
@@ -520,11 +521,12 @@ export function constructionEstimate(region, typeId, workers) {
   if (!type) return null;
   const assigned = clamp(Number(workers) || type.defaultWorkers, type.minWorkers, type.maxWorkers);
   const spec = scaledProjectSpec(type, assigned);
-  const weeks = Math.ceil(spec.workRequired / assigned);
-  const wages = spec.workRequired * type.wagePerWorkerWeek;
+  const productivity = constructionProductivity(region, typeId);
+  const weeks = Math.ceil(spec.workRequired / Math.max(0.001, assigned * productivity));
+  const wages = spec.workRequired / Math.max(0.001, productivity) * type.wagePerWorkerWeek;
   const supplies = Object.entries(spec.materialsRequired).reduce((sum, [resource, amount]) =>
     sum + amount * localPrice(region, resource), 0);
-  return { workers: assigned, weeks, wages, supplies, totalCost: wages + supplies,
+  return { workers: assigned, weeks, wages, supplies, totalCost: wages + supplies, productivity,
     materials: { ...spec.materialsRequired }, scale: spec.scale, monumental: Boolean(type.monumental) };
 }
 
@@ -558,10 +560,12 @@ export function tickConstruction(regions, currentTick, elapsedDays = 7) {
     const requiredMaterials = project.materialsRequired || type.materials;
     const remainingWork = Math.max(0, requiredWork - project.workDone);
     const workers = Math.min(state.workersReserved || 0, remainingWork);
-    const desiredWork = workers * weekScale;
+    const productivity = constructionProductivity(region, project.typeId);
+    const desiredWorkerWeeks = workers * weekScale;
+    const desiredWork = desiredWorkerWeeks * productivity;
     const desiredFraction = desiredWork / requiredWork;
     let affordableFraction = desiredFraction;
-    const fullWageCost = requiredWork * type.wagePerWorkerWeek;
+    const fullWageCost = requiredWork / Math.max(0.001, productivity) * type.wagePerWorkerWeek;
     const fullSupplyCost = Object.entries(requiredMaterials).reduce((sum, [resource, total]) =>
       sum + total * localPrice(region, resource), 0);
     const fullCost = fullWageCost + fullSupplyCost;
@@ -570,9 +574,10 @@ export function tickConstruction(regions, currentTick, elapsedDays = 7) {
       affordableFraction = Math.min(affordableFraction, Math.max(0, region.stockpile?.[resource] || 0) / total);
     }
     const work = Math.min(remainingWork, requiredWork * Math.max(0, affordableFraction));
-    const actualWorkers = Math.min(workers, work / weekScale);
+    const workerWeeksUsed = Math.min(desiredWorkerWeeks, work / Math.max(0.001, productivity));
+    const actualWorkers = Math.min(workers, workerWeeksUsed / weekScale);
     const fraction = work / requiredWork;
-    const wages = actualWorkers * type.wagePerWorkerWeek * weekScale;
+    const wages = workerWeeksUsed * type.wagePerWorkerWeek;
     let supplies = 0;
     for (const [resource, total] of Object.entries(requiredMaterials)) {
       const used = Math.min(region.stockpile[resource] || 0, total * fraction);
@@ -586,7 +591,7 @@ export function tickConstruction(regions, currentTick, elapsedDays = 7) {
     project.workDone += work; project.wagesPaid += wages; project.suppliesPaid += supplies; project.workersThisWeek = Math.round(actualWorkers);
     project.stalledReason = work > 0 ? null : workers <= 0 ? 'No labour is available'
       : (region.treasury || 0) <= 0 ? 'The treasury cannot meet wages' : 'Required materials are unavailable';
-    state.lastWeek = { projectId: project.id, workers: project.workersThisWeek, work, wages, supplies, stalledReason: project.stalledReason };
+    state.lastWeek = { projectId: project.id, workers: project.workersThisWeek, localWorkers: Math.round(state.localWorkersReserved ?? project.workersThisWeek), importedWorkers: Math.round(state.importedWorkersReserved || 0), productivity, work, wages, supplies, stalledReason: project.stalledReason };
     if (project.workDone >= requiredWork - 0.001) events.push(completeProject(region, project, type, currentTick));
   }
   return events;

@@ -17,6 +17,7 @@ import { tickCropBiotechnology, cropBiotechnologySummary } from './cropBiotechno
 import { tickLivestockAgriculture, livestockAgricultureSummary } from './livestockAgriculture.js?v=20260921-livestock1';
 import { tickAlternativeProteins, alternativeProteinSummary } from './alternativeProteins.js?v=20260922-alt-protein1';
 import { recordMaterialUse, tickCircularEconomy } from './circularEconomy.js?v=20260922-circular1';
+import { applyConstructionLaborMobility } from './laborMobility.js?v=20260925-labor-mobility1';
 import { tickNuclearWarRisk } from '../military/nuclearWarRisk.js?v=20260921-nuclear-risk1';
 import { tickNuclearExchange } from '../military/nuclearExchange.js?v=20260921-nuclear-exchange1';
 import { measureActivePerformanceDetail, recordActivePerformanceMetric } from '../core/performanceProfiler.js?v=20260912-deep-profiler1';
@@ -134,6 +135,7 @@ function normaliseReportMetadata(region) {
 }
 
 export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, currentTick = null, elapsedDays = 7, endDay = null) {
+  applyConstructionLaborMobility(regions);
   const reservations = [];
   economyDetail('reservation and land setup', () => {
     for (const region of regions) {
@@ -142,6 +144,12 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
       updateCultivatedLand(region);
       const previousOccupations = { ...(region.occupations || {}) };
       const housingConstruction = prepareHousingConstruction(region, elapsedDays);
+      const outgoingConstructionCommuters = positive(region.laborMobility?.outgoingConstructionWorkers);
+      const constructionState = region.construction;
+      const totalConstructionWorkers = positive(constructionState?.workersReserved);
+      const localConstructionWorkers = positive(constructionState?.localWorkersReserved ?? totalConstructionWorkers);
+      if (constructionState) constructionState.workersReserved = localConstructionWorkers;
+      if (outgoingConstructionCommuters > 0 && region.demographics) region.demographics.workingAge = Math.max(0, positive(region.demographics.workingAge) - outgoingConstructionCommuters);
       const fullWorkingAge = positive(region.demographics?.workingAge);
       const housingBuilders = Math.min(fullWorkingAge, positive(housingConstruction.workers));
       if (housingBuilders > 0 && region.demographics) region.demographics.workingAge = Math.max(0, fullWorkingAge - housingBuilders);
@@ -154,7 +162,7 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
       const industrialSupport = structural.industrialSupport * structuralScale;
       const services = structural.services * structuralScale;
       const reserved = merchants + artists.total + industrialSupport + services;
-      reservations.push([region, housingBuilders, housingConstruction, previousOccupations, merchants, artists, industrialSupport, services]);
+      reservations.push([region, housingBuilders, housingConstruction, previousOccupations, merchants, artists, industrialSupport, services, outgoingConstructionCommuters, totalConstructionWorkers]);
       if (reserved > 0 && region.demographics) region.demographics.workingAge = Math.max(0, region.demographics.workingAge - reserved);
     }
   });
@@ -177,8 +185,9 @@ export function tickEconomy(regions, seaRegions, toolTypes, rng = Math.random, c
   } finally {
     let batteryActors = 0, lightMetalActors = 0, circularActors = 0;
     economyDetail('post-core industry and reports', () => {
-      for (const [region, housingBuilders, housingConstruction, previousOccupations, merchants, artists, industrialSupport, services] of reservations) {
-        if (region.demographics) region.demographics.workingAge += housingBuilders + merchants + artists.total + industrialSupport + services;
+      for (const [region, housingBuilders, housingConstruction, previousOccupations, merchants, artists, industrialSupport, services, outgoingConstructionCommuters, totalConstructionWorkers] of reservations) {
+        if (region.demographics) region.demographics.workingAge += housingBuilders + merchants + artists.total + industrialSupport + services + outgoingConstructionCommuters;
+        if (region.construction) region.construction.workersReserved = totalConstructionWorkers;
         region.occupations ||= {};
         region.occupations.trader = merchants;
         region.occupations.artist = Math.min(artists.professionalArtists, artists.total);
