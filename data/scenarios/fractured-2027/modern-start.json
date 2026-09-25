@@ -21,9 +21,20 @@
     "greenland": 57000
   },
   "regionalPopulationWeights": {
-    "london": 0.13
+    "london": 0.13,
+    "kent": 0.0271
   },
   "regionalAutomobilesPer1000": {},
+  "countryInfrastructureDefaults": {
+    "united-kingdom": ["road_network", "local_electric_grid", "telegraph_network", "telephone_exchange"]
+  },
+  "regionalInfrastructure": {
+    "kent": ["harbour"]
+  },
+  "regionalRailLinks": [
+    { "from": "Kent", "to": "London", "lengthKm": 110, "capacity": 0.95 },
+    { "from": "Kent", "to": "East Sussex", "lengthKm": 90, "capacity": 0.75 }
+  ],
   "commonTechIds": [
     "electrical_generation",
     "local_electric_distribution",

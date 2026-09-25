@@ -59,12 +59,12 @@ function installStyles() {
   const style = document.createElement('style');
   style.id = 'resource-overlay-styles';
   style.textContent = `
-    #resource-overlay-controls { margin-top:7px; padding-top:7px; border-top:1px solid rgba(192,138,78,.28); }
+    #resource-overlay-controls { margin-top:7px; padding-top:7px; border-top:1px solid rgba(192,138,78,.28); pointer-events:auto; position:relative; z-index:2; touch-action:manipulation; }
     #resource-overlay-controls.hidden { display:none; }
     #resource-overlay-controls .resource-row { display:flex; gap:6px; align-items:center; }
-    #resource-overlay-controls select { min-width:0; flex:1; background:rgba(12,16,24,.9); color:var(--parchment); border:1px solid var(--bronze-dim); border-radius:6px; padding:5px 7px; font-size:11px; }
-    #resource-overlay-controls .resource-metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px; margin-top:6px; }
-    #resource-overlay-controls .resource-metric { min-height:28px; padding:4px 5px; border:1px solid rgba(192,138,78,.36); border-radius:6px; background:rgba(16,20,28,.72); color:var(--parchment-dim); font-size:10px; }
+    #resource-overlay-controls select { min-width:0; flex:1; background:rgba(12,16,24,.9); color:var(--parchment); border:1px solid var(--bronze-dim); border-radius:6px; padding:5px 7px; font-size:11px; pointer-events:auto; }
+    #resource-overlay-controls .resource-metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px; margin-top:6px; pointer-events:auto; }
+    #resource-overlay-controls .resource-metric { min-height:28px; padding:4px 5px; border:1px solid rgba(192,138,78,.36); border-radius:6px; background:rgba(16,20,28,.72); color:var(--parchment-dim); font-size:10px; pointer-events:auto; }
     #resource-overlay-controls .resource-metric.active { color:var(--parchment); border-color:var(--bronze); background:rgba(192,138,78,.18); }
     #resource-overlay-note { margin-top:5px; color:var(--parchment-dim); font-size:9px; line-height:1.25; }
   `;
@@ -86,6 +86,13 @@ function ensureControls(sim) {
     </div>
     <div id="resource-overlay-note">Production and consumption show gross additions/removals recorded during the last simulation turn; trade is included. Domestic construction transfers are excluded.</div>`;
   legend.appendChild(controls);
+
+  // The legend itself deliberately ignores pointer events so map gestures work
+  // around it. Resource controls must opt back in and swallow their own pointer
+  // events so taps never fall through to the full-screen map interaction layer.
+  for (const eventName of ['pointerdown', 'pointerup', 'click', 'touchstart', 'touchend']) {
+    controls.addEventListener(eventName, (event) => event.stopPropagation(), { passive: eventName.startsWith('touch') });
+  }
 
   const select = controls.querySelector('#resource-overlay-resource');
   const ids = allResourceIds(sim);

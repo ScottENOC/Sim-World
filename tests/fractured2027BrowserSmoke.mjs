@@ -40,6 +40,18 @@ try {
   // Give the requestAnimationFrame visibility/map redraws time to paint the final frame.
   await page.waitForTimeout(500);
 
+  // Resource overlay controls live inside a deliberately click-through legend.
+  // Exercise real pointer clicks so a regression where the map interaction
+  // surface receives the tap instead causes this smoke test to fail.
+  const resourcesButton = page.locator('#layer-resources');
+  await resourcesButton.waitFor({ state: 'visible', timeout: 10_000 });
+  await resourcesButton.click();
+  const resourceSelect = page.locator('#resource-overlay-resource');
+  await resourceSelect.waitFor({ state: 'visible', timeout: 10_000 });
+  await resourceSelect.click();
+  await page.keyboard.press('Escape');
+  await page.locator('[data-resource-metric="consumption"]').click();
+
   const state = await page.evaluate(() => {
     const sim = window.__worldsim;
     const runtime = window.__worldsimScenarioRuntime;
@@ -61,6 +73,7 @@ try {
 
     const visibleLand = sim.regions.filter((region) => sim.map.isRegionVisible(region)).length;
     const visibleSea = (sim.seaRegions || []).filter((region) => sim.map.isSeaRegionVisible(region)).length;
+    const kent = sim.regions.find((region) => region.name === 'Kent');
 
     return {
       scenarioId: runtime.scenarioId,
@@ -74,6 +87,9 @@ try {
       canvasHeight: canvas.height,
       sampledColourCount: colours.size,
       opaqueSamples,
+      resourceLayerLabel: sim.map.layer?.label || '',
+      kentPopulation: kent?.population || 0,
+      kentHasHarbour: Boolean(kent?.construction?.assets?.some((asset) => asset.typeId === 'harbour')),
     };
   });
 
@@ -88,6 +104,9 @@ try {
   assert.ok(state.canvasWidth > 0 && state.canvasHeight > 0, 'map canvas must have non-zero dimensions');
   assert.ok(state.opaqueSamples > 0, 'map canvas must contain painted pixels');
   assert.ok(state.sampledColourCount >= 4, `map canvas appears blank/flat; only ${state.sampledColourCount} sampled colours were rendered`);
+  assert.match(state.resourceLayerLabel, /Consumption$/, 'resource metric click should change the live map layer');
+  assert.equal(state.kentPopulation, 1_897_000, 'browser startup should apply the Kent modern population baseline');
+  assert.equal(state.kentHasHarbour, true, 'Kent should start 2027 with its existing harbour infrastructure');
 
   const fatalStartupErrors = pageErrors.filter((message) => /scenario|startup|hydrate|map/i.test(message));
   assert.deepEqual(fatalStartupErrors, [], `browser emitted startup errors: ${fatalStartupErrors.join(' | ')}`);
