@@ -17,8 +17,8 @@ replace('js/economy/construction.js',
         "const productivity = constructionProductivity(region, typeId);",
         "const productivity = constructionProductivity(region, typeId, assigned);")
 replace('js/economy/construction.js',
-        "  for (const region of regions) {\n    const state = ensureConstruction(region);\n    const project = state.projects.find((item) => item.status === 'active');",
-        "  for (const region of regions) {\n    tickConstructionEquipment(region, elapsedDays);\n    const state = ensureConstruction(region);\n    const project = state.projects.find((item) => item.status === 'active');")
+        "export function tickConstruction(regions, currentTick, elapsedDays = 7) {\n  const weekScale = Math.max(0.01, elapsedDays / 7);\n  const events = [];\n  for (const region of regions) {",
+        "export function tickConstruction(regions, currentTick, elapsedDays = 7) {\n  const weekScale = Math.max(0.01, elapsedDays / 7);\n  const events = [];\n  for (const region of regions) {\n    tickConstructionEquipment(region, elapsedDays);")
 replace('js/economy/construction.js',
         "const productivity = constructionProductivity(region, project.typeId);",
         "const productivity = constructionProductivity(region, project.typeId, workers);")
