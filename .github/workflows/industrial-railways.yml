@@ -13,4 +13,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node tools/test-industrial-railways.mjs
+      - name: Syntax
+        run: |
+          node --check js/economy/railways.js
+          node --check js/economy/electricity.js
+          node --check js/economy/laborMobility.js
+          node --check js/economy/constructionProductivity.js
+          node --check js/economy/construction.js
+          node --check js/economy/labor.js
+          node --check js/ui/mobileGameplayControls.js
+      - name: Industrial railway regressions
+        run: node tools/test-industrial-railways.mjs
+      - name: Transport and construction realism regressions
+        run: node tests/transportConstructionRealism.test.mjs
