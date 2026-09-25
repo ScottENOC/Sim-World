@@ -66,20 +66,13 @@ export function railCommuteProfile(fromRegion, toRegion) {
   const speedKph = Math.max(25, nonNegative(connection.maxSpeedKph) || 80);
   const distanceKm = Math.max(1, nonNegative(connection.lengthKm) || greatCircleKm(fromRegion, toRegion));
   if (passengerCapacity <= 0.01) return null;
-  // Timetable/station friction keeps line speed from being treated as door-to-door speed.
   const travelMinutes = distanceKm / speedKph * 60 * 1.35 + 20;
   if (travelMinutes > 150) return null;
   const timeFactor = clamp((150 - travelMinutes) / 105, 0.08, 1);
   const workerShare = clamp(passengerCapacity * 0.055 * timeFactor, 0, 0.12);
   return {
-    mode: 'rail',
-    travelMinutes,
-    workerShare,
-    passengerCapacity,
-    nominalPassengerCapacity,
-    speedKph,
-    electricShare,
-    electricityService: endpointElectricService,
+    mode: 'rail', travelMinutes, workerShare, passengerCapacity, nominalPassengerCapacity,
+    speedKph, electricShare, electricityService: endpointElectricService,
     highSpeedCapable: Boolean(connection.highSpeedCapable),
   };
 }
@@ -96,11 +89,9 @@ export function automobileCommuteProfile(fromRegion, toRegion) {
   const ownershipFactor = clamp(carsPer1000 / 600);
   const timeFactor = clamp((120 - travelMinutes) / 80, 0.08, 1);
   return {
-    mode: 'automobile',
-    travelMinutes,
+    mode: 'automobile', travelMinutes,
     workerShare: clamp(0.07 * ownershipFactor * timeFactor, 0, 0.07),
-    carsPer1000,
-    distanceKm,
+    carsPer1000, distanceKm,
   };
 }
 
@@ -130,13 +121,14 @@ function resetMobility(region) {
   }
 }
 
-/**
- * Expand already-prepared local construction labour with real commuters.
- *
- * This runs after construction.prepareConstructionLabor(). The donor-side workers
- * are removed from the ordinary economy by labor.js for the same tick, preventing
- * one person from building in Kent and working in a London factory simultaneously.
- */
+function connectedCandidateIds(region) {
+  return new Set([
+    ...Object.keys(region?.railConnections || {}),
+    ...(Array.isArray(region?.neighbors) ? region.neighbors : []),
+  ]);
+}
+
+/** Expand already-prepared local construction labour with real commuters. */
 export function applyConstructionLaborMobility(regions = []) {
   const byId = new Map(regions.map((region) => [region.id, region]));
   for (const region of regions) resetMobility(region);
@@ -149,8 +141,11 @@ export function applyConstructionLaborMobility(regions = []) {
     if (unmet < 1) continue;
 
     const candidates = [];
-    for (const donor of regions) {
-      if (donor === destination || !samePolity(donor, destination)) continue;
+    // Only transport-connected regions can commute. This keeps runtime scaling
+    // with the transport graph instead of scanning the whole world per project.
+    for (const donorId of connectedCandidateIds(destination)) {
+      const donor = byId.get(donorId);
+      if (!donor || donor === destination || !samePolity(donor, destination)) continue;
       const profile = bestCommuteProfile(donor, destination);
       if (!profile) continue;
       const workingAge = nonNegative(donor.demographics?.workingAge);
@@ -188,11 +183,5 @@ export function applyConstructionLaborMobility(regions = []) {
     state.workersReserved = nonNegative(state.localWorkersReserved) + nonNegative(state.importedWorkersReserved);
   }
 
-  // Keep references robust if a caller supplied sparse copies of regions.
-  for (const region of regions) {
-    for (const source of region.laborMobility?.constructionSources || []) {
-      if (!byId.has(source.regionId)) source.regionName ||= source.regionId;
-    }
-  }
   return regions;
 }
