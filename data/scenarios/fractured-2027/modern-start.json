@@ -26,10 +26,17 @@
   },
   "regionalAutomobilesPer1000": {},
   "countryInfrastructureDefaults": {
-    "united-kingdom": ["road_network", "local_electric_grid", "telegraph_network", "telephone_exchange"]
+    "united-kingdom": [
+      "road_network",
+      "local_electric_grid",
+      "telegraph_network",
+      "telephone_exchange"
+    ]
   },
   "regionalInfrastructure": {
-    "kent": ["harbour"]
+    "kent": [
+      "harbour"
+    ]
   },
   "regionalRailLinks": [
     {
@@ -40,7 +47,12 @@
       "capacity": 0.9,
       "maxSpeedKph": 160,
       "electrification": "third_rail_750v_dc",
-      "rollingStock": { "steam": 0, "diesel": 0.08, "electric": 0.92, "highSpeedElectric": 0 }
+      "rollingStock": {
+        "steam": 0,
+        "diesel": 0.08,
+        "electric": 0.92,
+        "highSpeedElectric": 0
+      }
     },
     {
       "id": "hs1-kent-london",
@@ -51,7 +63,12 @@
       "maxSpeedKph": 300,
       "highSpeedCapable": true,
       "electrification": "overhead_25kv_ac",
-      "rollingStock": { "steam": 0, "diesel": 0, "electric": 0.12, "highSpeedElectric": 0.88 }
+      "rollingStock": {
+        "steam": 0,
+        "diesel": 0,
+        "electric": 0.12,
+        "highSpeedElectric": 0.88
+      }
     },
     {
       "id": "kent-east-sussex",
@@ -61,7 +78,12 @@
       "capacity": 0.75,
       "maxSpeedKph": 145,
       "electrification": "third_rail_750v_dc",
-      "rollingStock": { "steam": 0, "diesel": 0.1, "electric": 0.9, "highSpeedElectric": 0 }
+      "rollingStock": {
+        "steam": 0,
+        "diesel": 0.1,
+        "electric": 0.9,
+        "highSpeedElectric": 0
+      }
     }
   ],
   "regionalStarterStocksPer1000": {
@@ -169,26 +191,120 @@
     "standingForceShare": 0.0025,
     "treasuryPerPerson": 0.0015,
     "steelStockPerPerson": 0.00012,
-    "aviationFuelStockPerPerson": 0.000025,
-    "machineComponentsPerPerson": 0.00004,
-    "batteryCellsPerPerson": 0.000008,
+    "aviationFuelStockPerPerson": 2.5e-05,
+    "machineComponentsPerPerson": 4e-05,
+    "batteryCellsPerPerson": 8e-06,
     "automobilesPer1000": 450
   },
   "countryOverrides": {
-    "usa": { "manufacturingCapability": 0.9, "precisionMachiningCapability": 0.93, "electronicsCapability": 0.95, "standingForceShare": 0.0042, "orbitalSupport": 0.92, "automobilesPer1000": 850 },
-    "china": { "manufacturingCapability": 0.94, "precisionMachiningCapability": 0.88, "electronicsCapability": 0.9, "standingForceShare": 0.0032, "orbitalSupport": 0.78, "automobilesPer1000": 250 },
-    "russia": { "manufacturingCapability": 0.78, "precisionMachiningCapability": 0.82, "electronicsCapability": 0.68, "standingForceShare": 0.006, "orbitalSupport": 0.72, "automobilesPer1000": 400 },
-    "united-kingdom": { "manufacturingCapability": 0.84, "precisionMachiningCapability": 0.9, "electronicsCapability": 0.9, "standingForceShare": 0.0028, "orbitalSupport": 0.62, "automobilesPer1000": 600 },
-    "france": { "manufacturingCapability": 0.86, "precisionMachiningCapability": 0.9, "electronicsCapability": 0.88, "standingForceShare": 0.003, "orbitalSupport": 0.55, "automobilesPer1000": 590 },
-    "germany": { "manufacturingCapability": 0.92, "precisionMachiningCapability": 0.94, "electronicsCapability": 0.9, "standingForceShare": 0.0022, "orbitalSupport": 0.46, "automobilesPer1000": 580 },
-    "ukraine": { "manufacturingCapability": 0.72, "precisionMachiningCapability": 0.77, "electronicsCapability": 0.72, "standingForceShare": 0.012, "automobilesPer1000": 240 },
-    "iran": { "manufacturingCapability": 0.68, "precisionMachiningCapability": 0.7, "electronicsCapability": 0.62, "standingForceShare": 0.0065, "orbitalSupport": 0.28, "automobilesPer1000": 220 },
-    "north-korea": { "manufacturingCapability": 0.55, "precisionMachiningCapability": 0.58, "electronicsCapability": 0.42, "standingForceShare": 0.018, "automobilesPer1000": 15 },
-    "australia": { "manufacturingCapability": 0.8, "precisionMachiningCapability": 0.86, "electronicsCapability": 0.88, "standingForceShare": 0.0024, "orbitalSupport": 0.42, "automobilesPer1000": 780 },
-    "taiwan": { "automobilesPer1000": 350 },
-    "denmark": { "automobilesPer1000": 550 },
-    "canada": { "automobilesPer1000": 790 },
-    "madagascar": { "automobilesPer1000": 25 },
-    "greenland": { "automobilesPer1000": 350 }
+    "usa": {
+      "manufacturingCapability": 0.9,
+      "precisionMachiningCapability": 0.93,
+      "electronicsCapability": 0.95,
+      "standingForceShare": 0.0042,
+      "orbitalSupport": 0.92,
+      "automobilesPer1000": 850
+    },
+    "china": {
+      "manufacturingCapability": 0.94,
+      "precisionMachiningCapability": 0.88,
+      "electronicsCapability": 0.9,
+      "standingForceShare": 0.0032,
+      "orbitalSupport": 0.78,
+      "automobilesPer1000": 250
+    },
+    "russia": {
+      "manufacturingCapability": 0.78,
+      "precisionMachiningCapability": 0.82,
+      "electronicsCapability": 0.68,
+      "standingForceShare": 0.006,
+      "orbitalSupport": 0.72,
+      "automobilesPer1000": 400
+    },
+    "united-kingdom": {
+      "manufacturingCapability": 0.84,
+      "precisionMachiningCapability": 0.9,
+      "electronicsCapability": 0.9,
+      "standingForceShare": 0.0028,
+      "orbitalSupport": 0.62,
+      "automobilesPer1000": 600
+    },
+    "france": {
+      "manufacturingCapability": 0.86,
+      "precisionMachiningCapability": 0.9,
+      "electronicsCapability": 0.88,
+      "standingForceShare": 0.003,
+      "orbitalSupport": 0.55,
+      "automobilesPer1000": 590
+    },
+    "germany": {
+      "manufacturingCapability": 0.92,
+      "precisionMachiningCapability": 0.94,
+      "electronicsCapability": 0.9,
+      "standingForceShare": 0.0022,
+      "orbitalSupport": 0.46,
+      "automobilesPer1000": 580
+    },
+    "ukraine": {
+      "manufacturingCapability": 0.72,
+      "precisionMachiningCapability": 0.77,
+      "electronicsCapability": 0.72,
+      "standingForceShare": 0.012,
+      "automobilesPer1000": 240
+    },
+    "iran": {
+      "manufacturingCapability": 0.68,
+      "precisionMachiningCapability": 0.7,
+      "electronicsCapability": 0.62,
+      "standingForceShare": 0.0065,
+      "orbitalSupport": 0.28,
+      "automobilesPer1000": 220
+    },
+    "north-korea": {
+      "manufacturingCapability": 0.55,
+      "precisionMachiningCapability": 0.58,
+      "electronicsCapability": 0.42,
+      "standingForceShare": 0.018,
+      "automobilesPer1000": 15
+    },
+    "australia": {
+      "manufacturingCapability": 0.8,
+      "precisionMachiningCapability": 0.86,
+      "electronicsCapability": 0.88,
+      "standingForceShare": 0.0024,
+      "orbitalSupport": 0.42,
+      "automobilesPer1000": 780
+    },
+    "taiwan": {
+      "automobilesPer1000": 350
+    },
+    "denmark": {
+      "automobilesPer1000": 550
+    },
+    "canada": {
+      "automobilesPer1000": 790
+    },
+    "madagascar": {
+      "automobilesPer1000": 25
+    },
+    "greenland": {
+      "automobilesPer1000": 350
+    }
+  },
+  "constructionEquipmentDefaultsPer1000": {
+    "powerToolSets": 4.0,
+    "excavators": 0.4,
+    "bulldozers": 0.08,
+    "constructionTrucks": 1.1,
+    "mobileCranes": 0.07,
+    "concretePlantUnits": 0.025,
+    "tunnelBoringMachines": 0,
+    "cableLayingVessels": 0
+  },
+  "regionalConstructionEquipment": {
+    "kent": {
+      "tunnelBoringMachines": 1,
+      "cableLayingVessels": 1
+    }
   }
 }

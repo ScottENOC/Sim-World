@@ -1,3 +1,5 @@
+import { availableSpecialisedEquipment } from './constructionEquipment.js?v=20260925-construction-equipment1';
+
 const DAYS_PER_YEAR = 365.2425;
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number(v) || 0));
 const nonNegative = (v) => Math.max(0, Number(v) || 0);
@@ -261,7 +263,10 @@ function advanceProjects(regions, elapsedDays) {
         project.status = 'awaiting_permission'; project.permissionAssessment = reassessment; continue;
       }
       const remainingFraction = clamp(1 - project.workDone / project.workRequired);
-      const desiredFraction = Math.min(remainingFraction, years * (project.undersea ? 0.48 : 0.75));
+      const cableShips = project.undersea ? availableSpecialisedEquipment(regions, origin, 'cableLayingVessels') : 0;
+      if (project.undersea && cableShips < 0.5) { project.stalledReason = 'cable_laying_vessel_unavailable'; continue; }
+      const specialistFactor = project.undersea ? Math.min(2.4, 0.75 + cableShips * 0.70) : 1;
+      const desiredFraction = Math.min(remainingFraction, years * (project.undersea ? 0.48 : 0.75) * specialistFactor);
       let fraction = desiredFraction;
       origin.stockpile ||= {};
       for (const [resource, total] of Object.entries(project.materialsRequired)) {

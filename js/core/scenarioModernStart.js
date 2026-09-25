@@ -1,5 +1,6 @@
 import { seedAutomobileOwnership } from '../economy/civilianTransport.js';
 import { syncRailwayConnectionEntry } from '../economy/railways.js';
+import { seedConstructionEquipment } from '../economy/constructionEquipment.js?v=20260925-construction-equipment1';
 
 const arr = (value) => Array.isArray(value) ? value : [];
 const num = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
@@ -218,7 +219,10 @@ function seedRegionalStarterEconomy(region, profile) {
   const stock = regionalProfileEntry(profile, 'regionalStarterStocksPer1000', region);
   const industrial = regionalProfileEntry(profile, 'regionalIndustrialInventoryPer1000', region);
   const machinery = regionalProfileEntry(profile, 'regionalAgriculturalMachineryPer1000', region);
-  if (!stock && !industrial && !machinery) return false;
+  const countryId = regionCountryId(region);
+  const equipmentPer1000 = { ...(profile?.constructionEquipmentDefaultsPer1000 || {}), ...(profile?.countryConstructionEquipmentPer1000?.[countryId] || {}), ...(regionalProfileEntry(profile, 'regionalConstructionEquipmentPer1000', region) || {}) };
+  const equipmentAbsolute = regionalProfileEntry(profile, 'regionalConstructionEquipment', region);
+  if (!stock && !industrial && !machinery && !Object.keys(equipmentPer1000).length && !equipmentAbsolute) return false;
 
   const scale = Math.max(0.001, num(region.population, 1) / 1000);
   region.stockpile ||= {};
@@ -230,6 +234,13 @@ function seedRegionalStarterEconomy(region, profile) {
   }
   for (const [resourceId, per1000] of Object.entries(industrial || {})) {
     region.industrialSupply.inventory[resourceId] = max(region.industrialSupply.inventory[resourceId], nonNegative(per1000) * scale);
+  }
+
+  if (Object.keys(equipmentPer1000).length || equipmentAbsolute) {
+    const equipment = {};
+    for (const [id, per1000] of Object.entries(equipmentPer1000)) equipment[id] = nonNegative(per1000) * scale;
+    for (const [id, absolute] of Object.entries(equipmentAbsolute || {})) equipment[id] = Math.max(nonNegative(equipment[id]), nonNegative(absolute));
+    seedConstructionEquipment(region, equipment);
   }
 
   if (machinery) {
