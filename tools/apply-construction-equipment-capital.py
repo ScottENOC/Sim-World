@@ -45,7 +45,7 @@ replace('js/economy/electricityInterconnectors.js',
         "import { availableSpecialisedEquipment } from './constructionEquipment.js?v=20260925-construction-equipment1';\n\nconst DAYS_PER_YEAR = 365.2425;\n")
 replace('js/economy/electricityInterconnectors.js',
         "      const remainingFraction = clamp(1 - project.workDone / project.workRequired);\n      const desiredFraction = Math.min(remainingFraction, years * (project.undersea ? 0.48 : 0.75));",
-        "      const remainingFraction = clamp(1 - project.workDone / project.workRequired);\n      const cableShips = project.undersea ? availableSpecialisedEquipment(regions, origin, 'cableLayingVessels') : 0;\n      if (project.undersea && cableShips < 1) { project.stalledReason = 'cable_laying_vessel_unavailable'; continue; }\n      const specialistFactor = project.undersea ? Math.min(2.4, 0.9 + Math.floor(cableShips) * 0.55) : 1;\n      const desiredFraction = Math.min(remainingFraction, years * (project.undersea ? 0.48 : 0.75) * specialistFactor);")
+        "      const remainingFraction = clamp(1 - project.workDone / project.workRequired);\n      const cableShips = project.undersea ? availableSpecialisedEquipment(regions, origin, 'cableLayingVessels') : 0;\n      if (project.undersea && cableShips < 0.5) { project.stalledReason = 'cable_laying_vessel_unavailable'; continue; }\n      const specialistFactor = project.undersea ? Math.min(2.4, 0.75 + cableShips * 0.70) : 1;\n      const desiredFraction = Math.min(remainingFraction, years * (project.undersea ? 0.48 : 0.75) * specialistFactor);")
 
 # Infrastructure UI: show real plant and task bottlenecks.
 replace('js/ui/mobileGameplayControls.js',
@@ -64,7 +64,6 @@ replace('js/ui/mobileGameplayControls.js',
         "if (detail) { const productivity = constructionProductivityBreakdown(region, entry.type.id).total; detail.innerHTML = `${esc(entry.type.description || '')}<br><strong>Materials:</strong> ${esc(materialText(entry.type.materials))} · <strong>Base work:</strong> ${Math.round(entry.type.workRequired || 0).toLocaleString()} worker-weeks · <strong>Current productivity:</strong> ${productivity.toFixed(2)}×`; }",
         "if (detail) { const requested = Number(workers?.value) || entry.type.defaultWorkers || 100; detail.innerHTML = `${esc(entry.type.description || '')}<br><strong>Materials:</strong> ${esc(materialText(entry.type.materials))} · <strong>Base work:</strong> ${Math.round(entry.type.workRequired || 0).toLocaleString()} worker-weeks · <strong>Current productivity:</strong> ${productivityHtml(region, entry.type.id, requested)}`; }")
 
-# 2027 equipment seed.
 p = Path('data/scenarios/fractured-2027/modern-start.json')
 data = json.loads(p.read_text())
 data['constructionEquipmentDefaultsPer1000'] = {
