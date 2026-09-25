@@ -1,44 +1,60 @@
 name: Industrial railways
 
-permissions:
-  contents: write
-
 on:
   push:
-    branches: [feature/construction-equipment-capital]
+    paths:
+      - 'js/economy/railways.js'
+      - 'js/economy/laborMobility.js'
+      - 'js/economy/constructionProductivity.js'
+      - 'js/economy/constructionEquipment.js'
+      - 'js/economy/construction.js'
+      - 'js/economy/electricityInterconnectors.js'
+      - 'js/core/scenarioModernStart.js'
+      - 'js/ui/mobileGameplayControls.js'
+      - 'js/world/region.js'
+      - 'data/scenarios/fractured-2027/modern-start.json'
+      - 'tests/transportConstructionRealism.test.mjs'
+      - 'tests/constructionEquipmentCapital.test.mjs'
+      - 'tools/test-industrial-railways.mjs'
+      - '.github/workflows/industrial-railways.yml'
   pull_request:
+    paths:
+      - 'js/economy/railways.js'
+      - 'js/economy/laborMobility.js'
+      - 'js/economy/constructionProductivity.js'
+      - 'js/economy/constructionEquipment.js'
+      - 'js/economy/construction.js'
+      - 'js/economy/electricityInterconnectors.js'
+      - 'js/core/scenarioModernStart.js'
+      - 'js/ui/mobileGameplayControls.js'
+      - 'js/world/region.js'
+      - 'data/scenarios/fractured-2027/modern-start.json'
+      - 'tests/transportConstructionRealism.test.mjs'
+      - 'tests/constructionEquipmentCapital.test.mjs'
+      - 'tools/test-industrial-railways.mjs'
+      - '.github/workflows/industrial-railways.yml'
 
 jobs:
   industrial-railways:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: feature/construction-equipment-capital
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Apply construction equipment integration
-        run: python3 tools/apply-construction-equipment-capital.py
-      - name: Syntax and focused regressions
+      - name: Syntax
         run: |
-          node --check js/economy/constructionEquipment.js
+          node --check js/economy/railways.js
+          node --check js/economy/laborMobility.js
           node --check js/economy/constructionProductivity.js
+          node --check js/economy/constructionEquipment.js
           node --check js/economy/construction.js
           node --check js/economy/electricityInterconnectors.js
           node --check js/core/scenarioModernStart.js
           node --check js/ui/mobileGameplayControls.js
-          node tests/constructionEquipmentCapital.test.mjs
-          node tests/transportConstructionRealism.test.mjs
-          node tools/test-industrial-railways.mjs
-      - name: Commit integrated sources
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add js/economy/construction.js js/economy/electricityInterconnectors.js js/core/scenarioModernStart.js js/ui/mobileGameplayControls.js js/world/region.js data/scenarios/fractured-2027/modern-start.json
-          if git diff --cached --quiet; then
-            echo 'Integration already applied.'
-          else
-            git commit -m 'Integrate construction equipment capital and task bottlenecks'
-            git push origin HEAD:feature/construction-equipment-capital
-          fi
+      - name: Industrial railway regressions
+        run: node tools/test-industrial-railways.mjs
+      - name: Transport and construction realism regressions
+        run: node tests/transportConstructionRealism.test.mjs
+      - name: Construction equipment capital regressions
+        run: node tests/constructionEquipmentCapital.test.mjs
