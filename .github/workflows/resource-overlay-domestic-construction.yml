@@ -1,0 +1,25 @@
+name: Resource overlay and domestic construction supply
+
+on:
+  push:
+    branches: [main, feature/resource-overlay-domestic-construction]
+  pull_request:
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: |
+          node --check js/economy/resourceFlow.js
+          node --check js/economy/modernDomesticConstructionSupply.js
+          node --check js/ui/resourceOverlayUi.js
+          node --check js/ui/mapOverlayStability.js
+      - name: Resource overlay and domestic supply regressions
+        run: node tests/resourceOverlayAndDomesticSupply.test.mjs
+      - name: Existing modern startup regressions
+        run: node tests/fractured2027ModernStartup.test.mjs
