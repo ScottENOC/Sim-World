@@ -32,8 +32,37 @@
     "kent": ["harbour"]
   },
   "regionalRailLinks": [
-    { "from": "Kent", "to": "London", "lengthKm": 110, "capacity": 0.95 },
-    { "from": "Kent", "to": "East Sussex", "lengthKm": 90, "capacity": 0.75 }
+    {
+      "id": "kent-london-classic",
+      "from": "Kent",
+      "to": "London",
+      "lengthKm": 110,
+      "capacity": 0.9,
+      "maxSpeedKph": 160,
+      "electrification": "third_rail_750v_dc",
+      "rollingStock": { "steam": 0, "diesel": 0.08, "electric": 0.92, "highSpeedElectric": 0 }
+    },
+    {
+      "id": "hs1-kent-london",
+      "from": "Kent",
+      "to": "London",
+      "lengthKm": 110,
+      "capacity": 0.55,
+      "maxSpeedKph": 300,
+      "highSpeedCapable": true,
+      "electrification": "overhead_25kv_ac",
+      "rollingStock": { "steam": 0, "diesel": 0, "electric": 0.12, "highSpeedElectric": 0.88 }
+    },
+    {
+      "id": "kent-east-sussex",
+      "from": "Kent",
+      "to": "East Sussex",
+      "lengthKm": 90,
+      "capacity": 0.75,
+      "maxSpeedKph": 145,
+      "electrification": "third_rail_750v_dc",
+      "rollingStock": { "steam": 0, "diesel": 0.1, "electric": 0.9, "highSpeedElectric": 0 }
+    }
   ],
   "regionalStarterStocksPer1000": {
     "kent": {

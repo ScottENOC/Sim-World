@@ -1,4 +1,5 @@
 import { seedAutomobileOwnership } from '../economy/civilianTransport.js';
+import { syncRailwayConnectionEntry } from '../economy/railways.js';
 
 const arr = (value) => Array.isArray(value) ? value : [];
 const num = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
@@ -187,14 +188,27 @@ function seedRegionalInfrastructure(regions, profile) {
     const a = bySlug.get(slug(link?.from));
     const b = bySlug.get(slug(link?.to));
     if (!a || !b || regionCountryId(a) !== regionCountryId(b)) continue;
-    const capacity = Math.max(0.05, Math.min(1, num(link.capacity, 0.7)));
+    const capacity = Math.max(0.05, num(link.capacity, 0.7));
     const lengthKm = Math.max(1, num(link.lengthKm, 80));
-    const lineId = `scenario-modern:rail:${a.id}:${b.id}`;
+    const maxSpeedKph = Math.max(25, num(link.maxSpeedKph, 100));
+    const lineId = `scenario-modern:rail:${slug(link?.id || `${a.id}-${b.id}-${seededRailLinks + 1}`)}`;
     const operatorPolityId = a.governance?.sovereignPolityId || regionCountryId(a);
-    a.railConnections ||= {};
-    b.railConnections ||= {};
-    a.railConnections[b.id] = { lineId, status: 'operational', effectiveCapacity: capacity, lengthKm, operatorPolityId, scenarioSeeded: true };
-    b.railConnections[a.id] = { lineId, status: 'operational', effectiveCapacity: capacity, lengthKm, operatorPolityId, scenarioSeeded: true };
+    const highSpeedCapable = Boolean(link.highSpeedCapable || maxSpeedKph >= 200);
+    const speedFactor = Math.max(0.35, Math.min(1.9, maxSpeedKph / 160));
+    syncRailwayConnectionEntry(a, b, {
+      lineId,
+      status: 'operational',
+      effectiveCapacity: capacity,
+      passengerCapacity: capacity * (.65 + speedFactor * .35),
+      freightCapacity: capacity,
+      lengthKm,
+      maxSpeedKph,
+      highSpeedCapable,
+      electrification: link.electrification || 'none',
+      rollingStock: link.rollingStock || { steam: 0, diesel: 1, electric: 0, highSpeedElectric: 0 },
+      operatorPolityId,
+      scenarioSeeded: true,
+    });
     seededRailLinks += 1;
   }
   return { seededAssets, seededRailLinks };
@@ -263,33 +277,18 @@ export function applyModernScenarioBaseline(world, profile = {}) {
 
     region.structuralTransformation ||= {};
     region.structuralTransformation.capability ||= {};
-    region.structuralTransformation.capability.manufacture = max(
-      region.structuralTransformation.capability.manufacture,
-      settings.manufacturingCapability,
-    );
+    region.structuralTransformation.capability.manufacture = max(region.structuralTransformation.capability.manufacture, settings.manufacturingCapability);
 
     region.industrialSupply ||= {};
     region.industrialSupply.capability ||= {};
     region.industrialSupply.inventory ||= {};
-    region.industrialSupply.capability.precision_machining = max(
-      region.industrialSupply.capability.precision_machining,
-      settings.precisionMachiningCapability,
-    );
+    region.industrialSupply.capability.precision_machining = max(region.industrialSupply.capability.precision_machining, settings.precisionMachiningCapability);
 
     region.industrialPlants ||= {};
     region.industrialPlants.componentCapability ||= {};
-    region.industrialPlants.componentCapability.electronics = max(
-      region.industrialPlants.componentCapability.electronics,
-      settings.electronicsCapability,
-    );
-    region.industrialPlants.componentCapability.radio_navigation = max(
-      region.industrialPlants.componentCapability.radio_navigation,
-      settings.radioNavigationCapability,
-    );
-    region.industrialPlants.componentCapability.optics = max(
-      region.industrialPlants.componentCapability.optics,
-      settings.opticsCapability,
-    );
+    region.industrialPlants.componentCapability.electronics = max(region.industrialPlants.componentCapability.electronics, settings.electronicsCapability);
+    region.industrialPlants.componentCapability.radio_navigation = max(region.industrialPlants.componentCapability.radio_navigation, settings.radioNavigationCapability);
+    region.industrialPlants.componentCapability.optics = max(region.industrialPlants.componentCapability.optics, settings.opticsCapability);
 
     const regionPopulation = num(region.population, 1);
     region.treasury = max(region.treasury, regionPopulation * num(settings.treasuryPerPerson));
@@ -298,10 +297,7 @@ export function applyModernScenarioBaseline(world, profile = {}) {
     region.stockpile.aviation_fuel = max(region.stockpile.aviation_fuel, regionPopulation * num(settings.aviationFuelStockPerPerson));
     region.stockpile.advanced_rechargeable_cells = max(region.stockpile.advanced_rechargeable_cells, regionPopulation * num(settings.batteryCellsPerPerson));
     region.stockpile.lithium_ion_cells = max(region.stockpile.lithium_ion_cells, regionPopulation * num(settings.batteryCellsPerPerson));
-    region.industrialSupply.inventory.machine_components = max(
-      region.industrialSupply.inventory.machine_components,
-      regionPopulation * num(settings.machineComponentsPerPerson),
-    );
+    region.industrialSupply.inventory.machine_components = max(region.industrialSupply.inventory.machine_components, regionPopulation * num(settings.machineComponentsPerPerson));
 
     if (seedRegionalStarterEconomy(region, profile)) starterEconomyRegions += 1;
 
