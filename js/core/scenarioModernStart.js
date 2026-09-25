@@ -60,6 +60,15 @@ function slug(value) {
   return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
+function regionalProfileEntry(profile, bucket, region) {
+  const table = profile?.[bucket] || {};
+  for (const key of [region?.id, slug(region?.name), region?.name]) {
+    const value = table?.[key];
+    if (value && typeof value === 'object') return value;
+  }
+  return null;
+}
+
 function explicitPopulationWeight(region, profile) {
   const weights = profile?.regionalPopulationWeights || {};
   const candidates = [region?.id, slug(region?.name), region?.name];
@@ -191,12 +200,51 @@ function seedRegionalInfrastructure(regions, profile) {
   return { seededAssets, seededRailLinks };
 }
 
+function seedRegionalStarterEconomy(region, profile) {
+  const stock = regionalProfileEntry(profile, 'regionalStarterStocksPer1000', region);
+  const industrial = regionalProfileEntry(profile, 'regionalIndustrialInventoryPer1000', region);
+  const machinery = regionalProfileEntry(profile, 'regionalAgriculturalMachineryPer1000', region);
+  if (!stock && !industrial && !machinery) return false;
+
+  const scale = Math.max(0.001, num(region.population, 1) / 1000);
+  region.stockpile ||= {};
+  region.industrialSupply ||= {};
+  region.industrialSupply.inventory ||= {};
+
+  for (const [resourceId, per1000] of Object.entries(stock || {})) {
+    region.stockpile[resourceId] = max(region.stockpile[resourceId], nonNegative(per1000) * scale);
+  }
+  for (const [resourceId, per1000] of Object.entries(industrial || {})) {
+    region.industrialSupply.inventory[resourceId] = max(region.industrialSupply.inventory[resourceId], nonNegative(per1000) * scale);
+  }
+
+  if (machinery) {
+    region.agriculturalMachinery ||= {};
+    const tractors = nonNegative(machinery.tractors) * scale;
+    const combines = nonNegative(machinery.combines) * scale;
+    region.agriculturalMachinery.tractors = max(region.agriculturalMachinery.tractors, tractors);
+    region.agriculturalMachinery.combines = max(region.agriculturalMachinery.combines, combines);
+    region.agriculturalMachinery.serviceableTractors = max(region.agriculturalMachinery.serviceableTractors, tractors);
+    region.agriculturalMachinery.serviceableCombines = max(region.agriculturalMachinery.serviceableCombines, combines);
+    region.agriculturalMachinery.maintenanceReadiness = max(region.agriculturalMachinery.maintenanceReadiness, 0.95);
+    region.agriculturalMachinery.fuelSatisfaction = max(region.agriculturalMachinery.fuelSatisfaction, 0.95);
+  }
+
+  region.scenarioModernStarterEconomyApplied = true;
+  return true;
+}
+
+function nonNegative(value) {
+  return Math.max(0, Number(value) || 0);
+}
+
 export function applyModernScenarioBaseline(world, profile = {}) {
   const regions = arr(world?.regions);
   const commonTechIds = arr(profile.commonTechIds);
   const touchedCountries = new Set();
   let modernCultureRegions = 0;
   let automobileRegions = 0;
+  let starterEconomyRegions = 0;
   const population = applyModernPopulation(regions, profile);
 
   for (const region of regions) {
@@ -255,6 +303,8 @@ export function applyModernScenarioBaseline(world, profile = {}) {
       regionPopulation * num(settings.machineComponentsPerPerson),
     );
 
+    if (seedRegionalStarterEconomy(region, profile)) starterEconomyRegions += 1;
+
     if (!region.scenarioAutomobileBaselineApplied) {
       const regionalRate = explicitAutomobileRate(region, profile);
       seedAutomobileOwnership(region, regionalRate ?? num(settings.automobilesPer1000), {
@@ -283,6 +333,7 @@ export function applyModernScenarioBaseline(world, profile = {}) {
     countryCount: touchedCountries.size,
     modernCultureRegions,
     automobileRegions,
+    starterEconomyRegions,
     seededInfrastructureAssets: infrastructure.seededAssets,
     seededRailLinks: infrastructure.seededRailLinks,
     populationModel: population.model,

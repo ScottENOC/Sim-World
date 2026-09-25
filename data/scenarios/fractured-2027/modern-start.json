@@ -35,6 +35,51 @@
     { "from": "Kent", "to": "London", "lengthKm": 110, "capacity": 0.95 },
     { "from": "Kent", "to": "East Sussex", "lengthKm": 90, "capacity": 0.75 }
   ],
+  "regionalStarterStocksPer1000": {
+    "kent": {
+      "food": 120,
+      "wood": 12,
+      "stone": 20,
+      "clay": 8,
+      "pottery": 2,
+      "textiles": 4,
+      "clothes": 6,
+      "steel": 4,
+      "iron": 2,
+      "copper": 0.5,
+      "coal": 3,
+      "natural_gas": 4,
+      "petrol": 5,
+      "diesel": 7,
+      "aviation_fuel": 0.7,
+      "fertiliser": 2.5,
+      "synthetic_pesticide": 0.18,
+      "selective_pesticide": 0.1,
+      "sulfur": 0.35,
+      "salt": 2,
+      "tea": 0.3,
+      "coffee": 0.25,
+      "computers": 0.18,
+      "motor_vehicle": 0.08,
+      "lead_acid_battery_cells": 0.08,
+      "advanced_rechargeable_cells": 0.04,
+      "lithium_ion_cells": 0.025
+    }
+  },
+  "regionalIndustrialInventoryPer1000": {
+    "kent": {
+      "machine_components": 1.5,
+      "electrical_components": 0.6,
+      "electronic_components": 0.35,
+      "rail_stock": 0.3
+    }
+  },
+  "regionalAgriculturalMachineryPer1000": {
+    "kent": {
+      "tractors": 2.0,
+      "combines": 0.45
+    }
+  },
   "commonTechIds": [
     "electrical_generation",
     "local_electric_distribution",
@@ -70,7 +115,19 @@
     "loitering_munitions",
     "battery_multirotor_drones",
     "petroleum_well_drilling",
-    "natural_gas_extraction"
+    "petroleum_refining",
+    "petroleum_cracking",
+    "petroleum_desulfurisation",
+    "aviation_fractionation",
+    "natural_gas_extraction",
+    "internal_combustion_tractors",
+    "mechanised_combine_harvesters",
+    "industrial_ammonia_synthesis",
+    "synthetic_nitrogen_fertiliser",
+    "chemical_pest_control",
+    "synthetic_pesticides",
+    "integrated_pest_management",
+    "selective_pesticides"
   ],
   "regionalDefaults": {
     "electricityService": 0.9,
