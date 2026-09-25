@@ -13,6 +13,7 @@ import {
   registerElectricityRegion,
   setGridConnectionPolicy,
 } from '../js/economy/electricityInterconnectors.js';
+import { seedConstructionEquipment } from '../js/economy/constructionEquipment.js';
 import { tickLocalCommunications } from '../js/economy/localCommunications.js';
 import { buildDrone, DRONE_TECH_IDS, DRONE_TYPES } from '../js/military/drones.js';
 
@@ -37,7 +38,7 @@ function gridRegion(id, polity, neighbors = [], seas = []) {
 function completeProject(regions, project, rng = () => 1) {
   for (const region of regions) registerElectricityRegion(region);
   const result = flushElectricityInterconnectors(365 * 4, rng);
-  assert.equal(project.status, 'completed', `project ${project.id} should complete with abundant materials and finance`);
+  assert.equal(project.status, 'completed', `project ${project.id} should complete with abundant materials, finance and required specialist plant`);
   assert.ok(result.completedProjects.some((link) => link.fromRegionId === project.fromRegionId && link.toRegionId === project.toRegionId));
   return result.completedProjects.find((link) => link.fromRegionId === project.fromRegionId && link.toRegionId === project.toRegionId);
 }
@@ -124,10 +125,11 @@ function completeProject(regions, project, rng = () => 1) {
   assert.ok(aCopy.unwantedPolityIds.includes('PC'));
 }
 
-// Undersea links can carry communications and civilian anchor incidents can be observed.
+// Undersea links require a specialised cable-laying vessel; once available they can carry communications and suffer anchor incidents.
 {
   const a = gridRegion('SEA-A', 'PSEA', [], ['sea-1']);
   const b = gridRegion('SEA-B', 'PSEA', [], ['sea-1']);
+  seedConstructionEquipment(a, { cableLayingVessels: 1 });
   const project = proposeElectricityInterconnector(a, b, [a,b], { undersea: true, powerCapacity: 120, communicationsCapacity: 200 });
   const link = completeProject([a,b], project, () => 1);
   assert.ok(communicationsCableConnectivity(a) > 0);
