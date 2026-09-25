@@ -121,7 +121,6 @@ function applyModernPopulation(regions, profile) {
       regionsTargeted += 1;
     });
 
-    // Rounding is reconciled on the largest region so the country total remains exact.
     const difference = Math.round(target) - assigned;
     if (difference !== 0 && countryRegions.length) {
       const largest = countryRegions.reduce((best, region) => region.population > best.population ? region : best, countryRegions[0]);
@@ -144,6 +143,54 @@ function applyModernPopulation(regions, profile) {
   };
 }
 
+function ensureScenarioConstruction(region) {
+  region.construction ||= { projects: [], completed: {}, workersReserved: 0, lastWeek: null, assets: [] };
+  region.construction.projects ||= [];
+  region.construction.completed ||= {};
+  region.construction.assets ||= [];
+  return region.construction;
+}
+
+function seedInfrastructure(region, typeId) {
+  const state = ensureScenarioConstruction(region);
+  if (!state.assets.some((asset) => asset.typeId === typeId)) {
+    state.assets.push({ id: `scenario-modern:${region.id}:${typeId}`, typeId, condition: 1, scale: 1, scenarioSeeded: true });
+  }
+  state.completed[typeId] = Math.max(1, Number(state.completed[typeId]) || 0);
+}
+
+function seedRegionalInfrastructure(regions, profile) {
+  let seededAssets = 0;
+  for (const region of regions) {
+    const countryId = regionCountryId(region);
+    const defaults = arr(profile?.countryInfrastructureDefaults?.[countryId]);
+    const regional = arr(profile?.regionalInfrastructure?.[slug(region?.name)] ?? profile?.regionalInfrastructure?.[region?.id]);
+    for (const typeId of [...new Set([...defaults, ...regional])]) {
+      const before = ensureScenarioConstruction(region).assets.length;
+      seedInfrastructure(region, typeId);
+      if (ensureScenarioConstruction(region).assets.length > before) seededAssets += 1;
+    }
+  }
+
+  const bySlug = new Map(regions.map((region) => [slug(region?.name), region]));
+  let seededRailLinks = 0;
+  for (const link of arr(profile?.regionalRailLinks)) {
+    const a = bySlug.get(slug(link?.from));
+    const b = bySlug.get(slug(link?.to));
+    if (!a || !b || regionCountryId(a) !== regionCountryId(b)) continue;
+    const capacity = Math.max(0.05, Math.min(1, num(link.capacity, 0.7)));
+    const lengthKm = Math.max(1, num(link.lengthKm, 80));
+    const lineId = `scenario-modern:rail:${a.id}:${b.id}`;
+    const operatorPolityId = a.governance?.sovereignPolityId || regionCountryId(a);
+    a.railConnections ||= {};
+    b.railConnections ||= {};
+    a.railConnections[b.id] = { lineId, status: 'operational', effectiveCapacity: capacity, lengthKm, operatorPolityId, scenarioSeeded: true };
+    b.railConnections[a.id] = { lineId, status: 'operational', effectiveCapacity: capacity, lengthKm, operatorPolityId, scenarioSeeded: true };
+    seededRailLinks += 1;
+  }
+  return { seededAssets, seededRailLinks };
+}
+
 export function applyModernScenarioBaseline(world, profile = {}) {
   const regions = arr(world?.regions);
   const commonTechIds = arr(profile.commonTechIds);
@@ -157,10 +204,6 @@ export function applyModernScenarioBaseline(world, profile = {}) {
     const settings = mergedSettings(profile, countryId);
     if (countryId) touchedCountries.add(countryId);
 
-    // Focused modern scenarios should not inherit the Bronze Age culture seed
-    // created while the generic world shell is loading. Use a shared modern
-    // civic/national identity across each scenario country as the 2027 baseline;
-    // later migration, assimilation, fusion and branching can evolve normally.
     if (!region.scenarioModernCultureApplied && applyModernCulture(region, countryId)) modernCultureRegions += 1;
 
     region.unlockedTechIds ||= new Set();
@@ -232,6 +275,7 @@ export function applyModernScenarioBaseline(world, profile = {}) {
     }
   }
 
+  const infrastructure = seedRegionalInfrastructure(regions, profile);
   world.scenarioModernBaseline = {
     applied: true,
     scenarioId: profile.scenarioId || world?.scenarioState?.id || null,
@@ -239,6 +283,8 @@ export function applyModernScenarioBaseline(world, profile = {}) {
     countryCount: touchedCountries.size,
     modernCultureRegions,
     automobileRegions,
+    seededInfrastructureAssets: infrastructure.seededAssets,
+    seededRailLinks: infrastructure.seededRailLinks,
     populationModel: population.model,
     populationCountriesTargeted: population.countriesTargeted,
     populationRegionsTargeted: population.regionsTargeted,
