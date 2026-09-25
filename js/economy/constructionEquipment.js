@@ -89,7 +89,6 @@ function taskFactor(region, state, task, workers) {
   }
   if (task === 'heavyLift') {
     const cranes = supportRatio(state, 'mobileCranes', workers);
-    // Industrial steelwork without cranes is a true bottleneck: more labour is not a substitute for lift capacity.
     const manual = industrial > .45 ? .12 : .62;
     return manual + cranes * 7.2 + powered * .25;
   }
@@ -99,7 +98,7 @@ function taskFactor(region, state, task, workers) {
   }
   if (task === 'tunnelling') {
     const tbm = nonNegative(state.serviceable.tunnelBoringMachines);
-    if (tbm >= 1) return Math.min(14, 2.2 + tbm * 8.5 + industrial * 1.2);
+    if (tbm > .05) return Math.min(14, 2.2 + tbm * 8.5 + industrial * 1.2);
     return industrial > .45 ? .35 : .75;
   }
   return 1;
@@ -109,10 +108,10 @@ function trucksOrZero(state, workers) {
   return supportRatio(state, 'constructionTrucks', workers);
 }
 
-/**
- * Task-specific construction equipment multiplier. A weighted harmonic mean makes
- * a starved task a genuine bottleneck rather than allowing easy tasks to average it away.
- */
+function hasPoweredPlant(state) {
+  return Object.values(state.serviceable || {}).some((value) => nonNegative(value) > .01);
+}
+
 export function constructionEquipmentFactor(region, typeId, workers = 100) {
   const state = ensureConstructionEquipment(region);
   const profile = projectProfile(typeId);
@@ -124,7 +123,9 @@ export function constructionEquipmentFactor(region, typeId, workers = 100) {
     tasks[task] = { share, factor };
     denominator += share / factor;
   }
-  const factor = denominator > 0 ? 1 / denominator : 1;
+  const rawFactor = denominator > 0 ? 1 / denominator : 1;
+  const industrial = clamp(region?.structuralTransformation?.capability?.manufacture || 0);
+  const factor = industrial < .20 && !hasPoweredPlant(state) ? 1 : rawFactor;
   return { factor: Math.max(.2, Math.min(6, factor)), tasks, profile };
 }
 
@@ -156,8 +157,6 @@ export function tickConstructionEquipment(region, elapsedDays = 7) {
     state.serviceable[id] = Math.min(stock, nonNegative(state.serviceable[id]) * Math.max(0, 1 - attritionRate * years) + stock * service * .025 * years);
   }
 
-  // Mature industry can replenish ordinary plant toward explicit targets. Specialised
-  // TBMs and cable ships remain discrete capital: they are never conjured from generic capacity.
   if (factories > 0 && industrial > .35 && precision > .30) {
     const buildable = ['powerToolSets','excavators','bulldozers','constructionTrucks','mobileCranes','concretePlantUnits'];
     const annualCapacity = factories * (4 + industrial * 10 + precision * 8);
