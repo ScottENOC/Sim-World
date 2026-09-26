@@ -8,6 +8,7 @@ on:
       - 'js/ui/mapProjectionSettings.js'
       - 'js/ui/mapRenderer.js'
       - 'js/ui/mapZoomBehaviour.js'
+      - 'js/ui/mapDetailBehaviour.js'
       - 'tests/mapZoomBehaviour.test.mjs'
       - 'tools/test-map-projection.mjs'
       - '.github/workflows/map-projection-settings.yml'
@@ -17,6 +18,7 @@ on:
       - 'js/ui/mapProjectionSettings.js'
       - 'js/ui/mapRenderer.js'
       - 'js/ui/mapZoomBehaviour.js'
+      - 'js/ui/mapDetailBehaviour.js'
       - 'tests/mapZoomBehaviour.test.mjs'
       - 'tools/test-map-projection.mjs'
       - '.github/workflows/map-projection-settings.yml'
@@ -34,7 +36,8 @@ jobs:
           node --check js/ui/mapProjectionSettings.js
           node --check js/ui/mapRenderer.js
           node --check js/ui/mapZoomBehaviour.js
+          node --check js/ui/mapDetailBehaviour.js
       - name: Projection regressions
         run: node tools/test-map-projection.mjs
-      - name: Zoom focal-point regressions
+      - name: Zoom and detail regressions
         run: node tests/mapZoomBehaviour.test.mjs
