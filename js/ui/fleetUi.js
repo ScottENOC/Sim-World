@@ -1,3 +1,5 @@
+import { navalProcurementDiagnostic } from './navalProcurementDiagnostics.js?v=20260926-naval-diagnostics1';
+
 function waitForWorldsim(callback) {
   if (window.__worldsim) return callback(window.__worldsim);
   setTimeout(() => waitForWorldsim(callback), 100);
@@ -5,6 +7,7 @@ function waitForWorldsim(callback) {
 
 const pct = (v) => `${Math.round(Math.max(0, Math.min(1, Number(v) || 0)) * 100)}%`;
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const fmt = (value, digits = 0) => Number.isFinite(Number(value)) ? Number(value).toFixed(digits) : '0';
 
 function actorId(region) {
   return region?.governance?.sovereignPolityId || region?.controllingActorId || region?.id || null;
@@ -44,6 +47,65 @@ function targetRegionsInSea(world, fleet) {
   return world.regions.filter((region) => ids.has(region.id) && actorId(region) !== fleet.ownerActorId);
 }
 
+function diagnosticRegion(world) {
+  const select = document.getElementById('naval-procurement-region');
+  const selectedId = select?.value || world?.map?.selectedId || null;
+  return world?.regions?.find((region) => region.id === selectedId) || null;
+}
+
+function resourceLabel(key) {
+  if (key === 'machine') return 'machine components';
+  if (key === 'metal') return 'usable metal';
+  return String(key).replaceAll('_', ' ');
+}
+
+function renderNavalProcurementDiagnostics() {
+  const world = window.__worldsim;
+  const panel = document.getElementById('naval-procurement-panel');
+  if (!world || !panel) return;
+  panel.querySelectorAll('.naval-procurement-diagnostics').forEach((node) => node.remove());
+  const region = diagnosticRegion(world);
+  if (!region) return;
+
+  const rows = [...panel.querySelectorAll('[data-design-id]')]
+    .map((row) => ({ row, diagnostic: navalProcurementDiagnostic(world, region, row.dataset.designId) }))
+    .filter(({ diagnostic }) => diagnostic.outstanding > 1e-9);
+  if (!rows.length) return;
+
+  const wrapper = document.createElement('section');
+  wrapper.className = 'naval-procurement-diagnostics';
+  wrapper.style.cssText = 'margin-top:12px;padding:10px;border:1px solid rgba(255,255,255,.16);border-radius:9px;background:rgba(255,255,255,.025)';
+  wrapper.innerHTML = `<strong>Why are ships not building?</strong>
+    <div class="raid-status">Ship construction currently consumes stock held in ${esc(region.name)} itself. Materials elsewhere in the same country are shown below, but are <strong>not yet automatically transferred into naval construction</strong>.</div>
+    ${rows.map(({ row, diagnostic }) => {
+      const title = row.querySelector('strong')?.textContent || diagnostic.designId.replaceAll('_', ' ');
+      const materialLines = diagnostic.materials.map((item) => {
+        const localDigits = item.local < 10 ? 1 : 0;
+        const requiredDigits = item.required < 10 ? 1 : 0;
+        const elsewhere = item.elsewhere > 0.01 ? ` · ${fmt(item.elsewhere, item.elsewhere < 10 ? 1 : 0)} elsewhere in country` : '';
+        const state = item.blocked ? ' — BLOCKED' : '';
+        return `<div>${esc(resourceLabel(item.key))}: ${fmt(item.local, localDigits)} local / ${fmt(item.required, requiredDigits)} per hull${elsewhere}${state}</div>`;
+      }).join('');
+      const slowest = diagnostic.materials
+        .filter((item) => Number.isFinite(item.localHullEquivalents))
+        .sort((a, b) => a.localHullEquivalents - b.localHullEquivalents)[0];
+      const status = diagnostic.blocker
+        ? `<div style="color:#e1b866"><strong>Blocked:</strong> ${esc(diagnostic.blocker)}</div>`
+        : `<div><strong>Not fully blocked.</strong> Last tick reported ${Math.round(diagnostic.shipwrightWorkers).toLocaleString()} boatbuilding workers.${slowest ? ` Tightest local input: ${esc(resourceLabel(slowest.key))} (${fmt(slowest.localHullEquivalents, 2)} hull-equivalents on hand).` : ''}</div>`;
+      return `<div style="margin-top:9px;padding-top:9px;border-top:1px solid rgba(255,255,255,.10)">
+        <strong>${esc(title)}</strong> · ${fmt(diagnostic.currentHullProgress * 100, 0)}% of current hull accumulated
+        <div class="raid-status">Target ${diagnostic.target} · built/progress ${fmt(diagnostic.built, diagnostic.built % 1 ? 2 : 0)} · outstanding ${fmt(diagnostic.outstanding, diagnostic.outstanding % 1 ? 2 : 0)} · boatbuilding labour last tick ${Math.round(diagnostic.shipwrightWorkers).toLocaleString()}</div>
+        ${status}
+        <details style="margin-top:5px"><summary>Inputs per hull and local stock</summary>${materialLines}</details>
+      </div>`;
+    }).join('')}`;
+  panel.appendChild(wrapper);
+}
+
+function scheduleNavalDiagnostics() {
+  requestAnimationFrame(() => requestAnimationFrame(renderNavalProcurementDiagnostics));
+}
+
 function addFleetShell() {
   const controls = document.getElementById('hud-controls');
   if (!controls || document.getElementById('btn-fleets')) return;
@@ -68,6 +130,13 @@ function addFleetShell() {
   button.addEventListener('click', () => {
     modal.classList.remove('hidden');
     renderFleetList();
+    scheduleNavalDiagnostics();
+  });
+  modal.addEventListener('change', (event) => {
+    if (event.target?.id === 'naval-procurement-region') scheduleNavalDiagnostics();
+  });
+  modal.addEventListener('click', (event) => {
+    if (event.target?.matches?.('[data-naval-plus], [data-naval-minus]')) scheduleNavalDiagnostics();
   });
   modal.querySelector('#btn-close-fleets').addEventListener('click', () => modal.classList.add('hidden'));
 }
