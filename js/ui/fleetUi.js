@@ -1,6 +1,6 @@
-function waitForWorldsim(callback, attempts = 0) {
-  if (window.__worldsim?.fleetApi) return callback(window.__worldsim);
-  if (attempts < 100) setTimeout(() => waitForWorldsim(callback, attempts + 1), 100);
+function waitForWorldsim(callback) {
+  if (window.__worldsim) return callback(window.__worldsim);
+  setTimeout(() => waitForWorldsim(callback), 100);
 }
 
 const pct = (v) => `${Math.round(Math.max(0, Math.min(1, Number(v) || 0)) * 100)}%`;
@@ -76,6 +76,10 @@ function renderFleetList() {
   const world = window.__worldsim;
   const list = document.getElementById('fleet-list');
   if (!world || !list) return;
+  if (!world.fleetApi) {
+    list.innerHTML = '<div class="raid-status" role="status">Naval command systems are still initialising. Ship construction controls will appear here as soon as the simulation is ready.</div>';
+    return;
+  }
   const fleets = world.fleets.filter((fleet) => fleet.ownerActorId === world.activePlayerPolityId);
   if (!fleets.length) {
     list.innerHTML = '<div class="raid-status">You have no war fleet.</div>';
