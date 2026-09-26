@@ -1,0 +1,9 @@
+{
+  "beforeRegions": 2024,
+  "afterRegions": 2024,
+  "crimeaRegionId": "r_fix_crimean_peninsula",
+  "crimeaRegionName": "Crimean Peninsula",
+  "removedMalformedFinlandRegion": "Fennoscandian Shield — Northern Ostrobothnia",
+  "changedFinlandRegionIds": [],
+  "scope": "physical geography only; modern navigation and scenario control are separate layers"
+}

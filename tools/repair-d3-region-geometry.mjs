@@ -10,7 +10,8 @@ const arg = (name, fallback) => {
 
 const input = arg('--input', 'data/world/regions.geo.json');
 const output = arg('--output', 'data/world/regions.geo.repaired.json');
-const doc = JSON.parse(fs.readFileSync(input, 'utf8'));
+const inputText = fs.readFileSync(input, 'utf8');
+const doc = JSON.parse(inputText);
 
 const reversePolygon = coordinates => coordinates.map(ring => [...ring].reverse());
 
@@ -81,7 +82,12 @@ if (complements.length) {
   throw new Error(`D3 repair left ${complements.length} complement-scale features: ${JSON.stringify(complements.slice(0, 10))}`);
 }
 
-fs.writeFileSync(output, JSON.stringify(doc));
+// Do not rewrite a large generated map merely because JSON.stringify chooses a
+// different textual representation for an otherwise identical coordinate (for
+// example 3.5e-05 versus 0.000035). When no spherical winding repair was needed,
+// preserve the canonical input bytes exactly so reproducibility checks measure
+// real geography changes rather than serializer preferences.
+fs.writeFileSync(output, repairedFeatures > 0 ? JSON.stringify(doc) : inputText);
 console.log(`FEATURES=${doc.features?.length ?? 0}`);
 console.log(`POLYGONS=${polygonCount}`);
 console.log(`REPAIRED_POLYGONS=${repairedPolygons}`);

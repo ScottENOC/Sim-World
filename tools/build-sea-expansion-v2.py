@@ -76,7 +76,14 @@ def main():
     sea_geo = json.loads(BASE_SEA_GEO.read_text())
     sea_meta = json.loads(BASE_SEA_META.read_text())
     world_land = fetch_json(WORLD_LAND_URL)
-    global_land = repair(unary_union([repair(shape(f['geometry'])) for f in world_land.get('features', [])]))
+    natural_land = repair(unary_union([repair(shape(f['geometry'])) for f in world_land.get('features', [])]))
+    simulated_land = occupied_geometry(land_geo.get('features', []))
+    # Natural Earth's admin-0 coverage is useful for land outside the simulated map,
+    # but it is not authoritative for Sim-World. In particular, contested or disputed
+    # coastlines can be absent there (Crimea has regressed this way before). Always add
+    # the actual simulated land union to the sea exclusion mask so a later sea rebuild
+    # can never paint water over a valid Sim-World land region.
+    global_land = natural_land if simulated_land is None else repair(unary_union([natural_land, simulated_land]))
     lakes_geo = fetch_json(WORLD_LAKES_URL) if any(spec.get('inlandLake') for spec in plan['regions']) else {'features': []}
 
     feature_by_id = {f['properties']['id']: f for f in sea_geo.get('features', [])}
