@@ -1,4 +1,5 @@
-import './mapZoomBehaviour.js?v=20260924-zoom1';
+import './mapZoomBehaviour.js?v=20260926-zoom2';
+import './mapDetailBehaviour.js?v=20260926-detail1';
 
 const STORAGE_KEY = 'worldsim-map-projection';
 const DEFAULT_PROJECTION = 'equal-earth';
