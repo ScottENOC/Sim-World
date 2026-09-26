@@ -1,4 +1,6 @@
 import { automobileOwnershipPer1000 } from './civilianTransport.js';
+import { sourceAllModernConstructionSupplies } from './modernDomesticConstructionSupply.js?v=20260925-domestic-construction1';
+import { sourceAllModernNavalSupplies } from './modernDomesticNavalSupply.js?v=20260927-naval-logistics1';
 
 const clamp = (value, low = 0, high = 1) => Math.max(low, Math.min(high, Number(value) || 0));
 const nonNegative = (value) => Math.max(0, Number(value) || 0);
@@ -130,6 +132,13 @@ function connectedCandidateIds(region) {
 
 /** Expand already-prepared local construction labour with real commuters. */
 export function applyConstructionLaborMobility(regions = []) {
+  // Modern state procurement uses the same domestic logistics pass for both
+  // infrastructure and naval construction. These functions only stage a small
+  // local buffer; the authoritative construction/shipbuilding loops still decide
+  // what is actually consumed and how much progress is made.
+  sourceAllModernConstructionSupplies(regions);
+  sourceAllModernNavalSupplies(regions);
+
   const byId = new Map(regions.map((region) => [region.id, region]));
   for (const region of regions) resetMobility(region);
 
