@@ -1,0 +1,21 @@
+name: Naval domestic logistics
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check naval logistics module
+        run: node --check js/economy/modernDomesticNavalSupply.js
+      - name: Check labour mobility integration
+        run: node --check js/economy/laborMobility.js
+      - name: Run naval domestic logistics regression
+        run: node tests/navalDomesticLogistics.test.mjs
