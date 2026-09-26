@@ -1,0 +1,28 @@
+name: Naval procurement diagnostics
+
+on:
+  pull_request:
+    paths:
+      - 'js/ui/fleetUi.js'
+      - 'js/ui/navalProcurementDiagnostics.js'
+      - 'tests/navalProcurementDiagnostics.test.mjs'
+      - '.github/workflows/naval-procurement-diagnostics.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'js/ui/fleetUi.js'
+      - 'js/ui/navalProcurementDiagnostics.js'
+      - 'tests/navalProcurementDiagnostics.test.mjs'
+      - '.github/workflows/naval-procurement-diagnostics.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check js/ui/fleetUi.js
+      - run: node --check js/ui/navalProcurementDiagnostics.js
+      - run: node tests/navalProcurementDiagnostics.test.mjs
